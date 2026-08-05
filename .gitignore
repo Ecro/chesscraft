@@ -11,3 +11,12 @@ work-docs/loop-context/
 .claude/.hm-sessions.json
 work-docs/p5-batch-state.yaml
 .claude/.hm-spec-need-*
+.claude/.hm-creating-*
+.claude/.hm-loop-*
+
+# --- app build artifacts ---
+node_modules/
+dist/
+playwright-report/
+test-results/
+.vite/

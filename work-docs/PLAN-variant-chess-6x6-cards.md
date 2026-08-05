@@ -449,6 +449,33 @@ compatibility marker (ADR-005).
 
 ## 📝 Implementation Plan
 
+### Phase status (updated by `/hm:execute`, 2026-08-05)
+
+| Phase | Status | Evidence |
+|---|---|---|
+| 0 — Project scaffold | **DONE** | `npm run typecheck` clean, `npm test` 1 passed, `npm run build` produced a bundle, `npm run e2e` 1 passed (Playwright, mobile-portrait project) |
+| 1 — Content schema + validator | **DONE** | `tests/content/validation.test.ts` 10 passed — AC-011's 7 fixtures, the ADR-010 portal-asymmetry fixture, the universal id+path shape check, and the atomic-load boundary. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
+| 2 — Engine core | PENDING | |
+| 3 — Vertical slice | PENDING | |
+| 4 — Game UI and hot-seat flow | PENDING | |
+| 5 — Content editor and preset storage | PENDING | |
+| 6a — High-schema-risk content gate | PENDING | |
+| 6b — Remaining content set and i18n | PENDING | |
+| 7 — Verification harness and final acceptance gate | PENDING | |
+
+Notes carried out of the completed phases:
+
+- **Toolchain versions differ from the first install.** `npm audit` flagged the esbuild dev-server
+  advisory chain through vite/vitest, so the scaffold pins vite 8, vitest 4 and
+  `@vitejs/plugin-react` 6 instead of the vite 5 / vitest 2 line. Zero vulnerabilities at Phase 0 exit.
+- **Phase 1 added an `unrecognized_keys` unwrap.** Zod reports an unknown-field issue against the
+  *object*, carrying the offending keys separately; AC-011 requires the field path, so the loader
+  expands each key into its own error. Found by the test, fixed in the implementation.
+- **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
+  Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
+  a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice
+  should promote these into `content/` rather than re-author them.
+
 ### Phase 0 — Project scaffold
 - **depends_on:** `[]`
 - **parallel_group:** `serial-0`
