@@ -3,43 +3,115 @@
  *
  * Content carries keys, never literals, so this file is the only place player-
  * facing wording lives — which is what lets the same card set ship in another
- * language without touching content. Phase 6b fills this out for the full card
- * set; Phase 4 covers the slice.
+ * language without touching content.
  *
  * Wording target is 초/중학생: short sentences, no jargon, and every card's text
- * says what it *does* rather than what it is called.
+ * says what it DOES rather than restating its name. `bundled.test.ts` enforces
+ * the last part — a description that merely repeats the title teaches nothing.
  */
 export const ko: Record<string, string> = {
   // --- pieces ---
   'piece.king.name': '왕',
   'piece.king.text': '어느 방향으로든 한 칸씩 움직인다. 왕이 잡히면 그 자리에서 게임이 끝난다.',
+  'piece.queen.name': '여왕',
+  'piece.queen.text': '가로, 세로, 대각선으로 원하는 만큼 쭉 간다. 가장 강한 기물이다.',
+  'piece.rook.name': '성',
+  'piece.rook.text': '가로와 세로로 원하는 만큼 쭉 간다.',
+  'piece.knight.name': '기사',
+  'piece.knight.text': 'ㄱ자로 뛴다. 사이에 기물이 있어도 넘어갈 수 있다.',
+  'piece.pawn.name': '병사',
+  'piece.pawn.text': '앞으로 한 칸 가고, 잡을 때만 대각선 앞으로 간다. 끝줄에 닿으면 여왕이 된다.',
   'piece.archer.name': '궁수',
   'piece.archer.text':
-    '어느 방향으로든 한 칸 움직이지만, 그렇게는 잡지 못한다. 대신 상하좌우로 두 칸 떨어진 상대를 쏘아 잡는다. 궁수 바로 옆에 붙어 있는 우리 편은 잡히지 않는다.',
+    '어느 방향으로든 한 칸 움직이지만 그렇게는 잡지 못한다. 대신 상하좌우로 두 칸 떨어진 상대를 쏘아 잡는다. 궁수 바로 옆에 붙어 있는 우리 편은 잡히지 않는다.',
 
   // --- special squares ---
-  'square.beacon.name': '봉화대',
-  'square.beacon.text': '이 칸에 들어온 기물은 곧바로 d4로 날아간다.',
+  'square.bomb.name': '폭탄칸',
+  'square.bomb.text': '이 칸에 들어온 기물은 편을 가리지 않고 그 자리에서 사라진다.',
+  'square.portal.name': '차원문',
+  'square.portal.text': '이 칸에 들어온 기물은 짝이 되는 차원문으로 곧장 날아간다.',
+  'square.shrine.name': '신전',
+  'square.shrine.text': '이 칸에 들어온 병사는 그 자리에서 여왕이 된다.',
+  'square.sanctuary.name': '성역',
+  'square.sanctuary.text': '이 칸에 서 있는 기물은 상대가 잡을 수 없다.',
+  'square.mire.name': '수렁',
+  'square.mire.text': '이 칸에 들어온 기물은 두 번의 차례 동안 발이 묶인다.',
 
   // --- rule cards ---
-  'rule.beacon-rush.name': '봉화 쟁탈전',
-  'rule.beacon-rush.text': '내 기물이 d4에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
+  'rule.king-of-the-hill.name': '언덕의 왕',
+  'rule.king-of-the-hill.text': '내 왕이 가운데 네 칸 중 하나에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
+  'rule.three-check.name': '삼세판 체크',
+  'rule.three-check.text': '상대 왕을 세 번 체크하면 그 즉시 이긴다. 잡지 않아도 된다.',
+  'rule.sudden-death.name': '전멸전',
+  'rule.sudden-death.text': '상대 기물이 두 개 이하로 줄어들면 그 즉시 이긴다.',
+  'rule.fast-promotion.name': '빠른 승격',
+  'rule.fast-promotion.text': '내 병사가 끝줄 바로 앞까지만 가도 여왕이 된다.',
+  'rule.royal-bodyguard.name': '왕의 호위',
+  'rule.royal-bodyguard.text': '왕 바로 옆에 붙어 있는 기물은 잡히지 않는다. 양쪽 모두에게 적용된다.',
+  'rule.last-stand.name': '최후의 저항',
+  'rule.last-stand.text': '내 기물이 셋 이하로 줄어들면, 내 왕이 여왕처럼 쭉 움직일 수 있다.',
+  'rule.conscription.name': '징집령',
+  'rule.conscription.text': '내 기물이 셋 이하일 때 턴이 끝나면, 내 뒷줄 빈 칸에 병사가 한 명 나타난다.',
+  'rule.blood-toll.name': '피의 대가',
+  'rule.blood-toll.text': '기물을 잡은 기물도 함께 사라진다. 함부로 잡을 수 없게 된다.',
+  'rule.pawn-rush.name': '병사 돌격',
+  'rule.pawn-rush.text': '모든 병사가 앞으로 두 칸까지 갈 수 있다. 양쪽 모두에게 적용된다.',
+  'rule.knights-honour.name': '기사의 명예',
+  'rule.knights-honour.text': '모든 기사가 ㄱ자 대신 아무 방향으로 한 칸 움직일 수도 있다.',
+  'rule.holy-ground.name': '성스러운 땅',
+  'rule.holy-ground.text': '가운데 네 칸에 서 있는 기물은 편을 가리지 않고 잡히지 않는다.',
 
   // --- skill cards ---
-  'skill.warp.name': '순간이동',
+  'skill.teleport.name': '순간이동',
+  'skill.teleport.text': '우리 편 기물 하나를 아무 빈 칸으로 옮긴다.',
+  'skill.swap.name': '자리바꿈',
+  'skill.swap.text': '우리 편 기물 둘의 자리를 서로 맞바꾼다.',
+  'skill.revive.name': '부활',
+  'skill.revive.text': '잃었던 내 기물 하나를 뒷줄 빈 칸에 되살린다. 왕과 여왕은 돌아오지 않는다.',
+  'skill.freeze.name': '결박',
+  'skill.freeze.text': '상대 기물 하나를 두 번의 차례 동안 꽁꽁 묶어 둔다.',
+  'skill.snare.name': '올가미',
+  'skill.snare.text': '상대 기물 하나를 한 번의 차례 동안 묶어 둔다. 값이 싸다.',
+  'skill.coronation.name': '대관식',
+  'skill.coronation.text': '내 병사 하나를 그 자리에서 곧바로 여왕으로 만든다.',
+  'skill.knight-leap.name': '기사의 도약',
+  'skill.knight-leap.text': '우리 편 기물 하나가 잠시 기사처럼 ㄱ자로 뛸 수 있게 된다.',
+  'skill.charge.name': '돌진 나팔',
+  'skill.charge.text': '내 병사 전부가 잠시 앞으로 두 칸까지 갈 수 있게 된다.',
+  'skill.bulwark.name': '방벽',
+  'skill.bulwark.text': '우리 편 기물 하나가 잠시 아무에게도 잡히지 않는다.',
+  'skill.shackle.name': '족쇄',
+  'skill.shackle.text': '상대 기물 하나가 잠시 한 발짝도 움직이지 못한다.',
+  'skill.recall.name': '귀환',
+  'skill.recall.text': '우리 편 기물 하나를 내 뒷줄 빈 칸으로 불러들인다.',
+  'skill.shove.name': '밀치기',
+  'skill.shove.text': '상대 기물 하나를 자기 진영 쪽으로 한 칸 밀어낸다.',
+  'skill.recruit.name': '징집',
+  'skill.recruit.text': '내 뒷줄 빈 칸에 새 병사를 한 명 세운다.',
+  'skill.volley.name': '일제사격',
+  'skill.volley.text': '상대 기물 하나를 그 자리에서 없앤다.',
+  'skill.sacrifice.name': '희생',
+  'skill.sacrifice.text': '내 기물 하나를 버리는 대신, 상대 기물 하나를 없앤다.',
+
+  // --- boards and presets ---
+  'board.los-alamos.name': '로스앨러모스 6x6',
+  'board.gate6a.name': '검증용 보드',
+  'board.slice.name': '봉화 보드',
+  'preset.default.name': '기본 변형 체스',
+  'preset.gate6a.name': '검증용 구성',
+  'preset.slice.name': '봉화 쟁탈전',
+
+  // --- slice-only content (Phase 3 harness) ---
+  'square.beacon.name': '봉화대',
+  'square.beacon.text': '이 칸에 들어온 기물은 곧바로 d4로 날아간다.',
+  'rule.beacon-rush.name': '봉화 쟁탈전',
+  'rule.beacon-rush.text': '내 기물이 d4에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
+  'skill.warp.name': '차원 도약',
   'skill.warp.text': '우리 편 기물 하나를 빈 칸으로 옮긴다.',
-  'skill.hold.name': '결박',
+  'skill.hold.name': '붙잡기',
   'skill.hold.text': '상대 기물 하나를 두 번의 차례 동안 묶어 둔다.',
   'skill.rally.name': '증원',
   'skill.rally.text': '빈 칸에 우리 편 궁수를 한 명 불러낸다.',
-  'skill.volley.name': '일제사격',
-  'skill.volley.text': '상대 기물 하나를 없앤다.',
-  'skill.snare.name': '올가미',
-  'skill.snare.text': '상대 기물 하나를 한 번의 차례 동안 묶어 둔다.',
-  'skill.ascend.name': '대관식',
-  'skill.ascend.text': '우리 편 기물 하나를 왕으로 세운다. 왕이 둘이 되지만, 잃으면 안 되는 기물도 둘이 된다.',
-
-  // --- boards and presets ---
-  'board.slice.name': '봉화 보드',
-  'preset.slice.name': '봉화 쟁탈전',
+  'skill.ascend.name': '대관식 (봉화)',
+  'skill.ascend.text': '우리 편 기물 하나를 왕으로 세운다. 잃으면 안 되는 기물이 둘이 된다.',
 }

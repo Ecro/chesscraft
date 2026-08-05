@@ -3,6 +3,7 @@ import type { Action as EffectAction, MovePattern } from '@content/schema'
 import { type BoundEffect, type EvalCtx, collectEffects, evalCondition, paintedSquares, pieceDefOf, resolveTarget } from './effects'
 import { pickDistinct, rngFor } from './rng'
 import {
+  type ActiveGrant,
   type Action,
   type GameState,
   type MatchResult,
@@ -33,6 +34,16 @@ interface GenerationModifiers {
 
 function generationModifiers(state: GameState, content: ContentSet): GenerationModifiers {
   const mods: GenerationModifiers = { protectedSquares: new Set(), forbidden: new Set(), granted: new Map() }
+
+  // Modifiers a card left behind, still inside their window. Merged before the
+  // E1 sweep so a live grant and a passive that grants the same thing compose
+  // rather than one silently replacing the other.
+  for (const grant of state.grants) {
+    if (grant.untilPly <= state.plyCount) continue
+    if (grant.kind === 'block_capture') mods.protectedSquares.add(grant.square)
+    else if (grant.kind === 'forbid_movement') mods.forbidden.add(grant.square)
+    else if (grant.pattern) mods.granted.set(grant.square, [...(mods.granted.get(grant.square) ?? []), grant.pattern])
+  }
 
   for (const bound of collectEffects(state, content, 'generate_moves', null)) {
     const ownerPiece = bound.ownerSquare ? state.board.get(bound.ownerSquare) : undefined
@@ -206,6 +217,12 @@ function choiceSlots(content: ContentSet, cardId: string): Array<'friendly' | 'e
         if (act.target.kind === 'chosen_friendly') slots.push('friendly')
         if (act.target.kind === 'chosen_enemy') slots.push('enemy')
       }
+      if (act.kind === 'swap_pieces') {
+        for (const side of [act.a, act.b]) {
+          if (side.kind === 'chosen_friendly') slots.push('friendly')
+          if (side.kind === 'chosen_enemy') slots.push('enemy')
+        }
+      }
       if ('to' in act && typeof act.to === 'object' && act.to.kind === 'chosen_empty') slots.push('empty')
       if ('at' in act && typeof act.at === 'object' && act.at.kind === 'chosen_empty') slots.push('empty')
     }
@@ -377,6 +394,7 @@ interface Mutable {
   captured: Record<Side, string[]>
   /** Squares a piece appeared on this ply and has yet to enter (G-6). */
   arrived: SquareId[]
+  grants: ActiveGrant[]
 }
 
 /** Removes a piece and remembers it, so a comeback card has something to read. */
@@ -455,6 +473,12 @@ function executeActions(
               dest = paintedSquares(working, content).get(sq)?.pairedWith ?? null
             } else if (act.to.kind === 'square') {
               dest = act.to.square
+            } else if (act.to.kind === 'offset') {
+              const { file, rank } = coords(sq)
+              const dr = act.to.forward === true && piece.side === 'black' ? -act.to.dr : act.to.dr
+              const f = file + act.to.df
+              const r = rank + dr
+              dest = f >= 0 && r >= 0 && f < working.width && r < working.height ? squareId(f, r) : null
             } else if (act.to.kind === 'own_back_rank') {
               // The moved piece's own rank, not the mover's. A card that pulled
               // an enemy piece into your camp would look plausible and be wrong.
@@ -521,6 +545,33 @@ function executeActions(
           const [pieceId] = pool.splice(at, 1)
           m.board.set(dest, { pieceId: pieceId!, side })
           m.arrived.push(dest)
+          break
+        }
+        case 'swap_pieces': {
+          const [a] = resolveTarget(act.a, bound, ctx, cursor)
+          const [b] = resolveTarget(act.b, bound, ctx, cursor)
+          if (!a || !b || a === b) break
+          const pa = m.board.get(a)
+          const pb = m.board.get(b)
+          if (!pa || !pb) break
+          m.board.set(a, pb)
+          m.board.set(b, pa)
+          break
+        }
+        case 'block_capture':
+        case 'forbid_movement':
+        case 'grant_movement': {
+          // Without a duration these belong to the generation pass that read
+          // them, and E1 already consumed them there.
+          if (act.duration === undefined) break
+          for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
+            m.grants.push({
+              kind: act.kind,
+              square: sq,
+              untilPly: plyCount + act.duration,
+              ...(act.kind === 'grant_movement' ? { pattern: act.pattern } : {}),
+            })
+          }
           break
         }
         case 'freeze_piece':
@@ -610,6 +661,8 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     result: null,
     captured: { white: [...state.captured.white], black: [...state.captured.black] },
     arrived: [],
+    // Expired entries are dropped here rather than accumulating for the match.
+    grants: state.grants.filter((g) => g.untilPly > state.plyCount),
   }
   let movesMade = 0
   let subjectSquare: SquareId | null = null
@@ -635,6 +688,7 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
           board: m.board,
           frozenUntil: m.frozenUntil,
           captured: m.captured,
+          grants: m.grants,
           plyCount: state.plyCount + 1,
           movesMadeLastPly: 1,
           log: [...m.log, 'on_capture:royal:short-circuit'],
@@ -726,6 +780,7 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     board: m.board,
     frozenUntil: m.frozenUntil,
     captured: m.captured,
+    grants: m.grants,
     checkCount,
     plyCount,
     sideToMove: otherSide(mover),

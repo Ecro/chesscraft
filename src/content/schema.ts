@@ -18,8 +18,14 @@ import { z } from 'zod'
  * Bumped 1 -> 2 in Phase 6a (ADR-005). Writing the whole card set down showed
  * only 6 of 28 cards were expressible; version 2 adds `forEach`, `revive_piece`,
  * and wires the two entries that validated while doing nothing.
+ *
+ * Bumped 2 -> 3 in Phase 6b. After 6a's cuts and holds the research drafts left
+ * 4 rule and 6 skill cards authorable against AC-010's 10 and 14, so v3 adds the
+ * four things the remaining specified cards needed and nothing else: a swap
+ * action, a destination relative to the piece being moved, a duration on the
+ * three generation-time actions, and a condition over a side's material.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -97,6 +103,17 @@ export const destination = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('chosen_empty') }),
   z.strictObject({ kind: z.literal('square'), square: squareRef }),
   z.strictObject({ kind: z.literal('own_back_rank') }),
+  /**
+   * A square relative to the piece being moved (v3). `forward` mirrors `dr` by
+   * the piece's own side, so one card can mean "one square backwards" for both
+   * players instead of being written twice or pinned to a board.
+   */
+  z.strictObject({
+    kind: z.literal('offset'),
+    df: z.number().int(),
+    dr: z.number().int(),
+    forward: z.boolean().optional(),
+  }),
 ])
 
 export type Condition =
@@ -105,6 +122,7 @@ export type Condition =
   | { kind: 'piece_side'; side: 'mover' | 'opponent' }
   | { kind: 'on_square'; squares: string[] }
   | { kind: 'check_count_at_least'; n: number }
+  | { kind: 'piece_count_at_most'; side: 'mover' | 'opponent'; n: number }
   | { kind: 'not'; of: Condition }
   | { kind: 'all'; of: Condition[] }
   | { kind: 'any'; of: Condition[] }
@@ -116,6 +134,11 @@ export const condition: z.ZodType<Condition> = z.lazy(() =>
     z.strictObject({ kind: z.literal('piece_side'), side: z.enum(['mover', 'opponent']) }),
     z.strictObject({ kind: z.literal('on_square'), squares: z.array(squareRef).min(1) }),
     z.strictObject({ kind: z.literal('check_count_at_least'), n: z.number().int().positive() }),
+    z.strictObject({
+      kind: z.literal('piece_count_at_most'),
+      side: z.enum(['mover', 'opponent']),
+      n: z.number().int().positive(),
+    }),
     z.strictObject({ kind: z.literal('not'), of: condition }),
     z.strictObject({ kind: z.literal('all'), of: z.array(condition).min(1) }),
     z.strictObject({ kind: z.literal('any'), of: z.array(condition).min(1) }),
@@ -132,10 +155,27 @@ export const action = z.discriminatedUnion('kind', [
     side: z.enum(['mover', 'opponent']),
     at: destination,
   }),
-  z.strictObject({ kind: z.literal('block_capture'), target }),
+  /**
+   * `duration` (v3) is what makes these three usable from a skill card at all.
+   * They are consumed at move generation, so without it a card carrying one
+   * resolved at `on_play` and left nothing behind — it validated, drew, played
+   * and did nothing. Omitted means "this generation pass only", which is what a
+   * piece passive or a rule card wants.
+   */
+  z.strictObject({ kind: z.literal('block_capture'), target, duration: z.number().int().positive().optional() }),
   z.strictObject({ kind: z.literal('freeze_piece'), target, plies: z.number().int().positive() }),
-  z.strictObject({ kind: z.literal('grant_movement'), target, pattern: movePattern }),
-  z.strictObject({ kind: z.literal('forbid_movement'), target }),
+  z.strictObject({
+    kind: z.literal('grant_movement'),
+    target,
+    pattern: movePattern,
+    duration: z.number().int().positive().optional(),
+  }),
+  z.strictObject({ kind: z.literal('forbid_movement'), target, duration: z.number().int().positive().optional() }),
+  /**
+   * Exchanges two pieces (v3). Not expressible as two teleports: each requires
+   * its destination empty, and in a swap neither one is.
+   */
+  z.strictObject({ kind: z.literal('swap_pieces'), a: target, b: target }),
   /**
    * Returns a captured piece to the board (schema v2). Separate from
    * `spawn_piece` because it consumes the graveyard rather than creating from

@@ -136,6 +136,12 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
       return ctx.subject?.piece.side === (cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover))
     case 'on_square':
       return ctx.subject !== null && cond.squares.includes(ctx.subject.square)
+    case 'piece_count_at_most': {
+      const side = cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover)
+      let count = 0
+      for (const piece of ctx.state.board.values()) if (piece.side === side) count += 1
+      return count <= cond.n
+    }
     case 'check_count_at_least':
       // Reads the mover's own tally — "I have checked you N times", which is
       // what every three-check variant means by it.

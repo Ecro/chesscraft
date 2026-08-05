@@ -74,6 +74,7 @@ export function createMatch({ content, presetId, seed }: CreateMatchOptions): Ma
     frozenUntil: {},
     checkCount: { white: 0, black: 0 },
     captured: { white: [], black: [] },
+    grants: [],
     log: [],
   }
   return { states: [state] }
@@ -131,6 +132,7 @@ export function createPosition(opts: CreatePositionOptions): GameState {
     frozenUntil: {},
     checkCount: { white: 0, black: 0 },
     captured: { white: [...(opts.captured?.white ?? [])], black: [...(opts.captured?.black ?? [])] },
+    grants: [],
     log: [],
   }
 }

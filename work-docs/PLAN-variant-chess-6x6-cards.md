@@ -489,7 +489,7 @@ compatibility marker (ADR-005).
 | 4 — Game UI and hot-seat flow | **DONE** | 78 unit tests across 13 files + 8 Playwright tests green. `e2e/hotseat.spec.ts` plays a match through **all four draft picks** to a result and asserts each UI clause the criterion names: rule card visible with identical text at start and end (AC-004), out-of-turn card play surfaces a reason and changes nothing (AC-008), both trays with spent-marking (AC-017), painted squares distinguished plus readable ability text (AC-018), and undo returning the *same* offer rather than a re-roll (ADR-013). Typecheck clean, build green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 5 — Content editor and preset storage | PENDING | |
 | 6a — High-schema-risk content gate | **DONE (two escalations, see below)** | 97 tests across 14 files + 8 Playwright green. (a0) `work-docs/CARDSET-variant-chess-6x6-cards.md` — all 28 cards, one line each, with the vocabulary each needs. (c) `work-docs/RISK-RANKING-variant-chess-6x6-cards.md` — full ranking and why these five. (a) every gated item passes schema validation. (b) `tests/content/gate-6a.test.ts` — 19 fixtures, one scenario set per item. (d) schema v2 landed: `forEach`, `revive_piece`, working `own_back_rank`, evaluated `check_count_at_least`, graveyard. Phase A.5 `test-reviewer` FAILed once on three real blocking issues in the check-counting fixtures, all accepted and fixed, then PASSed |
-| 6b — Remaining content set and i18n | PENDING | |
+| 6b — Remaining content set and i18n | **DONE (one item not wired, see below)** | 118 tests across 16 files + 8 Playwright green. `src/content/sets/bundled.ts` ships 11 rule cards, 15 skill cards, 5 square types, 6 pieces, the Los Alamos board and the default preset, all validating with zero errors. `src/i18n/ko.ts` resolves every declared key. `tests/content/bundled.test.ts` covers AC-010 and AC-016; `tests/engine/vocabulary-v3.test.ts` drives the four schema v3 capabilities through the shipped cards that needed them. Phase A.5 `test-reviewer` FAILed once on two fixtures that could not distinguish the intended behaviour from a plausible wrong implementation, both fixed, then PASSed |
 | 7 — Verification harness and final acceptance gate | PENDING | |
 
 Notes carried out of the completed phases:
@@ -542,6 +542,20 @@ Notes carried out of the completed phases:
   deliverable — the full card set on paper — says what is actually needed. **This needs a decision
   from the user.** G-5 is the one to watch: it is a correctness question, not a convenience one, and
   must be settled before 6a authors status-effect cards.
+- **Phase 6b closed four more gaps because AC-010 could not be reached otherwise.** After 6a's cuts and
+  holds, the research drafts left **4 rule and 6 skill cards** authorable against AC-010's 10 and 14 —
+  so this phase was not "write the remaining cards", it was "close the gaps, then write them". Schema
+  v3 adds exactly four things, each demanded by a specified card: `swap_pieces` (G-14, two teleports
+  cannot express a swap — neither destination is empty), an `offset` destination (G-4), a `duration`
+  on the three generation-time actions (G-15, the gap flagged as largest at the end of 6a), and
+  `piece_count_at_most` (G-13). **G-16 was deliberately not closed**: S11 희생 was re-specified without
+  its adjacency clause rather than widening the vocabulary for one card.
+- **NOT WIRED — the app still plays the Phase 3 slice, not the bundled set.** `src/ui/App.tsx` loads
+  `sliceContentSource`. The bundled set validates, starts a match and is covered by tests, but no
+  player reaches it yet. Switching the default would rewrite the Phase 4 e2e specs, which are pinned
+  to slice squares and cards, so it is left as a deliberate, named follow-up rather than a silent
+  half-change. **AC-010 is satisfied by the bundle existing and validating; it is not yet satisfied in
+  the product sense of "the MVP ships these".**
 - **Phase 6a's headline: only 6 of 28 cards were expressible.** Writing the full set down before
   ranking it — ADR-011's premise — showed the bundled set is not reachable by writing content at all;
   it is gated on closing vocabulary gaps. AC-010 (≥10 rule, ≥14 skill, all valid) therefore depends on
@@ -818,13 +832,13 @@ Mirrors the SPEC's verification criteria; each item is the phase that proves it.
 - [x] AC-007 card play consumes the turn — Phase 2
 - [x] AC-008 out-of-turn card play rejected — Phase 2
 - [x] AC-009 pieces defined by data — Phase 2 (`tests/content/piece-definitions.test.ts`)
-- [ ] AC-010 ≥10 rule / ≥14 skill / ≥4 square types, all valid — Phase 6b
+- [ ] AC-010 ≥10 rule / ≥14 skill / ≥4 square types, all valid — Phase 6b — bundle exists and validates (11/15/5), but `App.tsx` still loads the Phase 3 slice, so nothing ships it to a player yet
 - [x] AC-011 fail-closed validation with field paths — Phase 1
 - [ ] AC-012 self-play median ≤ 40 plies, max ≤ 60 — Phase 7
 - [ ] AC-013 engine invariants under random play — Phase 7
 - [ ] AC-014 editor content immediately playable — Phase 5
 - [ ] AC-015 export/import round-trip — Phase 5
-- [ ] AC-016 i18n keys resolvable in `ko` — Phase 6b
+- [x] AC-016 i18n keys resolvable in `ko` — Phase 6b
 - [x] AC-017 both players' cards visible — Phase 4
 - [x] AC-018 special squares from data — Phase 2 (`tests/content/special-squares.test.ts`) + Phase 4
       (visibility and ability text, `e2e/hotseat.spec.ts`)

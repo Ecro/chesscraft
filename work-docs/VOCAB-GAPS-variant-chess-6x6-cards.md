@@ -195,16 +195,30 @@ stood — the headline finding of the gate.
 - **graveyard** — `GameState.captured` retains removed pieces; `revive_piece` consumes it. A card
   that would resolve to nothing is no longer offered at all.
 
+## Closed in Phase 6b (schema v3)
+
+- **G-4** — `destination: { kind: 'offset', df, dr, forward? }`, resolved from the moved piece's
+  square. `forward` mirrors `dr` by that piece's own side, so one card means "one square backwards"
+  for both players.
+- **G-13** — `condition: { kind: 'piece_count_at_most', side, n }`.
+- **G-14** — `swap_pieces`.
+- **G-15** — an optional `duration` (plies) on `grant_movement` / `forbid_movement` / `block_capture`,
+  persisted in `GameState.grants` with an expiry ply and merged into move generation. Keyed by square,
+  matching `frozenUntil`: a granted piece that walks away leaves the grant behind.
+
+**G-16 was NOT closed, on purpose.** S11 희생 was re-specified to drop its adjacency clause instead.
+Widening the vocabulary for a single card costs a `schema_version` bump plus ADR-006's editor
+round-trip obligation, and the card is playable without it.
+
 ## Still open, with the card that forces each
 
 | Gap | What is missing | Forced by |
 |---|---|---|
 | G-3 | an effect cannot compare the subject to its **own owner's** side | any "when an *enemy* piece does X" passive |
-| G-4 | no destination relative to a square (`offset`), and no reference to the effect's own square | S13 밀치기 |
-| G-13 | no condition over a side's piece count | R11 최후의 저항 |
-| G-14 | no swap action; two teleports cannot express it (each needs its destination empty) | S2 자리바꿈 |
-| **G-15** | `grant_movement` / `forbid_movement` / `block_capture` are consumed at E1 only, so a **skill card** carrying them is a silent no-op — and `skillEffect` accepts all nine actions | S3 방패, S8 기사의 도약, S10 돌진 |
-| G-16 | no adjacency constraint between two chosen targets | S11 희생 |
+| G-4a | no reference to the effect's **own** square (the `offset` destination is relative to the moved piece, not to the effect owner) | a portable square type that pushes rather than teleports to a literal square |
+| G-16 | no adjacency constraint between two chosen targets | S11 희생, if its adjacency clause is ever restored |
+| — | no per-piece move history or use counter | R5 폰 돌격 (first move only), R6 나이트 축제 |
+| — | no player-optional effect: every effect fires automatically | R8 재활용 ("잡은 폰을 다시 놓을 수 있다") |
 
 **G-15 is the one to fix next.** Three of the nine actions are unusable from the content kind most
 likely to want them, and the schema advertises all nine — an author gets a card that validates,
