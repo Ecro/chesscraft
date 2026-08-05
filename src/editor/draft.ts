@@ -13,15 +13,24 @@ import { type ContentSet, type ContentSource, type ValidationError, loadContentS
  * second one at all.
  */
 
-export type DraftKind = 'piece' | 'squareType' | 'ruleCard' | 'skillCard'
+export type DraftKind = 'piece' | 'squareType' | 'ruleCard' | 'skillCard' | 'board' | 'preset'
 
-export const EDITABLE_KINDS: readonly DraftKind[] = ['piece', 'squareType', 'ruleCard', 'skillCard']
+export const EDITABLE_KINDS: readonly DraftKind[] = [
+  'piece',
+  'squareType',
+  'ruleCard',
+  'skillCard',
+  'board',
+  'preset',
+]
 
 const COLLECTION_OF: Record<DraftKind, keyof ContentSource> = {
   piece: 'pieces',
   squareType: 'squareTypes',
   ruleCard: 'ruleCards',
   skillCard: 'skillCards',
+  board: 'boards',
+  preset: 'presets',
 }
 
 /**
@@ -35,14 +44,65 @@ export function blankDraft(kind: DraftKind): Record<string, unknown> {
   const common = { id: '', nameKey: '', textKey: '', effects: [] as unknown[] }
   switch (kind) {
     case 'piece':
-      return { ...common, movement: [] }
+      // One step forward, so a fresh piece is a piece rather than a statue.
+      // Everything else stays empty; `id` alone keeps a blank save failing.
+      return { ...common, movement: [{ kind: 'step', vectors: [[0, 1]] }] }
     case 'squareType':
       return { ...common, paired: false }
     case 'ruleCard':
       return { ...common, cost: 0 }
     case 'skillCard':
       return { ...common, cost: 0, uses: 1 }
+    case 'board':
+      return { id: '', nameKey: '', width: 6, height: 6, placements: [], squares: [] }
+    case 'preset':
+      return { id: '', nameKey: '', boardId: '', pieceIds: [], ruleCardIds: [], skillCardIds: [] }
   }
+}
+
+/**
+ * The inverse of a save: pulls a stored record back out as an editable draft.
+ *
+ * A copy, never the stored object — an editor handed the live record would let
+ * an abandoned edit mutate the document that is currently in play, and the
+ * mutation would never pass through `commitDraft`'s validator.
+ */
+export function openDraft(source: ContentSource, kind: DraftKind, id: string): Record<string, unknown> | null {
+  const list = source[COLLECTION_OF[kind]] as unknown[]
+  const found = list.find((record) => idOf(record) === id)
+  return found === undefined ? null : (structuredClone(found) as Record<string, unknown>)
+}
+
+/**
+ * What the pickers in the editor may offer.
+ *
+ * Squares come from the boards the document actually carries, so an author
+ * cannot pick a square that is off the edge of every board in the set — the
+ * board bound is enforced at validation anyway, but a picker that offers an
+ * invalid choice is a form that teaches the wrong thing.
+ */
+export function editorContext(source: ContentSource): EditorContext {
+  const ids = (records: unknown[]): string[] =>
+    records.map((r) => idOf(r)).filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+  const first = source.boards[0] as { width?: unknown; height?: unknown } | undefined
+  const width = typeof first?.width === 'number' ? first.width : 6
+  const height = typeof first?.height === 'number' ? first.height : 6
+
+  const squares: string[] = []
+  for (let file = 0; file < width; file += 1) {
+    for (let rank = 1; rank <= height; rank += 1) squares.push(`${String.fromCharCode(97 + file)}${rank}`)
+  }
+
+  return { pieceIds: ids(source.pieces), squareTypeIds: ids(source.squareTypes), squares }
+}
+
+/** What the editor's pickers may offer, derived from the document being edited. */
+export interface EditorContext {
+  pieceIds: string[]
+  squareTypeIds: string[]
+  /** Every square on the document's board, in algebraic notation. */
+  squares: string[]
 }
 
 export type CommitResult =

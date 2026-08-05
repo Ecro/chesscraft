@@ -487,7 +487,7 @@ compatibility marker (ADR-005).
 | 2 — Engine core | **DONE** | 51 tests passing across 8 files — AC-001/002/003/004/005/006/007/008/009/018, the ADR-012 short-circuit fixtures, and the serialization round-trip. Typecheck clean, build and e2e green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 3 — Vertical slice | **DONE (one deviation, see below)** | 72 tests passing across 12 files; `tests/engine/layer-order.test.ts` drives the deliberate four-layer ply and asserts both the log sequence and an order-decisive board outcome; `tests/engine/slice-match.test.ts` plays 25 seeds to a result with an in-loop deadlock guard; `e2e/slice.spec.ts` plays a match to a result through the UI. Typecheck clean, build green, 3 Playwright tests green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues. Gap list at `work-docs/VOCAB-GAPS-variant-chess-6x6-cards.md` |
 | 4 — Game UI and hot-seat flow | **DONE** | 78 unit tests across 13 files + 8 Playwright tests green. `e2e/hotseat.spec.ts` plays a match through **all four draft picks** to a result and asserts each UI clause the criterion names: rule card visible with identical text at start and end (AC-004), out-of-turn card play surfaces a reason and changes nothing (AC-008), both trays with spent-marking (AC-017), painted squares distinguished plus readable ability text (AC-018), and undo returning the *same* offer rather than a re-roll (ADR-013). Typecheck clean, build green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
-| 5 — Content editor and preset storage | PENDING | |
+| 5 — Content editor and preset storage | **DONE (A.5 ran four rounds, see below)** | 203 tests across 20 files + 23 Playwright green; typecheck and build clean. `e2e/editor.spec.ts` covers create AND edit for each of the five axes plus preset bundling, each asserted from the board in the same session with no reload (AC-014); `tests/content/preset-io.test.ts` covers AC-015 at document, loaded-set and started-match levels. `tests/editor/vocabulary-coverage.test.ts` is ADR-006's permanent gate: 44 vocabulary rows + 8 record-field rows, each asserting the control is enabled in a host whose schema admits it AND that it writes exactly its own value at the JSON path it owns, then round-trips through save and re-open. New modules: `src/editor/{vocabulary,controls,io,storage}.ts`, `openDraft`/`editorContext` on `draft.ts`, a rewritten `src/ui/Edit.tsx`, and `preset-select` on `App.tsx`. Phase A.5 `test-reviewer` FAILed **three** times on eleven blocking issues before PASSing on the fourth — every one of them a fixture that would have passed against a wrong editor |
 | 6a — High-schema-risk content gate | **DONE (two escalations, see below)** | 97 tests across 14 files + 8 Playwright green. (a0) `work-docs/CARDSET-variant-chess-6x6-cards.md` — all 28 cards, one line each, with the vocabulary each needs. (c) `work-docs/RISK-RANKING-variant-chess-6x6-cards.md` — full ranking and why these five. (a) every gated item passes schema validation. (b) `tests/content/gate-6a.test.ts` — 19 fixtures, one scenario set per item. (d) schema v2 landed: `forEach`, `revive_piece`, working `own_back_rank`, evaluated `check_count_at_least`, graveyard. Phase A.5 `test-reviewer` FAILed once on three real blocking issues in the check-counting fixtures, all accepted and fixed, then PASSed |
 | 6b — Remaining content set and i18n | **DONE (one item not wired, see below)** | 118 tests across 16 files + 8 Playwright green. `src/content/sets/bundled.ts` ships 11 rule cards, 15 skill cards, 5 square types, 6 pieces, the Los Alamos board and the default preset, all validating with zero errors. `src/i18n/ko.ts` resolves every declared key. `tests/content/bundled.test.ts` covers AC-010 and AC-016; `tests/engine/vocabulary-v3.test.ts` drives the four schema v3 capabilities through the shipped cards that needed them. Phase A.5 `test-reviewer` FAILed once on two fixtures that could not distinguish the intended behaviour from a plausible wrong implementation, both fixed, then PASSed |
 | 7 — Verification harness and final acceptance gate | PENDING | |
@@ -600,6 +600,36 @@ Notes carried out of the completed phases:
 - **Machine-readable identity moved to data attributes.** Board squares and cards now render localized
   names, so `e2e/slice.spec.ts`'s text assertions were migrated to `data-piece` / `data-rule` /
   `data-card`. Same strength, and it survives translation changes.
+- **Phase 5's headline: the ADR-006 gate was wrong three times in the same way, and the third fix
+  was structural.** The gate's job is to catch a control that exists but does nothing. Its first
+  draft asserted only that a `"kind"` appeared somewhere in the draft — which cannot see a
+  **parameter**-shaped extension, and schema v3's headline addition was exactly that (`duration`).
+  Its second draft asserted exact values but by searching the whole draft, so any row whose expected
+  value equalled an editor default (`always`, `self`, `chosen_empty`) passed with a dead button. Its
+  third asserted at exact paths but left the trigger axis undiscriminated. Hand-written
+  per-row discriminators fixed each instance and would have rotted on the next row added, so the
+  runner now carries a **universal guard**: before clicking a control it asserts the path does not
+  already hold the expected value. The fourth round found the guard's own blind spot — it fires once,
+  before the vocabulary click, so a **parameter** control that writes a value an earlier step already
+  wrote is still unproven. Two did: `promote_piece`'s target piece and the piece editor's "promotes
+  to", both defaulting to the first piece id. Verified by mutation: killing either control's write now
+  turns the suite red, and before the fix both mutations passed 203 green tests while every authored
+  promotion silently targeted the set's first piece.
+- **A fresh effect carries no trigger, and that is a product decision the gate forced.** Seeding one
+  makes exactly one trigger row per host assert a default rather than its own control, and for
+  `skillCard` — whose schema admits only `on_play` — there is no other value to discriminate against,
+  so a dead button is undetectable. An effect that has not been told when it fires is unfinished
+  anyway.
+- **The editor's palettes are `.map`ped from `VOCABULARY_CONTROLS`, not written out.** This is what
+  makes ADR-006's coupling cheap rather than merely mandatory: a vocabulary entry cannot ship without
+  a control by omission, because there is no per-button source to forget to add. The remaining cost is
+  real and unchanged — an ADR-005 extension is a three-place edit (schema, coverage table, controls).
+- **`vitest` gained a jsdom surface and two dev dependencies.** `@testing-library/react` + `jsdom`,
+  used by the coverage gate only. Reachability had to be asserted against the render; a table claiming
+  a control exists is the same class of evidence as the bug it is meant to catch.
+- **AC-010 is still not ticked, but the wiring cost dropped.** `App.tsx` now carries `preset-select`
+  over the loaded document's presets, so serving the bundled set no longer means changing a hardcoded
+  preset id — it means getting the bundled content into the document.
 - **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
   Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
   a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice

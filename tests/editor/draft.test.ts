@@ -17,13 +17,22 @@ function baseSource() {
 }
 
 describe('editor drafts', () => {
-  it('offers a blank draft for each of the four slice content kinds', () => {
-    expect([...EDITABLE_KINDS].sort()).toEqual(['piece', 'ruleCard', 'skillCard', 'squareType'])
+  it('offers a blank draft for each of the five content axes plus the preset that bundles them', () => {
+    // Phase 3 covered the four effect-bearing kinds; Phase 5 owns all five axes
+    // (ADR-006) and the preset that bundles them.
+    expect([...EDITABLE_KINDS].sort()).toEqual([
+      'board',
+      'piece',
+      'preset',
+      'ruleCard',
+      'skillCard',
+      'squareType',
+    ])
     for (const kind of EDITABLE_KINDS) {
       const draft = blankDraft(kind)
       expect(draft).toHaveProperty('id')
       expect(draft).toHaveProperty('nameKey')
-      expect(draft).toHaveProperty('effects')
+      if (kind !== 'board' && kind !== 'preset') expect(draft).toHaveProperty('effects')
     }
   })
 
