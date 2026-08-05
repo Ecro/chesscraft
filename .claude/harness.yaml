@@ -107,7 +107,7 @@ security:
 feedback:
   enabled: false
 second_opinion:
-  models: []
+  models: ["codex"]
   agents: ["code-reviewer", "consensus-arbiter", "plan-validator"]
   failure_policy: "warn-and-proceed"
   codex:

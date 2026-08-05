@@ -1,0 +1,13 @@
+.claude/observability/
+.claude/.hm-iter-receipts/
+.claude/loop-specs/
+.claude/memory/semantic/
+.claude/memory/episodic/
+.claude/memory/profile/
+work-docs/loop-context/
+.claude/.hm-session-uuid
+.claude/.hm-autopilot
+.claude/.hm-render-manifest.jsonl
+.claude/.hm-sessions.json
+work-docs/p5-batch-state.yaml
+.claude/.hm-spec-need-*

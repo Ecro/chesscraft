@@ -1,0 +1,454 @@
+schema_version: 2
+spec_slug: variant-chess-6x6-cards
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: property invariants (AC-013), seeded self-play differential (AC-012), and golden fixtures for content validation (AC-011)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+
+ac:
+  - id: AC-001
+    title: "Match starts from the Los Alamos 6x6 base position"
+    type: mechanical
+    test_ids:
+      - tests/engine/setup.test.ts::initial position is 6x6 Los Alamos
+    executable_predicate: "board.width == 6 and board.height == 6 and count_pieces(initial_state) == 24"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Board dimensions and the 24-piece Los Alamos array are fixed by the published 1956 rules (Wikipedia: Los Alamos chess), external to any implementation of this project."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "A match is won by capturing the king"
+    type: mechanical
+    test_ids:
+      - tests/engine/win-condition.test.ts::king capture ends the match
+    executable_predicate: "winner_of(apply(state, king_capturing_move)) == side_to_move(state)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected winner is fixed by the hand-authored fixture position, written before the engine's termination code exists; it does not read any engine output."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-003
+    title: "The 60-ply cap ends the match by material count"
+    type: parametric
+    test_ids:
+      - tests/engine/win-condition.test.ts::ply cap resolves by material
+    executable_predicate: null
+    golden_table:
+      - input:
+          scenario: "position reaching ply 60 with white holding more pieces"
+        expected: "white_wins"
+      - input:
+          scenario: "position reaching ply 60 with black holding more pieces"
+        expected: "black_wins"
+      - input:
+          scenario: "position reaching ply 60 with equal piece counts"
+        expected: "draw"
+      - input:
+          scenario: "king captured at ply 59"
+        expected: "capturing_side_wins; the ply cap never applies"
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The four outcomes are enumerated from the SPEC rule text (60-ply cap, more pieces wins, tie is a draw) and hand-authored as fixture positions; the expected column is not derived from engine output."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "The public rule card is drawn deterministically from the match seed"
+    type: property
+    test_ids:
+      - tests/engine/determinism.test.ts::same seed yields same rule card and offers
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Seed-determinism is a metamorphic relation between two runs of the same function; it holds for every correct implementation and cannot be satisfied by reading the drawing code, because the relation never names which card is expected."
+    oracle_independence_waiver: null
+    input_domain: "arbitrary 32-bit unsigned integer seeds, paired with any bundled variant preset"
+    transformation: "start a match twice with the same (seed, preset) pair"
+    expected_relation: "new_match(seed, preset).rule_card == new_match(seed, preset).rule_card and new_match(seed, preset).draft_offers == new_match(seed, preset).draft_offers"
+    preconditions:
+      - "preset passes schema validation"
+    observable_output: "drawn rule card id and both players' ordered draft offer id lists"
+    generator_hint: "fast-check integer seeds x arbitrary bundled preset ids"
+
+  - id: AC-005
+    title: "First skill draft offers 3 cards to each player"
+    type: mechanical
+    test_ids:
+      - tests/engine/draft.test.ts::first draft offers three distinct cards
+    executable_predicate: "len(offer.card_ids) == 3 and len(set(offer.card_ids)) == 3 and accepts_board_action(state) == False"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The count 3 and the pick-1 requirement come from the user's stated game rule, fixed in the SPEC before implementation; distinctness is checked structurally, not against engine output."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "Second skill draft opens after five completed turns, with no repeats"
+    type: property
+    test_ids:
+      - tests/engine/draft.test.ts::second draft opens on turn six without repeats
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Disjointness of the second offer from the player's first offer and held cards is a set-theoretic invariant over arbitrary seeds; it is independent of which cards the drawing code happens to select."
+    oracle_independence_waiver: null
+    input_domain: "arbitrary seeds; any bundled skill-card pool of at least 9 cards"
+    transformation: "play five legal turns for the player, then open the second draft"
+    expected_relation: "len(second_offer) == 3 and intersection(second_offer, union(first_offer, held_cards)) == empty_set and opened_at_turn(second_offer) == 6"
+    preconditions:
+      - "the skill-card pool holds at least 9 distinct cards"
+    observable_output: "second offer card id set and the turn index at which it opened"
+    generator_hint: "fast-check seeds x random legal action sequences of length 10 plies"
+
+  - id: AC-007
+    title: "Playing a skill card consumes the entire turn"
+    type: property
+    test_ids:
+      - tests/engine/skill-cards.test.ts::playing a card consumes the turn
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The relation compares the state before and after a card play — side-to-move flips and the mover's piece positions are unchanged except as the card's own effect states — which holds for every card and is not derived from any card's implementation."
+    oracle_independence_waiver: null
+    input_domain: "every active skill card in the bundled pool, from arbitrary reachable states where it is legal"
+    transformation: "play the card and let its effect fully resolve"
+    expected_relation: "side_to_move(after) != side_to_move(before) and card_is_marked_used(after, card) and moves_made_by_mover(before, after) == 0"
+    preconditions:
+      - "the card is unused and it is the owner's turn"
+    observable_output: "side to move, card used flag, and the mover's move count for the ply"
+    generator_hint: "fast-check over bundled active card ids x seeded reachable states"
+
+  - id: AC-008
+    title: "Skill cards cannot be played out of turn or in response"
+    type: mechanical
+    test_ids:
+      - tests/engine/skill-cards.test.ts::out-of-turn card play is rejected
+    executable_predicate: "is_rejected(play_card(state, opponent_card)) and state_after(play_card(state, opponent_card)) == state"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Rejection plus state-unchanged is fixed by the SPEC's timing constraint (no response cards, RESEARCH pitfall 1); the expected outcome is stated in the rule, not observed from the engine."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-009
+    title: "A piece is fully defined by content data"
+    type: parametric
+    test_ids:
+      - tests/content/piece-definitions.test.ts::piece move generation matches definition
+    executable_predicate: null
+    golden_table:
+      - input:
+          scenario: "rook on c3, empty 6x6 board"
+        expected: "c1 c2 c4 c5 c6 a3 b3 d3 e3 f3"
+      - input:
+          scenario: "knight on c3, empty 6x6 board"
+        expected: "a2 a4 b1 b5 d1 d5 e2 e4"
+      - input:
+          scenario: "queen on c3, empty 6x6 board"
+        expected: "c1 c2 c4 c5 c6 a3 b3 d3 e3 f3 a1 b2 d4 e5 f6 a5 b4 d2 e1"
+      - input:
+          scenario: "white pawn on c3, empty 6x6 board"
+        expected: "c4"
+      - input:
+          scenario: "custom_archer on c3 (movement pattern differs from attack pattern), empty 6x6 board"
+        expected: "moves to the eight adjacent squares; captures only at orthogonal distance 2 (a3 e3 c1 c5)"
+      - input:
+          scenario: "custom_guard on c3 with passive 'adjacent friendly pawn cannot be captured', friendly pawn on c4 attacked by an enemy rook"
+        expected: "guard moves to the eight adjacent squares; the enemy rook's capture of c4 is absent from its legal-move set"
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Target square lists are computed by hand from the geometry of a 6x6 board and written into the fixture before the generator exists; the two custom pieces are authored specifically so that no engine source names them."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-010
+    title: "The MVP ships 10 rule cards and 14 skill cards, all schema-valid"
+    type: mechanical
+    test_ids:
+      - tests/content/bundled-content.test.ts::bundled set meets minimum counts and validates
+    executable_predicate: "len(bundled.rule_cards) >= 10 and len(bundled.skill_cards) >= 14 and len(bundled.square_types) >= 4 and len(validate_all(bundled).errors) == 0"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The counts 10 and 14 are the user's stated MVP minimum, recorded in the SPEC before any card is authored; the validator's zero-error requirement is a schema fact, not an engine behavior."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-011
+    title: "Invalid content is rejected fail-closed with a located error"
+    type: parametric
+    test_ids:
+      - tests/content/validation.test.ts::invalid fixtures are rejected with field path
+    golden_table:
+      - input:
+          scenario: "rule card fixture with an unknown top-level field"
+        expected: "rejected; error names the card id and the offending field path"
+      - input:
+          scenario: "piece fixture missing its required movement field"
+        expected: "rejected; error names the piece id and the missing field path"
+      - input:
+          scenario: "skill card fixture whose effect type is not in the vocabulary"
+        expected: "rejected; error names the effect field path"
+      - input:
+          scenario: "preset fixture referencing a non-existent piece id"
+        expected: "rejected; error names the preset id and the dangling reference"
+      - input:
+          scenario: "board fixture whose initial placement puts a piece off-board"
+        expected: "rejected; error names the placement index"
+      - input:
+          scenario: "content fixture with a literal text string where an i18n key is required"
+        expected: "rejected; error names the text field path"
+      - input:
+          scenario: "the bundled valid content set"
+        expected: "accepted; zero errors; match starts"
+    executable_predicate: null
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Each invalid fixture is authored to break exactly one schema clause, and its expected error location is read off the schema, not off the validator's output; the paired valid fixture guards against a validator that rejects everything."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-012
+    title: "Random self-play finishes fast"
+    type: mechanical
+    test_ids:
+      - tests/engine/selfplay.test.ts::median match length within budget
+    executable_predicate: "median(selfplay_ply_lengths(seeds=1000)) <= 40 and max(selfplay_ply_lengths(seeds=1000)) <= 60"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The agent is a uniform-random legal-action selector implemented independently of the rules engine's evaluation code; the measured distribution is compared against the SPEC's stated budget (median 40, hard cap 60), which was fixed before any match was played."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-013
+    title: "Engine invariants hold across randomized play"
+    type: property
+    test_ids:
+      - tests/engine/invariants.test.ts::engine invariants hold under random play
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "These are structural invariants over every reachable state (king uniqueness, non-negative piece count, offered-action acceptance, serialization round-trip). They constrain any correct implementation and name no expected value the engine could supply, so they cannot be satisfied by reading the engine."
+    oracle_independence_waiver: null
+    input_domain: "states reachable by uniform-random legal action sequences from any bundled preset under arbitrary seeds"
+    transformation: "play random legal actions to termination, checking every intermediate state"
+    expected_relation: "kings_of(side, state) <= 1 and piece_count(state) >= 0 and all_offered_actions_are_accepted(state) and legal_actions(deserialize(serialize(state))) == legal_actions(state)"
+    preconditions:
+      - "the preset passes schema validation"
+    observable_output: "per-state invariant verdicts across the whole random walk"
+    generator_hint: "fast-check seeds x bundled preset ids, 1000 runs"
+
+  - id: AC-014
+    title: "The editor creates content that is immediately playable"
+    type: parametric
+    test_ids:
+      - e2e/editor.spec.ts::authored content is playable in the same session
+    golden_table:
+      - input:
+          scenario: "editor flow: create a piece with a custom movement pattern and a passive"
+        expected: "saves only after validation passes; the piece appears in a match started from a preset containing it"
+      - input:
+          scenario: "editor flow: create a rule card"
+        expected: "saves after validation; the card is drawable and its effect applies in a match"
+      - input:
+          scenario: "editor flow: create a skill card"
+        expected: "saves after validation; the card appears in a draft offer and is playable"
+      - input:
+          scenario: "editor flow: create a board with an initial placement and painted special squares"
+        expected: "saves after validation; a match starts from exactly that placement with those squares marked"
+      - input:
+          scenario: "editor flow: bundle the above into a variant preset and start a match"
+        expected: "the match uses every authored item in the same session, no reload required"
+      - input:
+          scenario: "editor flow: attempt to mark an invalid draft as playable"
+        expected: "blocked; the validation error is shown with the offending field"
+    executable_predicate: null
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Each flow's expected end-state is written from the SPEC's Outcome 3 before the editor exists, and is asserted through the user-visible UI (piece renders on the board, card appears in the offer) rather than by reading editor internals."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-015
+    title: "User content round-trips through export/import"
+    type: property
+    test_ids:
+      - tests/content/preset-io.test.ts::export import round trip
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "decode(encode(x)) == x is the canonical metamorphic relation; it holds for any correct serializer and never names an expected serialized form, so the implementation cannot be reverse-engineered into the assertion."
+    oracle_independence_waiver: null
+    input_domain: "arbitrary schema-valid variant presets, including ones containing user-authored pieces and cards"
+    transformation: "export the preset to JSON, clear local storage, import the JSON"
+    expected_relation: "import(export(preset)) == preset and replay(match(seed, imported)) == replay(match(seed, preset))"
+    preconditions:
+      - "the preset passes schema validation before export"
+    observable_output: "the deserialized preset object and the seeded match action log"
+    generator_hint: "fast-check arbitrary presets built from the bundled vocabulary"
+
+  - id: AC-016
+    title: "All player-facing content text is i18n-keyed"
+    type: mechanical
+    test_ids:
+      - tests/content/i18n.test.ts::content text fields are keys resolvable in ko
+    executable_predicate: "all(is_i18n_key(field) for field in text_fields(bundled)) and len(missing_keys(bundled, locale_ko)) == 0"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The key-shape rule and the ko-bundle completeness requirement are static properties of the content files checked against the declared key format; neither reads runtime engine behavior."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-017
+    title: "Both players' held skill cards are visible"
+    type: parametric
+    test_ids:
+      - e2e/hotseat.spec.ts::both players skill cards are visible
+    golden_table:
+      - input:
+          scenario: "match state after both first drafts"
+        expected: "each player's one held card is visible to both players"
+      - input:
+          scenario: "match state after one player has used a card"
+        expected: "that card is still visible and marked used"
+      - input:
+          scenario: "match state after both second drafts"
+        expected: "all four held cards and their used flags are visible"
+    executable_predicate: null
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Expected visibility is fixed by the user's open-information decision and asserted against rendered UI text, independent of how the view derives it."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-018
+    title: "Special squares are content data with content-defined abilities"
+    type: parametric
+    test_ids:
+      - tests/content/special-squares.test.ts::square abilities apply from definition
+    executable_predicate: null
+    golden_table:
+      - input:
+          scenario: "square type 'destroy_on_enter' painted on d4; a rook moves onto d4"
+        expected: "the rook is removed from the board; the square remains; the move still consumes the turn"
+      - input:
+          scenario: "square type 'impassable' painted on c3; a rook on c1 generates moves"
+        expected: "c3 and every square beyond it on the c-file are absent from the rook's legal targets; a knight may still jump over c3"
+      - input:
+          scenario: "paired 'portal' squares on a1 and f6; a knight enters a1"
+        expected: "the knight ends its move on f6"
+      - input:
+          scenario: "square type 'promote_on_enter' painted on d5; a white pawn enters d5"
+        expected: "the pawn promotes on arrival, one rank earlier than the board's normal promotion rank"
+      - input:
+          scenario: "square type 'sanctuary' (occupant cannot be captured) painted on b2; an enemy rook attacks b2"
+        expected: "the capture of b2 is absent from the enemy rook's legal-move set"
+      - input:
+          scenario: "a board with no special squares"
+        expected: "legal-move generation is identical to the same board with the square layer removed"
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Each expected outcome is derived from the square type's own written ability and 6x6 geometry, authored as a fixture before any square-effect code exists; the final row is a null-effect control that fails if the square layer perturbs unrelated move generation."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
