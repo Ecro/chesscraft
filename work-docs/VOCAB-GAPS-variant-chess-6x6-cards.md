@@ -171,6 +171,60 @@ over 25 seeds of self-play.
 
 ---
 
+---
+
+# Phase 6a update (2026-08-06)
+
+Writing the whole 28-card set down (`CARDSET-variant-chess-6x6-cards.md`) found six more gaps and
+closed five of the originals. **Only 6 of 28 cards were expressible** against the vocabulary as it
+stood — the headline finding of the gate.
+
+## Closed in Phase 6a (schema v2, ADR-005)
+
+- **G-5** — closed by *decision*, written into ADR-002 Amendment 3: a piece-layer effect fires once
+  per owning piece, owner-relative targets bind to that piece. No behaviour change; the semantics
+  stopped being accidental.
+- **G-6** — `spawn_piece` and the new `revive_piece` now enter their destination square through the
+  same E4 cascade as movement. Pinned by the revive-onto-a-bomb-square fixture.
+- **G-7** — check detection landed. `check_count_at_least` reads a real per-side counter, and a royal
+  standing on a `block_capture`-protected square is **not** in check.
+- **G-9** *(new, then closed)* — `forEach` binds each matching piece as an ownerless effect's owner
+  and subject. Unblocks R4, R5, R6, R11, R14, S10.
+- **G-12** *(new, then closed)* — `own_back_rank` resolves to the first vacancy on the **owning
+  piece's** home rank, not the mover's.
+- **graveyard** — `GameState.captured` retains removed pieces; `revive_piece` consumes it. A card
+  that would resolve to nothing is no longer offered at all.
+
+## Still open, with the card that forces each
+
+| Gap | What is missing | Forced by |
+|---|---|---|
+| G-3 | an effect cannot compare the subject to its **own owner's** side | any "when an *enemy* piece does X" passive |
+| G-4 | no destination relative to a square (`offset`), and no reference to the effect's own square | S13 밀치기 |
+| G-13 | no condition over a side's piece count | R11 최후의 저항 |
+| G-14 | no swap action; two teleports cannot express it (each needs its destination empty) | S2 자리바꿈 |
+| **G-15** | `grant_movement` / `forbid_movement` / `block_capture` are consumed at E1 only, so a **skill card** carrying them is a silent no-op — and `skillEffect` accepts all nine actions | S3 방패, S8 기사의 도약, S10 돌진 |
+| G-16 | no adjacency constraint between two chosen targets | S11 희생 |
+
+**G-15 is the one to fix next.** Three of the nine actions are unusable from the content kind most
+likely to want them, and the schema advertises all nine — an author gets a card that validates,
+draws, plays, and does nothing. It is the same failure shape as G-7 and G-12, which this phase closed,
+and it is currently the largest remaining instance of it.
+
+## Escalated as scope decisions, not tasks
+
+Three ranked items are **needs-subsystem** — each is a new engine capability, not content:
+
+- **S3 방패** — replacement effects that persist across turns.
+- **S9 장벽** — a card painting a square at runtime, with a duration.
+- **R3 오리** — a third, neutral side plus path blocking.
+
+And four are **recommended cuts** from the MVP set, because they sit outside the content vocabulary
+by design (ADR-001 admits no code hook): R12 속공 턴 and S4 연속 이동 (turn structure), R13 반쪽 안개
+(view redaction), R7 합체와 분리 (two pieces on one square).
+
+---
+
 ## Disposition against the exit criterion
 
 The PLAN says "Any gap found is applied to the Phase 1 schema under ADR-005

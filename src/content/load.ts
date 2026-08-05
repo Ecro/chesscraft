@@ -141,41 +141,52 @@ export function loadContentSet(source: unknown): LoadResult {
     }
   }
 
-  for (const [id, piece] of pieces) {
-    if (piece.promotion) {
-      requireRef(pieces.has(piece.promotion.to), id, `pieces.${id}.promotion.to`, 'piece', piece.promotion.to)
-    }
-    piece.effects.forEach((effect, ei) => {
+  /** Piece ids an effect names, across every place a v2 effect can name one. */
+  const checkEffectRefs = (
+    collection: string,
+    id: string,
+    effects: ReadonlyArray<{
+      forEach?: { pieceId?: string | undefined } | undefined
+      actions: ReadonlyArray<Record<string, unknown>>
+    }>,
+  ) => {
+    effects.forEach((effect, ei) => {
+      const quantified = effect.forEach?.pieceId
+      if (quantified !== undefined) {
+        requireRef(pieces.has(quantified), id, `${collection}.${id}.effects.${ei}.forEach.pieceId`, 'piece', quantified)
+      }
       effect.actions.forEach((act, ai) => {
-        if (act.kind === 'promote_piece' || act.kind === 'spawn_piece') {
-          const refId = act.kind === 'promote_piece' ? act.to : act.pieceId
-          const field = act.kind === 'promote_piece' ? 'to' : 'pieceId'
-          requireRef(pieces.has(refId), id, `pieces.${id}.effects.${ei}.actions.${ai}.${field}`, 'piece', refId)
+        const base = `${collection}.${id}.effects.${ei}.actions.${ai}`
+        if (act.kind === 'promote_piece') {
+          requireRef(pieces.has(act.to as string), id, `${base}.to`, 'piece', act.to as string)
+        }
+        if (act.kind === 'spawn_piece') {
+          requireRef(pieces.has(act.pieceId as string), id, `${base}.pieceId`, 'piece', act.pieceId as string)
+        }
+        if (act.kind === 'revive_piece' && Array.isArray(act.except)) {
+          ;(act.except as string[]).forEach((refId, xi) => {
+            requireRef(pieces.has(refId), id, `${base}.except.${xi}`, 'piece', refId)
+          })
         }
       })
     })
   }
+
+  for (const [id, piece] of pieces) {
+    if (piece.promotion) {
+      requireRef(pieces.has(piece.promotion.to), id, `pieces.${id}.promotion.to`, 'piece', piece.promotion.to)
+    }
+    checkEffectRefs('pieces', id, piece.effects)
+  }
+
+  for (const [id, type] of squareTypes) checkEffectRefs('squareTypes', id, type.effects)
 
   for (const [collection, cards] of [
     ['ruleCards', ruleCards],
     ['skillCards', skillCards],
   ] as const) {
     for (const [id, card] of cards as Map<string, RuleCardDef | SkillCardDef>) {
-      card.effects.forEach((effect, ei) => {
-        effect.actions.forEach((act, ai) => {
-          if (act.kind === 'promote_piece' || act.kind === 'spawn_piece') {
-            const refId = act.kind === 'promote_piece' ? act.to : act.pieceId
-            const field = act.kind === 'promote_piece' ? 'to' : 'pieceId'
-            requireRef(
-              pieces.has(refId),
-              id,
-              `${collection}.${id}.effects.${ei}.actions.${ai}.${field}`,
-              'piece',
-              refId,
-            )
-          }
-        })
-      })
+      checkEffectRefs(collection, id, card.effects)
     }
   }
 

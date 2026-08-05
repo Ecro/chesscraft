@@ -72,6 +72,8 @@ export function createMatch({ content, presetId, seed }: CreateMatchOptions): Ma
     result: null,
     movesMadeLastPly: 0,
     frozenUntil: {},
+    checkCount: { white: 0, black: 0 },
+    captured: { white: [], black: [] },
     log: [],
   }
   return { states: [state] }
@@ -87,6 +89,8 @@ export interface CreatePositionOptions {
   ruleCardId?: string | null
   /** Cards each side already holds. Drafts are pre-resolved, so play is open. */
   held?: Partial<Record<Side, string[]>>
+  /** Seeds the graveyard, so a comeback card can be driven without a capture. */
+  captured?: Partial<Record<Side, string[]>>
 }
 
 /**
@@ -125,6 +129,8 @@ export function createPosition(opts: CreatePositionOptions): GameState {
     result: null,
     movesMadeLastPly: 0,
     frozenUntil: {},
+    checkCount: { white: 0, black: 0 },
+    captured: { white: [...(opts.captured?.white ?? [])], black: [...(opts.captured?.black ?? [])] },
     log: [],
   }
 }

@@ -14,7 +14,12 @@ import { z } from 'zod'
  * costume.
  */
 
-export const SCHEMA_VERSION = 1
+/**
+ * Bumped 1 -> 2 in Phase 6a (ADR-005). Writing the whole card set down showed
+ * only 6 of 28 cards were expressible; version 2 adds `forEach`, `revive_piece`,
+ * and wires the two entries that validated while doing nothing.
+ */
+export const SCHEMA_VERSION = 2
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -131,6 +136,19 @@ export const action = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('freeze_piece'), target, plies: z.number().int().positive() }),
   z.strictObject({ kind: z.literal('grant_movement'), target, pattern: movePattern }),
   z.strictObject({ kind: z.literal('forbid_movement'), target }),
+  /**
+   * Returns a captured piece to the board (schema v2). Separate from
+   * `spawn_piece` because it consumes the graveyard rather than creating from
+   * nothing — a card that can revive what was lost is a comeback mechanic, and
+   * one that conjures new material is not.
+   */
+  z.strictObject({
+    kind: z.literal('revive_piece'),
+    side: z.enum(['mover', 'opponent']),
+    at: destination,
+    /** Piece ids this card refuses to bring back, e.g. the queen. */
+    except: z.array(contentId).optional(),
+  }),
   /** Victory is an ordinary action in the shared vocabulary (ADR-012). */
   z.strictObject({ kind: z.literal('win'), side: z.enum(['mover', 'opponent']) }),
 ])
@@ -140,11 +158,28 @@ export type Action = z.infer<typeof action>
  * Trigger availability is per owner (ADR-003 consequence) — without it, authors
  * can write triggers that never fire, which is a silent absent-case bug.
  */
+/**
+ * Binds each matching board piece as the effect's owner and subject (schema v2).
+ *
+ * A rule-card effect has no square of its own, so every piece-relative target
+ * (`self`, `adjacent_friendly`) resolved to nothing — six of the fourteen rule
+ * cards were blocked on that one hole. `forEach` is the quantifier the grammar
+ * was missing: with it, "pieces standing next to their own king are safe" is
+ * one effect evaluated once per king, not a special case in the engine.
+ */
+export const forEachSelector = z.strictObject({
+  kind: z.literal('piece'),
+  pieceId: contentId.optional(),
+  side: z.enum(['mover', 'opponent', 'any']).optional(),
+})
+export type ForEachSelector = z.infer<typeof forEachSelector>
+
 function effectFor(triggers: readonly [string, ...string[]]) {
   return z.strictObject({
     trigger: z.enum(triggers),
     condition,
     actions: z.array(action).min(1),
+    forEach: forEachSelector.optional(),
   })
 }
 

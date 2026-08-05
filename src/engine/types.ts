@@ -46,6 +46,19 @@ export interface GameState {
   readonly movesMadeLastPly: number
   /** square -> ply index until which the occupant cannot act. */
   readonly frozenUntil: Readonly<Record<SquareId, number>>
+  /**
+   * How many times each side has left the opponent in check (schema v2).
+   *
+   * Base engine state, deliberately NOT owned by the rule card that reads it:
+   * `check_count_at_least` is the condition, this is the fact. A second card
+   * about checks needs no second counter.
+   */
+  readonly checkCount: Readonly<Record<Side, number>>
+  /**
+   * Pieces removed from the board, by the side that lost them. The engine used
+   * to discard them, which made every comeback card unauthorable.
+   */
+  readonly captured: Readonly<Record<Side, readonly string[]>>
   /** Per-ply resolution trace: which (event, layer) fired, and what was dropped. */
   readonly log: readonly string[]
 }

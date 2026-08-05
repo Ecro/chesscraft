@@ -20,6 +20,12 @@ export interface BoundEffect {
   ownerSide: Side | null
   effect: Effect
   sourceId: string
+  /**
+   * Subject this binding forces, set only by a `forEach` expansion. Without it
+   * a quantified effect would be evaluated against the event's global subject,
+   * which is the piece that moved — not the piece the quantifier bound.
+   */
+  boundSubject?: { square: SquareId; piece: PieceOnBoard }
 }
 
 export interface EvalCtx {
@@ -51,13 +57,38 @@ export function paintedSquares(state: GameState, content: ContentSet): Map<Squar
  * (the origin for on_leave, the destination for on_enter); pass null for a
  * board-wide sweep, which is what generate_moves needs.
  */
+/**
+ * Expands one effect into its bindings, in board order.
+ *
+ * ADR-002 (amended in Phase 6a): a piece-layer effect fires **once per owning
+ * piece**, and owner-relative targets bind to that piece — so four archers make
+ * four firings, not one. The `forEach` quantifier gives an ownerless effect the
+ * same shape, which is what lets a rule card say "for each king" without the
+ * engine knowing what a king is.
+ */
+function bindEffect(state: GameState, mover: Side, base: BoundEffect): BoundEffect[] {
+  const selector = base.effect.forEach
+  if (!selector) return [base]
+
+  const out: BoundEffect[] = []
+  for (const [square, piece] of state.board) {
+    if (selector.pieceId !== undefined && piece.pieceId !== selector.pieceId) continue
+    if (selector.side === 'mover' && piece.side !== mover) continue
+    if (selector.side === 'opponent' && piece.side !== otherSide(mover)) continue
+    out.push({ ...base, ownerSquare: square, ownerSide: piece.side, boundSubject: { square, piece } })
+  }
+  return out
+}
+
 export function collectEffects(
   state: GameState,
   content: ContentSet,
   trigger: string,
   focusSquares: readonly SquareId[] | null,
+  mover: Side = state.sideToMove,
 ): BoundEffect[] {
   const out: BoundEffect[] = []
+  const push = (bound: BoundEffect) => out.push(...bindEffect(state, mover, bound))
 
   // Layer 1 — board squares.
   const painted = paintedSquares(state, content)
@@ -65,7 +96,7 @@ export function collectEffects(
     if (focusSquares && !focusSquares.includes(square)) continue
     for (const effect of type.effects) {
       if (effect.trigger === trigger) {
-        out.push({ layer: 'square', ownerSquare: square, ownerSide: null, effect, sourceId: type.id })
+        push({ layer: 'square', ownerSquare: square, ownerSide: null, effect, sourceId: type.id })
       }
     }
   }
@@ -76,7 +107,7 @@ export function collectEffects(
     if (!def) continue
     for (const effect of def.effects) {
       if (effect.trigger === trigger) {
-        out.push({ layer: 'piece', ownerSquare: square, ownerSide: piece.side, effect, sourceId: def.id })
+        push({ layer: 'piece', ownerSquare: square, ownerSide: piece.side, effect, sourceId: def.id })
       }
     }
   }
@@ -86,7 +117,7 @@ export function collectEffects(
   if (rule) {
     for (const effect of rule.effects) {
       if (effect.trigger === trigger) {
-        out.push({ layer: 'rule', ownerSquare: null, ownerSide: null, effect, sourceId: rule.id })
+        push({ layer: 'rule', ownerSquare: null, ownerSide: null, effect, sourceId: rule.id })
       }
     }
   }
@@ -106,9 +137,9 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
     case 'on_square':
       return ctx.subject !== null && cond.squares.includes(ctx.subject.square)
     case 'check_count_at_least':
-      // Check counting has no engine support yet; a card relying on it simply
-      // never fires rather than silently reading as true.
-      return false
+      // Reads the mover's own tally — "I have checked you N times", which is
+      // what every three-check variant means by it.
+      return (ctx.state.checkCount[ctx.mover] ?? 0) >= cond.n
     case 'not':
       return !evalCondition(cond.of, bound, ctx)
     case 'all':

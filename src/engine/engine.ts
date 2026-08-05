@@ -40,7 +40,9 @@ function generationModifiers(state: GameState, content: ContentSet): GenerationM
       state,
       content,
       mover: state.sideToMove,
-      subject: bound.ownerSquare && ownerPiece ? { square: bound.ownerSquare, piece: ownerPiece } : null,
+      subject:
+        bound.boundSubject ??
+        (bound.ownerSquare && ownerPiece ? { square: bound.ownerSquare, piece: ownerPiece } : null),
       chosen: [],
     }
     if (!evalCondition(bound.effect.condition, bound, ctx)) continue
@@ -144,6 +146,52 @@ function movesFor(state: GameState, content: ContentSet, mods: GenerationModifie
 }
 
 // ---------------------------------------------------------------------------
+// Check detection (schema v2 — the capability `check_count_at_least` needed)
+// ---------------------------------------------------------------------------
+
+/** Empty squares on a side's home rank, in file order. */
+function backRankVacancies(state: GameState, side: Side): SquareId[] {
+  const rank = side === 'white' ? 0 : state.height - 1
+  const out: SquareId[] = []
+  for (let file = 0; file < state.width; file += 1) {
+    const sq = squareId(file, rank)
+    if (!state.board.has(sq)) out.push(sq)
+  }
+  return out
+}
+
+/**
+ * Whether `side` has a royal piece an enemy could capture right now.
+ *
+ * Protection counts: a royal standing where `block_capture` applies is not in
+ * check, because check means "capturable next", and that capture is not
+ * generated. Reading it any other way would let a rule card that makes a king
+ * safe still lose the match to a check counter.
+ */
+export function sideInCheck(state: GameState, content: ContentSet, side: Side): boolean {
+  const royals: SquareId[] = []
+  for (const [sq, piece] of state.board) {
+    if (piece.side === side && content.pieces.get(piece.pieceId)?.royal === true) royals.push(sq)
+  }
+  if (royals.length === 0) return false
+
+  const mods = generationModifiers({ ...state, sideToMove: otherSide(side) }, content)
+  const exposed = royals.filter((sq) => !mods.protectedSquares.has(sq))
+  if (exposed.length === 0) return false
+
+  for (const [from, piece] of state.board) {
+    if (piece.side === side) continue
+    if (mods.forbidden.has(from)) continue
+    const def = content.pieces.get(piece.pieceId)
+    if (!def) continue
+    const patterns = def.attack ?? def.movement
+    const reach = reachFrom(state, from, piece, patterns, true, false)
+    if (reach.captures.some((sq) => exposed.includes(sq))) return true
+  }
+  return false
+}
+
+// ---------------------------------------------------------------------------
 // Card plays
 // ---------------------------------------------------------------------------
 
@@ -183,6 +231,48 @@ function candidatesFor(state: GameState, slot: 'friendly' | 'enemy' | 'empty'): 
   return out.sort()
 }
 
+/**
+ * Whether a card can actually do something from this position.
+ *
+ * A card that resolves to nothing must not be offered. Spending your whole turn
+ * on a card that quietly does nothing is the same failure as an action that
+ * validates and never fires — the player cannot tell the difference from the
+ * outside, and the vocabulary is what promised otherwise.
+ */
+function cardResolves(state: GameState, content: ContentSet, cardId: string): boolean {
+  const card = content.skillCards.get(cardId)
+  if (!card) return false
+  const mover = state.sideToMove
+
+  for (const effect of card.effects) {
+    for (const act of effect.actions) {
+      if (act.kind === 'revive_piece') {
+        const side = act.side === 'mover' ? mover : otherSide(mover)
+        const pool = state.captured[side].filter((id) => !(act.except ?? []).includes(id))
+        if (pool.length === 0) return false
+        if (act.at.kind === 'own_back_rank' && backRankVacancies(state, side).length === 0) return false
+      }
+      if (act.kind === 'teleport_piece' && act.to.kind === 'own_back_rank') {
+        // Whose home rank depends on who the card can target. A friendly-only
+        // card always means the mover's; a card that can grab an enemy piece
+        // stays playable while either rank has room.
+        const sides: Side[] =
+          act.target.kind === 'chosen_friendly' || act.target.kind === 'adjacent_friendly' || act.target.kind === 'self'
+            ? [mover]
+            : act.target.kind === 'chosen_enemy'
+              ? [otherSide(mover)]
+              : ['white', 'black']
+        if (sides.every((side) => backRankVacancies(state, side).length === 0)) return false
+      }
+      if (act.kind === 'spawn_piece' && act.at.kind === 'own_back_rank') {
+        const side = act.side === 'mover' ? mover : otherSide(mover)
+        if (backRankVacancies(state, side).length === 0) return false
+      }
+    }
+  }
+  return true
+}
+
 function cardPlays(state: GameState, content: ContentSet): Action[] {
   const draft = state.drafts[state.sideToMove]
   const actions: Action[] = []
@@ -192,6 +282,7 @@ function cardPlays(state: GameState, content: ContentSet): Action[] {
     if (!card) continue
     const usedCount = draft.used.filter((c) => c === cardId).length
     if (usedCount >= card.uses) continue
+    if (!cardResolves(state, content, cardId)) continue
 
     const slots = choiceSlots(content, cardId)
     let combos: SquareId[][] = [[]]
@@ -283,6 +374,17 @@ interface Mutable {
   frozenUntil: Record<SquareId, number>
   log: string[]
   result: MatchResult | null
+  captured: Record<Side, string[]>
+  /** Squares a piece appeared on this ply and has yet to enter (G-6). */
+  arrived: SquareId[]
+}
+
+/** Removes a piece and remembers it, so a comeback card has something to read. */
+function removePiece(m: Mutable, square: SquareId): void {
+  const piece = m.board.get(square)
+  if (!piece) return
+  m.board.delete(square)
+  m.captured[piece.side].push(piece.pieceId)
 }
 
 function runEvent(
@@ -329,10 +431,20 @@ function executeActions(
   let movedTo: SquareId | null = null
   {
     const cursor = { i: 0 }
+    /** First vacancy on `side`'s home rank, reading the live board. */
+    const homeRankVacancy = (side: Side): SquareId | null => {
+      const rank = side === 'white' ? 0 : working.height - 1
+      for (let file = 0; file < working.width; file += 1) {
+        const sq = squareId(file, rank)
+        if (!m.board.has(sq)) return sq
+      }
+      return null
+    }
+
     for (const act of actions) {
       switch (act.kind) {
         case 'destroy_piece':
-          for (const sq of resolveTarget(act.target, bound, ctx, cursor)) m.board.delete(sq)
+          for (const sq of resolveTarget(act.target, bound, ctx, cursor)) removePiece(m, sq)
           break
         case 'teleport_piece': {
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
@@ -343,6 +455,10 @@ function executeActions(
               dest = paintedSquares(working, content).get(sq)?.pairedWith ?? null
             } else if (act.to.kind === 'square') {
               dest = act.to.square
+            } else if (act.to.kind === 'own_back_rank') {
+              // The moved piece's own rank, not the mover's. A card that pulled
+              // an enemy piece into your camp would look plausible and be wrong.
+              dest = homeRankVacancy(piece.side)
             } else if (act.to.kind === 'chosen_empty') {
               dest = chosen[cursor.i] ?? null
               cursor.i += 1
@@ -369,16 +485,42 @@ function executeActions(
           }
           break
         case 'spawn_piece': {
+          const side = act.side === 'mover' ? mover : otherSide(mover)
           let dest: SquareId | null = null
           if (act.at.kind === 'chosen_empty') {
             dest = chosen[cursor.i] ?? null
             cursor.i += 1
           } else if (act.at.kind === 'square') {
             dest = act.at.square
+          } else if (act.at.kind === 'own_back_rank') {
+            dest = homeRankVacancy(side)
           }
           if (dest && !m.board.has(dest)) {
-            m.board.set(dest, { pieceId: act.pieceId, side: act.side === 'mover' ? mover : otherSide(mover) })
+            m.board.set(dest, { pieceId: act.pieceId, side })
+            m.arrived.push(dest)
           }
+          break
+        }
+        case 'revive_piece': {
+          const side = act.side === 'mover' ? mover : otherSide(mover)
+          const pool = m.captured[side]
+          // Last lost, first back — the piece the player is still smarting over.
+          const index = [...pool].reverse().findIndex((id) => !(act.except ?? []).includes(id))
+          if (index < 0) break
+          const at = pool.length - 1 - index
+
+          let dest: SquareId | null = null
+          if (act.at.kind === 'own_back_rank') dest = homeRankVacancy(side)
+          else if (act.at.kind === 'square') dest = act.at.square
+          else if (act.at.kind === 'chosen_empty') {
+            dest = chosen[cursor.i] ?? null
+            cursor.i += 1
+          }
+          if (!dest || m.board.has(dest)) break
+
+          const [pieceId] = pool.splice(at, 1)
+          m.board.set(dest, { pieceId: pieceId!, side })
+          m.arrived.push(dest)
           break
         }
         case 'freeze_piece':
@@ -466,6 +608,8 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     frozenUntil: { ...state.frozenUntil },
     log: [],
     result: null,
+    captured: { white: [...state.captured.white], black: [...state.captured.black] },
+    arrived: [],
   }
   let movesMade = 0
   let subjectSquare: SquareId | null = null
@@ -482,7 +626,7 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     const occupant = m.board.get(action.to)
     if (occupant) {
       const occupantDef = content.pieces.get(occupant.pieceId)
-      m.board.delete(action.to)
+      removePiece(m, action.to)
       if (occupantDef?.royal === true) {
         m.board.delete(action.from)
         m.board.set(action.to, piece)
@@ -490,6 +634,7 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
           ...state,
           board: m.board,
           frozenUntil: m.frozenUntil,
+          captured: m.captured,
           plyCount: state.plyCount + 1,
           movesMadeLastPly: 1,
           log: [...m.log, 'on_capture:royal:short-circuit'],
@@ -533,6 +678,13 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     if (relocatedTo) subjectSquare = cascadeEnter(state, content, m, relocatedTo, mover)
   }
 
+  // Anything that APPEARED this ply enters its square too (G-6). A revived or
+  // spawned piece that skipped this would make creation the one safe way onto a
+  // hostile square, which is the same hole card-driven movement had.
+  for (const square of m.arrived) {
+    if (!m.visited.has(square)) cascadeEnter(state, content, m, square, mover)
+  }
+
   // E5 — promotion, from the piece's own definition. Reached the same way from
   // either branch: landing on the promotion rank is a fact about the square, not
   // about how the piece got there.
@@ -551,10 +703,19 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
   runEvent(state, content, m, 'on_remove', null, null, mover)
 
+  // The check tally is settled BEFORE E7 runs, so a rule card reading
+  // `check_count_at_least` on the ply that delivers the third check sees three,
+  // not two. A counter updated after the event it gates is always one late.
+  const settled: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
+  const delivered = sideInCheck(settled, content, otherSide(mover))
+  const checkCount = delivered
+    ? { ...state.checkCount, [mover]: state.checkCount[mover] + 1 }
+    : state.checkCount
+
   // E7 — end of ply. Win actions resolve here; the ply cap is evaluated last and
   // therefore always loses to a `win` action on the same ply.
   const subject = subjectSquare && m.board.get(subjectSquare) ? { square: subjectSquare, piece: m.board.get(subjectSquare)! } : null
-  runEvent(state, content, m, 'end_of_ply', null, subject, mover)
+  runEvent({ ...state, checkCount }, content, m, 'end_of_ply', null, subject, mover)
 
   const plyCount = state.plyCount + 1
   let result = m.result
@@ -564,6 +725,8 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     ...state,
     board: m.board,
     frozenUntil: m.frozenUntil,
+    captured: m.captured,
+    checkCount,
     plyCount,
     sideToMove: otherSide(mover),
     movesMadeLastPly: movesMade,

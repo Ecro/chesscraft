@@ -133,6 +133,35 @@ error surfaced at validation-fixture time, not a silent truncation.
 *Invalidation:* if an earlier layer removes the piece an unresolved later-layer effect targets, that
 effect is dropped, not retargeted. Every drop is recorded in the ply's resolution log.
 
+**Amendment 1 (2026-08-05, Phase 3 — forced by implementation).** The depth cap alone did not make
+cascades deterministic. Two squares that throw pieces at each other bounced one until the cap, so
+*parity* decided where it landed rather than the content. Two further rules hold:
+
+- a square's `on_enter` fires **at most once per ply**; and
+- a relocation never returns a piece to a square it already occupied **this ply**.
+
+Chained effects that are not relocations — a portal into a bomb square — still resolve normally. The
+cap is now a backstop rather than the thing that decides the outcome.
+
+**Amendment 2 (2026-08-05, Phase 3 — forced by implementation).** Every arrival on a square runs the
+same E4 entry, regardless of what put the piece there: a board move, a card's relocation, a spawn, or
+a revival. The card path previously skipped E4 entirely, which made the *same* declarative action mean
+different things depending on which content kind owned it — the one thing a shared vocabulary must
+never do (ADR-003). E5 promotion follows the same rule: landing on the promotion rank is a fact about
+the square, not about how the piece got there.
+
+**Amendment 3 (2026-08-06, Phase 6a — decided, not forced).** A **piece-layer effect fires once per
+owning piece**, and owner-relative targets (`self`, `adjacent_friendly`) bind to *that* piece. Four
+archers therefore produce four firings, not one. This was previously accidental — a consequence of
+collecting one binding per board piece while evaluating against a single event-wide subject — and is
+now the defined semantics, because it is also the correct reading of "pieces standing next to their
+own king are safe". The resolution log records the owner so the multiplicity is auditable.
+
+The `forEach` quantifier (schema v2) gives an **ownerless** effect the same shape: it binds each
+matching board piece as the effect's owner and subject. Without it a rule-card effect had no square,
+so every piece-relative target resolved to nothing — which silently blocked six of the fourteen rule
+cards. A quantified effect is ordered within its layer by board order, then by declaration order.
+
 Content cannot declare or alter its event or its layer.
 **Consequences:**
 - ✅ Resolution is a pure fold over a known-length list — reproducible, loggable, and directly
@@ -459,7 +488,7 @@ compatibility marker (ADR-005).
 | 3 — Vertical slice | **DONE (one deviation, see below)** | 72 tests passing across 12 files; `tests/engine/layer-order.test.ts` drives the deliberate four-layer ply and asserts both the log sequence and an order-decisive board outcome; `tests/engine/slice-match.test.ts` plays 25 seeds to a result with an in-loop deadlock guard; `e2e/slice.spec.ts` plays a match to a result through the UI. Typecheck clean, build green, 3 Playwright tests green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues. Gap list at `work-docs/VOCAB-GAPS-variant-chess-6x6-cards.md` |
 | 4 — Game UI and hot-seat flow | **DONE** | 78 unit tests across 13 files + 8 Playwright tests green. `e2e/hotseat.spec.ts` plays a match through **all four draft picks** to a result and asserts each UI clause the criterion names: rule card visible with identical text at start and end (AC-004), out-of-turn card play surfaces a reason and changes nothing (AC-008), both trays with spent-marking (AC-017), painted squares distinguished plus readable ability text (AC-018), and undo returning the *same* offer rather than a re-roll (ADR-013). Typecheck clean, build green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 5 — Content editor and preset storage | PENDING | |
-| 6a — High-schema-risk content gate | PENDING | |
+| 6a — High-schema-risk content gate | **DONE (two escalations, see below)** | 97 tests across 14 files + 8 Playwright green. (a0) `work-docs/CARDSET-variant-chess-6x6-cards.md` — all 28 cards, one line each, with the vocabulary each needs. (c) `work-docs/RISK-RANKING-variant-chess-6x6-cards.md` — full ranking and why these five. (a) every gated item passes schema validation. (b) `tests/content/gate-6a.test.ts` — 19 fixtures, one scenario set per item. (d) schema v2 landed: `forEach`, `revive_piece`, working `own_back_rank`, evaluated `check_count_at_least`, graveyard. Phase A.5 `test-reviewer` FAILed once on three real blocking issues in the check-counting fixtures, all accepted and fixed, then PASSed |
 | 6b — Remaining content set and i18n | PENDING | |
 | 7 — Verification harness and final acceptance gate | PENDING | |
 
@@ -513,6 +542,33 @@ Notes carried out of the completed phases:
   deliverable — the full card set on paper — says what is actually needed. **This needs a decision
   from the user.** G-5 is the one to watch: it is a correctness question, not a convenience one, and
   must be settled before 6a authors status-effect cards.
+- **Phase 6a's headline: only 6 of 28 cards were expressible.** Writing the full set down before
+  ranking it — ADR-011's premise — showed the bundled set is not reachable by writing content at all;
+  it is gated on closing vocabulary gaps. AC-010 (≥10 rule, ≥14 skill, all valid) therefore depends on
+  Phase 6b having a vocabulary it does not yet have. Finding this here rather than in 6b is the phase
+  paying for itself.
+- **DECIDED (user, 2026-08-06): the four cuts are approved; the three subsystem items are HELD.**
+  R7, R12, R13 and S4 leave the MVP set. S3 방패, S9 장벽 and R3 오리 are neither built nor cut — they
+  remain specified in `CARDSET-*.md` so the call can be revisited with the cost known. **A held card
+  does not count toward AC-010.** The arithmetic that follows is a real obligation, not bookkeeping:
+  rule cards land at 11 (AC-010 needs ≥10, fine), but skill cards land at **13 against a required 14**.
+  **Phase 6b must design one more skill card**, and it should use only already-expressible actions so
+  the count does not become a fifth dependency on an open gap.
+- **ESCALATION 1 — three ranked items are `needs-subsystem`, not content.** S3 방패 (replacement
+  effects), S9 장벽 (runtime square painting with a duration) and R3 오리 (a third neutral side plus
+  path blocking) score as high as the items that were authored, but each is a new engine capability.
+  Attempting them inside a content gate would smuggle a subsystem decision in as an implementation
+  detail, so they are **surfaced for a user decision** rather than built or silently dropped.
+- **ESCALATION 2 — four cards are recommended cuts from the MVP set.** R12 속공 턴 and S4 연속 이동
+  (turn structure), R13 반쪽 안개 (view redaction) and R7 합체와 분리 (two pieces on one square) sit
+  outside the content vocabulary by design — ADR-001 admits no code hook, so none can be a card
+  without becoming an engine feature. Cutting them keeps AC-010's counts reachable; keeping them
+  makes AC-010 depend on four subsystems.
+- **G-15 is the largest gap still open.** `grant_movement`, `forbid_movement` and `block_capture` are
+  consumed at E1 only, so a **skill card** carrying any of them is a silent no-op — while
+  `skillEffect` accepts all nine actions. Three of nine actions are unusable from the content kind
+  most likely to want them, and nothing says so. Same failure shape as G-7 and G-12, both of which
+  this phase closed.
 - **The vocabulary-gap deferral was approved by the user (2026-08-05).** G-3, G-4, G-5, G-6 and G-7
   stay open and move to Phase 6a. G-5 remains the one to settle before 6a authors status-effect cards.
 - **Phase 4 raised the slice skill pool from three to six.** Phase 4's scope says "content breadth:
