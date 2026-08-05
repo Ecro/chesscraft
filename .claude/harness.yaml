@@ -92,8 +92,9 @@ skills:
     - targeted-test-selection
 
 worktree:
-  scope: [execute]
+  scope: [execute, plan]
   branch_prefix: hm-
+  feature_branch_workflow: true
 memory:
   enabled: true
   dir: .claude/memory
