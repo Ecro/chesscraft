@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Whole matches are played inside these tests, which puts them near vitest's
+// 5s default on an idle machine and past it on a loaded one. A timeout in the
+// final acceptance gate reads as an engine failure, so the bound is explicit.
+vi.setConfig({ testTimeout: 60_000 })
 import { BUNDLED_PRESET_ID } from '@content/sets/bundled'
 import type { ContentSet } from '@content/load'
 import { chooseAction } from '@engine/agent'

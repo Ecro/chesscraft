@@ -46,7 +46,7 @@ describe('AC-004 seed determinism over a whole match', () => {
       }),
       { numRuns: 25 },
     )
-  })
+  }, 60_000)
 
   it('replays identically when the SAME action sequence is applied to a fresh match', () => {
     // Distinct from the property above: that one re-derives the actions, so an

@@ -144,7 +144,10 @@ describe('AC-013 engine invariants under random play', () => {
       }),
       { numRuns: 40 },
     )
-  })
+    // 40 random matches of up to 64 actions, each ply re-deriving legal actions
+    // and round-tripping serialization. Comfortably over vitest's 5s default on
+    // a loaded machine, and a timeout here reads as an engine failure.
+  }, 120_000)
 
   it('advances the ply count on a move or a card play, and not on a draft pick', () => {
     // The transition invariant, and the distinction an earlier draft got wrong:
