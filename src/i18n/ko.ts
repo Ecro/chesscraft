@@ -39,7 +39,7 @@ export const ko: Record<string, string> = {
 
   // --- rule cards ---
   'rule.king-of-the-hill.name': '언덕의 왕',
-  'rule.king-of-the-hill.text': '내 왕이 가운데 네 칸 중 하나에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
+  'rule.king-of-the-hill.text': '상대 기물이 여덟 이하로 줄어든 뒤, 내 왕이 가운데 네 칸 중 하나에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
   'rule.three-check.name': '삼세판 체크',
   'rule.three-check.text': '상대 왕을 세 번 체크하면 그 즉시 이긴다. 잡지 않아도 된다.',
   'rule.sudden-death.name': '전멸전',
@@ -54,12 +54,12 @@ export const ko: Record<string, string> = {
   'rule.conscription.text': '내 기물이 셋 이하일 때 턴이 끝나면, 내 뒷줄 빈 칸에 병사가 한 명 나타난다.',
   'rule.blood-toll.name': '피의 대가',
   'rule.blood-toll.text': '기물을 잡은 기물도 함께 사라진다. 함부로 잡을 수 없게 된다.',
-  'rule.pawn-rush.name': '병사 돌격',
-  'rule.pawn-rush.text': '모든 병사가 앞으로 두 칸까지 갈 수 있다. 양쪽 모두에게 적용된다.',
+  'rule.blitz.name': '속결',
+  'rule.blitz.text': '상대를 두 번 체크하면 그 즉시 이긴다.',
   'rule.knights-honour.name': '기사의 명예',
   'rule.knights-honour.text': '모든 기사가 ㄱ자 대신 아무 방향으로 한 칸 움직일 수도 있다.',
-  'rule.holy-ground.name': '성스러운 땅',
-  'rule.holy-ground.text': '가운데 네 칸에 서 있는 기물은 편을 가리지 않고 잡히지 않는다.',
+  'rule.duel.name': '결투',
+  'rule.duel.text': '상대 기물이 여덟 이하로 줄면 그 즉시 이긴다.',
 
   // --- skill cards ---
   'skill.teleport.name': '순간이동',

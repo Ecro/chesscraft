@@ -171,6 +171,14 @@ function backRankVacancies(state: GameState, side: Side): SquareId[] {
   return out
 }
 
+/** Whether `side` still has a royal piece anywhere on the board. */
+function hasRoyal(board: ReadonlyMap<SquareId, PieceOnBoard>, content: ContentSet, side: Side): boolean {
+  for (const piece of board.values()) {
+    if (piece.side === side && content.pieces.get(piece.pieceId)?.royal === true) return true
+  }
+  return false
+}
+
 /**
  * Whether `side` has a royal piece an enemy could capture right now.
  *
@@ -773,6 +781,33 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
 
   const plyCount = state.plyCount + 1
   let result = m.result
+  // ADR-012 amendment 4 — a side with no royal has lost, however it lost it.
+  //
+  // The short-circuit at E3 covers CAPTURE, which is the only way a king could
+  // leave the board when that rule was written. It is not any more: any content
+  // carrying `destroy_piece` can name a royal, and a card in the shipped set
+  // does exactly that. Removed rather than captured, the king left
+  // no result behind — so the match continued with one side unable to lose by
+  // king capture and the other unable to win by it, all the way to the ply cap.
+  // Found by the AC-013 invariant walk, which is the only thing that plays the
+  // line where a card destroys a king.
+  //
+  // Evaluated after effects resolve and before the cap, so a `win` action on
+  // the same ply keeps its precedence and the cap still loses to both.
+  //
+  // Judged as a TRANSITION — had a royal at the start of the ply, has none at
+  // the end — rather than against the board definition. Content may ship a
+  // royal-less side (a puzzle position, and `createPosition` builds exactly
+  // those for the editor preview), and such a side must not lose at ply one for
+  // a king it never had. Reading the board definition got that wrong; reading
+  // the ply's own before/after cannot.
+  if (!result) {
+    const lost = (['white', 'black'] as const).filter(
+      (side) => hasRoyal(state.board, content, side) && !hasRoyal(m.board, content, side),
+    )
+    if (lost.length === 2) result = { kind: 'draw', reason: 'king_capture' }
+    else if (lost.length === 1) result = { kind: 'win', winner: otherSide(lost[0]!), reason: 'king_capture' }
+  }
   if (!result && plyCount >= PLY_CAP) result = materialResult(m.board)
 
   return {

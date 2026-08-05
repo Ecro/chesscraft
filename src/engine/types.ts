@@ -41,7 +41,13 @@ export interface DraftState {
 
 export type MatchResult =
   | { kind: 'win'; winner: Side; reason: 'king_capture' | 'win_action' | 'material_cap' }
-  | { kind: 'draw'; reason: 'material_cap' }
+  /**
+   * `king_capture` as a DRAW reason is reachable: a single card that destroys
+   * one friendly and one enemy piece can name both royals, leaving
+   * neither side with a king. Declaring one of them the winner would be a coin
+   * flip dressed up as a rule.
+   */
+  | { kind: 'draw'; reason: 'material_cap' | 'king_capture' }
 
 /**
  * Immutable game state (ADR-004). Every action produces a new value; the match

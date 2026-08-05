@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { useSliceContent } from './content'
 
 /**
  * PLAN Phase 3 exit criterion (b), through the UI — a match is playable end to
@@ -10,7 +11,7 @@ import { expect, test } from '@playwright/test'
  */
 
 test('a match plays to a result using only slice content', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
 
   // The drawn rule card is visible before the first pick. Phase 4 localizes the
   // display text, so the machine-readable identity moved to the attribute.
@@ -40,7 +41,7 @@ test('a match plays to a result using only slice content', async ({ page }) => {
 })
 
 test('the editor refuses to save content that fails validation', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
   await page.getByTestId('tab-edit').click()
 
   await page.getByTestId('editor-kind').selectOption('skillCard')

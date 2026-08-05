@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { useSliceContent } from './content'
 
 /**
  * PLAN Phase 5 exit criterion — the content editor, end to end.
@@ -12,7 +13,7 @@ import { type Page, expect, test } from '@playwright/test'
  */
 
 async function openEditor(page: Page, kind: string) {
-  await page.goto('/')
+  await useSliceContent(page)
   await page.getByTestId('tab-edit').click()
   await page.getByTestId('editor-kind').selectOption(kind)
 }
@@ -341,7 +342,7 @@ test.describe('validation and transfer', () => {
   })
 
   test('refuses an import that is not valid content and says why', async ({ page }) => {
-    await page.goto('/')
+    await useSliceContent(page)
     await page.getByTestId('tab-edit').click()
     await page.getByTestId('editor-json').fill('{"schemaVersion": 3, "pieces": "not a list"}')
     await page.getByTestId('editor-import').click()

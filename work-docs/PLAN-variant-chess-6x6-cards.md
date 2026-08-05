@@ -490,7 +490,7 @@ compatibility marker (ADR-005).
 | 5 — Content editor and preset storage | **DONE (A.5 ran four rounds, see below)** | 203 tests across 20 files + 23 Playwright green; typecheck and build clean. `e2e/editor.spec.ts` covers create AND edit for each of the five axes plus preset bundling, each asserted from the board in the same session with no reload (AC-014); `tests/content/preset-io.test.ts` covers AC-015 at document, loaded-set and started-match levels. `tests/editor/vocabulary-coverage.test.ts` is ADR-006's permanent gate: 44 vocabulary rows + 8 record-field rows, each asserting the control is enabled in a host whose schema admits it AND that it writes exactly its own value at the JSON path it owns, then round-trips through save and re-open. New modules: `src/editor/{vocabulary,controls,io,storage}.ts`, `openDraft`/`editorContext` on `draft.ts`, a rewritten `src/ui/Edit.tsx`, and `preset-select` on `App.tsx`. Phase A.5 `test-reviewer` FAILed **three** times on eleven blocking issues before PASSing on the fourth — every one of them a fixture that would have passed against a wrong editor |
 | 6a — High-schema-risk content gate | **DONE (two escalations, see below)** | 97 tests across 14 files + 8 Playwright green. (a0) `work-docs/CARDSET-variant-chess-6x6-cards.md` — all 28 cards, one line each, with the vocabulary each needs. (c) `work-docs/RISK-RANKING-variant-chess-6x6-cards.md` — full ranking and why these five. (a) every gated item passes schema validation. (b) `tests/content/gate-6a.test.ts` — 19 fixtures, one scenario set per item. (d) schema v2 landed: `forEach`, `revive_piece`, working `own_back_rank`, evaluated `check_count_at_least`, graveyard. Phase A.5 `test-reviewer` FAILed once on three real blocking issues in the check-counting fixtures, all accepted and fixed, then PASSed |
 | 6b — Remaining content set and i18n | **DONE (one item not wired, see below)** | 118 tests across 16 files + 8 Playwright green. `src/content/sets/bundled.ts` ships 11 rule cards, 15 skill cards, 5 square types, 6 pieces, the Los Alamos board and the default preset, all validating with zero errors. `src/i18n/ko.ts` resolves every declared key. `tests/content/bundled.test.ts` covers AC-010 and AC-016; `tests/engine/vocabulary-v3.test.ts` drives the four schema v3 capabilities through the shipped cards that needed them. Phase A.5 `test-reviewer` FAILed once on two fixtures that could not distinguish the intended behaviour from a plausible wrong implementation, both fixed, then PASSed |
-| 7 — Verification harness and final acceptance gate | PENDING | |
+| 7 — Verification harness and final acceptance gate | **DONE (one engine defect found and fixed; AC-012 needed its R-4 remedy)** | `npm run verify` is the single-invocation gate: typecheck, build, 238 unit tests across 27 files, 28 Playwright tests, all green. `src/engine/agent.ts` is the uniform-random agent (ADR-014 substream, no shared code with evaluation) and `tests/engine/agent.test.ts` tests the FIXTURE — an agent returning `legalActions[0]` would have satisfied every other file in the phase. AC-004 over full replay, AC-006 no-bias at the second draft, AC-012 at 1000 seeds with a per-rule-card table, AC-013 as an invariant walk. `tests/structure/no-content-in-engine.test.ts` pins ADR-001 structurally. Phase A.5 `test-reviewer` FAILed once on seven blocking issues, all accepted |
 
 Notes carried out of the completed phases:
 
@@ -630,6 +630,45 @@ Notes carried out of the completed phases:
 - **AC-010 is still not ticked, but the wiring cost dropped.** `App.tsx` now carries `preset-select`
   over the loaded document's presets, so serving the bundled set no longer means changing a hardcoded
   preset id — it means getting the bundled content into the document.
+- **Phase 7's headline: a card could destroy a king without ending the match.** ADR-012's
+  short-circuit fired at E3, on CAPTURE — which was the only way a king could leave the board when
+  that rule was written. It stopped being the only way the moment the vocabulary gained
+  `destroy_piece` with a chosen target, and a card in the shipped set does exactly that. Removed
+  rather than captured, the king left no result behind: the match played on for another fifty plies
+  with king-capture victory unreachable for BOTH sides. Found by the AC-013 invariant walk on its
+  third generated seed; no scripted fixture in six phases had played that line. **ADR-012 gains
+  amendment 4** — a side that had a royal at the start of a ply and has none at the end has lost,
+  however it lost it, evaluated after effects resolve and before the ply cap. Judged as a TRANSITION
+  rather than against the board definition: the first attempt read the board definition and wrongly
+  condemned a royal-less puzzle position, which is exactly what `createPosition` builds for the
+  editor preview. `MatchResult` gains a `draw` with reason `king_capture`, because one card that
+  destroys a friendly and an enemy piece can name both royals — reachable, and it happens in 4 of
+  1000 self-play matches.
+- **AC-012 missed at 46 plies and the per-rule-card report is what made the remedy actionable.**
+  Nine of eleven rule cards carried no alternate win condition, so nine matches in eleven ran to the
+  60-ply cap (medians 49–59.5). Only `rule.king-of-the-hill` (3) and `rule.three-check` (29) ended
+  matches. **User decision (2026-08-06): replace two slow cards.** `rule.holy-ground` (59.5) → `rule.duel`
+  and `rule.pawn-rush` (59) → `rule.blitz`. Holy Ground was the worst offender and not merely slow: it
+  made every centre piece uncapturable, removing captures from the four squares play passes through
+  most. Final: **median 39, max 60**, with endings spread across king capture (458), win actions (261),
+  material cap (277) and draws (44).
+- **`rule.king-of-the-hill` was degenerate at a median of 3 plies** — the centre is two king moves
+  from the home rank on a 6x6 board, so the card won on white's SECOND move. Random play does not
+  defend, which exaggerates it, but two moves is a problem a human would meet too. **User decision
+  (2026-08-06): fixed** — the hill now requires the opponent worn down to eight pieces first, which
+  moved its median to 30 and made it the late-game win condition it was always meant to be.
+- **The self-play agent's own Given had to be tested.** AC-012 reads "played by a uniform-random
+  legal-action agent", and nothing in the statistical suite constrained the distribution: an agent
+  written as `legalActions[0]` is deterministic, terminates, and satisfies the whole of
+  `self-play.test.ts`, `determinism.test.ts` and the invariant walk — while measuring the
+  first-legal-move line rather than random play. `tests/engine/agent.test.ts` tests the fixture.
+- **AC-010 is now wired, and guarded on both sides.** `App.tsx` loads `bundledContentSource`. The two
+  documents could not be merged — `piece.king`, `piece.archer`, `skill.snare` and `skill.volley` exist
+  in both with different definitions — so the specs that need the Phase 3 slice import it through the
+  editor's REAL import control (`e2e/content.ts`), which adds no test-only product surface and
+  exercises AC-015's import path on every run. `e2e/bundle.spec.ts` reads markers only the bundle can
+  produce (two queens, five painted types, the portal pair) rather than checking an import statement,
+  which can be right while what it feeds is overridden downstream.
 - **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
   Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
   a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice
@@ -856,23 +895,23 @@ Mirrors the SPEC's verification criteria; each item is the phase that proves it.
 - [x] AC-001 6x6 Los Alamos initial position — Phase 2
 - [x] AC-002 king capture wins — Phase 2
 - [x] AC-003 60-ply cap resolves by material — Phase 2
-- [ ] AC-004 seed determinism — Phase 7
+- [x] AC-004 seed determinism — Phase 7 (`tests/engine/determinism.test.ts` — full-match replay, not just the opening)
 - [x] AC-005 first draft offers 3 — Phase 2 (engine) + Phase 4 (UI)
-- [ ] AC-006 second draft at turn 6, no repeats, unbiased — Phase 2 (engine) + Phase 7 (bias test)
+- [x] AC-006 second draft at turn 6, no repeats, unbiased — Phase 2 (engine) + Phase 7 (`tests/engine/draft-bias.test.ts`, at the SECOND draft, with the premise asserted)
 - [x] AC-007 card play consumes the turn — Phase 2
 - [x] AC-008 out-of-turn card play rejected — Phase 2
 - [x] AC-009 pieces defined by data — Phase 2 (`tests/content/piece-definitions.test.ts`)
-- [ ] AC-010 ≥10 rule / ≥14 skill / ≥4 square types, all valid — Phase 6b — bundle exists and validates (11/15/5), but `App.tsx` still loads the Phase 3 slice, so nothing ships it to a player yet
+- [x] AC-010 ≥10 rule / ≥14 skill / ≥4 square types, all valid — Phase 6b (counts) + Phase 7 (**wired**: `App.tsx` loads `bundledContentSource`, and `e2e/bundle.spec.ts` reads markers only the bundle can produce off the board)
 - [x] AC-011 fail-closed validation with field paths — Phase 1
-- [ ] AC-012 self-play median ≤ 40 plies, max ≤ 60 — Phase 7
-- [ ] AC-013 engine invariants under random play — Phase 7
-- [ ] AC-014 editor content immediately playable — Phase 5
-- [ ] AC-015 export/import round-trip — Phase 5
+- [x] AC-012 self-play median ≤ 40 plies, max ≤ 60 — Phase 7 — **median 39, max 60**, after the Risk R-4 content remedy below
+- [x] AC-013 engine invariants under random play — Phase 7 (`tests/engine/invariants.test.ts`; found the royal-removal defect)
+- [x] AC-014 editor content immediately playable — Phase 5 (`e2e/editor.spec.ts`)
+- [x] AC-015 export/import round-trip — Phase 5 (`tests/content/preset-io.test.ts` + `e2e/editor.spec.ts`)
 - [x] AC-016 i18n keys resolvable in `ko` — Phase 6b
 - [x] AC-017 both players' cards visible — Phase 4
 - [x] AC-018 special squares from data — Phase 2 (`tests/content/special-squares.test.ts`) + Phase 4
       (visibility and ability text, `e2e/hotseat.spec.ts`)
-- [ ] Final acceptance: all 18 criteria green in one CI invocation — Phase 7
+- [x] Final acceptance: all 18 criteria green in one CI invocation — Phase 7 (`npm run verify`)
 
 ## 🔍 Plan Validation
 

@@ -212,7 +212,18 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'end_of_ply',
           forEach: { kind: 'piece', pieceId: 'piece.king', side: 'mover' },
-          condition: { kind: 'on_square', squares: CENTRE },
+          // Standing on the hill is not enough. The centre is two king moves
+          // from the home rank on a 6x6 board, so the bare version ended the
+          // match on white's SECOND move — measured at a median of 3 plies.
+          // Requiring the opponent to be worn down first makes it a late-game
+          // win condition, which is what the card was always meant to be.
+          condition: {
+            kind: 'all',
+            of: [
+              { kind: 'on_square', squares: CENTRE },
+              { kind: 'piece_count_at_most', side: 'opponent', n: 8 },
+            ],
+          },
           actions: [{ kind: 'win', side: 'mover' }],
         },
       ],
@@ -314,18 +325,19 @@ export const bundledContentSource: ContentSource = {
       ],
     },
     {
-      id: 'rule.pawn-rush',
-      nameKey: 'rule.pawn-rush.name',
-      textKey: 'rule.pawn-rush.text',
-      cost: 3,
+      // Replaces `rule.pawn-rush`, whose measured median was 59 plies. Phase 7
+      // found that nine of eleven rule cards carried no alternate win condition
+      // at all, so nine matches in eleven ran to the cap; the permitted remedy
+      // (PLAN Risk R-4) is to raise the share of cards that can end a match.
+      id: 'rule.blitz',
+      nameKey: 'rule.blitz.name',
+      textKey: 'rule.blitz.text',
+      cost: 4,
       effects: [
         {
-          trigger: 'generate_moves',
-          forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'any' },
-          condition: { kind: 'always' },
-          actions: [
-            { kind: 'grant_movement', target: { kind: 'self' }, pattern: { kind: 'slide', vectors: [[0, 1]], maxDistance: 2, forward: true } },
-          ],
+          trigger: 'end_of_ply',
+          condition: { kind: 'check_count_at_least', n: 2 },
+          actions: [{ kind: 'win', side: 'mover' }],
         },
       ],
     },
@@ -344,16 +356,19 @@ export const bundledContentSource: ContentSource = {
       ],
     },
     {
-      id: 'rule.holy-ground',
-      nameKey: 'rule.holy-ground.name',
-      textKey: 'rule.holy-ground.text',
-      cost: 4,
+      // Replaces `rule.holy-ground` (median 59.5, the slowest card in the set).
+      // That card made every centre piece uncapturable, so it did not merely
+      // fail to end matches — it removed captures from the four squares play
+      // passes through most.
+      id: 'rule.duel',
+      nameKey: 'rule.duel.name',
+      textKey: 'rule.duel.text',
+      cost: 5,
       effects: [
         {
-          trigger: 'generate_moves',
-          forEach: { kind: 'piece' },
-          condition: { kind: 'on_square', squares: CENTRE },
-          actions: [{ kind: 'block_capture', target: { kind: 'self' } }],
+          trigger: 'end_of_ply',
+          condition: { kind: 'piece_count_at_most', side: 'opponent', n: 8 },
+          actions: [{ kind: 'win', side: 'mover' }],
         },
       ],
     },
@@ -625,9 +640,9 @@ export const bundledContentSource: ContentSource = {
         'rule.last-stand',
         'rule.conscription',
         'rule.blood-toll',
-        'rule.pawn-rush',
+        'rule.blitz',
         'rule.knights-honour',
-        'rule.holy-ground',
+        'rule.duel',
       ],
       skillCardIds: [
         'skill.teleport',

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { type ContentSource, loadContentSet } from '@content/load'
-import { SLICE_PRESET_ID, sliceContentSource } from '@content/sets/slice'
+import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStoredContent } from '@editor/storage'
 import { Edit } from './Edit'
 import { Play } from './Play'
@@ -19,11 +19,17 @@ function initialSource(): ContentSource {
     const stored = loadStoredContent(storage)
     if (stored.ok) return stored.source
   }
-  return structuredClone(sliceContentSource)
+  return structuredClone(bundledContentSource)
 }
 
 /**
- * The Phase 3 harness shell: play the slice, or edit it.
+ * The app shell: play the shipped content set, or edit it.
+ *
+ * The entry point resolves to `bundledContentSource` — that resolution IS the
+ * product half of AC-010, and it is asserted rather than assumed
+ * (`tests/content/ships-the-bundle.test.ts`). Until Phase 7 this file loaded
+ * the Phase 3 throwaway slice, so the bundle validated, was fully tested, and
+ * reached no player: an artifact every count-based criterion called shipped.
  *
  * Editing restarts the match rather than patching the running one. Content that
  * changed mid-match would make the resolution log un-replayable, and replay is
@@ -33,12 +39,12 @@ export function App() {
   const [source, setSource] = useState<ContentSource>(initialSource)
   const [revision, setRevision] = useState(0)
   const [tab, setTab] = useState<'play' | 'edit'>('play')
-  const [presetId, setPresetId] = useState(SLICE_PRESET_ID)
+  const [presetId, setPresetId] = useState(BUNDLED_PRESET_ID)
 
   const loaded = useMemo(() => loadContentSet(source), [source])
   const presetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
   // A preset the author deleted must not leave the board pointing at nothing.
-  const activePreset = presetIds.includes(presetId) ? presetId : (presetIds[0] ?? SLICE_PRESET_ID)
+  const activePreset = presetIds.includes(presetId) ? presetId : (presetIds[0] ?? BUNDLED_PRESET_ID)
 
   return (
     <main>

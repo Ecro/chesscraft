@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { useSliceContent } from './content'
 
 /**
  * PLAN Phase 4 exit criterion — the hot-seat flow, end to end.
@@ -52,7 +53,7 @@ async function heldBy(page: Page, side: 'white' | 'black'): Promise<string[]> {
 }
 
 test('plays a hot-seat match through all four draft picks to a result', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
 
   const ruleCard = page.getByTestId('rule-card')
   await expect(ruleCard).toBeVisible()
@@ -118,7 +119,7 @@ test('plays a hot-seat match through all four draft picks to a result', async ({
 })
 
 test('surfaces a reason when a card is played out of turn', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
   await pickFirstOffer(page)
   await pickFirstOffer(page)
   await expect(page.getByTestId('side-to-move')).toHaveText('white')
@@ -135,7 +136,7 @@ test('surfaces a reason when a card is played out of turn', async ({ page }) => 
 })
 
 test('marks a spent card in the tray, for both players to see', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
   await pickFirstOffer(page)
   await pickFirstOffer(page)
 
@@ -153,7 +154,7 @@ test('marks a spent card in the tray, for both players to see', async ({ page })
 })
 
 test('distinguishes special squares and shows their ability text', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
 
   // AC-018's UI clause. The marking is driven by the board's paint data, so a
   // new square type needs no change here.
@@ -169,7 +170,7 @@ test('distinguishes special squares and shows their ability text', async ({ page
 })
 
 test('lays out in portrait without horizontal scrolling', async ({ page }) => {
-  await page.goto('/')
+  await useSliceContent(page)
   const overflows = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   )
