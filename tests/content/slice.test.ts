@@ -21,12 +21,26 @@ describe('slice content set', () => {
 
   it('carries exactly the minimal set the phase scope names', () => {
     const set = loadSliceContent()
-    // 2 pieces, 1 rule card, 3 skill cards, 1 square type — the PLAN's stated
-    // minimum. More would stop being a slice; fewer cannot form a draft offer.
+    // 2 pieces, 1 rule card, 1 square type — the PLAN's stated minimum. More
+    // would stop being a slice.
     expect([...set.pieces.keys()].sort()).toEqual(['piece.archer', 'piece.king'])
     expect([...set.squareTypes.keys()]).toEqual(['square.beacon'])
     expect([...set.ruleCards.keys()]).toEqual(['rule.beacon-rush'])
-    expect([...set.skillCards.keys()].sort()).toEqual(['skill.hold', 'skill.rally', 'skill.warp'])
+  })
+
+  it('carries the six skill cards both draft rounds require', () => {
+    // Six, not three: AC-005 fixes an offer at three distinct cards and AC-006
+    // requires the second offer disjoint from the first, so five or fewer means
+    // the sixth-turn draft can never open (Phase 3 finding G-8).
+    const set = loadSliceContent()
+    expect([...set.skillCards.keys()].sort()).toEqual([
+      'skill.ascend',
+      'skill.hold',
+      'skill.rally',
+      'skill.snare',
+      'skill.volley',
+      'skill.warp',
+    ])
   })
 
   it('spreads the four owner layers across the four content kinds', () => {
@@ -58,7 +72,7 @@ describe('slice content set', () => {
     const set = loadSliceContent()
     const preset = set.presets.get(SLICE_PRESET_ID)
     expect(preset).toBeDefined()
-    expect(preset!.skillCardIds).toHaveLength(3)
+    expect(preset!.skillCardIds).toHaveLength(6)
     for (const id of preset!.pieceIds) expect(set.pieces.has(id)).toBe(true)
     for (const id of preset!.ruleCardIds) expect(set.ruleCards.has(id)).toBe(true)
     for (const id of preset!.skillCardIds) expect(set.skillCards.has(id)).toBe(true)

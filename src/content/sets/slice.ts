@@ -14,10 +14,11 @@ import { type ContentSet, type ContentSource, loadContentSet } from '../load'
  * and the board comes out different, which is what makes the order testable
  * rather than merely documented.
  *
- * Kept deliberately to 2 pieces / 1 square type / 1 rule card / 3 skill cards.
- * Three is the smallest pool that can form one conforming AC-005 offer; it is
- * also, by construction, too small for AC-006's disjoint second offer, which is
- * the absent case `bumpTurns` has to handle rather than deadlock on.
+ * Kept deliberately to 2 pieces / 1 square type / 1 rule card, and to the fewest
+ * skill cards the acceptance criteria admit. Phase 3 shipped three — one
+ * conforming AC-005 offer — which turned out to be too few for AC-006's
+ * disjoint second offer and surfaced the deadlock `bumpTurns` now handles.
+ * Phase 4 raised it to six, the floor at which all four draft picks exist.
  */
 
 const ORTHOGONAL: Array<[number, number]> = [
@@ -179,6 +180,55 @@ export const sliceContentSource: ContentSource = {
         },
       ],
     },
+    // Three more, added in Phase 4. Not breadth — the floor. AC-005 fixes an
+    // offer at three distinct cards and AC-006 requires the second offer to be
+    // disjoint from the first, so a preset with fewer than six skill cards can
+    // never open a second draft (G-8). Phase 4's exit criterion demands four
+    // draft picks, which a three-card pool makes structurally unreachable.
+    {
+      id: 'skill.volley',
+      nameKey: 'skill.volley.name',
+      textKey: 'skill.volley.text',
+      cost: 6,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }],
+        },
+      ],
+    },
+    {
+      id: 'skill.snare',
+      nameKey: 'skill.snare.name',
+      textKey: 'skill.snare.text',
+      cost: 2,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'chosen_enemy' }, plies: 1 }],
+        },
+      ],
+    },
+    {
+      // Royalty is a content flag, so a card can hand it out: you gain a second
+      // king, and a second piece you cannot afford to lose.
+      id: 'skill.ascend',
+      nameKey: 'skill.ascend.name',
+      textKey: 'skill.ascend.text',
+      cost: 5,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'promote_piece', target: { kind: 'chosen_friendly' }, to: 'piece.king' }],
+        },
+      ],
+    },
   ],
 
   boards: [
@@ -208,7 +258,7 @@ export const sliceContentSource: ContentSource = {
       boardId: SLICE_BOARD_ID,
       pieceIds: ['piece.king', 'piece.archer'],
       ruleCardIds: ['rule.beacon-rush'],
-      skillCardIds: ['skill.warp', 'skill.hold', 'skill.rally'],
+      skillCardIds: ['skill.warp', 'skill.hold', 'skill.rally', 'skill.volley', 'skill.snare', 'skill.ascend'],
     },
   ],
 }

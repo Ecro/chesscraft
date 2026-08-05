@@ -22,3 +22,7 @@ test-results/
 .vite/
 .claude/.hm-finalize-stash-*
 .claude/.hm-owned-uuids-*
+
+# transient flock files written by hm memory_md
+.claude/memory/*.lock
+*.swp

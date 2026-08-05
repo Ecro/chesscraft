@@ -1,0 +1,218 @@
+/*
+ * Portrait-first layout (SPEC constraint: mobile web is the primary target).
+ *
+ * The board is a square grid sized off viewport width, so it fits a 360px phone
+ * without the page ever scrolling sideways — a horizontally scrolling board is
+ * unusable with a thumb, and it is what `e2e/hotseat.spec.ts` pins.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #1c1917;
+  background: #faf9f7;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+  overflow-x: hidden;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 10px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.card span {
+  font-size: 12px;
+  color: #57534e;
+}
+
+.rule {
+  border-color: #a8a29e;
+  background: #fffbeb;
+  margin-bottom: 10px;
+}
+
+.result {
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #dcfce7;
+}
+
+.rejection {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.board {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.square {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px;
+  overflow: hidden;
+  background: #f5f5f4;
+}
+
+.square .coord {
+  font-size: 9px;
+  color: #a8a29e;
+  align-self: flex-start;
+}
+
+.square .piece {
+  font-size: 12px;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+
+.square[data-side='white'] .piece {
+  color: #1d4ed8;
+}
+
+.square[data-side='black'] .piece {
+  color: #b91c1c;
+}
+
+/* A painted square must be distinguishable at a glance — AC-018's UI clause. */
+.square[data-square-type]:not([data-square-type='']) {
+  background: repeating-linear-gradient(45deg, #fef3c7, #fef3c7 6px, #fde68a 6px, #fde68a 12px);
+  border-color: #d97706;
+}
+
+.square[data-legal='true'] {
+  outline: 2px solid #16a34a;
+  outline-offset: -2px;
+}
+
+.square[data-selected='true'] {
+  outline: 3px solid #2563eb;
+  outline-offset: -3px;
+}
+
+.legend {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px dashed #d97706;
+  border-radius: 10px;
+  font-size: 12px;
+  background: #fffbeb;
+}
+
+.tray {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: #f5f5f4;
+}
+
+.tray[data-active='true'] {
+  outline: 2px solid #2563eb;
+}
+
+.tray-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #57534e;
+}
+
+.tray .empty {
+  font-size: 12px;
+  color: #a8a29e;
+}
+
+.card[data-used='true'] {
+  opacity: 0.5;
+}
+
+.card[data-pending='true'] {
+  outline: 2px solid #2563eb;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  width: 100%;
+}

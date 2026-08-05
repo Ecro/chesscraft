@@ -457,7 +457,7 @@ compatibility marker (ADR-005).
 | 1 — Content schema + validator | **DONE** | `tests/content/validation.test.ts` 10 passed — AC-011's 7 fixtures, the ADR-010 portal-asymmetry fixture, the universal id+path shape check, and the atomic-load boundary. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 2 — Engine core | **DONE** | 51 tests passing across 8 files — AC-001/002/003/004/005/006/007/008/009/018, the ADR-012 short-circuit fixtures, and the serialization round-trip. Typecheck clean, build and e2e green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 3 — Vertical slice | **DONE (one deviation, see below)** | 72 tests passing across 12 files; `tests/engine/layer-order.test.ts` drives the deliberate four-layer ply and asserts both the log sequence and an order-decisive board outcome; `tests/engine/slice-match.test.ts` plays 25 seeds to a result with an in-loop deadlock guard; `e2e/slice.spec.ts` plays a match to a result through the UI. Typecheck clean, build green, 3 Playwright tests green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues. Gap list at `work-docs/VOCAB-GAPS-variant-chess-6x6-cards.md` |
-| 4 — Game UI and hot-seat flow | PENDING | |
+| 4 — Game UI and hot-seat flow | **DONE** | 78 unit tests across 13 files + 8 Playwright tests green. `e2e/hotseat.spec.ts` plays a match through **all four draft picks** to a result and asserts each UI clause the criterion names: rule card visible with identical text at start and end (AC-004), out-of-turn card play surfaces a reason and changes nothing (AC-008), both trays with spent-marking (AC-017), painted squares distinguished plus readable ability text (AC-018), and undo returning the *same* offer rather than a re-roll (ADR-013). Typecheck clean, build green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 5 — Content editor and preset storage | PENDING | |
 | 6a — High-schema-risk content gate | PENDING | |
 | 6b — Remaining content set and i18n | PENDING | |
@@ -513,6 +513,23 @@ Notes carried out of the completed phases:
   deliverable — the full card set on paper — says what is actually needed. **This needs a decision
   from the user.** G-5 is the one to watch: it is a correctness question, not a convenience one, and
   must be settled before 6a authors status-effect cards.
+- **The vocabulary-gap deferral was approved by the user (2026-08-05).** G-3, G-4, G-5, G-6 and G-7
+  stay open and move to Phase 6a. G-5 remains the one to settle before 6a authors status-effect cards.
+- **Phase 4 raised the slice skill pool from three to six.** Phase 4's scope says "content breadth:
+  out", but its exit criterion demands **four** draft picks, and G-8 established that a pool under six
+  can never open the second draft — AC-005 fixes an offer at three distinct cards and AC-006 requires
+  the second offer disjoint from the first. Three more cards (`skill.volley`, `skill.snare`,
+  `skill.ascend`) were added as the floor the criterion needs, not as breadth. The G-8 deadlock
+  regression is still guarded: `tests/engine/slice-match.test.ts` builds a three-card preset inline
+  for it, so raising the shipped pool did not quietly retire that test.
+- **Phase 4 owns the i18n seam, Phase 6b owns its breadth.** AC-018's "ability text is readable" and
+  AC-016's key-not-literal rule together mean the UI cannot ship without resolution. `src/ui/i18n.ts`
+  resolves keys and **falls back to the key itself**, never to an empty string — an untranslated card
+  must look wrong rather than look like a card with no text. `missingKeys()` is the mechanism AC-016's
+  second clause will be checked with in Phase 6b.
+- **Machine-readable identity moved to data attributes.** Board squares and cards now render localized
+  names, so `e2e/slice.spec.ts`'s text assertions were migrated to `data-piece` / `data-rule` /
+  `data-card`. Same strength, and it survives translation changes.
 - **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
   Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
   a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice
@@ -736,24 +753,24 @@ Added by this PLAN:
 
 Mirrors the SPEC's verification criteria; each item is the phase that proves it.
 
-- [ ] AC-001 6x6 Los Alamos initial position — Phase 2
-- [ ] AC-002 king capture wins — Phase 2
-- [ ] AC-003 60-ply cap resolves by material — Phase 2
+- [x] AC-001 6x6 Los Alamos initial position — Phase 2
+- [x] AC-002 king capture wins — Phase 2
+- [x] AC-003 60-ply cap resolves by material — Phase 2
 - [ ] AC-004 seed determinism — Phase 7
-- [ ] AC-005 first draft offers 3 — Phase 2 (engine) + Phase 4 (UI)
+- [x] AC-005 first draft offers 3 — Phase 2 (engine) + Phase 4 (UI)
 - [ ] AC-006 second draft at turn 6, no repeats, unbiased — Phase 2 (engine) + Phase 7 (bias test)
-- [ ] AC-007 card play consumes the turn — Phase 2
-- [ ] AC-008 out-of-turn card play rejected — Phase 2
-- [ ] AC-009 pieces defined by data — Phase 2 (`tests/content/piece-definitions.test.ts`)
+- [x] AC-007 card play consumes the turn — Phase 2
+- [x] AC-008 out-of-turn card play rejected — Phase 2
+- [x] AC-009 pieces defined by data — Phase 2 (`tests/content/piece-definitions.test.ts`)
 - [ ] AC-010 ≥10 rule / ≥14 skill / ≥4 square types, all valid — Phase 6b
-- [ ] AC-011 fail-closed validation with field paths — Phase 1
+- [x] AC-011 fail-closed validation with field paths — Phase 1
 - [ ] AC-012 self-play median ≤ 40 plies, max ≤ 60 — Phase 7
 - [ ] AC-013 engine invariants under random play — Phase 7
 - [ ] AC-014 editor content immediately playable — Phase 5
 - [ ] AC-015 export/import round-trip — Phase 5
 - [ ] AC-016 i18n keys resolvable in `ko` — Phase 6b
-- [ ] AC-017 both players' cards visible — Phase 4
-- [ ] AC-018 special squares from data — Phase 2 (`tests/content/special-squares.test.ts`) + Phase 4
+- [x] AC-017 both players' cards visible — Phase 4
+- [x] AC-018 special squares from data — Phase 2 (`tests/content/special-squares.test.ts`) + Phase 4
       (visibility and ability text, `e2e/hotseat.spec.ts`)
 - [ ] Final acceptance: all 18 criteria green in one CI invocation — Phase 7
 
