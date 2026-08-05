@@ -55,6 +55,7 @@ export const validContentSource = {
       nameKey: 'piece.king.name',
       textKey: 'piece.king.text',
       movement: [{ kind: 'step', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
+      royal: true,
       effects: [],
     },
     {
@@ -199,6 +200,92 @@ export const validContentSource = {
         },
       ],
     },
+    // AC-006 needs a second offer of 3 cards disjoint from the first offer and
+    // from what the player holds, so the pool must hold at least 9.
+    {
+      id: 'skill.stun',
+      nameKey: 'skill.stun.name',
+      textKey: 'skill.stun.text',
+      cost: 3,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'chosen_enemy' }, plies: 1 }],
+        },
+      ],
+    },
+    {
+      id: 'skill.banish',
+      nameKey: 'skill.banish.name',
+      textKey: 'skill.banish.text',
+      cost: 6,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }],
+        },
+      ],
+    },
+    {
+      id: 'skill.recall',
+      nameKey: 'skill.recall.name',
+      textKey: 'skill.recall.text',
+      cost: 5,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'chosen_empty' } }],
+        },
+      ],
+    },
+    {
+      id: 'skill.leap',
+      nameKey: 'skill.leap.name',
+      textKey: 'skill.leap.text',
+      cost: 4,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'teleport_piece', target: { kind: 'chosen_friendly' }, to: { kind: 'chosen_empty' } }],
+        },
+      ],
+    },
+    {
+      id: 'skill.knighting',
+      nameKey: 'skill.knighting.name',
+      textKey: 'skill.knighting.text',
+      cost: 4,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'promote_piece', target: { kind: 'chosen_friendly' }, to: 'piece.knight' }],
+        },
+      ],
+    },
+    {
+      id: 'skill.rally',
+      nameKey: 'skill.rally.name',
+      textKey: 'skill.rally.text',
+      cost: 5,
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.knight', side: 'mover', at: { kind: 'chosen_empty' } }],
+        },
+      ],
+    },
   ],
 
   boards: [
@@ -222,12 +309,37 @@ export const validContentSource = {
       boardId: 'board.los-alamos',
       pieceIds: ['piece.king', 'piece.queen', 'piece.rook', 'piece.knight', 'piece.pawn'],
       ruleCardIds: ['rule.king-of-the-hill'],
-      skillCardIds: ['skill.teleport', 'skill.freeze', 'skill.coronation'],
+      skillCardIds: [
+        'skill.teleport',
+        'skill.freeze',
+        'skill.coronation',
+        'skill.stun',
+        'skill.banish',
+        'skill.recall',
+        'skill.leap',
+        'skill.knighting',
+        'skill.rally',
+      ],
     },
   ],
 }
 
-export type ContentSource = typeof validContentSource
+/**
+ * Deliberately loose: inferring the type from the literal makes every optional
+ * field required, so a fixture could not omit `pairedWith` or add a variant
+ * condition. The real type contract is the Zod schema, which every fixture is
+ * validated against — this alias only needs to be ergonomic for mutation.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type ContentSource = {
+  schemaVersion: number
+  pieces: any[]
+  squareTypes: any[]
+  ruleCards: any[]
+  skillCards: any[]
+  boards: any[]
+  presets: any[]
+}
 
 /** Deep-clones the reference source so a fixture can corrupt exactly one field. */
 export function cloneValid(): ContentSource {

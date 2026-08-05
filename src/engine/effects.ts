@@ -1,0 +1,167 @@
+import type { ContentSet } from '@content/load'
+import type { Condition, Effect, PieceDef, SquareTypeDef } from '@content/schema'
+import { type GameState, type PieceOnBoard, type Side, type SquareId, coords, otherSide, squareId } from './types'
+
+/**
+ * Effect collection and evaluation for the ADR-002 pipeline.
+ *
+ * Resolution is a total order over (lifecycle event x owner layer). This module
+ * owns the *layer* half: for a given event it yields effects in the fixed order
+ * board square -> piece passive -> rule card -> skill card, and within a layer
+ * in content-declaration order.
+ */
+
+export type Layer = 'square' | 'piece' | 'rule' | 'skill'
+
+export interface BoundEffect {
+  layer: Layer
+  /** Square the effect's owner sits on, when it has one. */
+  ownerSquare: SquareId | null
+  ownerSide: Side | null
+  effect: Effect
+  sourceId: string
+}
+
+export interface EvalCtx {
+  state: GameState
+  content: ContentSet
+  mover: Side
+  /** The piece the current event is about, and where it stands. */
+  subject: { square: SquareId; piece: PieceOnBoard } | null
+  /** Squares the player picked for a card play. */
+  chosen: readonly SquareId[]
+}
+
+/** Square types painted on the active board, keyed by square. */
+export function paintedSquares(state: GameState, content: ContentSet): Map<SquareId, { type: SquareTypeDef; pairedWith?: string }> {
+  const board = content.boards.get(state.boardId)
+  const out = new Map<SquareId, { type: SquareTypeDef; pairedWith?: string }>()
+  if (!board) return out
+  for (const s of board.squares) {
+    const type = content.squareTypes.get(s.typeId)
+    if (type) out.set(s.square, s.pairedWith === undefined ? { type } : { type, pairedWith: s.pairedWith })
+  }
+  return out
+}
+
+/**
+ * Collects every effect bound to `trigger`, in ADR-002 layer order.
+ *
+ * `focusSquares` limits the square layer to the squares this event is about
+ * (the origin for on_leave, the destination for on_enter); pass null for a
+ * board-wide sweep, which is what generate_moves needs.
+ */
+export function collectEffects(
+  state: GameState,
+  content: ContentSet,
+  trigger: string,
+  focusSquares: readonly SquareId[] | null,
+): BoundEffect[] {
+  const out: BoundEffect[] = []
+
+  // Layer 1 — board squares.
+  const painted = paintedSquares(state, content)
+  for (const [square, { type }] of painted) {
+    if (focusSquares && !focusSquares.includes(square)) continue
+    for (const effect of type.effects) {
+      if (effect.trigger === trigger) {
+        out.push({ layer: 'square', ownerSquare: square, ownerSide: null, effect, sourceId: type.id })
+      }
+    }
+  }
+
+  // Layer 2 — piece passives.
+  for (const [square, piece] of state.board) {
+    const def = content.pieces.get(piece.pieceId)
+    if (!def) continue
+    for (const effect of def.effects) {
+      if (effect.trigger === trigger) {
+        out.push({ layer: 'piece', ownerSquare: square, ownerSide: piece.side, effect, sourceId: def.id })
+      }
+    }
+  }
+
+  // Layer 3 — the drawn rule card.
+  const rule = state.ruleCardId ? content.ruleCards.get(state.ruleCardId) : undefined
+  if (rule) {
+    for (const effect of rule.effects) {
+      if (effect.trigger === trigger) {
+        out.push({ layer: 'rule', ownerSquare: null, ownerSide: null, effect, sourceId: rule.id })
+      }
+    }
+  }
+
+  // Layer 4 — skill cards resolve only on their own play, handled by `apply`.
+  return out
+}
+
+export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx): boolean {
+  switch (cond.kind) {
+    case 'always':
+      return true
+    case 'piece_is':
+      return ctx.subject?.piece.pieceId === cond.pieceId
+    case 'piece_side':
+      return ctx.subject?.piece.side === (cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover))
+    case 'on_square':
+      return ctx.subject !== null && cond.squares.includes(ctx.subject.square)
+    case 'check_count_at_least':
+      // Check counting has no engine support yet; a card relying on it simply
+      // never fires rather than silently reading as true.
+      return false
+    case 'not':
+      return !evalCondition(cond.of, bound, ctx)
+    case 'all':
+      return cond.of.every((c) => evalCondition(c, bound, ctx))
+    case 'any':
+      return cond.of.some((c) => evalCondition(c, bound, ctx))
+  }
+}
+
+/** Squares an action's `target` resolves to, given who owns the effect. */
+export function resolveTarget(
+  target: { kind: string },
+  bound: BoundEffect,
+  ctx: EvalCtx,
+  chosenCursor: { i: number },
+): SquareId[] {
+  switch (target.kind) {
+    case 'self':
+      return bound.ownerSquare ? [bound.ownerSquare] : []
+    case 'occupant':
+      return bound.ownerSquare && ctx.state.board.has(bound.ownerSquare) ? [bound.ownerSquare] : []
+    case 'entering':
+      return ctx.subject ? [ctx.subject.square] : []
+    case 'mover':
+      return ctx.subject ? [ctx.subject.square] : []
+    case 'adjacent_friendly': {
+      if (!bound.ownerSquare || !bound.ownerSide) return []
+      const { file, rank } = coords(bound.ownerSquare)
+      const out: SquareId[] = []
+      for (let df = -1; df <= 1; df += 1) {
+        for (let dr = -1; dr <= 1; dr += 1) {
+          if (df === 0 && dr === 0) continue
+          const sq = squareId(file + df, rank + dr)
+          const occupant = ctx.state.board.get(sq)
+          if (occupant && occupant.side === bound.ownerSide) out.push(sq)
+        }
+      }
+      return out
+    }
+    case 'chosen_friendly':
+    case 'chosen_enemy': {
+      const sq = ctx.chosen[chosenCursor.i]
+      chosenCursor.i += 1
+      return sq ? [sq] : []
+    }
+    default:
+      return []
+  }
+}
+
+/** Piece definition lookup that fails loudly rather than silently no-op'ing. */
+export function pieceDefOf(content: ContentSet, piece: PieceOnBoard): PieceDef {
+  const def = content.pieces.get(piece.pieceId)
+  if (!def) throw new Error(`content set has no piece ${piece.pieceId}`)
+  return def
+}

@@ -455,7 +455,7 @@ compatibility marker (ADR-005).
 |---|---|---|
 | 0 — Project scaffold | **DONE** | `npm run typecheck` clean, `npm test` 1 passed, `npm run build` produced a bundle, `npm run e2e` 1 passed (Playwright, mobile-portrait project) |
 | 1 — Content schema + validator | **DONE** | `tests/content/validation.test.ts` 10 passed — AC-011's 7 fixtures, the ADR-010 portal-asymmetry fixture, the universal id+path shape check, and the atomic-load boundary. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
-| 2 — Engine core | PENDING | |
+| 2 — Engine core | **DONE** | 51 tests passing across 8 files — AC-001/002/003/004/005/006/007/008/009/018, the ADR-012 short-circuit fixtures, and the serialization round-trip. Typecheck clean, build and e2e green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 3 — Vertical slice | PENDING | |
 | 4 — Game UI and hot-seat flow | PENDING | |
 | 5 — Content editor and preset storage | PENDING | |
@@ -471,6 +471,20 @@ Notes carried out of the completed phases:
 - **Phase 1 added an `unrecognized_keys` unwrap.** Zod reports an unknown-field issue against the
   *object*, carrying the offending keys separately; AC-011 requires the field path, so the loader
   expands each key into its own error. Found by the test, fixed in the implementation.
+- **ADR-002 gained two cascade rules that implementation forced.** The written cascade rule (a depth
+  cap of 8) was not sufficient: two portals pointing at each other bounced a piece until the cap, so
+  *parity* decided where it landed rather than the content. The engine now also holds (a) each
+  square's `on_enter` fires at most once per ply, and (b) a teleport never returns a piece to a square
+  it already occupied this ply. Chained non-teleport effects — portal into a bomb square — still
+  resolve. **These belong in ADR-002 and are not yet written there.**
+- **Content declares royalty.** AC-002 needs "which piece ends the match when captured", and hardcoding
+  `piece.king` in the engine would violate ADR-001. `pieceDef` gained an optional `royal` flag; the
+  engine reads it and names no piece.
+- **The fixture skill pool had to grow to 9 cards.** AC-006 requires a second offer of 3 cards disjoint
+  from the first offer and from held cards, which is structurally impossible with a 3-card pool.
+- **`check_count_at_least` is declared but inert.** The condition parses and validates, but the engine
+  has no check-counting yet, so it evaluates false rather than silently reading as true. A Three-Check
+  rule card cannot be authored until Phase 6a — worth knowing before that phase ranks card risk.
 - **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
   Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
   a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice

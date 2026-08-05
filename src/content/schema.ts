@@ -165,6 +165,11 @@ export const pieceDef = z.strictObject({
   movement: z.array(movePattern).min(1),
   /** Omitted means captures use the movement patterns. */
   attack: z.array(movePattern).min(1).optional(),
+  /**
+   * Capturing a royal piece ends the match immediately (AC-002, ADR-012).
+   * Royalty is declared by content so no engine source names a specific piece.
+   */
+  royal: z.boolean().optional(),
   promotion: z
     .strictObject({
       onRank: z.union([z.literal('last'), z.number().int().positive()]),
