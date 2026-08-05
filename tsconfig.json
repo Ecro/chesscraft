@@ -24,6 +24,7 @@
     "paths": {
       "@engine/*": ["src/engine/*"],
       "@content/*": ["src/content/*"],
+      "@editor/*": ["src/editor/*"],
       "@ui/*": ["src/ui/*"]
     }
   },

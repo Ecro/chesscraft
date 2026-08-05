@@ -20,3 +20,5 @@ dist/
 playwright-report/
 test-results/
 .vite/
+.claude/.hm-finalize-stash-*
+.claude/.hm-owned-uuids-*

@@ -209,11 +209,21 @@ function cardPlays(state: GameState, content: ContentSet): Action[] {
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * An offer is only open when it has cards in it. An empty array gates board play
+ * exactly as a real offer would, while yielding no `draft_pick` to satisfy it —
+ * a match in that state has no legal action and no result. Treating the absent
+ * case as "no offer" is what keeps that unreachable.
+ */
+function hasOpenOffer(state: GameState, side: Side): boolean {
+  return (state.drafts[side].offers?.length ?? 0) > 0
+}
+
 /** The side that must resolve a draft before any board action, if any. */
 export function pendingDraftSide(state: GameState): Side | null {
-  if (state.drafts.white.draftIndex === 0 && state.drafts.white.offers) return 'white'
-  if (state.drafts.black.draftIndex === 0 && state.drafts.black.offers) return 'black'
-  return state.drafts[state.sideToMove].offers ? state.sideToMove : null
+  if (state.drafts.white.draftIndex === 0 && hasOpenOffer(state, 'white')) return 'white'
+  if (state.drafts.black.draftIndex === 0 && hasOpenOffer(state, 'black')) return 'black'
+  return hasOpenOffer(state, state.sideToMove) ? state.sideToMove : null
 }
 
 export function legalActions(state: GameState, content: ContentSet): Action[] {
@@ -343,6 +353,9 @@ function executeActions(
             // decided by parity rather than by the content. Chained effects
             // that are not teleports (portal into a bomb square) still resolve.
             if (!dest || m.board.has(dest) || m.visited.has(dest)) continue
+            // The square just vacated counts as occupied-this-ply, so nothing
+            // can throw the piece back onto it later in the same cascade.
+            m.visited.add(sq)
             m.board.delete(sq)
             m.board.set(dest, piece)
             movedTo = dest
@@ -384,6 +397,43 @@ function executeActions(
     }
   }
   return movedTo
+}
+
+/**
+ * E4 — walks a piece through `on_enter` at the square it arrived on, following
+ * any relocation an effect performs, and returns where it finally stands.
+ *
+ * Each square's `on_enter` fires at most once per ply. Without that, a pair of
+ * squares that throw pieces at each other would bounce one until the depth cap,
+ * landing it wherever parity happened to pick rather than where the content
+ * said. Once-per-square is what a player would expect, and it makes the cap a
+ * backstop rather than the thing that decides the outcome.
+ *
+ * Board moves and card-driven moves both come through here. A `destroy` on a
+ * square has to mean the same thing whether a move or a card put the piece
+ * there — the single shared vocabulary (ADR-003) is worth nothing if the
+ * pipeline behind it depends on which content kind caused the movement.
+ */
+function cascadeEnter(
+  state: GameState,
+  content: ContentSet,
+  m: Mutable,
+  start: SquareId,
+  mover: Side,
+): SquareId | null {
+  let square = start
+  for (let depth = 0; depth < MAX_CASCADE_DEPTH; depth += 1) {
+    const here = m.board.get(square)
+    if (!here || m.visited.has(square)) break
+    m.visited.add(square)
+    // The cascade deliberately carries no `chosen` squares: the card's choices
+    // were consumed by the card's own actions, and letting a square or piece
+    // effect re-read them would silently retarget somebody else's picks.
+    const { movedTo } = runEvent(state, content, m, 'on_enter', [square], { square, piece: here }, mover)
+    if (!movedTo || movedTo === square) break
+    square = movedTo
+  }
+  return m.board.has(square) ? square : null
 }
 
 function materialResult(board: ReadonlyMap<SquareId, PieceOnBoard>): MatchResult {
@@ -455,41 +505,16 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     movesMade = 1
     subjectSquare = action.to
 
-    // E4 — destination entered, cascading through teleports.
-    //
-    // Each square's on_enter fires at most once per ply. Without this, a pair of
-    // portals pointing at each other would bounce a piece back and forth until
-    // the depth cap, landing it on whichever square parity happened to pick.
-    // Once-per-square is the rule players would expect, and it makes the cap a
-    // backstop rather than the thing that decides the outcome.
-    let square: SquareId = action.to
+    // E4 — destination entered, cascading through relocations.
     m.visited.add(action.from)
-    for (let depth = 0; depth < MAX_CASCADE_DEPTH; depth += 1) {
-      const here = m.board.get(square)
-      if (!here || m.visited.has(square)) break
-      m.visited.add(square)
-      const { movedTo } = runEvent(state, content, m, 'on_enter', [square], { square, piece: here }, mover)
-      if (!movedTo || movedTo === square) break
-      square = movedTo
-    }
-    subjectSquare = m.board.has(square) ? square : null
-
-    // E5 — promotion, from the piece's own definition.
-    if (subjectSquare) {
-      const landed = m.board.get(subjectSquare)!
-      const def = content.pieces.get(landed.pieceId)
-      if (def?.promotion) {
-        const { rank } = coords(subjectSquare)
-        const fromMover = landed.side === 'white' ? rank : state.height - 1 - rank
-        const target = def.promotion.onRank === 'last' ? state.height - 1 : def.promotion.onRank - 1
-        if (fromMover === target) m.board.set(subjectSquare, { ...landed, pieceId: def.promotion.to })
-      }
-      runEvent(state, content, m, 'on_promote', [subjectSquare], { square: subjectSquare, piece: m.board.get(subjectSquare)! }, mover)
-    }
+    subjectSquare = cascadeEnter(state, content, m, action.to, mover)
   } else {
-    // A card play consumes the whole turn and makes no board move (AC-007).
+    // A card play consumes the whole turn and makes no board move (AC-007) —
+    // `movesMadeLastPly` stays 0 even when the card relocates a piece, because
+    // what the rules count is a move, not a displacement.
     const card = content.skillCards.get(action.cardId)!
     const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
+    let relocatedTo: SquareId | null = null
     for (const effect of card.effects) {
       const bound: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: card.id }
       const first = action.targets[0]
@@ -498,8 +523,29 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
       const ctx: EvalCtx = { state: working, content, mover, subject, chosen: action.targets }
       if (!evalCondition(effect.condition, bound, ctx)) continue
       m.log.push(`on_play:skill:${card.id}`)
-      executeActions(effect.actions, bound, ctx, m, mover, action.targets, working, content, state.plyCount)
+      const moved = executeActions(effect.actions, bound, ctx, m, mover, action.targets, working, content, state.plyCount)
+      if (moved) relocatedTo = moved
     }
+    // A card that puts a piece on a square enters that square, with everything
+    // entering a square entails. Skipping this made a warp the one way to walk
+    // onto a hostile square unharmed — a hole in the content vocabulary that
+    // no card author could see, and one no rule card could patch.
+    if (relocatedTo) subjectSquare = cascadeEnter(state, content, m, relocatedTo, mover)
+  }
+
+  // E5 — promotion, from the piece's own definition. Reached the same way from
+  // either branch: landing on the promotion rank is a fact about the square, not
+  // about how the piece got there.
+  if (subjectSquare) {
+    const landed = m.board.get(subjectSquare)!
+    const def = content.pieces.get(landed.pieceId)
+    if (def?.promotion) {
+      const { rank } = coords(subjectSquare)
+      const fromMover = landed.side === 'white' ? rank : state.height - 1 - rank
+      const target = def.promotion.onRank === 'last' ? state.height - 1 : def.promotion.onRank - 1
+      if (fromMover === target) m.board.set(subjectSquare, { ...landed, pieceId: def.promotion.to })
+    }
+    runEvent(state, content, m, 'on_promote', [subjectSquare], { square: subjectSquare, piece: m.board.get(subjectSquare)! }, mover)
   }
 
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
@@ -544,8 +590,17 @@ function bumpTurns(state: GameState, content: ContentSet, mover: Side, usedCard:
   if (completedTurns === SECOND_DRAFT_AFTER_TURNS && draft.draftIndex === 1 && offers === null) {
     const preset = content.presets.get(state.presetId)
     const pool = (preset?.skillCardIds ?? []).filter((id) => !draft.everOffered.includes(id) && !draft.held.includes(id))
-    offers = pickDistinct(rngFor(state.seed, 'draft', mover, draft.draftIndex), pool, DRAFT_OFFER_SIZE)
-    everOffered = [...draft.everOffered, ...offers]
+    const drawn = pickDistinct(rngFor(state.seed, 'draft', mover, draft.draftIndex), pool, DRAFT_OFFER_SIZE)
+    // AC-005 fixes an offer at three distinct cards, so a pool that cannot fill
+    // one yields NO second offer. Not a short offer, and above all not an empty
+    // one: an empty offer still gates board play, which leaves the match with no
+    // legal action and no result. A preset with a small card pool is legal
+    // content, so this absent case is reachable from valid input, not a bug in
+    // the caller.
+    if (drawn.length === DRAFT_OFFER_SIZE) {
+      offers = drawn
+      everOffered = [...draft.everOffered, ...drawn]
+    }
   }
 
   return {

@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
       '@content': fileURLToPath(new URL('./src/content', import.meta.url)),
+      '@editor': fileURLToPath(new URL('./src/editor', import.meta.url)),
       '@ui': fileURLToPath(new URL('./src/ui', import.meta.url)),
     },
   },

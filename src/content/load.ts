@@ -39,6 +39,22 @@ export interface ContentSet {
 
 export type LoadResult = { ok: true; set: ContentSet } | { ok: false; errors: ValidationError[] }
 
+/**
+ * An unvalidated content document — what a bundled set, a file on disk and an
+ * editor buffer all are before `loadContentSet` has had its say. Records are
+ * `unknown` on purpose: the Zod schemas are the only thing allowed to decide
+ * whether a record is well-formed, so nothing upstream can assert it into shape.
+ */
+export interface ContentSource {
+  schemaVersion: number
+  pieces: unknown[]
+  squareTypes: unknown[]
+  ruleCards: unknown[]
+  skillCards: unknown[]
+  boards: unknown[]
+  presets: unknown[]
+}
+
 /** Best-effort id extraction so an error can name its record even when invalid. */
 function idOf(record: unknown, collection: string, index: number): string {
   if (record && typeof record === 'object' && 'id' in record) {

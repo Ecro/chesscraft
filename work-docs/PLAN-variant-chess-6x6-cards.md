@@ -456,7 +456,7 @@ compatibility marker (ADR-005).
 | 0 — Project scaffold | **DONE** | `npm run typecheck` clean, `npm test` 1 passed, `npm run build` produced a bundle, `npm run e2e` 1 passed (Playwright, mobile-portrait project) |
 | 1 — Content schema + validator | **DONE** | `tests/content/validation.test.ts` 10 passed — AC-011's 7 fixtures, the ADR-010 portal-asymmetry fixture, the universal id+path shape check, and the atomic-load boundary. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
 | 2 — Engine core | **DONE** | 51 tests passing across 8 files — AC-001/002/003/004/005/006/007/008/009/018, the ADR-012 short-circuit fixtures, and the serialization round-trip. Typecheck clean, build and e2e green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues |
-| 3 — Vertical slice | PENDING | |
+| 3 — Vertical slice | **DONE (one deviation, see below)** | 72 tests passing across 12 files; `tests/engine/layer-order.test.ts` drives the deliberate four-layer ply and asserts both the log sequence and an order-decisive board outcome; `tests/engine/slice-match.test.ts` plays 25 seeds to a result with an in-loop deadlock guard; `e2e/slice.spec.ts` plays a match to a result through the UI. Typecheck clean, build green, 3 Playwright tests green. Phase A.5 `test-reviewer` returned PASS with zero blocking issues. Gap list at `work-docs/VOCAB-GAPS-variant-chess-6x6-cards.md` |
 | 4 — Game UI and hot-seat flow | PENDING | |
 | 5 — Content editor and preset storage | PENDING | |
 | 6a — High-schema-risk content gate | PENDING | |
@@ -485,6 +485,34 @@ Notes carried out of the completed phases:
 - **`check_count_at_least` is declared but inert.** The condition parses and validates, but the engine
   has no check-counting yet, so it evaluates false rather than silently reading as true. A Three-Check
   rule card cannot be authored until Phase 6a — worth knowing before that phase ranks card risk.
+- **Phase 3's exit criterion (a) is unsatisfiable as literally written, and was met at ply
+  granularity.** It asks for "one reachable **move** [that] fires all four pipeline layers at once".
+  ADR-003's trigger table admits only `on_play` for skill cards, so **no board move can ever resolve a
+  layer-4 effect** — the criterion cannot hold at move granularity under the Phase 1 schema. The
+  fixture meets it over one **ply** instead: a skill-card play whose relocation carries the piece
+  through a special square, a piece passive and the drawn rule card, asserted as both an exact log
+  sequence and a board outcome that reverses if the square and piece layers swap. The criterion's
+  wording should be corrected to "ply".
+- **Card-driven movement did not enter the square it moved to.** `apply`'s card branch skipped E4
+  entirely, so `teleport_piece` on a *card* put a piece on a square without firing that square's
+  `on_enter`, while the same action on a *square type* did. A warp was the only way to walk onto a
+  hostile square unharmed, and nothing in the schema showed it. E4 and E5 are now shared by both
+  branches via `cascadeEnter`. This is the single most valuable thing Phase 3 found.
+- **A three-card skill pool deadlocked the match on turn six.** AC-006's second offer must be disjoint
+  from the first, so a three-card pool leaves nothing to draw; `pickDistinct` returned `[]`, and an
+  empty `offers` array still gated board play while yielding no `draft_pick` — no result, no legal
+  action. The slice preset carries exactly the PLAN-mandated minimum of three, so it walked straight
+  into it. A pool that cannot fill an offer now opens **no** offer. Content rule for Phase 6b: a
+  shippable preset needs ≥ 6 skill cards.
+- **DEVIATION — five vocabulary gaps are deferred to Phase 6a rather than applied now.** The exit
+  criterion says any gap found is applied to the Phase 1 schema under ADR-005 before Phase 4 begins.
+  G-3 (an effect cannot compare the subject to its own owner), G-4 (a square effect cannot reference
+  its own square), G-5 (layer-2 effects fire once per piece instance against a global subject), G-6
+  (`spawn_piece` does not enter its destination) and G-7 (`check_count_at_least` inert) are documented
+  but **not** applied. None blocked the slice, and their shape is undetermined until Phase 6a's first
+  deliverable — the full card set on paper — says what is actually needed. **This needs a decision
+  from the user.** G-5 is the one to watch: it is a correctness question, not a convenience one, and
+  must be settled before 6a authors status-effect cards.
 - **Phase 1's fixtures already seed Phase 3.** `tests/content/fixtures/valid-set.ts` contains the
   Los Alamos piece set, `piece.archer` (movement ≠ attack, plus a passive — AC-009's `custom_archer`),
   a bomb square, a paired portal, one `win`-action rule card and three skill cards. Phase 3's slice
