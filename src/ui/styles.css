@@ -15,8 +15,8 @@ body {
   font-family: system-ui, -apple-system, 'Noto Sans KR', sans-serif;
   font-size: 14px;
   line-height: 1.45;
-  color: #1c1917;
-  background: #faf9f7;
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
 main {
@@ -40,9 +40,9 @@ nav {
 button {
   font: inherit;
   cursor: pointer;
-  border: 1px solid #d6d3d1;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--color-surface);
   padding: 6px 10px;
 }
 
@@ -62,19 +62,19 @@ button {
   gap: 2px;
   text-align: left;
   padding: 8px 10px;
-  border: 1px solid #d6d3d1;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .card span {
   font-size: 12px;
-  color: #57534e;
+  color: var(--color-text-muted);
 }
 
 .rule {
-  border-color: #a8a29e;
-  background: #fffbeb;
+  border-color: var(--color-text-subtle);
+  background: var(--color-surface-accent);
   margin-bottom: 10px;
 }
 
@@ -82,14 +82,14 @@ button {
   font-weight: 700;
   padding: 8px 10px;
   border-radius: 10px;
-  background: #dcfce7;
+  background: var(--color-surface-positive);
 }
 
 .rejection {
   padding: 8px 10px;
   border-radius: 10px;
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--color-surface-negative);
+  color: var(--color-text-negative);
 }
 
 .draft {
@@ -115,12 +115,12 @@ button {
   align-items: center;
   padding: 3px;
   overflow: hidden;
-  background: #f5f5f4;
+  background: var(--color-board-light);
 }
 
 .square .coord {
   font-size: 9px;
-  color: #a8a29e;
+  color: var(--color-text-subtle);
   align-self: flex-start;
 }
 
@@ -131,26 +131,30 @@ button {
 }
 
 .square[data-side='white'] .piece {
-  color: #1d4ed8;
+  color: var(--color-side-white);
 }
 
 .square[data-side='black'] .piece {
-  color: #b91c1c;
+  color: var(--color-side-black);
+  /* The second cue. Hue alone decides which pieces are yours, and roughly one
+     player in twelve cannot use it — tokens.css states weight as part of the
+     contract, so it has to exist here. */
+  font-weight: 800;
 }
 
 /* A painted square must be distinguishable at a glance — AC-018's UI clause. */
 .square[data-square-type]:not([data-square-type='']) {
-  background: repeating-linear-gradient(45deg, #fef3c7, #fef3c7 6px, #fde68a 6px, #fde68a 12px);
-  border-color: #d97706;
+  background: repeating-linear-gradient(45deg, var(--color-board-painted-a), var(--color-board-painted-a) 6px, var(--color-board-painted-b) 6px, var(--color-board-painted-b) 12px);
+  border-color: var(--color-border-accent);
 }
 
 .square[data-legal='true'] {
-  outline: 2px solid #16a34a;
+  outline: 2px solid var(--color-legal);
   outline-offset: -2px;
 }
 
 .square[data-selected='true'] {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--color-selected);
   outline-offset: -3px;
 }
 
@@ -158,10 +162,10 @@ button {
   list-style: none;
   margin: 0 0 10px;
   padding: 8px 10px;
-  border: 1px dashed #d97706;
+  border: 1px dashed var(--color-border-accent);
   border-radius: 10px;
   font-size: 12px;
-  background: #fffbeb;
+  background: var(--color-surface-accent);
 }
 
 .tray {
@@ -171,11 +175,11 @@ button {
   padding: 8px;
   border-radius: 10px;
   margin-bottom: 8px;
-  background: #f5f5f4;
+  background: var(--color-surface-sunken);
 }
 
 .tray[data-active='true'] {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-selected);
 }
 
 .tray-label {
@@ -183,12 +187,12 @@ button {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #57534e;
+  color: var(--color-text-muted);
 }
 
 .tray .empty {
   font-size: 12px;
-  color: #a8a29e;
+  color: var(--color-text-subtle);
 }
 
 .card[data-used='true'] {
@@ -196,7 +200,7 @@ button {
 }
 
 .card[data-pending='true'] {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-selected);
 }
 
 label {
@@ -212,7 +216,7 @@ select,
 textarea {
   font: inherit;
   padding: 6px 8px;
-  border: 1px solid #d6d3d1;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   width: 100%;
 }

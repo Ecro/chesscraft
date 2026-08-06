@@ -405,6 +405,12 @@ exists to remove.
 
 
 ### Phase 1 — Tokens, theming, and UI-chrome localisation
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN; `src/ui/tokens.css` added, `styles.css` holds no literal colour, chrome routed through `ui.*` keys.
+  Reviewed at grade B ([[REVIEW-ui-ux-productization-2026-08-06]]), 6 fixes applied in round 2.
+  **Carried forward:** `data-theme` is CSS-only scaffolding — no component sets it, so only the
+  `prefers-color-scheme` layer is reachable by a user until Phase 6 lands the control. Review also
+  found two gaps the audit missed: #41 the board has no checker pattern (Phase 4) and #42 painted
+  squares miss non-text contrast (Phase 6).
 - `depends_on`: []
 - `parallel_group`: `serial-foundation`
 - `merge_hazards`: `src/ui/styles.css` (rewritten to consume tokens), `src/i18n/ko.ts` (new namespace) — every later phase edits both

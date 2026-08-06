@@ -3,6 +3,7 @@ import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStoredContent } from '@editor/storage'
 import { Edit } from './Edit'
+import { translate } from './i18n'
 import { Play } from './Play'
 
 /**
@@ -48,22 +49,22 @@ export function App() {
 
   return (
     <main>
-      <h1>Strange Chess</h1>
+      <h1>{translate('ui.app.title')}</h1>
       <nav>
         <button data-testid="tab-play" onClick={() => setTab('play')}>
-          play
+          {translate('ui.tab.play')}
         </button>
         <button data-testid="tab-edit" onClick={() => setTab('edit')}>
-          edit
+          {translate('ui.tab.edit')}
         </button>
       </nav>
 
-      {!loaded.ok && <p data-testid="content-broken">content failed to load</p>}
+      {!loaded.ok && <p data-testid="content-broken">{translate('ui.content.broken')}</p>}
 
       {loaded.ok && tab === 'play' && (
         <>
           <label>
-            preset
+            {translate('ui.preset.label')}
             <select data-testid="preset-select" value={activePreset} onChange={(e) => setPresetId(e.target.value)}>
               {presetIds.map((id) => (
                 <option key={id} value={id}>

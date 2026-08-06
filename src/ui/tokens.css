@@ -1,0 +1,158 @@
+/*
+ * Design tokens (ADR-021).
+ *
+ * The rule this file exists to enforce is negative: no other stylesheet may
+ * name a colour. Once that holds, dark mode and any later re-skin are data
+ * changes rather than a sweep through component CSS — which is why the ADR
+ * chose custom properties over pulling in a component library for an app whose
+ * entire stylesheet is smaller than most libraries' reset.
+ *
+ * Direction: a warm neutral board rather than the usual cold grey, because the
+ * audience is 초·중학생 on a phone held at arm's length in a room that is
+ * rarely colour-calibrated. The two sides are separated by hue, by lightness AND
+ * by font weight — roughly one in twelve boys reads red/green poorly, and a
+ * chess board is the worst possible place to learn that about yourself. The
+ * weight half lives in styles.css on `.square[data-side] .piece`; review round 2
+ * found this comment claiming it before it existed, which is how a stated
+ * safeguard becomes fiction.
+ *
+ * Theming resolves in three layers, deliberately in this order:
+ *   1. :root                       — light, the default
+ *   2. @media (prefers-color-scheme: dark) — follow the OS
+ *   3. :root[data-theme="…"]       — an explicit choice, which must be able to
+ *                                    win in BOTH directions. Honouring only
+ *                                    data-theme="dark" would leave a user on a
+ *                                    dark OS unable to pick light, which is the
+ *                                    common half-implementation of this pattern.
+ */
+
+:root {
+  /* surfaces */
+  --color-bg: #faf9f7;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f5f5f4;
+  --color-surface-accent: #fffbeb;
+  --color-surface-positive: #dcfce7;
+  --color-surface-negative: #fee2e2;
+
+  /* board — one square colour today; the checker parity token lands with the
+     attribute that would use it, in Phase 4 (review round 2 found the pair
+     shipped as a dead token and a flat board). */
+  --color-board-light: #f2efe9;
+  --color-board-painted-a: #fef3c7;
+  --color-board-painted-b: #fde68a;
+
+  /* text */
+  --color-text: #1c1917;
+  --color-text-muted: #57534e;
+  --color-text-subtle: #6b6560;
+  --color-text-negative: #991b1b;
+
+  /* lines */
+  --color-border: #d6d3d1;
+  --color-border-strong: #a8a29e;
+  --color-border-accent: #d97706;
+
+  /* meaning — sides are hue + weight, never hue alone */
+  --color-side-white: #1d4ed8;
+  --color-side-black: #b91c1c;
+  --color-legal: #16a34a;
+  --color-selected: #2563eb;
+
+  /* scale */
+  --space-1: 3px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 18px;
+  --font-size-xs: 9px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #16150f;
+    --color-surface: #23211c;
+    --color-surface-sunken: #1c1a15;
+    --color-surface-accent: #2c2415;
+    --color-surface-positive: #14301d;
+    --color-surface-negative: #3a1a1a;
+
+    --color-board-light: #3a352c;
+    --color-board-painted-a: #4a3a15;
+    --color-board-painted-b: #5c4718;
+
+    --color-text: #f5f2ec;
+    --color-text-muted: #c2bbb0;
+    --color-text-subtle: #b8b0a4;
+    --color-text-negative: #fca5a5;
+
+    --color-border: #46413a;
+    --color-border-strong: #6b645a;
+    --color-border-accent: #d9a441;
+
+    --color-side-white: #93c5fd;
+    --color-side-black: #f87171;
+    --color-legal: #4ade80;
+    --color-selected: #93c5fd;
+  }
+}
+
+/* An explicit choice outranks the OS — in both directions. */
+:root[data-theme='light'] {
+  --color-bg: #faf9f7;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f5f5f4;
+  --color-surface-accent: #fffbeb;
+  --color-surface-positive: #dcfce7;
+  --color-surface-negative: #fee2e2;
+
+  --color-board-light: #f2efe9;
+  --color-board-painted-a: #fef3c7;
+  --color-board-painted-b: #fde68a;
+
+  --color-text: #1c1917;
+  --color-text-muted: #57534e;
+  --color-text-subtle: #6b6560;
+  --color-text-negative: #991b1b;
+
+  --color-border: #d6d3d1;
+  --color-border-strong: #a8a29e;
+  --color-border-accent: #d97706;
+
+  --color-side-white: #1d4ed8;
+  --color-side-black: #b91c1c;
+  --color-legal: #16a34a;
+  --color-selected: #2563eb;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #16150f;
+  --color-surface: #23211c;
+  --color-surface-sunken: #1c1a15;
+  --color-surface-accent: #2c2415;
+  --color-surface-positive: #14301d;
+  --color-surface-negative: #3a1a1a;
+
+  --color-board-light: #3a352c;
+  --color-board-painted-a: #4a3a15;
+  --color-board-painted-b: #5c4718;
+
+  --color-text: #f5f2ec;
+  --color-text-muted: #c2bbb0;
+  --color-text-subtle: #b8b0a4;
+  --color-text-negative: #fca5a5;
+
+  --color-border: #46413a;
+  --color-border-strong: #6b645a;
+  --color-border-accent: #d9a441;
+
+  --color-side-white: #93c5fd;
+  --color-side-black: #f87171;
+  --color-legal: #4ade80;
+  --color-selected: #93c5fd;
+}

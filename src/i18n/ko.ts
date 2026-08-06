@@ -114,4 +114,23 @@ export const ko: Record<string, string> = {
   'skill.rally.text': '빈 칸에 우리 편 궁수를 한 명 불러낸다.',
   'skill.ascend.name': '대관식 (봉화)',
   'skill.ascend.text': '우리 편 기물 하나를 왕으로 세운다. 잃으면 안 되는 기물이 둘이 된다.',
+
+  // --- UI chrome (PLAN Phase 1) ---
+  // The app's own words, kept here rather than in the components for the same
+  // reason the cards' words are: a translator should own one file, not grep
+  // through JSX. Wording target is the same as the content bundle — 초·중학생,
+  // short, and naming the action rather than the widget.
+  'ui.app.title': '이상한 체스',
+  'ui.tab.play': '놀기',
+  'ui.tab.edit': '만들기',
+  'ui.preset.label': '놀이 고르기',
+  'ui.content.broken': '내용을 불러오지 못했어요.',
+  'ui.action.undo': '한 수 무르기',
+  'ui.status.ply': '차례',
+  'ui.rule.none': '규칙 카드 없음',
+  'ui.draft.prompt': '스킬 카드를 한 장 고르세요',
+  'ui.tray.empty': '아직 없음',
+  'ui.card.spent': '(다 씀)',
+  'ui.result.win': '승리',
+  'ui.result.draw': '무승부',
 }

@@ -98,28 +98,33 @@ export function Play({ content, presetId, seed = 1 }: { content: ContentSet; pre
       <div className="status">
         <span data-testid="phase">{phase}</span>
         <span data-testid="side-to-move">{state.sideToMove}</span>
-        <span>ply {state.plyCount}</span>
+        <span>
+          {translate('ui.status.ply')} {state.plyCount}
+        </span>
         <button data-testid="undo" onClick={() => setMatch((m) => undo(m))}>
-          되돌리기
+          {translate('ui.action.undo')}
         </button>
       </div>
 
       {/* AC-004's display clause: the drawn rule card stays on screen for the
           whole match, not shown once at the start and forgotten. */}
       <div className="card rule" data-testid="rule-card" data-rule={state.ruleCardId ?? ''}>
-        <strong>{rule ? translate(rule.nameKey) : '규칙 없음'}</strong>
+        <strong>{rule ? translate(rule.nameKey) : translate('ui.rule.none')}</strong>
         {rule && <span>{translate(rule.textKey)}</span>}
       </div>
 
       {state.result && (
         <p className="result" data-testid="result" data-winner={state.result.kind === 'win' ? state.result.winner : ''}>
-          {state.result.kind === 'win' ? `${state.result.winner} 승리` : '무승부'} — {state.result.reason}
+          {state.result.kind === 'win' ? `${state.result.winner} ${translate('ui.result.win')}` : translate('ui.result.draw')}{' — '}
+          {state.result.reason}
         </p>
       )}
 
       {phase === 'draft' && drafting && (
         <div className="draft" data-testid="draft-offer" data-side={drafting}>
-          <p>{drafting} — 스킬 카드를 한 장 고르세요</p>
+          <p>
+            {drafting} — {translate('ui.draft.prompt')}
+          </p>
           {(state.drafts[drafting].offers ?? []).map((cardId) => {
             const card = content.skillCards.get(cardId)
             return (
@@ -189,7 +194,7 @@ export function Play({ content, presetId, seed = 1 }: { content: ContentSet; pre
       {(['white', 'black'] as const).map((side) => (
         <div key={side} className="tray" data-testid={`hand-${side}`} data-active={side === state.sideToMove}>
           <span className="tray-label">{side}</span>
-          {state.drafts[side].held.length === 0 && <span className="empty">아직 없음</span>}
+          {state.drafts[side].held.length === 0 && <span className="empty">{translate('ui.tray.empty')}</span>}
           {state.drafts[side].held.map((cardId) => {
             const card = content.skillCards.get(cardId)
             const spent = state.drafts[side].used.filter((c) => c === cardId).length >= (card?.uses ?? 1)
@@ -205,7 +210,7 @@ export function Play({ content, presetId, seed = 1 }: { content: ContentSet; pre
               >
                 <strong>
                   {card ? translate(card.nameKey) : cardId}
-                  {spent ? ' (사용됨)' : ''}
+                  {spent ? ` ${translate('ui.card.spent')}` : ''}
                 </strong>
                 {card && <span>{translate(card.textKey)}</span>}
               </button>
