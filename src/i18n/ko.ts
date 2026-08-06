@@ -161,6 +161,13 @@ export const ko: Record<string, string> = {
   'ui.action.new-match': '새 판',
   'ui.action.rematch': '한 판 더',
   'ui.action.home': '처음으로',
+  // '소리 끔' read as either "sound is off" or "turn sound off" — the classic
+  // toggle ambiguity, and for this audience the wrong reading means tapping and
+  // hearing nothing happen. The colon makes it a status, unambiguously.
+  'ui.sound.on': '소리: 켜짐',
+  'ui.sound.off': '소리: 꺼짐',
+  'ui.haptics.on': '진동: 켜짐',
+  'ui.haptics.off': '진동: 꺼짐',
   'ui.seed.label': '판 번호',
   'ui.seed.hint': '이 번호를 알려주면 똑같은 판을 다시 할 수 있어요.',
   'ui.seed.copy': '번호 복사',

@@ -519,6 +519,14 @@ exists to remove.
 - **Rollback:** Phase 3
 
 ### Phase 5 — Game feel: animation, last-move, drag, sound, haptics
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (288 unit, 45 e2e). `MatchHost` retains the
+  applied action, so the last-move highlight and the land animation follow the piece rather than a
+  board diff, and both clear on undo and on a new match. `sound.ts` synthesizes six events with the
+  audio backend injected (so a test asserts silence, not that a flag was read) and haptics feature-
+  detected; `settings.ts` persists the toggles with `Storage` injected, sound off and haptics on by
+  default. Drag lands alongside tap. `playwright.config.ts` runs the suite under reduced motion with
+  `e2e/motion.spec.ts` opting back in — the arrangement exists precisely so the animation path is
+  not silently untested.
 - **Scope re-derived 2026-08-06**, same method as Phase 4: trace what must be touched for the new
   thing to be reachable, not what the phase creates. Four items below were absent from the original.
 - `depends_on`: [4]

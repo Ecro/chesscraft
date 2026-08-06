@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ContentSet } from '@content/load'
 import { paintedSquares } from '@engine/effects'
 import { apply, describeRejection, legalActions, pendingDraftSide } from '@engine/engine'
 import { type Match, createMatch, currentState, undo } from '@engine/match'
 import { type Action, type MatchResult, type Side, type SquareId, squareId } from '@engine/types'
 import { translate } from './i18n'
+import { browserStorage } from '@editor/storage'
+import { type Settings, loadSettings, saveSettings } from './settings'
+import { type SoundEvent, hapticsSupported, play } from './sound'
 
 /**
  * Hot-seat play plus the match lifecycle around it (PLAN Phase 2).
@@ -41,6 +44,30 @@ function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): str
   if (name === def.nameKey) return '?'
   return [...name][0] ?? '?'
 }
+
+/**
+ * Which feedback an applied action earns.
+ *
+ * Exported and pure so the end-of-match branches can be asserted without
+ * playing a match out. The first version collapsed both endings into `'win'`
+ * because `result` is merely truthy for either — a draw buzzed and sang exactly
+ * like a victory, and nothing tested it.
+ */
+export function eventFor(
+  action: Action,
+  before: { board: ReadonlyMap<SquareId, unknown> },
+  after: { result: { kind: 'win' | 'draw' } | null },
+): SoundEvent {
+  if (after.result) return after.result.kind === 'draw' ? 'draw' : 'win'
+  if (action.kind === 'draft_pick') return 'draft'
+  // A move onto an occupied square is a capture, and should not sound like a step.
+  if (action.kind === 'move' && before.board.has(action.to)) return 'capture'
+  return 'move'
+}
+
+/** `a1` -> 0, `f6` -> 5. The engine's squareId is a letter then a 1-based rank. */
+const fileOf = (sq: string) => sq.charCodeAt(0) - 97
+const rankOf = (sq: string) => Number(sq.slice(1)) - 1
 
 /** A 31-bit non-negative seed — the default when no generator is injected. */
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
@@ -82,6 +109,27 @@ export function MatchHost({
   const [pendingCard, setPendingCard] = useState<{ cardId: string; targets: SquareId[] } | null>(null)
   const [rejection, setRejection] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [settings, setSettings] = useState<Settings>(() => {
+    const storage = browserStorage()
+    return storage ? loadSettings(storage) : { sound: false, haptics: true }
+  })
+  /**
+   * The action that produced the current state.
+   *
+   * Kept because the engine gives pieces no instance identity — the board is a
+   * map keyed by square — so a tween derived from diffing two board maps
+   * animates SQUARES, and a piece fades out and in instead of sliding. This is
+   * the only record of what moved where. Cleared whenever the state it
+   * describes stops being the present one.
+   */
+  const [lastMove, setLastMove] = useState<{ from: SquareId; to: SquareId } | null>(null)
+
+  const toggle = (key: keyof Settings) => {
+    const next = { ...settings, [key]: !settings[key] }
+    setSettings(next)
+    const storage = browserStorage()
+    if (storage) saveSettings(storage, next)
+  }
 
   const state = currentState(match)
   const legal = legalActions(state, content)
@@ -108,6 +156,7 @@ export function MatchHost({
     // no undo — `undo` steps one ply, it cannot bring a match back.
     if (inProgress && !window.confirm(translate('ui.confirm.discard'))) return
     const s = newSeed()
+    setLastMove(null)
     setPlay({ seed: s, match: createMatch({ content, presetId, seed: s }) })
     setSelected(null)
     setPendingCard(null)
@@ -116,13 +165,28 @@ export function MatchHost({
   }
 
   const push = (action: Action) => {
-    setPlay((p) => ({ seed: p.seed, match: { states: [...p.match.states, apply(currentState(p.match), action, content)] } }))
+    // Derived from the render's state only to choose the SOUND — the worst case
+    // there is the wrong tone. The state itself is recomputed inside the
+    // updater, so a second action dispatched in the same tick cannot apply to
+    // the pre-first-action board.
+    const next = apply(state, action, content)
+    // Chosen from what actually happened, not from the action's name: a move
+    // onto an occupied square is a capture, and it should not sound like a step.
+    play(eventFor(action, state, next), settings)
+    setLastMove(action.kind === 'move' ? { from: action.from, to: action.to } : null)
+    setPlay((p) => ({
+      seed: p.seed,
+      match: { states: [...p.match.states, apply(currentState(p.match), action, content)] },
+    }))
     setSelected(null)
     setPendingCard(null)
     setRejection(null)
   }
 
   const doUndo = () => {
+    play('undo', settings)
+    // The highlight describes a move that no longer happened.
+    setLastMove(null)
     setPlay((p) => ({ seed: p.seed, match: undo(p.match) }))
     setSelected(null)
     setPendingCard(null)
@@ -167,6 +231,7 @@ export function MatchHost({
       const complete = matching.find((a) => a.kind === 'play_card' && a.targets.length === targets.length)
       if (complete) return push(complete)
       if (matching.length === 0) {
+        play('illegal', settings)
         setRejection(describeRejection(state, { kind: 'play_card', cardId: pendingCard.cardId, targets }, content))
         setPendingCard({ ...pendingCard, targets: [] })
         return
@@ -182,12 +247,44 @@ export function MatchHost({
     setSelected(state.board.get(sq)?.side === state.sideToMove ? sq : null)
   }
 
+  /**
+   * Drag, on pointer events rather than HTML5 drag-and-drop.
+   *
+   * `draggable` + dragstart/drop was the first implementation and it is dead on
+   * the platform this product is for: iOS Safari does not dispatch those events
+   * for a touch gesture on a generic element, and Android is inconsistent. The
+   * e2e still passed, because Playwright's `dragTo` synthesises mouse events —
+   * a test certifying a gesture no finger can perform. Pointer events cover
+   * mouse, touch and stylus with one path, and a real drag exercises it.
+   */
+  const dragFrom = useRef<SquareId | null>(null)
+
+  const beginDrag = (sq: SquareId) => {
+    // Not while a card is choosing its targets: `reachable` belongs to the card
+    // then, and setting `selected` here left a highlight on a square the player
+    // never chose once the card resolved.
+    if (pendingCard || phase !== 'play') return
+    if (state.board.get(sq)?.side !== state.sideToMove) return
+    dragFrom.current = sq
+    setSelected(sq)
+  }
+
+  const endDrag = (sq: SquareId) => {
+    const from = dragFrom.current
+    dragFrom.current = null
+    // Same square means a tap, and `onClick` already owns that.
+    if (!from || from === sq) return
+    const moveAction = legal.find((a) => a.kind === 'move' && a.from === from && a.to === sq)
+    if (moveAction) push(moveAction)
+  }
+
   const clickCard = (side: Side, cardId: string) => {
     setSelected(null)
     if (phase !== 'play' || side !== state.sideToMove) {
       // AC-008 — say why. A dead click reads as a broken app, and poking the
       // other player's cards is the first thing a hot-seat player does.
       setPendingCard(null)
+      play('illegal', settings)
       setRejection(describeRejection(state, { kind: 'play_card', cardId, targets: [] }, content))
       return
     }
@@ -232,6 +329,14 @@ export function MatchHost({
             copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
           )}
         </button>
+        <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
+          {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
+        </button>
+        {hapticsSupported() && (
+          <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
+            {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
+          </button>
+        )}
         <button data-testid="new-match" onClick={startNew}>
           {translate('ui.action.new-match')}
         </button>
@@ -323,6 +428,17 @@ export function MatchHost({
                 data-side={piece?.side ?? ''}
                 data-square-type={type?.id ?? ''}
                 data-parity={parity}
+                data-last={lastMove?.from === sq ? 'from' : lastMove?.to === sq ? 'to' : undefined}
+                style={
+                  lastMove?.to === sq
+                    ? ({
+                        '--land-dx': `${(fileOf(lastMove.from) - file) * 100}%`,
+                        '--land-dy': `${(rankOf(lastMove.from) - rank) * -100}%`,
+                      } as React.CSSProperties)
+                    : undefined
+                }
+                onPointerDown={() => beginDrag(sq)}
+                onPointerUp={() => endDrag(sq)}
                 data-legal={reachable.has(sq)}
                 data-selected={selected === sq}
                 title={type ? `${translate(type.nameKey)} — ${translate(type.textKey)}` : sq}

@@ -62,7 +62,10 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // Backtick and `$` join the list because a template literal in ordinary TS
     // (`return `${a} — ${b}``) is not JSX and matched the capture as a false
     // positive the moment Phase 2 added one.
-    const CODE_FRAGMENT = /[()=";`$]/
+    // `:` joins the list because a multi-line TypeScript signature puts
+    // `, after:` between a `}` and a `{`, which is the same shape as a JSX text
+    // node to this scanner.
+    const CODE_FRAGMENT = /[()=";`$:]/
 
     const offenders = PHASE_1_CHROME.flatMap((file) => {
       const src = readFileSync(join(UI_DIR, file), 'utf8').replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')

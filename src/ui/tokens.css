@@ -77,6 +77,13 @@
   --font-size-lg: 18px;
   --font-size-xs: 9px;
   --font-size-coord: 13px;
+
+  /* Motion. One duration for every timed rule, so the reduced-motion override
+     is a single redefinition rather than a sweep that a future transition can
+     be added outside of. */
+  --motion-move-duration: 140ms;
+  --motion-fade-duration: 90ms;
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {

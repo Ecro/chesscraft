@@ -125,6 +125,53 @@ button {
   background: var(--color-board-dark);
 }
 
+.square {
+  transition: background var(--motion-fade-duration) var(--motion-ease), outline-color var(--motion-fade-duration) var(--motion-ease);
+}
+
+.square .piece {
+  transition: transform var(--motion-move-duration) var(--motion-ease);
+}
+
+/* The move that was just played, on both of its squares (#11). A board with no
+   memory makes a hot-seat player ask "what did you do?" every single turn. */
+.square[data-last] {
+  /* An inset ring, not a background. `background` lost to
+     `.square[data-square-type]:not([data-square-type=''])` on specificity, so
+     the highlight vanished exactly when a piece landed on a portal or a shrine
+     — the turn a child most needs to see both things at once. A shadow composes
+     with any background instead of competing for it. */
+  box-shadow: inset 0 0 0 3px var(--color-border-accent);
+}
+
+.square[data-last='to'] .piece {
+  animation: piece-land var(--motion-move-duration) var(--motion-ease);
+}
+
+/* Offset toward the square it came from, so the movement reads as arrival from
+   somewhere rather than a pulse in place. The component supplies the delta. */
+@keyframes piece-land {
+  from {
+    transform: translate(var(--land-dx, 0), var(--land-dy, 0)) scale(0.9);
+  }
+  to {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* #30. Everything timed goes through the tokens above, so suppressing motion is
+   this one block — and a test asserts that EVERY declared duration is zeroed
+   here, not merely that this block exists. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    /* Not `0s`: some engines treat a zero animation-duration as "no animation"
+       and leave the `from` keyframe applied. A hair above zero is the standard
+       workaround and is imperceptible. */
+    --motion-move-duration: 0.01ms;
+    --motion-fade-duration: 0.01ms;
+  }
+}
+
 .square .piece {
   font-size: 26px;
   line-height: 1;

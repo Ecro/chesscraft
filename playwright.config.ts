@@ -11,6 +11,14 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
+    // Phase 5 put a transition on the board, and 41 specs drive it by clicking.
+    // Reduced motion is the default so they are not racing an animation — with
+    // ONE deliberate exception: `e2e/motion.spec.ts` opts back in. Without that
+    // exception this setting would stabilise the suite while guaranteeing the
+    // animation path is never executed by any test, which is
+    // `[fail:test] test-setup-hides-the-failure-path`, already recorded here
+    // after a clipboard spec granted the permission whose absence was the risk.
+    contextOptions: { reducedMotion: 'reduce' },
   },
   projects: [
     {
