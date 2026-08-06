@@ -58,7 +58,7 @@ function losAlamosPlacements() {
 }
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 4,
+  schemaVersion: 5,
 
   pieces: [
     {
@@ -145,6 +145,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.bomb',
       nameKey: 'square.bomb.name',
       textKey: 'square.bomb.text',
+      iconKey: 'square.bomb.icon',
       paired: false,
       effects: [
         {
@@ -158,6 +159,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.portal',
       nameKey: 'square.portal.name',
       textKey: 'square.portal.text',
+      iconKey: 'square.portal.icon',
       paired: true,
       effects: [
         {
@@ -171,6 +173,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.shrine',
       nameKey: 'square.shrine.name',
       textKey: 'square.shrine.text',
+      iconKey: 'square.shrine.icon',
       paired: false,
       effects: [
         {
@@ -184,6 +187,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.sanctuary',
       nameKey: 'square.sanctuary.name',
       textKey: 'square.sanctuary.text',
+      iconKey: 'square.sanctuary.icon',
       paired: false,
       effects: [
         {
@@ -197,6 +201,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.mire',
       nameKey: 'square.mire.name',
       textKey: 'square.mire.text',
+      iconKey: 'square.mire.icon',
       paired: false,
       effects: [
         {
@@ -213,6 +218,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.king-of-the-hill',
       nameKey: 'rule.king-of-the-hill.name',
       textKey: 'rule.king-of-the-hill.text',
+      iconKey: 'rule.king-of-the-hill.icon',
       cost: 4,
       effects: [
         {
@@ -238,6 +244,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.three-check',
       nameKey: 'rule.three-check.name',
       textKey: 'rule.three-check.text',
+      iconKey: 'rule.three-check.icon',
       cost: 5,
       effects: [
         {
@@ -251,6 +258,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.sudden-death',
       nameKey: 'rule.sudden-death.name',
       textKey: 'rule.sudden-death.text',
+      iconKey: 'rule.sudden-death.icon',
       cost: 5,
       effects: [
         {
@@ -264,6 +272,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.fast-promotion',
       nameKey: 'rule.fast-promotion.name',
       textKey: 'rule.fast-promotion.text',
+      iconKey: 'rule.fast-promotion.icon',
       cost: 3,
       effects: [
         {
@@ -278,6 +287,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.royal-bodyguard',
       nameKey: 'rule.royal-bodyguard.name',
       textKey: 'rule.royal-bodyguard.text',
+      iconKey: 'rule.royal-bodyguard.icon',
       cost: 4,
       effects: [
         {
@@ -292,6 +302,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.last-stand',
       nameKey: 'rule.last-stand.name',
       textKey: 'rule.last-stand.text',
+      iconKey: 'rule.last-stand.icon',
       cost: 3,
       effects: [
         {
@@ -308,6 +319,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.conscription',
       nameKey: 'rule.conscription.name',
       textKey: 'rule.conscription.text',
+      iconKey: 'rule.conscription.icon',
       cost: 3,
       effects: [
         {
@@ -321,6 +333,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.blood-toll',
       nameKey: 'rule.blood-toll.name',
       textKey: 'rule.blood-toll.text',
+      iconKey: 'rule.blood-toll.icon',
       cost: 4,
       effects: [
         {
@@ -338,6 +351,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.blitz',
       nameKey: 'rule.blitz.name',
       textKey: 'rule.blitz.text',
+      iconKey: 'rule.blitz.icon',
       cost: 4,
       effects: [
         {
@@ -351,6 +365,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.knights-honour',
       nameKey: 'rule.knights-honour.name',
       textKey: 'rule.knights-honour.text',
+      iconKey: 'rule.knights-honour.icon',
       cost: 3,
       effects: [
         {
@@ -369,6 +384,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.duel',
       nameKey: 'rule.duel.name',
       textKey: 'rule.duel.text',
+      iconKey: 'rule.duel.icon',
       cost: 5,
       effects: [
         {
@@ -385,6 +401,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.teleport',
       nameKey: 'skill.teleport.name',
       textKey: 'skill.teleport.text',
+      iconKey: 'skill.teleport.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -399,6 +416,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.swap',
       nameKey: 'skill.swap.name',
       textKey: 'skill.swap.text',
+      iconKey: 'skill.swap.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -413,6 +431,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.revive',
       nameKey: 'skill.revive.name',
       textKey: 'skill.revive.text',
+      iconKey: 'skill.revive.icon',
       cost: 6,
       uses: 1,
       effects: [
@@ -429,6 +448,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.freeze',
       nameKey: 'skill.freeze.name',
       textKey: 'skill.freeze.text',
+      iconKey: 'skill.freeze.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -443,6 +463,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.snare',
       nameKey: 'skill.snare.name',
       textKey: 'skill.snare.text',
+      iconKey: 'skill.snare.icon',
       cost: 2,
       uses: 1,
       effects: [
@@ -457,6 +478,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.coronation',
       nameKey: 'skill.coronation.name',
       textKey: 'skill.coronation.text',
+      iconKey: 'skill.coronation.icon',
       cost: 5,
       uses: 1,
       effects: [
@@ -471,6 +493,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.knight-leap',
       nameKey: 'skill.knight-leap.name',
       textKey: 'skill.knight-leap.text',
+      iconKey: 'skill.knight-leap.icon',
       cost: 3,
       uses: 1,
       effects: [
@@ -487,6 +510,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.charge',
       nameKey: 'skill.charge.name',
       textKey: 'skill.charge.text',
+      iconKey: 'skill.charge.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -509,6 +533,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.bulwark',
       nameKey: 'skill.bulwark.name',
       textKey: 'skill.bulwark.text',
+      iconKey: 'skill.bulwark.icon',
       cost: 3,
       uses: 1,
       effects: [
@@ -523,6 +548,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.shackle',
       nameKey: 'skill.shackle.name',
       textKey: 'skill.shackle.text',
+      iconKey: 'skill.shackle.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -537,6 +563,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.recall',
       nameKey: 'skill.recall.name',
       textKey: 'skill.recall.text',
+      iconKey: 'skill.recall.icon',
       cost: 3,
       uses: 1,
       effects: [
@@ -551,6 +578,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.shove',
       nameKey: 'skill.shove.name',
       textKey: 'skill.shove.text',
+      iconKey: 'skill.shove.icon',
       cost: 3,
       uses: 1,
       effects: [
@@ -567,6 +595,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.recruit',
       nameKey: 'skill.recruit.name',
       textKey: 'skill.recruit.text',
+      iconKey: 'skill.recruit.icon',
       cost: 4,
       uses: 1,
       effects: [
@@ -581,6 +610,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.volley',
       nameKey: 'skill.volley.name',
       textKey: 'skill.volley.text',
+      iconKey: 'skill.volley.icon',
       cost: 6,
       uses: 1,
       effects: [
@@ -595,6 +625,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.sacrifice',
       nameKey: 'skill.sacrifice.name',
       textKey: 'skill.sacrifice.text',
+      iconKey: 'skill.sacrifice.icon',
       cost: 5,
       uses: 1,
       effects: [

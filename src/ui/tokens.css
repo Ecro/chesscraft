@@ -35,17 +35,33 @@
   --color-surface-positive: #dcfce7;
   --color-surface-negative: #fee2e2;
 
-  /* board — the checker step is bounded by the pieces standing on it. Measured:
-     a dark square at #b8ab90 reads 1.97:1 against the light square but drops the
-     blue/red glyphs to ~2.9:1, under the 3:1 they need. #c9bfa8 is the darkest
-     value that keeps every piece at or above 3.5:1. A 3:1 CHECKER, which review
-     asked for, is unreachable with tinted glyphs alone — an outlined glyph would
-     decouple the two, and that is recorded for Phase 6 rather than guessed at
-     here without a device in hand. */
+  /* board — Phase 6a resolved the trade Phase 4 recorded as unsolvable.
+     Outlining the glyph decouples piece legibility from the board's own
+     contrast: the eye reads the glyph's EDGE against the square, so the fill is
+     free to carry hue while the outline carries contrast. Measured, light theme:
+     checker 3.30:1, painted vs plain 3.99:1, outline on either square ≥5.6:1,
+     and the two sides 2.75:1 against EACH OTHER — which was 1.04:1 before, i.e.
+     hue alone, the exact thing the header below says must not happen. */
   --color-board-light: #f2efe9;
-  --color-board-dark: #c9bfa8;
-  --color-board-painted-a: #fef3c7;
-  --color-board-painted-b: #fde68a;
+  --color-board-dark: #8f8266;
+  /* Violet, not the green this shipped as. Two independent reasons, both found
+     by review: green is ~1.4:1 against `--color-legal`, so the ONE cue that says
+     "you may move here" all but vanished on exactly the squares where the
+     decision is hardest; and green conventionally means go/safe, which is the
+     opposite of what a 폭탄칸 does. Violet reads as "something happens here"
+     and collides with no other cue on the board. */
+  --color-board-painted-a: #6d4d9c;
+  --color-board-painted-b: #5b3f85;
+
+  /* Cue sandwich — deliberately NOT themed.
+     A move dot has to be visible on five different fills (two checker tones,
+     two painted stripes, a last-move ring) in two themes. No single colour
+     clears 3:1 against all of them, so the dot carries its own black-on-white
+     ring: whatever the square is, one of the two tones separates from it. */
+  --color-cue-hi: #ffffff;
+  --color-cue-lo: #16130f;
+  --color-scrim: #16130fcc;
+  --color-shadow: #16130f40;
 
   /* text */
   --color-text: #1c1917;
@@ -58,9 +74,14 @@
   --color-border-strong: #a8a29e;
   --color-border-accent: #d97706;
 
-  /* meaning — sides are hue + weight, never hue alone */
-  --color-side-white: #1d4ed8;
-  --color-side-black: #b91c1c;
+  /* Glyph outline. Near-black in light, near-white in dark: this is what a
+     piece actually presents to the eye, and what lets the board be a board. */
+  --color-glyph-outline: #1a1613;
+  --color-focus-ring: #1d4ed8;
+
+  /* meaning — sides are hue + weight + lightness, never hue alone */
+  --color-side-white: #1e3a8a;
+  --color-side-black: #ef4444;
   --color-legal: #16a34a;
   --color-selected: #2563eb;
 
@@ -83,6 +104,10 @@
      be added outside of. */
   --motion-move-duration: 140ms;
   --motion-fade-duration: 90ms;
+  /* The draft deal. Longer than a move on purpose — this is the one moment the
+     game asks a player to choose rather than react, and the cards arriving is
+     what marks it as an event instead of a list appearing. */
+  --motion-card-duration: 280ms;
   --motion-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
@@ -96,9 +121,12 @@
     --color-surface-negative: #3a1a1a;
 
     --color-board-light: #3a352c;
-    --color-board-dark: #554d3f;
-    --color-board-painted-a: #4a3a15;
-    --color-board-painted-b: #5c4718;
+    --color-board-dark: #8d8269;
+    --color-board-painted-a: #b98ce8;
+    --color-board-painted-b: #a679d6;
+
+    --color-scrim: #0b0a07d9;
+    --color-shadow: #00000066;
 
     --color-text: #f5f2ec;
     --color-text-muted: #c2bbb0;
@@ -109,6 +137,8 @@
     --color-border-strong: #6b645a;
     --color-border-accent: #d9a441;
 
+    --color-glyph-outline: #f7f4ee;
+    --color-focus-ring: #93c5fd;
     --color-side-white: #93c5fd;
     --color-side-black: #f87171;
     --color-legal: #4ade80;
@@ -126,9 +156,9 @@
   --color-surface-negative: #fee2e2;
 
   --color-board-light: #f2efe9;
-  --color-board-dark: #c9bfa8;
-  --color-board-painted-a: #fef3c7;
-  --color-board-painted-b: #fde68a;
+  --color-board-dark: #8f8266;
+  --color-board-painted-a: #6d4d9c;
+  --color-board-painted-b: #5b3f85;
 
   --color-text: #1c1917;
   --color-text-muted: #57534e;
@@ -139,8 +169,18 @@
   --color-border-strong: #a8a29e;
   --color-border-accent: #d97706;
 
-  --color-side-white: #1d4ed8;
-  --color-side-black: #b91c1c;
+  /* These two were missing here, and their absence was the half-implementation
+     this file's header warns about pointed the other way: a user on a dark OS
+     who picks light kept the DARK glyph outline — a near-white ring around every
+     piece on a near-white board. An explicit choice has to carry every token the
+     OS branch sets, not most of them. */
+  --color-glyph-outline: #1a1613;
+  --color-focus-ring: #1d4ed8;
+  --color-scrim: #16130fcc;
+  --color-shadow: #16130f40;
+
+  --color-side-white: #1e3a8a;
+  --color-side-black: #ef4444;
   --color-legal: #16a34a;
   --color-selected: #2563eb;
 }
@@ -154,9 +194,12 @@
   --color-surface-negative: #3a1a1a;
 
   --color-board-light: #3a352c;
-  --color-board-dark: #554d3f;
-  --color-board-painted-a: #4a3a15;
-  --color-board-painted-b: #5c4718;
+  --color-board-dark: #8d8269;
+  --color-board-painted-a: #b98ce8;
+  --color-board-painted-b: #a679d6;
+
+  --color-scrim: #0b0a07d9;
+  --color-shadow: #00000066;
 
   --color-text: #f5f2ec;
   --color-text-muted: #c2bbb0;
@@ -167,6 +210,8 @@
   --color-border-strong: #6b645a;
   --color-border-accent: #d9a441;
 
+  --color-glyph-outline: #f7f4ee;
+  --color-focus-ring: #93c5fd;
   --color-side-white: #93c5fd;
   --color-side-black: #f87171;
   --color-legal: #4ade80;

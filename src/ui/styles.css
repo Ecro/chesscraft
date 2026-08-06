@@ -37,8 +37,16 @@ nav {
   margin-bottom: 10px;
 }
 
-button {
+button,
+select {
   font: inherit;
+  /* Form controls do NOT inherit `color` — the UA substitutes its own
+     `buttontext`, which is black. Every button on this app therefore rendered
+     black on the dark surface in the dark theme (about 1.2:1) while
+     `--color-text` sat right there unused: the nav, the seed row, the settings
+     toggles, every skill card in both trays. `background` was set here from the
+     start and `color` never was, which is why the light theme hid it. */
+  color: var(--color-text);
   cursor: pointer;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -46,13 +54,125 @@ button {
   padding: 6px 10px;
 }
 
+/* #27. 24px is WCAG 2.5.8's AA floor; 44 is the usability standard, and this
+   audience is children sharing one phone.
+   SCOPED, not global. A bare `button, select` rule reached `Edit.tsx` — which
+   this phase explicitly scopes out — and forced its 7x7 movement grid to 49
+   cells of 44px, well past a 360px viewport. Phase 9 rebuilds that screen and
+   will bring its own sizing. */
+:where(nav, .home, .coach, .rules, .play) :is(button, select) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* #28. `:focus-visible` rings on keyboard focus without ringing on every tap. */
+:where(button, select, [role='button']):focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * The play screen, ordered so the board is what a player sees (#33).
+ *
+ * The order used to be status, a seven-button seed row, the rule card, the
+ * draft, and only then the board — about 590px of chrome above the one element
+ * the screen exists for. Everything that is not the board or the hand it is
+ * played from now sits below it; the tools row is still one tap away, it just
+ * no longer outranks the position.
+ */
+.play {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .status {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+}
+
+.status > span {
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+  background: var(--color-surface-sunken);
+}
+
+/* The side to move, in the colour its pieces are. It is the one thing on the
+   status row a player checks every turn. */
+.status [data-side] {
+  font-weight: 700;
+  color: var(--color-text);
+  box-shadow: inset 3px 0 0 var(--status-accent, transparent);
+}
+
+.status [data-side='white'] {
+  --status-accent: var(--color-side-white);
+}
+
+.status [data-side='black'] {
+  --status-accent: var(--color-side-black);
+}
+
+/* No `margin-left: auto` here. It pushed 한 수 무르기 to the far right of a
+   WRAPPED flex line, which on a 412px phone put half the button past the edge
+   of `main` — and `main` clips horizontally, so it was simply cut off. */
+.status button {
+  font-size: var(--font-size-sm);
+}
+
+/* The turn, at a size that answers the question from across the table. The dot
+   is the piece colour itself and carries a ring, so the two sides are separated
+   by hue AND by the same shape/weight pairing ADR-021 requires everywhere else
+   — a red/green-blind player reads the words, and everyone else reads the dot
+   without reading at all. */
+.status .turn {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  padding: var(--space-2) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 2px solid var(--turn-accent);
+  box-shadow: inset 0 0 0 1px var(--color-surface);
+}
+
+.status .turn::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--turn-accent);
+  box-shadow: 0 0 0 2px var(--color-cue-lo);
+}
+
+.status[data-turn='white'] {
+  --turn-accent: var(--color-side-white);
+}
+
+.status[data-turn='black'] {
+  --turn-accent: var(--color-side-black);
+}
+
+/* The same answer on the board, so a player checking whose move it is never has
+   to look away from the position. */
+.board-frame[data-turn='white'] {
+  --turn-accent: var(--color-side-white);
+}
+
+.board-frame[data-turn='black'] {
+  --turn-accent: var(--color-side-black);
+}
+
+.board-frame .board {
+  outline: 3px solid var(--turn-accent, transparent);
+  outline-offset: 2px;
+  border-radius: 2px;
+  transition: outline-color var(--motion-fade-duration) var(--motion-ease);
 }
 
 .card {
@@ -72,10 +192,39 @@ button {
   color: var(--color-text-muted);
 }
 
+/* The rule in play. Stays on screen for the whole match (AC-004) but as a
+   two-line strip rather than a panel — it is read once and referred to, not
+   studied. */
 .rule {
-  border-color: var(--color-text-subtle);
+  border-color: var(--color-border-accent);
   background: var(--color-surface-accent);
-  margin-bottom: 10px;
+  padding: var(--space-2) var(--space-4);
+  border-left-width: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rule-icon {
+  flex: 0 0 auto;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.rule-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rule strong {
+  font-size: var(--font-size-sm);
+}
+
+.rule span {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
 }
 
 .result {
@@ -85,18 +234,173 @@ button {
   background: var(--color-surface-positive);
 }
 
+/* #15. It used to sit in the flow above the board, so every refused tap shoved
+   the pieces down — in a game where the refusal usually comes from a mis-tap in
+   the first place. Fixed to the viewport, so the board's box is unchanged. */
 .rejection {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 10;
+  max-width: 90vw;
   padding: 8px 10px;
   border-radius: 10px;
   background: var(--color-surface-negative);
   color: var(--color-text-negative);
+  box-shadow: 0 2px 12px var(--color-glyph-outline);
+}
+
+/*
+ * The draft, as a moment rather than a list (#43).
+ *
+ * Three full-width buttons stacked in the document flow cost ~230px directly
+ * above the board, which pushed the board off a 915px phone entirely — the
+ * screen whose whole job is the board. And a choice that decides how a player's
+ * half of the match works rendered as the same white rectangle as everything
+ * else on the page.
+ *
+ * So the offer is lifted out of the flow into a bottom sheet over a dimmed
+ * board: the board's box never changes, the cards get to be cards, and the
+ * player can still see the position they are choosing for.
+ */
+.draft-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--color-scrim);
+  animation: scrim-in var(--motion-fade-duration) var(--motion-ease);
+  /* Dims, does NOT trap. A full-viewport fixed layer that eats pointer events
+     put every other control on the page behind glass while an offer was open —
+     the nav tabs, 처음으로, the seed row. The e2e suite caught it as twenty
+     failures, but the player-facing version is worse than a broken test: a
+     child who opened a match and does not want to draft has no way out except
+     reloading. The sheet takes pointers back below. */
+  pointer-events: none;
+}
+
+.draft-scrim > .draft {
+  pointer-events: auto;
+}
+
+/* The sheet is fixed, so it covers the bottom of the VIEWPORT wherever the page
+   is scrolled — the tools row simply could not be reached while an offer was
+   open, no matter how far you scrolled. The page grows a tail it can scroll
+   above the sheet, for exactly as long as the sheet exists. */
+.play:has(.draft-scrim) {
+  padding-bottom: 40vh;
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .draft {
+  width: 100%;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px 18px 0 0;
+  background: var(--color-surface);
+  box-shadow: 0 -8px 30px var(--color-shadow);
+  animation: sheet-in var(--motion-card-duration) var(--motion-ease);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* Whose choice this is, said in the same colour the pieces use — the sheet
+   covers the board, so the side indicator on the status row is not visible
+   while it is open. */
+.draft-prompt {
+  margin: 0;
+  font-weight: 700;
+  font-size: var(--font-size-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.draft-prompt::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--draft-accent, var(--color-selected));
+  box-shadow: 0 0 0 2px var(--color-cue-lo);
+}
+
+.draft[data-side='white'] {
+  --draft-accent: var(--color-side-white);
+}
+
+.draft[data-side='black'] {
+  --draft-accent: var(--color-side-black);
+}
+
+.draft-cards {
+  display: flex;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+/* A card, not a row. Portrait, bordered in the drafting side's colour, dealt in
+   with a stagger so three of them arriving reads as being dealt a hand. */
+.draft-cards .card {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  min-height: 150px;
+  border: 2px solid var(--draft-accent, var(--color-border));
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--color-surface), var(--color-surface-sunken));
+  box-shadow: 0 2px 10px var(--color-shadow);
+  transition:
+    transform var(--motion-fade-duration) var(--motion-ease),
+    box-shadow var(--motion-fade-duration) var(--motion-ease);
+  animation: card-deal var(--motion-card-duration) var(--motion-ease) backwards;
+}
+
+.draft-cards .card strong {
+  font-size: var(--font-size-base);
+}
+
+.draft-cards .card:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.draft-cards .card:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+/* Hover lifts, press pushes in. On touch only the press half fires, which is
+   the half that confirms the tap landed. */
+.draft-cards .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 18px var(--color-shadow);
+}
+
+.draft-cards .card:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 1px 4px var(--color-shadow);
+}
+
+@keyframes card-deal {
+  from {
+    transform: translateY(28px) rotate(-4deg);
+    opacity: 0;
+  }
 }
 
 .board {
@@ -169,6 +473,7 @@ button {
        workaround and is imperceptible. */
     --motion-move-duration: 0.01ms;
     --motion-fade-duration: 0.01ms;
+    --motion-card-duration: 0.01ms;
   }
 }
 
@@ -176,6 +481,68 @@ button {
   font-size: 26px;
   line-height: 1;
   font-weight: 600;
+  /* The glyph's own contrast, which is what frees the board to be a board: the
+     eye reads this edge against the square, not the fill, so the fill can carry
+     hue while the outline carries the ratio. Four offsets rather than a blur —
+     a blurred shadow washes out at 26px instead of ringing. */
+  text-shadow:
+    0 1px 0 var(--color-glyph-outline),
+    0 -1px 0 var(--color-glyph-outline),
+    1px 0 0 var(--color-glyph-outline),
+    -1px 0 0 var(--color-glyph-outline);
+}
+
+/*
+ * What a painted square DOES, drawn on the square (schema v5).
+ *
+ * The violet stripe says "something happens here" and stops there, which for a
+ * set whose types run from "your pawn becomes a queen" to "your piece is
+ * destroyed" is close to no information at all. The mark comes from
+ * the content's `iconKey`, never from a selector naming a square id — that
+ * would put content in the stylesheet, which is the whole of ADR-011.
+ */
+.square-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* With a piece on it the mark retreats to a corner badge, because the piece is
+   what the player is about to move and the square is context for it. */
+.square-mark[data-occupied='true'] {
+  inset: auto 1px 1px auto;
+  font-size: 12px;
+  opacity: 0.95;
+  text-shadow:
+    0 1px 0 var(--color-cue-lo),
+    0 -1px 0 var(--color-cue-lo),
+    1px 0 0 var(--color-cue-lo),
+    -1px 0 0 var(--color-cue-lo);
+}
+
+/* The mark on a card face — draft sheet and tray tile alike. */
+.card-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.card-icon:empty {
+  display: none;
+}
+
+.tray .card {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tray .card-icon {
+  font-size: 20px;
 }
 
 /* Coordinates live on the frame now, not inside the squares, where they were
@@ -185,7 +552,7 @@ button {
   grid-template-columns: auto 1fr;
   grid-template-areas: 'ranks board' '. files';
   gap: var(--space-1);
-  margin: var(--space-4) 0;
+  margin: 0;
 }
 
 .board-frame .board {
@@ -240,9 +607,50 @@ button {
   border-color: var(--color-border-accent);
 }
 
-.square[data-legal='true'] {
-  outline: 2px solid var(--color-legal);
-  outline-offset: -2px;
+/*
+ * Where you may move (#42 follow-up).
+ *
+ * This used to be a 2px `--color-legal` outline and nothing else, which made the
+ * cue's visibility a function of whatever the square happened to be painted —
+ * ~1.4:1 on the painted fill, i.e. invisible on precisely the squares whose
+ * ability makes the move worth thinking about. A centred dot with a black/white
+ * sandwich is what every board game does instead, and for the same reason: the
+ * ring cannot be washed out by a fill it does not touch.
+ */
+.square[data-legal='true']::after {
+  content: '';
+  position: absolute;
+  /* `inset: 0` + `margin: auto` centres it regardless of the flex line the
+     static position would otherwise put it on. */
+  inset: 0;
+  margin: auto;
+  width: 30%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-legal);
+  box-shadow:
+    0 0 0 2px var(--color-cue-lo),
+    0 0 0 4px var(--color-cue-hi);
+  pointer-events: none;
+  animation: cue-in var(--motion-fade-duration) var(--motion-ease);
+}
+
+/* An occupied reachable square is a capture, and reads as a ring around the
+   piece rather than a dot the piece would sit on top of. */
+.square[data-legal='true'][data-piece]:not([data-piece=''])::after {
+  width: 86%;
+  background: none;
+  border: 4px solid var(--color-legal);
+  box-shadow:
+    0 0 0 2px var(--color-cue-lo),
+    inset 0 0 0 2px var(--color-cue-lo);
+}
+
+@keyframes cue-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
 }
 
 .square[data-selected='true'] {
@@ -250,24 +658,49 @@ button {
   outline-offset: -3px;
 }
 
+/* The focus ring on a square, declared AFTER the legal/selected rules and on a
+   different property.
+   Both of those set `outline` at the same specificity as `.square:focus-visible`
+   did, and being later in the file they won — so a keyboard user tabbing across
+   reachable squares saw the identical green ring on every one and could not tell
+   where focus was. Using `box-shadow` instead of `outline` means the two cues
+   COMPOSE: the square keeps saying "you may move here" while the ring says
+   "you are here". */
+.square:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 3px var(--color-focus-ring),
+    0 0 0 2px var(--color-focus-ring);
+}
+
 .legend {
   list-style: none;
-  margin: 0 0 10px;
-  padding: 8px 10px;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
   border: 1px dashed var(--color-border-accent);
-  border-radius: 10px;
-  font-size: 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
   background: var(--color-surface-accent);
 }
 
+/* The legend marker in the same violet the squares are painted, so the list and
+   the board are visibly about the same thing. */
+.legend li {
+  padding-left: var(--space-4);
+  border-left: 3px solid var(--color-board-painted-a);
+  margin-bottom: var(--space-1);
+}
+
+/* A hand reads across, not down. Two stacked column trays cost ~160px below the
+   board for four cards that fit in two rows of scrollable tiles. */
 .tray {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 10px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
+  overflow-x: auto;
 }
 
 .tray[data-active='true'] {
@@ -275,16 +708,69 @@ button {
 }
 
 .tray-label {
-  font-size: 12px;
+  flex: 0 0 auto;
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  color: var(--color-text);
+  padding-left: var(--space-2);
+  border-left: 4px solid var(--tray-accent, transparent);
+}
+
+.tray-label[data-side='white'] {
+  --tray-accent: var(--color-side-white);
+}
+
+.tray-label[data-side='black'] {
+  --tray-accent: var(--color-side-black);
+}
+
+.tray .card {
+  flex: 0 0 auto;
+  max-width: 60%;
+  padding: var(--space-2) var(--space-3);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  text-align: left;
+}
+
+.tray .card-body strong,
+.tray .card-body span {
+  /* Two lines and an ellipsis. The full text is in the draft sheet where the
+     card was chosen, and a tray tile only has to be recognisable. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .tray .empty {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-subtle);
+}
+
+/* Seed, sound, haptics, flip, new match, home — six controls that belong on the
+   screen but not above the board. */
+.match-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.match-tools button {
+  font-size: var(--font-size-sm);
+  padding: var(--space-2) var(--space-3);
 }
 
 .card[data-used='true'] {
@@ -307,6 +793,11 @@ input,
 select,
 textarea {
   font: inherit;
+  /* Same defect as `button` above, and the editor is where it bit hardest —
+     every text field and every textarea of card prose was black on a dark
+     surface. */
+  color: var(--color-text);
+  background: var(--color-surface);
   padding: 6px 8px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -352,7 +843,6 @@ button.primary {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-3);
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }

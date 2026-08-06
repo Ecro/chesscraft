@@ -44,14 +44,17 @@ export function textKeysOf(set: ContentSet): string[] {
   for (const type of set.squareTypes.values()) {
     add(type.nameKey)
     add(type.textKey)
+    add(type.iconKey)
   }
   for (const card of set.ruleCards.values()) {
     add(card.nameKey)
     add(card.textKey)
+    add(card.iconKey)
   }
   for (const card of set.skillCards.values()) {
     add(card.nameKey)
     add(card.textKey)
+    add(card.iconKey)
   }
   for (const board of set.boards.values()) add(board.nameKey)
   for (const preset of set.presets.values()) add(preset.nameKey)

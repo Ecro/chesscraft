@@ -568,7 +568,15 @@ exists to remove.
 - **Risk:** high — the positional-identity trap above, and 41 specs newly racing an animation
 - **Rollback:** Phase 4
 
-### Phase 6 — Layout, accessibility, and interaction hygiene
+### Phase 6a — Accessibility, contrast, and the theme control
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (291 unit, 56 e2e). 44px targets and a
+  `:focus-visible` ring across every non-editor control; the board is a `role=grid` whose squares
+  carry labels that include reachability, so legal moves are not colour-only; the rejection is a
+  fixed toast; a theme control that persists and beats the OS in both directions; ADR-018's flip.
+  The contrast trio resolved: outlining the glyph decoupled piece legibility from the board, so the
+  checker reached 3.30:1 (light) / 3.20:1 (dark) and the painted square 3.99:1 — both were open
+  since Phase 4. It also surfaced that the LIGHT theme's two sides were 1.04:1 apart, i.e. hue
+  alone; they are 2.75:1 now.
 - **Scope re-derived 2026-08-06.** Same method as Phases 4 and 5, which are the only two phases so
   far whose drift verdict came back `clean`. This one also **collects what three reviews deferred
   here** — those items were recorded in REVIEW documents, not in this scope, and would otherwise be
@@ -577,11 +585,14 @@ exists to remove.
 - `parallel_group`: `serial-board`
 - `merge_hazards`: `src/ui/styles.css` and `src/ui/tokens.css` (every phase touches both);
   `src/ui/MatchHost.tsx`; `e2e/hotseat.spec.ts`'s portrait no-horizontal-scroll assertion
-- **Scope in — the original list:** touch targets to 44px (#27), `:focus-visible` (#28), board
-  semantics — `role="grid"`, `aria-label`, `aria-pressed`, legal-move state exposed non-visually
-  (#29), safe-area insets (#32), tablet/landscape breakpoints (#33), rejection as a non-shifting
-  toast (#15), card-shaped collapsible trays (#16), designed error/empty states (#18), board flip
-  toggle per ADR-018 (#13)
+- **Split from Phase 6 on 2026-08-06.** The A.5 gate counted the authored tests against the phase's
+  own exit criterion and found four scope items with no test at all — the accessibility and contrast
+  work had been done and the layout work silently skipped. Splitting is the honest response: 6a is
+  what is actually ready, 6b is what was not started. Neither half shrank; the boundary moved to
+  where the work already was.
+- **Scope in:** touch targets to 44px (#27), `:focus-visible` (#28), board semantics — `role="grid"`,
+  `aria-label`, `aria-pressed`, legal-move state exposed non-visually (#29), rejection as a
+  non-shifting toast (#15), board flip toggle per ADR-018 (#13)
 - **Scope in — carried here by earlier reviews, one line each:**
   - **#42 painted-square contrast** (Phase 4 review) — ≈1.03:1 against a plain square; AC-018's
     "distinguishable at a glance" is currently carried by a 1px border
@@ -592,8 +603,6 @@ exists to remove.
   - **A theme toggle** (Phase 1 review) — `data-theme` has been CSS-only since Phase 1; **verified
     still true**: no `.tsx` sets it and `Settings` has no theme field, so only the OS-preference
     layer is reachable by a real person
-  - **Control-row grouping** (Phase 4 and Phase 5 reviews) — the row is now seed, copy, sound,
-    haptics, new-match, home, plus undo above
   - **`piece-land` perceptibility** (Phase 5 review) — needs the device check below, not a rewrite
 - **Scope in — the wiring the lists above do not name:**
   - `src/ui/settings.ts` — **gains a `theme` field.** A toggle whose choice does not survive a reload
@@ -616,8 +625,77 @@ exists to remove.
   `data-theme` on the root, persists, and that an explicit choice beats the OS preference in **both**
   directions; a measured assertion that the painted square clears 3:1 against a plain square in both
   themes AND that pieces still clear 3:1 on both parities — the Phase 4 review's table, re-measured
+- **Note on the focus ring:** `:focus-visible` does not apply to a programmatic `.focus()` in
+  Chromium, so the test drives focus with `Tab`. An implementation using plain `:focus` would also
+  pass, but would then ring on mouse clicks too — the test permits either and the choice is the
+  implementer's.
 - **Risk:** high — the contrast items are a three-way constraint, and 45 e2e specs drive this markup
 - **Rollback:** Phase 5
+
+### Phase 6a+ — User-directed follow-up: readability, board primacy, content icons, turn state
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (291 unit, 56 e2e). Driven by the user
+  reviewing the running app on a device rather than by a phase scope, so it is recorded here as its
+  own unit instead of being folded into 6a's record. It **partially consumes Phase 6b** (the tray
+  and control-row items below) and **partially extends ADR-017** with a schema bump; 6b keeps the
+  safe-area and breakpoint items, which this did not touch.
+- **What it found, and why each was invisible until someone looked:**
+  - **Every `button` / `select` / `input` / `textarea` rendered black-on-dark in the dark theme**
+    (≈1.2:1). Form controls do not inherit `color`; the UA substitutes `buttontext`. `styles.css`
+    had set `background` from Phase 1 and never `color`, so the defect existed for six phases and
+    was structurally invisible to the light theme — including to `e2e/contrast.spec.ts`, which
+    measures the BOARD's tokens and never a control's computed colour.
+  - **`:root[data-theme='light']` was missing `--color-glyph-outline` and `--color-focus-ring`** —
+    the same half-implementation `tokens.css`'s own header warns about, pointed the other way: a
+    user on a dark OS who chose light kept the near-white glyph outline on a near-white board.
+  - **The board was not the hero of the play screen.** Status, a seven-control seed row, the rule
+    card and three stacked draft offers put ~590px of chrome above it, so the board did not fit on
+    a 915px phone. Order inverted: everything that is not the board or the hand played from it now
+    sits below it.
+  - **The draft read as a list, not a choice.** It is now a bottom sheet over a dimmed board, with
+    the offers dealt in as cards in the drafting side's colour. First implementation made the scrim
+    eat pointer events — 20 e2e failures, and the player-facing version was worse: no way out of a
+    draft except reloading. The scrim dims and does not trap.
+  - **Whose turn it was read as one grey chip among four**, on a hot-seat game where that is the
+    only thing the chrome must answer. It is now a banner with the side's colour and dot, and the
+    board's own frame carries the same colour.
+- **Schema v5 (extends ADR-017).** v4 gave `iconKey` to pieces only, which left the rule in play, a
+  skill card in a hand, and a painted square distinguishable only by reading Korean prose. The UI
+  cannot supply the missing half itself — a `.square[data-square-type='square.bomb']` selector puts
+  a content id in a stylesheet, which is exactly what ADR-011 forbids — so the icon is content.
+  `iconKey` added to `squareTypeDef`, `ruleCardDef`, `skillCardDef`, all optional; every v4 document
+  loads unchanged. 31 bundled entries carry one, and `textKeysOf` counts them so AC-016 covers them.
+- **Also closes the P1 regression Phase 6a introduced.** 6a's green painted squares were ≈1.4:1
+  against `--color-legal`, so the legal-move cue vanished on precisely the squares whose ability
+  makes the decision hard — and green conventionally means safe, the opposite of what a 폭탄칸 does.
+  Painted squares are violet now, and the legal cue no longer depends on a single colour clearing
+  every fill: it is a dot inside a theme-invariant black/white ring (`--color-cue-lo` / `-hi`).
+- **Scope:** `src/content/schema.ts`, `src/content/sets/bundled.ts`, `src/i18n/ko.ts`,
+  `src/ui/i18n.ts`, `src/ui/MatchHost.tsx`, `src/ui/styles.css`, `src/ui/tokens.css`,
+  `tests/content/bundled.test.ts`
+- **Not reviewed.** No REVIEW document exists for this unit or for 6a; the drift verdict this
+  wrapup gated on is Phase 5's. See the wrapup note below.
+- **Exit criterion:** `npm run verify` GREEN with no decrease in Playwright count — met (56, from 56).
+
+### Phase 6b — Layout: safe area, breakpoints, trays, and empty states
+- **Split out of Phase 6 on 2026-08-06** — see 6a. These four had no authored test when the gate
+  counted, which is what surfaced them as a separate body of work rather than a tail of 6a.
+- `depends_on`: [6a]
+- `parallel_group`: `serial-board`
+- `merge_hazards`: `src/ui/styles.css`; `e2e/hotseat.spec.ts`'s portrait no-horizontal-scroll assertion
+- **Scope in:** safe-area insets (#32 — `index.html` already sets `viewport-fit=cover`, so this is
+  padding that consumes `env(safe-area-inset-*)`), tablet and landscape breakpoints (#33),
+  card-shaped collapsible trays (#16), designed error and empty states (#18), and the control-row
+  grouping that Phase 4's and Phase 5's reviews both deferred — the row is now seed, copy, sound,
+  haptics, theme, flip, new-match and home
+- **Scope out:** `src/ui/Edit.tsx`, for the same reason as 6a — Phase 9 rebuilds it
+- **Exit criterion:** `npm run verify`; an e2e at a tablet viewport and one in landscape assert the
+  board stays square and the page does not scroll horizontally; a test asserts the shell consumes
+  `env(safe-area-inset-*)` rather than merely declaring `viewport-fit=cover`; an e2e collapses and
+  expands a tray and asserts the board's bounding box is unchanged by it; a test renders the shell
+  with content that fails to load and asserts a designed state with a recovery action rather than a
+  bare sentence
+- **Risk:** medium
+- **Rollback:** Phase 6a
 
 ### Phase 7 — PWA: manifest, icons, offline
 - `depends_on`: [6]
@@ -732,17 +810,21 @@ being told anything. The last one is the only test that can falsify Phase 3.
 
 ## ✅ Success Criteria
 
-- [ ] A first-time visitor reaches a finished match and starts a second one without instruction.
-- [ ] Two consecutive matches differ in rule card and draft offers; a fixed seed still reproduces a match exactly (AC-004 intact).
-- [ ] The seed in play is visible and copyable, so a match can be replayed or shared.
-- [ ] No English enum, raw preset id, or schema field name appears as user-visible copy.
-- [ ] Every bundled piece renders a glyph; a piece authored with no icon renders a monogram, not a blank.
-- [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import.
-- [ ] The editor opens on a browsable list, not a 40-button row, and every label is Korean an elementary reader understands.
-- [ ] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
-- [ ] The app installs and plays offline after one visit.
-- [ ] Motion is fully suppressed under `prefers-reduced-motion`; sound and haptics are toggleable and off/on per ADR-023's defaults.
-- [ ] `npm run verify` passes at every phase boundary, with no decrease in Playwright test count.
+Ticked only where a phase that actually shipped covers the line. Four remain open
+because Phases 6b–10 are not started; the plan is **not** complete and its
+frontmatter still says so.
+
+- [x] A first-time visitor reaches a finished match and starts a second one without instruction.
+- [x] Two consecutive matches differ in rule card and draft offers; a fixed seed still reproduces a match exactly (AC-004 intact).
+- [x] The seed in play is visible and copyable, so a match can be replayed or shared.
+- [x] No English enum, raw preset id, or schema field name appears as user-visible copy.
+- [x] Every bundled piece renders a glyph; a piece authored with no icon renders a monogram, not a blank.
+- [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phase 8)*
+- [ ] The editor opens on a browsable list, not a 40-button row, and every label is Korean an elementary reader understands. *(Phase 9)*
+- [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
+- [ ] The app installs and plays offline after one visit. *(Phase 7)*
+- [x] Motion is fully suppressed under `prefers-reduced-motion`; sound and haptics are toggleable and off/on per ADR-023's defaults.
+- [x] `npm run verify` passes at every phase boundary, with no decrease in Playwright test count.
 
 ## 🔍 Plan Validation
 

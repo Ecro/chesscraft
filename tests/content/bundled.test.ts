@@ -19,7 +19,10 @@ describe('AC-010 — the bundled content set', () => {
     if (!result.ok) {
       throw new Error(`bundled content is invalid:\n${JSON.stringify(result.errors, null, 2)}`)
     }
-    expect(result.set.schemaVersion).toBe(4) // v4 added pieceDef.iconKey (ADR-017)
+    // v4 added pieceDef.iconKey (ADR-017); v5 carried the same field to square
+    // types, rule cards and skill cards, which is what lets the board and the
+    // card faces say WHAT happens rather than only that something does.
+    expect(result.set.schemaVersion).toBe(5)
   })
 
   it('ships at least 10 rule cards, 14 skill cards and 4 square types', () => {

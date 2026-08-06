@@ -79,10 +79,22 @@ test('a piece stays legible on the checker\'s DARK square (#41)', async ({ page 
       return 0.2126 * f(r!) + 0.7152 * f(g!) + 0.0722 * f(b!)
     }
       const piece = (el.querySelector('.piece') ?? el) as Element
-      const a = lum(parse(getComputedStyle(piece).color))
-      const b = lum(parse(getComputedStyle(el).backgroundColor))
-      const [hi, lo] = a > b ? [a, b] : [b, a]
-      return { id: el.getAttribute('data-testid'), piece: el.getAttribute('data-piece'), ratio: (hi + 0.05) / (lo + 0.05) }
+      const st = getComputedStyle(piece)
+      const bg = lum(parse(getComputedStyle(el).backgroundColor))
+      const against = (c: string) => {
+        const x = lum(parse(c))
+        const [hi, lo] = x > bg ? [x, bg] : [bg, x]
+        return (hi + 0.05) / (lo + 0.05)
+      }
+      // Phase 6a outlined the glyph, which changed what "legible" measures: the
+      // eye reads the EDGE against the square, so the fill is free to carry hue
+      // and the board is free to be a board. Measuring the bare fill — this
+      // test's previous model — now under-reports every piece. The full
+      // three-way constraint lives in `e2e/contrast.spec.ts`; this stays as a
+      // guard on the dark square specifically.
+      const outline = st.textShadow !== 'none' ? (st.textShadow.match(/rgba?\([^)]+\)/)?.[0] ?? '') : ''
+      const ratio = Math.max(against(st.color), outline ? against(outline) : 0)
+      return { id: el.getAttribute('data-testid'), piece: el.getAttribute('data-piece'), ratio }
     }),
   )
   // 3:1 is the non-text floor; a piece glyph is a graphical object at this size.

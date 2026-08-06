@@ -6,7 +6,7 @@ import { type Match, createMatch, currentState, undo } from '@engine/match'
 import { type Action, type MatchResult, type Side, type SquareId, squareId } from '@engine/types'
 import { translate } from './i18n'
 import { browserStorage } from '@editor/storage'
-import { type Settings, loadSettings, saveSettings } from './settings'
+import { DEFAULT_SETTINGS, type Settings, loadSettings, saveSettings } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
 
 /**
@@ -46,6 +46,23 @@ function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): str
 }
 
 /**
+ * The mark for anything that carries an `iconKey` (schema v5).
+ *
+ * Returns `''` rather than a placeholder when a card or square declares none:
+ * an icon is a second channel beside the name, and inventing a glyph for
+ * content that did not ask for one would make every unmarked card look like it
+ * meant the same thing. The piece board is the one place a fallback is right —
+ * a square with nothing in it is not a piece.
+ */
+function iconOf(def: { iconKey?: string | undefined } | undefined): string {
+  if (!def?.iconKey) return ''
+  const icon = translate(def.iconKey)
+  // `translate` echoes the key when it cannot resolve one, which would paint
+  // the raw key string across a card face.
+  return icon === def.iconKey ? '' : icon
+}
+
+/**
  * Which feedback an applied action earns.
  *
  * Exported and pure so the end-of-match branches can be asserted without
@@ -63,6 +80,28 @@ export function eventFor(
   // A move onto an occupied square is a capture, and should not sound like a step.
   if (action.kind === 'move' && before.board.has(action.to)) return 'capture'
   return 'move'
+}
+
+/**
+ * What a screen reader is told about a square (#29).
+ *
+ * Legal-move state is IN the label, not only in `data-legal` and a green
+ * outline: a player who cannot see the outline otherwise has no way to know
+ * where a selected piece may go, which is the whole of the criterion.
+ */
+function squareLabel(
+  sq: string,
+  def: { nameKey: string } | undefined,
+  piece: { side: string } | undefined,
+  type: { nameKey: string } | undefined,
+  reachable: boolean,
+): string {
+  const parts = [sq]
+  if (def && piece) parts.push(`${translate(`ui.side.${piece.side}`)} ${translate(def.nameKey)}`)
+  else parts.push(translate('ui.board.empty'))
+  if (type) parts.push(translate(type.nameKey))
+  if (reachable) parts.push(translate('ui.board.reachable'))
+  return parts.join(', ')
 }
 
 /** `a1` -> 0, `f6` -> 5. The engine's squareId is a letter then a 1-based rank. */
@@ -109,9 +148,12 @@ export function MatchHost({
   const [pendingCard, setPendingCard] = useState<{ cardId: string; targets: SquareId[] } | null>(null)
   const [rejection, setRejection] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  // ADR-018: one shared board, flipped by hand. Not an automatic rotation and
+  // not a hand-off screen — the two players are looking at the same thing.
+  const [flipped, setFlipped] = useState(false)
   const [settings, setSettings] = useState<Settings>(() => {
     const storage = browserStorage()
-    return storage ? loadSettings(storage) : { sound: false, haptics: true }
+    return storage ? loadSettings(storage) : DEFAULT_SETTINGS
   })
   /**
    * The action that produced the current state.
@@ -292,22 +334,28 @@ export function MatchHost({
     setPendingCard({ cardId, targets: [] })
   }
 
-  const ranks = Array.from({ length: state.height }, (_, i) => state.height - 1 - i)
-  const files = Array.from({ length: state.width }, (_, i) => i)
+  const ranks = Array.from({ length: state.height }, (_, i) => (flipped ? i : state.height - 1 - i))
+  const files = Array.from({ length: state.width }, (_, i) => (flipped ? state.width - 1 - i : i))
   const rule = state.ruleCardId ? content.ruleCards.get(state.ruleCardId) : undefined
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
 
   return (
     <section className="play">
-      <div className="status">
+      {/* Whose turn it is, as the loudest thing on the screen after the board.
+          It used to be one grey chip among four, the same size and weight as
+          the phase and the ply count — on a hot-seat game where the ONLY thing
+          two players need from the chrome is which of them moves next. The
+          board's own frame carries the same colour, so the answer is visible
+          without looking away from the position. */}
+      <div className="status" data-turn={state.sideToMove}>
         {/* The machine value lives on the attribute and the words on screen are
             translated. That split is what lets the e2e suite keep asserting a
             stable value while a player reads their own language. */}
+        <span className="turn" data-testid="side-to-move" data-side={state.sideToMove}>
+          {translate(`ui.side.${state.sideToMove}`)} {translate('ui.status.turn')}
+        </span>
         <span data-testid="phase" data-phase={phase}>
           {translate(`ui.phase.${phase}`)}
-        </span>
-        <span data-testid="side-to-move" data-side={state.sideToMove}>
-          {translate(`ui.side.${state.sideToMove}`)}
         </span>
         <span>
           {translate('ui.status.ply')} {state.plyCount}
@@ -317,47 +365,18 @@ export function MatchHost({
         </button>
       </div>
 
-      {/* ADR-024's replay clause. A seed the product never shows is an internal
-          detail; shown and copyable, it is how one player hands another the
-          exact match they just played. */}
-      <div className="seed">
-        <span data-testid="match-seed" title={translate('ui.seed.hint')}>
-          {translate('ui.seed.label')} {seed}
-        </span>
-        <button data-testid="copy-seed" data-copy-state={copyState} onClick={copySeed}>
-          {translate(
-            copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
-          )}
-        </button>
-        <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
-          {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
-        </button>
-        {hapticsSupported() && (
-          <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
-            {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
-          </button>
-        )}
-        <button data-testid="new-match" onClick={startNew}>
-          {translate('ui.action.new-match')}
-        </button>
-        {onHome && (
-          <button
-            data-testid="go-home"
-            onClick={() => {
-              if (inProgress && !window.confirm(translate('ui.confirm.discard'))) return
-              onHome()
-            }}
-          >
-            {translate('ui.action.home')}
-          </button>
-        )}
-      </div>
-
       {/* AC-004's display clause: the drawn rule card stays on screen for the
           whole match, not shown once at the start and forgotten. */}
       <div className="card rule" data-testid="rule-card" data-rule={state.ruleCardId ?? ''}>
-        <strong>{rule ? translate(rule.nameKey) : translate('ui.rule.none')}</strong>
-        {rule && <span>{translate(rule.textKey)}</span>}
+        {iconOf(rule) && (
+          <span className="rule-icon" aria-hidden="true">
+            {iconOf(rule)}
+          </span>
+        )}
+        <div className="rule-body">
+          <strong>{rule ? translate(rule.nameKey) : translate('ui.rule.none')}</strong>
+          {rule && <span>{translate(rule.textKey)}</span>}
+        </div>
       </div>
 
       {state.result && (
@@ -371,26 +390,37 @@ export function MatchHost({
         </div>
       )}
 
+      {/* Lifted out of the document flow (#43). Three offers stacked above the
+          board cost ~230px there and pushed the board off the phone; over a
+          dimmed board they cost nothing, and the player can still see the
+          position the card is being chosen for. */}
       {phase === 'draft' && drafting && (
-        <div className="draft" data-testid="draft-offer" data-side={drafting}>
-          <p>
-            {translate(`ui.side.${drafting}`)} — {translate('ui.draft.prompt')}
-          </p>
-          {(state.drafts[drafting].offers ?? []).map((cardId) => {
-            const card = content.skillCards.get(cardId)
-            return (
-              <button
-                key={cardId}
-                className="card"
-                data-testid={`offer-${cardId}`}
-                data-card={cardId}
-                onClick={() => push({ kind: 'draft_pick', cardId })}
-              >
-                <strong>{card ? translate(card.nameKey) : cardId}</strong>
-                {card && <span>{translate(card.textKey)}</span>}
-              </button>
-            )
-          })}
+        <div className="draft-scrim">
+          <div className="draft" data-testid="draft-offer" data-side={drafting}>
+            <p className="draft-prompt">
+              {translate(`ui.side.${drafting}`)} — {translate('ui.draft.prompt')}
+            </p>
+            <div className="draft-cards">
+              {(state.drafts[drafting].offers ?? []).map((cardId) => {
+                const card = content.skillCards.get(cardId)
+                return (
+                  <button
+                    key={cardId}
+                    className="card"
+                    data-testid={`offer-${cardId}`}
+                    data-card={cardId}
+                    onClick={() => push({ kind: 'draft_pick', cardId })}
+                  >
+                    <span className="card-icon" aria-hidden="true">
+                      {iconOf(card)}
+                    </span>
+                    <strong>{card ? translate(card.nameKey) : cardId}</strong>
+                    {card && <span>{translate(card.textKey)}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -403,13 +433,19 @@ export function MatchHost({
       {/* Coordinates moved off the squares and onto the edge. In the square they
           competed with the piece for a 60px box on a phone, which is why they
           were 9px and unreadable anyway. */}
-      <div className="board-frame">
+      <div className="board-frame" data-turn={state.sideToMove}>
         <ol className="rank-rail" data-testid="board-ranks">
           {ranks.map((r) => (
             <li key={r}>{r + 1}</li>
           ))}
         </ol>
-        <div className="board" data-testid="board" style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}>
+          <div
+          className="board"
+          data-testid="board"
+          role="grid"
+          aria-label={translate('ui.board.label')}
+          style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
+        >
         {ranks.flatMap((rank) =>
           files.map((file) => {
             const sq = squareId(file, rank)
@@ -441,9 +477,25 @@ export function MatchHost({
                 onPointerUp={() => endDrag(sq)}
                 data-legal={reachable.has(sq)}
                 data-selected={selected === sq}
+                role="gridcell"
+                aria-label={squareLabel(sq, def, piece, type, reachable.has(sq))}
+                // `aria-selected`, not `aria-pressed`: the explicit gridcell role
+                // overrides the native button role, and `aria-pressed` is a
+                // button-family state a gridcell does not support, so the
+                // selection would simply never have been announced.
+                aria-selected={selected === sq}
                 title={type ? `${translate(type.nameKey)} — ${translate(type.textKey)}` : sq}
                 onClick={() => clickSquare(sq)}
               >
+                {/* What this square DOES, drawn on it. The stripe alone said
+                    only "something happens here", and the five bundled types
+                    range from promotion to destruction. Marked aria-hidden
+                    because `squareLabel` already names the type in words. */}
+                {iconOf(type) && (
+                  <span className="square-mark" data-occupied={Boolean(piece)} aria-hidden="true">
+                    {iconOf(type)}
+                  </span>
+                )}
                 <span className="piece">{def ? pieceGlyph(def) : ''}</span>
               </button>
             )
@@ -456,18 +508,6 @@ export function MatchHost({
           ))}
         </ol>
       </div>
-
-      {/* AC-018's UI clause: painted types listed with their ability text, so
-          both players can read what a marked square does. */}
-      {legendTypes.length > 0 && (
-        <ul className="legend" data-testid="square-legend">
-          {legendTypes.map((type) => (
-            <li key={type.id} data-square-type={type.id}>
-              <strong>{translate(type.nameKey)}</strong> — {translate(type.textKey)}
-            </li>
-          ))}
-        </ul>
-      )}
 
       {/* AC-017 — both trays, always, with spent cards marked. Hot-seat is one
           screen, so hiding the opponent's hand would hide it from nobody. */}
@@ -490,16 +530,73 @@ export function MatchHost({
                 data-pending={pendingCard?.cardId === cardId}
                 onClick={() => clickCard(side, cardId)}
               >
-                <strong>
-                  {card ? translate(card.nameKey) : cardId}
-                  {spent ? ` ${translate('ui.card.spent')}` : ''}
-                </strong>
-                {card && <span>{translate(card.textKey)}</span>}
+                <span className="card-icon" aria-hidden="true">
+                  {iconOf(card)}
+                </span>
+                <span className="card-body">
+                  <strong>
+                    {card ? translate(card.nameKey) : cardId}
+                    {spent ? ` ${translate('ui.card.spent')}` : ''}
+                  </strong>
+                  {card && <span>{translate(card.textKey)}</span>}
+                </span>
               </button>
             )
           })}
         </div>
       ))}
+
+      {/* AC-018's UI clause: painted types listed with their ability text, so
+          both players can read what a marked square does. */}
+      {legendTypes.length > 0 && (
+        <ul className="legend" data-testid="square-legend">
+          {legendTypes.map((type) => (
+            <li key={type.id} data-square-type={type.id}>
+              <strong>{translate(type.nameKey)}</strong> — {translate(type.textKey)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* ADR-024's replay clause plus the per-match settings. Below the board on
+          purpose: a seed, two toggles and three navigation controls are things a
+          player reaches for between matches, and above the board they outranked
+          the position every turn. */}
+      <div className="match-tools">
+        <span data-testid="match-seed" title={translate('ui.seed.hint')}>
+          {translate('ui.seed.label')} {seed}
+        </span>
+        <button data-testid="copy-seed" data-copy-state={copyState} onClick={copySeed}>
+          {translate(
+            copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
+          )}
+        </button>
+        <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
+          {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
+        </button>
+        {hapticsSupported() && (
+          <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
+            {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
+          </button>
+        )}
+        <button data-testid="flip-board" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
+          {translate('ui.action.flip')}
+        </button>
+        <button data-testid="new-match" onClick={startNew}>
+          {translate('ui.action.new-match')}
+        </button>
+        {onHome && (
+          <button
+            data-testid="go-home"
+            onClick={() => {
+              if (inProgress && !window.confirm(translate('ui.confirm.discard'))) return
+              onHome()
+            }}
+          >
+            {translate('ui.action.home')}
+          </button>
+        )}
+      </div>
     </section>
   )
 }

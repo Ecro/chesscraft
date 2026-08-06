@@ -24,8 +24,19 @@ import { z } from 'zod'
  * four things the remaining specified cards needed and nothing else: a swap
  * action, a destination relative to the piece being moved, a duration on the
  * three generation-time actions, and a condition over a side's material.
+ *
+ * Bumped 4 -> 5 for the rest of ADR-017's icon axis. v4 gave `iconKey` to
+ * pieces only, which left the three other things a player has to recognise —
+ * the rule in play, a skill card in a hand of four, a painted square — as walls
+ * of Korean prose distinguishable only by reading them. The board could say
+ * "something happens here" but never WHAT, and the UI cannot supply the missing
+ * half itself: a `.square[data-square-type='square.bomb']` rule would put a
+ * content id in a stylesheet, which is the one thing ADR-011 forbids. So the
+ * icon is content, exactly as the piece glyph is.
+ *
+ * Every field is optional and every v4 document still loads unchanged.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -269,6 +280,14 @@ export const squareTypeDef = z.strictObject({
   id: contentId,
   nameKey: i18nKey,
   textKey: i18nKey,
+  /**
+   * The mark the board draws on a square of this type (v5).
+   *
+   * Without it every painted type is the same violet stripe, so a board can say
+   * "something happens here" and never which thing — and the five bundled types
+   * range from "your pawn becomes a queen" to "your piece is destroyed".
+   */
+  iconKey: i18nKey.optional(),
   /** Paired types require a symmetric partner on every board (ADR-010). */
   paired: z.boolean(),
   effects: z.array(squareEffect),
@@ -279,6 +298,8 @@ export const ruleCardDef = z.strictObject({
   id: contentId,
   nameKey: i18nKey,
   textKey: i18nKey,
+  /** The mark shown beside the rule in play, and on the board's rule badge (v5). */
+  iconKey: i18nKey.optional(),
   /** Balance budget, in the Knightmare Chess sense. Unused by the MVP engine. */
   cost: z.number().int().nonnegative(),
   effects: z.array(lifecycleEffect),
@@ -289,6 +310,8 @@ export const skillCardDef = z.strictObject({
   id: contentId,
   nameKey: i18nKey,
   textKey: i18nKey,
+  /** The mark on the card face, in the draft sheet and in the tray tile (v5). */
+  iconKey: i18nKey.optional(),
   cost: z.number().int().nonnegative(),
   uses: z.number().int().positive(),
   effects: z.array(skillEffect),

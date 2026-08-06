@@ -18,12 +18,21 @@
 
 export const SETTINGS_KEY = 'strange-chess.settings.v1'
 
+export type Theme = 'system' | 'light' | 'dark'
+
 export interface Settings {
   sound: boolean
   haptics: boolean
+  /**
+   * `system` means "no explicit choice" — the OS preference layer in tokens.css
+   * decides. A stored 'light' or 'dark' outranks it in BOTH directions, which is
+   * the half that was missing from Phase 1 through Phase 5: the CSS honoured
+   * `data-theme` and nothing ever set it.
+   */
+  theme: Theme
 }
 
-export const DEFAULT_SETTINGS: Settings = { sound: false, haptics: true }
+export const DEFAULT_SETTINGS: Settings = { sound: false, haptics: true, theme: 'system' }
 
 export function loadSettings(storage: Storage): Settings {
   try {
@@ -33,6 +42,10 @@ export function loadSettings(storage: Storage): Settings {
     return {
       sound: typeof parsed.sound === 'boolean' ? parsed.sound : DEFAULT_SETTINGS.sound,
       haptics: typeof parsed.haptics === 'boolean' ? parsed.haptics : DEFAULT_SETTINGS.haptics,
+      theme:
+        parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system'
+          ? parsed.theme
+          : DEFAULT_SETTINGS.theme,
     }
   } catch {
     // Unreadable storage or a value someone hand-edited into nonsense — either

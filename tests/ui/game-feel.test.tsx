@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadContentSet } from '../../src/content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '../../src/content/sets/bundled'
 import { MatchHost, eventFor } from '../../src/ui/MatchHost'
-import { SETTINGS_KEY, loadSettings, saveSettings } from '../../src/ui/settings'
+import { SETTINGS_KEY, type Settings, loadSettings, saveSettings } from '../../src/ui/settings'
 import { SOUND_EVENTS, type SoundEvent, hapticsSupported, synthFor } from '../../src/ui/sound'
 
 // Spied at the module boundary, so the reachability assertion is "the component
@@ -171,7 +171,7 @@ describe('sound is a pure mapping until it reaches the speakers', () => {
     // included — asserting against the spy would prove nothing about muting, so
     // the real implementation is pulled in explicitly.
     const { play: realPlay } = (await vi.importActual('../../src/ui/sound')) as {
-      play: (e: SoundEvent, s: { sound: boolean; haptics: boolean }, b: { tone: (e: SoundEvent) => void }) => void
+      play: (e: SoundEvent, s: Settings, b: { tone: (e: SoundEvent) => void }) => void
     }
     // The exit criterion's other half, and the classroom risk ADR-023 exists
     // for. The backend is injected so this asserts SILENCE, rather than
@@ -179,10 +179,10 @@ describe('sound is a pure mapping until it reaches the speakers', () => {
     const calls: SoundEvent[] = []
     const backend = { tone: (e: SoundEvent) => void calls.push(e) }
 
-    for (const event of SOUND_EVENTS) realPlay(event, { sound: false, haptics: false }, backend)
+    for (const event of SOUND_EVENTS) realPlay(event, { sound: false, haptics: false, theme: 'system' }, backend)
     expect(calls, 'muted').toEqual([])
 
-    for (const event of SOUND_EVENTS) realPlay(event, { sound: true, haptics: false }, backend)
+    for (const event of SOUND_EVENTS) realPlay(event, { sound: true, haptics: false, theme: 'system' }, backend)
     expect([...calls].sort()).toEqual([...SOUND_EVENTS].sort())
   })
 })
@@ -253,11 +253,14 @@ describe('the sound and haptics toggle', () => {
     const s = loadSettings(storage)
     expect(s.sound).toBe(false)
     expect(s.haptics).toBe(true)
+    // 'system' is the absence of a choice — the OS layer decides until someone
+    // picks, which is what makes the explicit override meaningful.
+    expect(s.theme).toBe('system')
   })
 
   it('round-trips through storage', () => {
-    saveSettings(storage, { sound: true, haptics: false })
-    expect(loadSettings(storage)).toEqual({ sound: true, haptics: false })
+    saveSettings(storage, { sound: true, haptics: false, theme: 'system' })
+    expect(loadSettings(storage)).toEqual({ sound: true, haptics: false, theme: 'system' })
     expect(storage.getItem(SETTINGS_KEY)).not.toBeNull()
   })
 
@@ -271,7 +274,7 @@ describe('the sound and haptics toggle', () => {
       },
     } as unknown as Storage
     expect(() => loadSettings(hostile)).not.toThrow()
-    expect(() => saveSettings(hostile, { sound: true, haptics: true })).not.toThrow()
+    expect(() => saveSettings(hostile, { sound: true, haptics: true, theme: 'system' })).not.toThrow()
   })
 
   it('reports haptics support from the platform, not from intent (ADR-023)', () => {

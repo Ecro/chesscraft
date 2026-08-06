@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStoredContent } from '@editor/storage'
@@ -8,6 +8,7 @@ import { Home } from './Home'
 import { MatchHost } from './MatchHost'
 import { Rules } from './Rules'
 import { hasSeenCoach, markCoachSeen } from './coach'
+import { type Theme, loadSettings, saveSettings } from './settings'
 import { translate } from './i18n'
 
 /**
@@ -53,6 +54,29 @@ export function App() {
   })
 
   const [coachStep, setCoachStep] = useState(0)
+  const [theme, setTheme] = useState<Theme>(() => {
+    const storage = browserStorage()
+    return storage ? loadSettings(storage).theme : 'system'
+  })
+
+  /**
+   * `data-theme` lives on the document element, which React does not own — so
+   * this is an effect, not a render. `system` REMOVES the attribute rather than
+   * writing a value, because the whole point of the third cascade layer is to
+   * be absent when the player has not chosen.
+   */
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'system') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', theme)
+  }, [theme])
+
+  const cycleTheme = () => {
+    const next: Theme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system'
+    setTheme(next)
+    const storage = browserStorage()
+    if (storage) saveSettings(storage, { ...loadSettings(storage), theme: next })
+  }
 
   const endCoaching = () => {
     const storage = browserStorage()
@@ -80,6 +104,9 @@ export function App() {
       <nav>
         <button data-testid="tab-play" onClick={() => leaveMatch('home')}>
           {translate('ui.tab.play')}
+        </button>
+        <button data-testid="theme-toggle" data-theme-choice={theme} onClick={cycleTheme}>
+          {translate(`ui.theme.${theme}`)}
         </button>
         <button data-testid="tab-edit" onClick={() => leaveMatch('edit')}>
           {translate('ui.tab.edit')}
