@@ -161,6 +161,11 @@ export function MatchHost({
   // ADR-018: one shared board, flipped by hand. Not an automatic rotation and
   // not a hand-off screen — the two players are looking at the same thing.
   const [flipped, setFlipped] = useState(false)
+  // Both hands start open. A tray that remembered being shut across matches
+  // would hide a card a player just drafted, which is the one thing the tray
+  // exists to show (AC-017).
+  const [openTrays, setOpenTrays] = useState<Record<Side, boolean>>({ white: true, black: true })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<Settings>(() => {
     const storage = browserStorage()
     return storage ? loadSettings(storage) : DEFAULT_SETTINGS
@@ -561,11 +566,36 @@ export function MatchHost({
       {/* AC-017 — both trays, always, with spent cards marked. Hot-seat is one
           screen, so hiding the opponent's hand would hide it from nobody. */}
       {(['white', 'black'] as const).map((side) => (
-        <div key={side} className="tray" data-testid={`hand-${side}`} data-active={side === state.sideToMove}>
-          <span className="tray-label" data-side={side}>
+        <div
+          key={side}
+          className="tray"
+          data-testid={`hand-${side}`}
+          data-active={side === state.sideToMove}
+          data-open={openTrays[side]}
+        >
+          {/* The label IS the toggle. A separate chevron would be a second
+              44px target for a strip that is already only one line tall, and
+              the trays sit below the board so collapsing one cannot reflow it. */}
+          <button
+            type="button"
+            className="tray-label"
+            data-testid={`tray-toggle-${side}`}
+            data-side={side}
+            aria-expanded={openTrays[side]}
+            onClick={() => setOpenTrays((t) => ({ ...t, [side]: !t[side] }))}
+          >
             {translate(`ui.side.${side}`)}
-          </span>
+          </button>
           {state.drafts[side].held.length === 0 && <span className="empty">{translate('ui.tray.empty')}</span>}
+          {/* The cards stay MOUNTED when a tray is collapsed. ADR-018 keeps
+              AC-017's model — "both hands, one board, both trays always
+              visible" — and the first version of this unmounted them, so a tap
+              on the opponent's label hid their hand, and a player who left
+              their own tray shut could not play a card on their own turn
+              because the button did not exist. Collapsing now condenses to
+              icons (see `.tray[data-open='false'] .card-body`), which buys the
+              vertical room #16 asked for without taking the information the
+              ADR protects. */}
           {state.drafts[side].held.map((cardId) => {
             const card = content.skillCards.get(cardId)
             const spent = state.drafts[side].used.filter((c) => c === cardId).length >= (card?.uses ?? 1)
@@ -577,6 +607,12 @@ export function MatchHost({
                 data-card={cardId}
                 data-used={spent}
                 data-pending={pendingCard?.cardId === cardId}
+                // The name has to live HERE, not only in `.card-body`. A
+                // collapsed tray sets that body to `display: none`, which takes
+                // it out of the accessibility tree, and the icon beside it is
+                // `aria-hidden` — so the button was left with no accessible
+                // name at all. Condensing must cost prose, never identity.
+                aria-label={card ? translate(card.nameKey) : cardId}
                 onClick={() => clickCard(side, cardId)}
               >
                 <span className="card-icon" aria-hidden="true">
@@ -589,9 +625,9 @@ export function MatchHost({
                   </strong>
                   {card && <span>{translate(card.textKey)}</span>}
                 </span>
-              </button>
-            )
-          })}
+                </button>
+              )
+            })}
         </div>
       ))}
 
@@ -632,13 +668,29 @@ export function MatchHost({
             copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
           )}
         </button>
-        <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
-          {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
+        {/* Sound and haptics behind one affordance — what Phase 4's and Phase 5's
+            reviews both deferred. The theme control is NOT in here: it lives in
+            App's nav and is reachable from home, the rules screen and the editor
+            too, so moving it into a match's tools row would take it away from
+            three of the four screens. */}
+        <button
+          data-testid="match-settings"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen((o) => !o)}
+        >
+          {translate('ui.action.settings')}
         </button>
-        {hapticsSupported() && (
-          <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
-            {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
-          </button>
+        {settingsOpen && (
+          <span className="match-settings-panel">
+            <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
+              {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
+            </button>
+            {hapticsSupported() && (
+              <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
+                {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
+              </button>
+            )}
+          </span>
         )}
         <button data-testid="flip-board" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
           {translate('ui.action.flip')}

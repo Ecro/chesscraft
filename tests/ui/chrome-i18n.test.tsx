@@ -66,6 +66,14 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // `, after:` between a `}` and a `{`, which is the same shape as a JSX text
     // node to this scanner.
     const CODE_FRAGMENT = /[()=";`$:]/
+    // Third instance of the same blind spot, after the template literal and the
+    // multi-line signature: a `return {` that follows a closing brace is `}`,
+    // text, `{` to this regex. A bare JS keyword is never a JSX text node, so
+    // filtering the keyword list costs nothing and closes the shape rather than
+    // this one occurrence. The real fix is a JSX parser instead of a regex; this
+    // stays a regex because the file it guards is 3 files long and a parser
+    // dependency for that is worse than the third exception.
+    const BARE_KEYWORD = /^(return|const|let|var|else|try|catch|finally|do|break|continue)$/
 
     const offenders = PHASE_1_CHROME.flatMap((file) => {
       const src = readFileSync(join(UI_DIR, file), 'utf8').replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')
@@ -73,6 +81,7 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
         .map((m) => m[1]!.replace(/\s+/g, ' ').trim())
         .filter((text) => /[A-Za-z]/.test(text))
         .filter((text) => !CODE_FRAGMENT.test(text))
+        .filter((text) => !BARE_KEYWORD.test(text))
         .map((text) => `${file}: ${text}`)
     })
     expect([...new Set(offenders)]).toEqual([])

@@ -10,6 +10,7 @@ import { Rules } from './Rules'
 import { hasSeenCoach, markCoachSeen } from './coach'
 import { type Theme, loadSettings, saveSettings } from './settings'
 import { translate } from './i18n'
+import { applyUpdate, registerServiceWorker } from './sw-update'
 
 /**
  * Content the author saved in this browser, or the shipped set on a first run.
@@ -19,13 +20,20 @@ import { translate } from './i18n'
  * boundary AC-011 exists to hold. The author's work is not silently deleted —
  * it stays in storage until the next save overwrites it.
  */
-function initialSource(): ContentSource {
+function initialSource(): { source: ContentSource; failedToLoad: boolean } {
   const storage = browserStorage()
   if (storage) {
     const stored = loadStoredContent(storage)
-    if (stored.ok) return stored.source
+    if (stored.ok) return { source: stored.source, failedToLoad: false }
+    // `absent` is a first run, not a failure. Every other reason means the
+    // author HAS saved something and it did not come back — which until now was
+    // handled by silently starting on the shipped set, so a child whose content
+    // failed a schema bump simply found their work gone with no explanation.
+    if (stored.reason !== 'absent') {
+      return { source: structuredClone(bundledContentSource), failedToLoad: true }
+    }
   }
-  return structuredClone(bundledContentSource)
+  return { source: structuredClone(bundledContentSource), failedToLoad: false }
 }
 
 /**
@@ -43,7 +51,13 @@ function initialSource(): ContentSource {
  * are checked against.
  */
 export function App() {
-  const [source, setSource] = useState<ContentSource>(initialSource)
+  const [initial] = useState(initialSource)
+  const [source, setSource] = useState<ContentSource>(initial.source)
+  // Dismissible, and dismissal is not persisted: the stored content is still
+  // broken next time, and saying so once per session is the honest cadence.
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
+  // The waiting registration, kept so the update button has something to take.
+  const [updateReady, setUpdateReady] = useState<ServiceWorkerRegistration | null>(null)
   const [revision, setRevision] = useState(0)
   const [route, setRoute] = useState<'home' | 'play' | 'edit' | 'rules'>('home')
   // A browser that denies storage reports "already seen" rather than replaying
@@ -93,6 +107,32 @@ export function App() {
     setRoute(to)
   }
 
+  /**
+   * Registers the service worker once, and remembers the registration so the
+   * update button has a worker to hand over to.
+   *
+   * `navigator.serviceWorker` is undefined on an older browser and in an
+   * insecure context; `registerServiceWorker` returns null there rather than
+   * throwing, so this never takes the app down over an offline feature.
+   */
+  useEffect(() => {
+    let live = true
+    void registerServiceWorker(navigator.serviceWorker, () => {
+      if (live) {
+        void navigator.serviceWorker.getRegistration().then((reg) => {
+          if (live) setUpdateReady(reg ?? null)
+        })
+      }
+    }).then((reg) => {
+      // A worker that was ALREADY waiting when this page loaded resolves
+      // through the callback above too, but the registration comes back here.
+      if (live && reg?.waiting) setUpdateReady(reg)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
+
   const loaded = useMemo(() => loadContentSet(source), [source])
   const presetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
   // A preset the author deleted must not leave the board pointing at nothing.
@@ -114,6 +154,46 @@ export function App() {
       </nav>
 
       {!loaded.ok && <p data-testid="content-broken">{translate('ui.content.broken')}</p>}
+
+      {/* One stack, not two independently-fixed siblings. Both notices are
+          `position: fixed` at the same coordinates, and their conditions are
+          unrelated — a content bundle that failed to load and a pending build
+          are exactly the pair that ships together — so two of them landed
+          exactly on top of each other and the one underneath became invisible
+          and unclickable. Fixing the reflow defect created an overlap defect
+          that the in-flow version never had, because siblings in flow stack for
+          free. */}
+      <div className="notice-stack">
+      {updateReady && (
+        <section className="notice" data-testid="update-prompt">
+          <strong>{translate('ui.update.title')}</strong>
+          <p>{translate('ui.update.body')}</p>
+          <div className="notice-actions">
+            <button data-testid="update-apply" onClick={() => applyUpdate(updateReady, navigator.serviceWorker)}>
+              {translate('ui.update.apply')}
+            </button>
+            <button data-testid="update-later" onClick={() => setUpdateReady(null)}>
+              {translate('ui.update.later')}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {initial.failedToLoad && !noticeDismissed && (
+        <section className="notice" data-testid="content-notice">
+          <strong>{translate('ui.content.notice.title')}</strong>
+          <p>{translate('ui.content.notice.body')}</p>
+          <div className="notice-actions">
+            <button data-testid="notice-open-editor" onClick={() => setRoute('edit')}>
+              {translate('ui.content.notice.open-editor')}
+            </button>
+            <button data-testid="notice-dismiss" onClick={() => setNoticeDismissed(true)}>
+              {translate('ui.content.notice.dismiss')}
+            </button>
+          </div>
+        </section>
+      )}
+      </div>
 
       {loaded.ok && route === 'home' && (
         <Home

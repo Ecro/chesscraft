@@ -789,6 +789,18 @@ exists to remove.
 - **Exit criterion:** `npm run verify` GREEN with no decrease in Playwright count — met (56, from 56).
 
 ### Phase 6b — Layout: safe area, breakpoints, trays, and empty states
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (298 unit, 64 e2e). The shell consumes all
+  four safe-area insets with fallbacks; a short-landscape breakpoint sizes the board off the short
+  axis and moves the chrome beside it; both hands collapse to their label without reflowing the
+  board; a failed load of the author's own saved content is reported with somewhere to go; sound and
+  haptics moved behind one affordance.
+- **What the exit criterion could not see, found by measuring during Phase A.** The #33 clauses —
+  "the board stays square" and "the page does not scroll horizontally" — were already TRUE at 360,
+  768 and 915px before a line of this phase existed, so as written they compelled no work. Measured,
+  the real landscape defect is that a board sized off WIDTH is 441px tall in a 412px-tall window:
+  241px of it, the bottom two ranks, sits below the fold. An assertion that the whole board is on
+  screen was added, and it is what drove the breakpoint. Recorded because the phase would otherwise
+  have shipped #33 "covered" by two assertions that cannot fail.
 - **Split out of Phase 6 on 2026-08-06** — see 6a. These four had no authored test when the gate
   counted, which is what surfaced them as a separate body of work rather than a tail of 6a.
 - `depends_on`: [6a]
@@ -797,8 +809,15 @@ exists to remove.
 - **Scope in:** safe-area insets (#32 — `index.html` already sets `viewport-fit=cover`, so this is
   padding that consumes `env(safe-area-inset-*)`), tablet and landscape breakpoints (#33),
   card-shaped collapsible trays (#16), designed error and empty states (#18), and the control-row
-  grouping that Phase 4's and Phase 5's reviews both deferred — the row is now seed, copy, sound,
-  haptics, theme, flip, new-match and home
+  grouping that Phase 4's and Phase 5's reviews both deferred
+- **Scope correction 2026-08-06 (during execute).** That bullet originally read "the row is now
+  seed, copy, sound, haptics, **theme**, flip, new-match and home", and `theme` does not belong in
+  it. The theme toggle lives in `App`'s `<nav>` and is therefore reachable from home, the rules
+  screen and the editor as well as from a match; moving it into `MatchHost`'s tools row would make
+  it reachable only while a match is open, which is a regression the phase would have shipped by
+  following its own scope line. What the two deferring reviews actually asked for was grouping the
+  **two settings toggles** (sound, haptics) behind one affordance, and that is what this phase does.
+  The theme control stays where it is.
 - **Scope out:** `src/ui/Edit.tsx`, for the same reason as 6a — Phase 9 rebuilds it
 - **Exit criterion:** `npm run verify`; an e2e at a tablet viewport and one in landscape assert the
   board stays square and the page does not scroll horizontally; a test asserts the shell consumes
@@ -810,6 +829,32 @@ exists to remove.
 - **Rollback:** Phase 6a
 
 ### Phase 7 — PWA: manifest, icons, offline
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (308 unit, 64 e2e, 4 pwa-e2e). Hand-written
+  service worker emitted by `vite-plugin-sw.ts` with the build's own hashed asset list baked in; a
+  rook mark on the ADR-021 violet rasterised to 192/512/512-maskable by `scripts/make-icons.mjs`;
+  an update prompt that announces and never reloads on its own.
+- **The defect that cost the most, recorded because nothing else would have caught it.** Offline,
+  the shell came back and both assets failed — which reads exactly like a precache that never ran.
+  It had run: the cache held both files. `caches.match(request)` was the wrong lookup, because a
+  RELOAD marks every request it starts with cache mode `reload` and matching such a Request misses.
+  Matching by URL string fixes it, and the URL is the right identity here anyway since these
+  filenames carry a content hash. No unit test could have found this; it needed a real browser, a
+  real build and a real reload, which is what the second Playwright config exists for.
+- **Known gap, recorded rather than dropped: iOS.** `e2e-pwa` runs one Chromium
+  profile, so nothing in CI exercises WebKit — and iOS honoured the manifest's
+  `display: standalone` only from 16.4, which is why `index.html` also carries
+  `apple-mobile-web-app-capable`. Installability on older iOS is a **manual
+  check**, in the same bucket as the HTTPS clause above.
+- **Four places now hold the brand hexes** — `tokens.css`, `index.html`'s
+  `theme-color`, `manifest.webmanifest`'s `theme_color`/`background_color`, and
+  `scripts/make-icons.mjs`. Only the first is covered by ADR-021's scan (the
+  others are not stylesheets), so a re-skin that edits the token alone leaves
+  three artifacts on the old palette with nothing failing. Each carries a comment
+  pointing at the token; generating them from one source is the real fix and is
+  not done here.
+- **No dependency added.** The worker is ~40 lines of Cache API and the icon script drives the
+  chromium that `@playwright/test` already brings, at design time only — a build that shells out to
+  a browser is a build that breaks in CI for reasons unrelated to the code, so the PNGs are committed.
 - `depends_on`: [6b] — **was `[6]`, a node that no longer exists.** Phase 6 was split into
   6a (DONE), 6a+ (DONE) and 6b (pending) on 2026-08-06 and this reference was left dangling;
   6b is the last serial-board phase, so it is the real predecessor.
@@ -822,6 +867,19 @@ exists to remove.
 - **Exit criterion:** e2e — the app loads with the network offline after one
   visit; Lighthouse-installability criteria met (manifest, icons, SW, HTTPS-ready);
   a stale-cache test asserts the update prompt appears when the SW sees a new build
+- **Verification split for the HTTPS clause, recorded rather than dropped.** The
+  offline suite runs against `http://127.0.0.1:4173`, so most of "HTTPS-ready" is not
+  assertable from it: `location.protocol` would be a permanent false negative and the
+  certificate is a deploy property. The part that a BUILD can break — an absolute
+  `http:` URL baked into the manifest, which an installed app fetching over HTTPS gets
+  blocked as mixed content — is asserted. The remainder (served over TLS, no mixed
+  content from the deployed origin) is a **manual post-deploy check**, listed here so
+  it is a known gap rather than an unnoticed one.
+- **These tests need their own runner.** A service worker precaching the build cannot
+  be exercised against `npm run dev`, which serves unbundled modules no precache
+  manifest can name, so `e2e-pwa/` runs under `playwright.pwa.config.ts` against
+  `vite build && vite preview`. `npm run verify` chains it — a suite the authoritative
+  gate never runs is `[fail:design] built-but-not-wired`.
 - **Risk:** medium — service-worker cache invalidation
 - **Rollback:** Phase 6
 
@@ -1008,7 +1066,7 @@ frontmatter still says so.
 - [ ] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
 - [ ] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
 - [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
-- [ ] The app installs and plays offline after one visit. *(Phase 7)*
+- [x] The app installs and plays offline after one visit. *(Phase 7 — installability on iOS below 16.4 is a manual check; the e2e suite is Chromium-only)*
 - [x] Motion is fully suppressed under `prefers-reduced-motion`; sound and haptics are toggleable and off/on per ADR-023's defaults.
 - [x] `npm run verify` passes at every phase boundary, with no decrease in Playwright test count.
 

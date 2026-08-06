@@ -172,7 +172,19 @@ export const ko: Record<string, string> = {
   'ui.tab.edit': '만들기',
   'ui.preset.label': '놀이 고르기',
   'ui.content.broken': '내용을 불러오지 못했어요.',
+  // The reachable failure, as opposed to the one above: the app started fine on
+  // the shipped set, but the child's own saved content did not load and without
+  // this they would just find their work missing.
+  'ui.content.notice.title': '저장한 내용을 불러오지 못했어요',
+  'ui.content.notice.body': '기본 놀이로 시작했어요. 만들기에서 다시 불러오거나 새로 만들 수 있어요.',
+  'ui.content.notice.dismiss': '알겠어요',
+  'ui.content.notice.open-editor': '만들기 열기',
+  'ui.update.title': '새 버전이 준비됐어요',
+  'ui.update.body': '지금 받으면 화면이 한 번 새로고침돼요. 두던 판이 있으면 끝내고 눌러요.',
+  'ui.update.apply': '지금 받기',
+  'ui.update.later': '나중에',
   'ui.action.undo': '한 수 무르기',
+  'ui.action.settings': '소리·진동',
   'ui.status.ply': '차례',
   'ui.status.turn': '둘 차례',
   'ui.rule.none': '규칙 카드 없음',

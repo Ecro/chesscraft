@@ -19,10 +19,27 @@ body {
   background: var(--color-bg);
 }
 
+/*
+ * The shell consumes the safe area (#32).
+ *
+ * `index.html` has declared `viewport-fit=cover` since the scaffold, and that
+ * declaration alone does the OPPOSITE of what it looks like: it opts the page
+ * into drawing under the notch and the home indicator without moving anything
+ * out from under them. Consuming the insets here is the other half, and it has
+ * to be all four — a phone held in landscape puts the notch on the left or the
+ * right, which is exactly the orientation the block further down exists for.
+ *
+ * Every `env()` carries a fallback. Without one it resolves to nothing where
+ * unsupported and the shell would silently lose the padding it had before.
+ */
 main {
   max-width: 480px;
   margin: 0 auto;
-  padding: 12px;
+  padding:
+    calc(var(--space-5) + env(safe-area-inset-top, 0px))
+    calc(var(--space-5) + env(safe-area-inset-right, 0px))
+    calc(var(--space-5) + env(safe-area-inset-bottom, 0px))
+    calc(var(--space-5) + env(safe-area-inset-left, 0px));
   overflow-x: hidden;
 }
 
@@ -60,7 +77,7 @@ select {
    this phase explicitly scopes out — and forced its 7x7 movement grid to 49
    cells of 44px, well past a 360px viewport. Phase 9 rebuilds that screen and
    will bring its own sizing. */
-:where(nav, .home, .coach, .rules, .play) :is(button, select) {
+:where(nav, .home, .coach, .rules, .play, .notice) :is(button, select) {
   min-width: 44px;
   min-height: 44px;
 }
@@ -994,4 +1011,173 @@ button.primary {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
+}
+
+/*
+ * Landscape, and the measurement that forced it (#33).
+ *
+ * The board is sized off WIDTH. At 915x412 that makes it 441px tall in a 412px
+ * window, so the bottom two ranks sit below the fold and a player has to scroll
+ * mid-game to see their own back rank. Two children sharing one phone cannot
+ * play that, and the portrait-only assertions could not see it: the board is
+ * square and the page does not scroll sideways in landscape — both true, both
+ * useless.
+ *
+ * So on a short viewport the board is sized off the SHORT axis and the chrome
+ * moves beside it rather than above it. The board is the only thing that has to
+ * be wholly visible; the rule strip, the hands and the tools can scroll in their
+ * own column.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  main {
+    max-width: none;
+    /* `clip`, not `hidden`, and this is what makes the sticky board below work
+       at all. `overflow-x: hidden` computes `overflow-y` to `auto`, which turns
+       `main` into a scroll container — and a sticky element then positions
+       against THAT rather than the viewport, so it never activates. Measured:
+       the board sat at -293px after scrolling a 790px document in a 412px
+       window, i.e. the sticky was a complete no-op. `clip` clips without
+       creating a scroll container.
+       Scoped to this media query on purpose: `clip` is newer than the `:has()`
+       this project rejected for old-device support, and here it degrades
+       together with the sticky it enables — an engine too old for one is too
+       old for the other, and both simply fall back to today's behaviour. */
+    overflow-x: clip;
+  }
+
+  h1 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-1);
+  }
+
+  nav {
+    margin-bottom: var(--space-2);
+  }
+
+  .play {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-4);
+  }
+
+  /* The board occupies the first column for every row the second column uses.
+     `sticky` is the part that makes the comment above true: the second column
+     holds the status row, the rule strip, both hands and the tools, and once a
+     match is under way that stack is taller than a 412px window. Without this
+     the DOCUMENT scrolls and takes the board with it — which is #33 returning
+     through total page height instead of board height, on a board that fits. */
+  .board-frame {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    position: sticky;
+    top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+    /* `align-self: start` is what makes the sticky work at all. Spanning every
+       row makes this item as TALL as its grid area by default, and a sticky
+       element cannot slide inside a containing block it already fills — the
+       first version of this fix measured as a complete no-op (board at -293px
+       after scrolling a 790px document in a 412px window). Sized to its content
+       instead, it has the whole column's height to travel through. */
+    align-self: start;
+    /* 108px is the chrome above and below it in this layout, measured rather
+       than guessed: title, nav, and the shell's own padding. */
+    width: min(100%, calc(100vh - 108px));
+  }
+
+  .play > *:not(.board-frame):not(.draft-scrim) {
+    grid-column: 2;
+  }
+}
+
+/* A collapsed tray CONDENSES; it does not hide. ADR-018 requires both hands to
+   stay visible, so the cards remain mounted and merely lose their prose — the
+   icon and the fact that a card is there survive, which is what the opponent
+   needs to see and what a player needs to tap on their own turn. */
+.tray[data-open='false'] .card-body {
+  display: none;
+}
+
+.tray[data-open='false'] .card {
+  padding: var(--space-1) var(--space-2);
+}
+
+.tray-label {
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.tray-label::after {
+  content: '▾';
+  margin-left: var(--space-1);
+  font-size: var(--font-size-sm);
+  display: inline-block;
+}
+
+.tray[data-open='false'] .tray-label::after {
+  transform: rotate(-90deg);
+}
+
+.match-settings-panel {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* The content notice (#18): a designed state with somewhere to go, not a
+   sentence. Deliberately not a modal — the app started fine on the shipped set
+   and is playable behind this. */
+/* Fixed, for the same reason `.rejection` is (#15). These render in `App`,
+   ABOVE the routed screen, so in the flow they pushed the whole board down —
+   an update that arrives mid-match, or a content notice nobody has dismissed
+   yet, moved the position under a player's thumb between turns. That is the
+   defect 6a fixed for the toast, reintroduced by a new element that did not
+   inherit the lesson. */
+/* The stack owns the position; each notice is a normal block inside it, so two
+   at once queue vertically instead of landing on the same pixel. `z-index: 30`
+   puts them above `.draft-scrim` (20) — a notice that a dimming overlay washes
+   out is a notice nobody reads. */
+.notice-stack {
+  position: fixed;
+  top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(456px, calc(100vw - 2 * var(--space-4)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.notice-stack:empty {
+  display: none;
+}
+
+.notice {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  box-shadow: 0 2px 12px var(--color-shadow);
+  border: 1px solid var(--color-border-accent);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-accent);
+}
+
+.notice strong {
+  font-size: var(--font-size-base);
+}
+
+.notice p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.notice-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }

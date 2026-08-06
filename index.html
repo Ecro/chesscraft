@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Strange Chess</title>
+    <!-- Relative, not absolute. An absolute http: URL here is what breaks an
+         installed app over HTTPS as mixed content, which the manifest spec
+         asserts against. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <!-- Keep in step with `--color-board-painted-a` in src/ui/tokens.css. A
+         re-skin that edits the token alone leaves this on the old palette and
+         nothing in CI notices. -->
+    <meta name="theme-color" content="#6d4d9c" />
+    <!-- iOS honoured the manifest's `display: standalone` only from 16.4. On
+         anything older this meta is the ONLY thing that makes Add to Home
+         Screen produce a chrome-less app rather than a Safari bookmark — and
+         the audience for this is children on whatever phone the household
+         already had. The e2e suite is Chromium-only, so nothing here can catch
+         its absence; that is why it is a comment and not just a tag. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   </head>
   <body>
     <div id="root"></div>
