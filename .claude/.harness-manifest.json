@@ -1,6 +1,6 @@
 {
   "generated_by": "harness-maker",
-  "version": "0.47.0",
+  "version": "0.49.0",
   "files": [
     ".claude/agents/autoloop-coder.md",
     ".claude/agents/code-reviewer.md",
@@ -39,7 +39,9 @@
     ".claude/observability/dashboard.md",
     ".claude/rubrics/agent_prompt.yaml",
     ".claude/rubrics/claude_md.yaml",
+    ".claude/rubrics/repair_guard_force.yaml",
     ".claude/rubrics/skill.yaml",
+    ".claude/schemas/second-opinion-finding.schema.json",
     ".claude/settings.json",
     ".claude/skills/agent-quality-rubric/SKILL.md",
     ".claude/skills/ai-readiness-rubric/SKILL.md",

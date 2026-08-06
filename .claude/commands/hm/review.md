@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Multi-reviewer consensus review with a grade gate and an auto-fix loop.
-content_hash: b9825d0ce1ffa9a305621c6e8d8b7991f661915e5114a7a36623aa53bfb683ab
+content_hash: 920e4271784f33181c17bf533fb0e77f5f82916101850e32699fcf908e32a8dd
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -38,7 +38,7 @@ content_hash: b9825d0ce1ffa9a305621c6e8d8b7991f661915e5114a7a36623aa53bfb683ab
 > exists.** Nothing collects a stale marker, so file-existence reads as "already armed"
 > and autopilot silently never turns on; that is the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -52,7 +52,7 @@ content_hash: b9825d0ce1ffa9a305621c6e8d8b7991f661915e5114a7a36623aa53bfb683ab
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (so a stage inside
@@ -117,8 +117,8 @@ them to recognize known-good patterns and repeated failure modes:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm second_brain search '<changed area or task slug>' --type failure
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm second_brain search '<changed area or task slug>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<changed area or task slug>' --type failure
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<changed area or task slug>' --type preference
 ```
 
 
@@ -141,6 +141,28 @@ Per-invocation overrides (workflow command flags):
 
 
 ## Procedure — Round 1 (initial review)
+
+### Task worktree preflight (feature-branch workflow)
+
+`harness.yaml worktree.enabled` is **on**: this stage operates inside the persistent per-task worktree `.worktrees/<slug>/` on branch `hm/<slug>` — shared by every `/hm:` stage for this task — NOT an ephemeral `execute-<uuid>` worktree. Claim/refresh it and surface concurrent work + drift:
+
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
+```
+
+
+- **stdout** = the task worktree absolute path. **Treat that exact string as `<WT>`** for every Read/Write/Edit and every `!cd <WT> && …` in this stage. Do NOT use a shell variable.
+- **stderr warnings**: `[preflight] … other active session(s)` = another session holds a task concurrently (informational, no action needed). `[preflight] … behind …` = the task branch drifted behind the base tip; to rebase it cleanly onto the base before working, run:
+
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
+```
+
+
+  `task-refresh` rebases `hm/<slug>` onto the base tip (base HEAD, not a hardcoded `main`), preserving commits; a conflict aborts and leaves the branch untouched — resolve manually, then retry. Refuse to refresh a dirty worktree: commit or discard first.
+
 
 ### Step 1 — Reviewer set selection
 
@@ -206,11 +228,22 @@ When no drift is detected, emit `result: clean` with empty lists. This record is
 
 ### Step 3 — Parallel reviewer invocation (2-pass redaction)
 
+> ⚡ **Launch the cross-model voters NOW, concurrently with Pass 1 (ADR-011).** Do not wait
+> for Pass 2. Each model's input is the **diff** — nothing in the cross-model path consumes
+> Pass 1 or Pass 2 output, and its findings join at the Step 4 fold either way. Running it
+> after Pass 2, as this stage used to, made it a fourth serial barrier for no reason;
+> `agy` alone carries a 240 s timeout.
+>
+> Go to **Step 3.5 now**, run its preset gate and every enabled model's invoker call, and
+> leave them running while you do Pass 1 and Pass 2 here. Collect the results when you
+> reach Step 3.5's position in the text. Step 3.6 (PIDA) still runs **after** them —
+> it genuinely consumes their findings.
+
 
 
 With a single enabled reviewer, the 2-pass redaction protocol is skipped
 (no cross-reviewer anchoring bias to mitigate). If `--with-reviewers=` adds
-extras at runtime bringing total > 1, re-enable Pass 1 + Pass 1.5 manually.
+extras at runtime bringing total > 1, re-enable Pass 1 manually.
 
 #### Direct review (single reviewer — Pass 2 only)
 
@@ -233,7 +266,8 @@ extras at runtime bringing total > 1, re-enable Pass 1 + Pass 1.5 manually.
 > instruction; where the two conflict, the budget wins.
 
 3. Re-run the same reviewer set with the **full** context (metadata
-   restored) and the **Pass 1.5 verified findings** list. Launch these reviewer
+   restored) and the **raw Pass 1 findings** list — unfiltered, since no verifier
+   step runs between the passes (ADR-001). Launch these reviewer
    calls in parallel, using one Task call per reviewer (or per reviewer × file
    cluster when safe). Each reviewer validates each finding against the
    metadata, drops any that the context proves spurious, and adjusts severity
@@ -241,7 +275,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 + Pass 1.5 manually.
 4. Merge the two passes via the harness CLI:
    
    ```bash
-   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm two_pass_review merge
+   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm two_pass_review merge
    ```
    
    Pass 2 is authoritative — Pass 1 findings absent from Pass 2 are
@@ -253,8 +287,152 @@ extras at runtime bringing total > 1, re-enable Pass 1 + Pass 1.5 manually.
 `Write` the merged findings to a temp path (never argv — skill §1), then:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm codex_adapter stamp-ids < <the literal temp path>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm codex_adapter stamp-ids < <the literal temp path>
 ```
+
+**Then persist the round's finding payload (ADR-006 part 2).** Run this **exactly once per
+round**, against the merged temp file you already wrote, with the literal reviewer label
+`merged`:
+
+> ⚠️ **Do NOT run this once per reviewer against this file.** An earlier version said to,
+> and it was wrong in a way that quietly poisons the corpus: the temp file here holds the
+> **merged, post-Pass-2** list, so N invocations produce N byte-identical files differing
+> only in the reviewer label — each one claiming to be that reviewer's payload. A replay
+> keyed on `reviewer` would then measure the merge output N times instead of N reviewers.
+> Fabricated attribution is worse than no attribution, because nothing downstream can tell.
+>
+> **True per-reviewer payloads need a per-reviewer source**, which exists only at Pass 1 /
+> Pass 2 — before the merge. Persisting them is a **known gap**: capturing each reviewer's
+> raw reply to its own file is a change to the dispatch steps above, not to this one. Until
+> that lands, the corpus holds one honest merged payload per round rather than N dishonest
+> per-reviewer ones. Replay of the consensus stage is possible; replay of the reviewer stage
+> is not yet.
+
+
+```bash
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
+```
+
+
+> **`<run-id>` must be a real value you choose, not the literal text.** Use a fresh UTC
+> stamp at the start of THIS `/hm:review` invocation (e.g. `20260805T2210Z`) and keep it
+> **stable across every round** of this review — the round number is already a separate
+> part of the filename. Leaving `<run-id>` un-substituted is not a cosmetic slip: it
+> sanitises to a constant, so every review of this slug writes the same filename and
+> **silently destroys the previous review's payload**, quietly emptying the corpus this
+> step exists to build.
+>
+> **This buys nothing today and everything afterwards.** The detection check for pipeline
+> changes has failed twice, the second time because no per-reviewer finding payload has ever
+> been persisted anywhere in this repo — REVIEW documents are post-consensus narrative and
+> `review-*.jsonl` holds only counts, so there was no artifact to replay against. Every round
+> that skips this line is a round no future pipeline change can be tested on. It writes to the
+> **base** root, so it survives `task-land`.
+### Step 3.5 — Cross-model heterogeneous voters (ADR-001/006, PLAN-second-opinion-multi-model)
+
+`second_opinion.models` is set (codex), so each
+enabled model joins Step 4 as a **full heterogeneous voter** — the voter pool grows to
+**N = (enabled Claude reviewers) + 1** voices, not an
+advisory side-channel. The consensus threshold stays **K = 2** (any 2 voices agreeing →
+`consensus-passed`, ADR-006): more models make agreement *easier* to reach (recall-favoring),
+never a rising bar.
+
+> **Each enabled model is invoked EXACTLY ONCE per `/hm:review` invocation** — round 1 only.
+> Later rounds re-read Section 7 and update statuses (skill §5).
+
+**Mandatory gate (ADR-003 matrix — applies uniformly to EVERY enabled model):**
+- Production preset → invoke **every** enabled model on **every** review.
+- Side preset → invoke **every** enabled model only on a **high-diff** change. Classify first —
+  note `HEAD` (the post-execute diff is staged, so a bare `git diff` would see nothing) and
+  `--numstat` for the added-line count that drives the `boundary` signal:
+  ```bash
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm high_diff classify --added-lines "$added"
+  ```
+  Invoke when `is_high` (or `boundary` and your judgment, reusing the When-to-Run
+  criteria, says high). Otherwise skip all models this round (no extra voters).
+
+
+
+#### Second opinion — model: `codex`
+
+**Invoke (codex).** Run Codex as a separate, sandbox-isolated step. Do NOT build the
+prompt inside the same shell line as the invoker call.
+
+First create the prompt temp file (ordinary sandboxed Bash) and note the printed path — the
+invoker now owns the output sink, so there is no second temp file to make:
+
+```bash
+prompt_tmp=$(mktemp); printf 'prompt=%s\n' "$prompt_tmp"
+```
+
+Then write the diff + review context to the prompt-file path **using the
+Write tool** — not a shell variable. The Write tool stores the bytes verbatim, so
+command substitutions or backticks in adversarial diff text are never shell-expanded.
+
+> **Sandbox escape (ADR-003, Claude Code only).** The invoker's `codex exec` call needs
+> outbound network, which Claude Code's Bash sandbox blocks. Run THIS ONE Bash call
+> with the Bash tool parameter **`dangerouslyDisableSandbox: true`** — the scoped
+> `Bash(uv run … hm second_opinion_invoke:*)` settings `allow` rule
+> pre-approves exactly this command, and Codex stays contained by its own
+> `--sandbox read-only` flags. Do NOT disable the sandbox for any other command.
+>
+> **The scoped rule is now the operative grant.** The blanket `Bash(uv:*)` it used to sit
+> behind has been retired: `uv run` executes its arguments as a command, so per Claude
+> Code's own permissions docs a `Bash(uv:*)` rule pre-approved *arbitrary* commands — and
+> pairing that with a sandbox escape was the actual exposure. The shipped rules now name
+> the runner **and** the inner command, one per command.
+>
+> The scoped `Bash(codex exec:*)` rule still ships, but it is a **debugging affordance** for
+> running `codex` by hand, not the gate on this call.
+Finally run the invoker as its **own** Bash call. It owns argv construction, base-root and
+config resolution, prompt delivery, status classification, adaptation, and the ledger row:
+
+```bash
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
+```
+
+> **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
+> distinct silent-skip bugs, none of which any test could catch — a rendered recipe has no
+> execution surface, so render tests can only grep its text. The most recent: `--output-schema`
+> was passed cwd-relative, and under the per-task worktree workflow every stage runs inside
+> `.worktrees/<slug>/`, which has no `.claude/schemas/`. `codex exec` exited 1 on the harness's
+> NORMAL Production path and the degrade recorded `skipped` — indistinguishable from "codex is
+> not installed". The invoker resolves that path against the base repo and is unit-tested from
+> both cwds. Do NOT inline the CLI here again.
+
+**Relay the result.** The invoker writes ONE JSON line to stdout:
+`{"model": "codex", "status": "invoked"|"skipped"|"failed", "findings": [...], "reason": ...}`.
+Fold `findings` into the Step 4 filter and copy `status`/`reason` into this model's
+`second_opinion_results` entry verbatim — do **not** re-derive either. `skipped` means the call
+could not run (CLI missing, timeout, non-zero exit, unusable config); `failed` means it ran and
+returned a payload the filter cannot consume. Both are warn-and-proceed: surface the `reason` in
+your turn output and continue. The exit code is always 0 on a graceful degrade, so a non-zero
+exit means the arguments were wrong, not the model.
+
+Clean up the prompt file when you are done:
+
+```bash
+rm -f <the literal path printed above>
+```
+
+A silently-degraded second opinion is the H4 failure mode — the `/hm:health` smoke, which now
+calls this same entrypoint, is the positive backstop.
+
+
+> **Per-model result contract.** Each enabled model above produces exactly one outcome:
+> `status: invoked` (findings adapted + folded in) or `status: skipped`/`failed` (graceful
+> degrade, ledger row written). A missing/unauthenticated/rate-limited CLI never blocks the
+> stage — it warns and proceeds. Record every model's outcome in `second_opinion_results`.
+
+Each model's findings arrive tagged `source: "<model>"` with the adapter's stable `id`. They
+do **not** enter Step 4 directly — Steps 3.6–3.7 stand between them and a vote.
+
+### Step 3.6 — PIDA refutation gate
+
+Cross-model findings are unfiltered until here. **Load the `second-opinion-gate` skill and
+follow §2–§4** — oracle gathering, the mode-B call, disposition effects, and the ledger write
+all live there, with the rubric in `code-verifier` mode B. Both are binding. Net effect:
+`accepted` → Step 4 voter; `rejected`/`duplicate` → dropped; `unresolved` → `manual-only`.
 
 ### Step 4 — Consensus filter (surface + reasoning alignment)
 
@@ -267,6 +445,15 @@ Two findings are consensus *candidates* iff they satisfy BOTH:
 2. Same `severity` tier (P0 vs P0; P1 vs P1; do not bridge tiers).
 
 Pairs failing surface match are recorded as **independent** findings — preserve both.
+**Second-opinion null-location relaxation (ADR-001):** a finding whose `source` is one of
+the enabled models (codex) with
+`needs_relaxation: true` (null `file`/`line`) cannot satisfy predicate 1 as written.
+For these, substitute **symbol/message-similarity**: it is a candidate when its
+`summary`/message clearly refers to the same symbol or defect as a Claude finding
+(same function/class, or same described failure mode), with predicate 2 (severity
+tier) still required — the adapter already mapped severities to P-tiers so the
+tiers are directly comparable. Without this relaxation a null-location second-opinion finding
+would always degrade to `manual-only`, making its vote cosmetic.
 
 #### Step 4b — Reasoning alignment (verification)
 
@@ -275,7 +462,7 @@ For surface-match candidates, compare the `reasoning` chains
 and `_partials/finding_schema.md.j2` specifies, so it is the shape reviewers actually emit):
 - **CONCLUDE clauses identify the same execution risk?** → **strong consensus** (`[2/N]` or `[N/N]`).
 - **OBSERVE matches but CONCLUDE diverges** (e.g., one says "race condition", other says "null deref") → **weak consensus** (`[2/N weak]`) — keep both, flag for manual judgment.
-- **OBSERVE matches but reasoning is missing on one side** → demote to `manual-only`.
+- **OBSERVE matches but reasoning is missing on one side** → demote to `manual-only`, **unless** that side is a Step 3.6 `accepted` cross-model finding — then read its `evidence` + `oracle_result` **as** the chain and apply the two bullets above to those (skill §3; without it the rule fires on every cross-model finding, since the vendor schema has no `reasoning`).
 
 #### Step 4c — Severity of a consensus cluster (single-tier by construction)
 
@@ -295,9 +482,13 @@ or `weak-consensus` at P0/P1 are surfaced by the Grade Gate's
 | `weak-consensus` | Surface match, reasoning diverges | ❌ No (manual) |
 | `manual-only` | Single source, or consensus failed | ❌ No (manual) |
 
+Cross-model findings the Step 3.6 gate marked `unresolved` are `manual-only`, and are the
+**one documented exception** to the `unverified_severe` scan below (skill §3). A
+`scope-exempted` tag exists only on the unwired arbiter path, never here — Step 4 runs as prose.
+
 ### Step 5 — Write REVIEW report
 
-Write `work-docs/REVIEW-{slug}-{date}.md` with frontmatter + sections:
+Write `<WT>/work-docs/REVIEW-{slug}-{date}.md` with frontmatter + sections:
 
 ```yaml
 ---
@@ -317,6 +508,10 @@ Sections:
 4. **⚠️ Weak Consensus** — `weak-consensus`, by severity.
 5. **📝 Manual-Only Findings** — `manual-only`, by severity.
 6. **🤝 Disagreements** — when reviewers assigned different severities to the same location (kept as independent findings, never bridged across tiers — see Step 4c); show all reviewer takes.
+7. **🧊 Cross-model findings (frozen @ round 1)** — the loop's working state, not a summary:
+   rounds 2..N re-read it instead of re-invoking a model. Emit per **`second-opinion-gate`
+   skill §6** (field list, the three keys that must NOT appear, never-delete). **Required
+   whenever any model ran**, even if every finding was refuted.
 
 <!-- @hm:user:procedure-extras -->
 <!-- Project-specific Round 1 steps (extra reviewers, custom heuristics). Preserved across harness-maker upgrades. -->
@@ -330,6 +525,12 @@ Count **`consensus-passed`** findings only by severity:
 - `P1_count` = consensus-passed findings with severity P1.
 
 P2/P3, weak-consensus, and manual-only findings do NOT lower the grade.
+> **K=2 with cross-model voters (codex):** each
+> adapted second-opinion finding counts as one of the N voices. A finding that reaches
+> `consensus-passed` *because* a second-opinion vote supplied an agreeing voice counts toward
+> `P0_count`/`P1_count` exactly like any reviewer-sourced consensus-passed finding — each model
+> is a peer, not a tiebreaker footnote. The threshold stays K=2 regardless of how many models
+> are enabled (ADR-006).
 
 | P0 | P1 | Grade |
 |----|----|-------|
@@ -349,6 +550,11 @@ excluded do NOT lower the letter. Compute `unverified_severe` = TRUE iff any fin
 tagged `manual-only` OR `weak-consensus` has severity **P0 or P1** — a single-source
 specialist finding that failed cross-check is `manual-only`, so it is included. P2/P3
 never trigger the flag.
+
+**One provenance carve-out (skill §3):** a finding whose `source` is an enabled second-opinion
+model (codex) **and** whose disposition is
+`unresolved` is excluded — it is recorded in Section 7 but does not set the flag. The only
+exclusion; everything else, including an `accepted` finding consensus later rejected, still sets it.
 
 After each round's report:
 
@@ -470,7 +676,11 @@ ran out **while still progressing** — the only exit that says a higher cap wou
 After each round's REVIEW report write, append one line to
 `.claude/observability/review-{YYYY-MM-DD}.jsonl` via the harness CLI.
 Round-level numeric fields default to 0; `fixture_label` / `verifier_false_*` /
-`fallback` are null on real runs. **Every round row: `terminal: false`,
+`fallback` are null on real runs. **The `verifier_kept_n` / `verifier_dropped_n`
+fields are now null too** — Pass 1.5 no longer runs (ADR-001), and emitting `0`
+would be indistinguishable from "the verifier ran and dropped nothing", silently
+poisoning the very rate a later analysis reads. Omit them, or send `null`; never
+`0`. **Every round row: `terminal: false`,
 counters null. The row for the round the loop exits at: `terminal: true`, all
 three counters integers.** Never send 0 for what you did not measure. Don't
 interpolate `wall_time_ms` into any other rendered template (determinism
@@ -478,7 +688,7 @@ leakage — see `test_telemetry_no_leak`).
 
 
 ```bash
-echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm review_telemetry emit
+echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm review_telemetry emit
 ```
 
 
@@ -496,14 +706,14 @@ You have completed the stage. Emit a receipt so the autoloop driver's Gate 0 can
 - **`fail`** — final grade < `grade_threshold` after `max_review_rounds` (Status: CHANGES_REQUESTED, `human_review_needed=true`).
 - **`skipped`** — **DO NOT emit this value from a stage prompt.** Reserved for the autoloop driver's auto-retry escape hatch (ADR-005 of PLAN-loop-mid-stop-and-review-skip).
 
-The shell guard below makes the receipt a no-op when `.current-iter` is absent — that file is written only by the autoloop driver at iter start. Standalone runs (no autoloop), no-isolation runs, and post-`/compact` restoration before iter 1 all skip the write naturally. This is by design — Gate 0 only reads receipts written under `iter-N` for N≥1. In standalone `/hm:review` (no fused execute stage to engage isolation), `<WT>` may be undefined; the guard's `[ -f ]` test on a literal `<WT>` path is also false, so no write fires.
+The shell guard below makes the receipt a no-op when `.current-iter` is absent — that file is written only by the autoloop driver at iter start. Standalone runs (no autoloop), no-isolation runs, and post-`/compact` restoration before iter 1 all skip the write naturally. This is by design — Gate 0 only reads receipts written under `iter-N` for N≥1. In a standalone `/hm:review` the driver has not written `.current-iter`, so the guard's `[ -f ]` test is false and no write fires.
 
 
 ```bash
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
        --iter "$ITER" --stage review --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -547,7 +757,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps gate-blocked --root . --stage review --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage review --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -557,7 +767,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

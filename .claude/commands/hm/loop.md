@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/loop.md.j2
 provenance: official
 description: Run a bounded autoloop over a master PLAN, iterating stages until convergence.
-content_hash: c7bc31ee3d5a89d97d52763ba494e28d0c60320b265b383b4d126ab9739e7dd2
+content_hash: 297d41bd52aa593b47655dc67fbc589fb40d3df9566104753714274c6d709d3c
 ---
 # /hm:loop
 
@@ -425,21 +425,21 @@ for final go-ahead before starting the loop.
 
 ### 5. Engage worktree (loop top — once, before any iter)
 
-If `harness.yaml.worktree.scope` includes `execute`, create one worktree
+If `harness.yaml.worktree.enabled` is on, create one worktree
 that wraps the **entire loop**. Per-loop (not per-iter) — improve and
 feature mode both default to one squash-merge at convergence. Per-iter
 worktree would explode commit count.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
 ```
 
 
 Read **all non-empty output lines** the command prints. Three cases:
 
-- **Empty output** → `worktree.scope` does not include `execute`. No
-  isolation; operate in `cwd`. Skip the finalize step at the end.
+- **Empty output** → `worktree.enabled` is off. No isolation; operate in
+  `cwd`. Skip the finalize step at the end.
 - **One absolute path** like `/path/to/repo/.worktrees/execute-20260507T0010Z`
   → single-repo isolation. **Treat that exact string as `<WT>` for every
   subsequent operation in this loop**: every Read/Write/Edit call, every
@@ -460,7 +460,7 @@ if any one fails:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree verify <WT>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree verify <WT>
 ```
 
 
@@ -480,6 +480,8 @@ if any one fails:
 > create→verify→marker prelude; only parallelize work already inside a
 > verified `<WT>`.
 
+#### 5.1 Stop-hook guard (both isolation modes)
+
 After confirming the worktree path (or deciding to operate in cwd), **activate
 the Stop-hook guard — session-scoped**. The guard now keys on THIS Claude
 session, so parallel loops in other sessions are never affected
@@ -491,6 +493,7 @@ session, so parallel loops in other sessions are never affected
   The Stop-hook matches that header against your own `session_id`, so the loop is
   already guarded. **Do NOT touch the global `.hm-loop-active`** — it is
   session-blind and would block other sessions' termination.
+
 - **Degraded path (`$HM_SESSION_ID` empty — no SessionStart env-file, or
   Cursor/Codex — OR no isolation):** there is no session-scoped marker, so fall
   back to the global marker. **Two distinct symptoms** (PLAN-fleet-10-20-parallel-safety
@@ -502,8 +505,7 @@ session, so parallel loops in other sessions are never affected
   global marker is the only guard and **parallel loops are NOT isolated**. The
   guard warns with the symptom that actually applies:
 
-Substitute `<WT>` with the literal worktree path from the create step (or, when
-no isolation engaged, your cwd). The guard touches the global marker when EITHER
+Substitute `<WT>` with the literal worktree path from the create step. The guard touches the global marker when EITHER
 `$HM_SESSION_ID` is empty (no content header to match) OR there is no isolation
 (`<WT>` equals your cwd → no per-session content marker exists) — both are the
 degraded path; otherwise the per-session content marker already guards you:
@@ -537,6 +539,7 @@ the prompt-driven `<WT>` substitution; LLM drift across long contexts
 gets caught instead of silently corrupting main. **Bash-driven writes
 (`>`, `sed -i`, `python -c "open(...)"`) are NOT gated** — for shell
 ops always `cd <WT>` first so the cwd stays inside isolation.
+
 
 ### 6. Run the autoloop — UNIFIED iteration body
 
@@ -752,7 +755,7 @@ For each iter (until convergence or any safety rail fires):
    and triggers fruitless retries.
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
    ```
 
 
@@ -761,7 +764,7 @@ For each iter (until convergence or any safety rail fires):
    > ⚠️ **Serial, not batched (same rule as Step 5's gate).** Emit this marker
    > write as its **own** turn and confirm exit 0 before Step 4 dispatches any
    > stage. Do NOT batch the marker write + receipt writes + stage `Task(...)`
-   > calls into one parallel tool-call turn: if `<WT>` is wrong, one `cd <WT>`
+   > calls into one parallel tool-call turn: if `<WT>` is wrong, one `cd`
    > error cancels the entire batch (`Cancelled: parallel tool call … errored`).
    > A non-zero exit here (`root … is not an existing directory`) means `<WT>`
    > drifted — re-verify before continuing.
@@ -793,7 +796,7 @@ For each iter (until convergence or any safety rail fires):
    Run the verify CLI inside `<WT>`:
 
    ```bash
-   !cd "<WT>" && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts verify \
+   !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts verify \
       --iter <N> --expected <EXPECTED_STAGES> --root "<WT>"
    ```
 
@@ -818,7 +821,7 @@ For each iter (until convergence or any safety rail fires):
       hand-edit the YAML (non-atomic rewrites corrupt the file on WSL2/NTFS):
 
       ```bash
-      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts patch-runtime \
+      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts patch-runtime \
          --context work-docs/loop-context/<slug>.yaml \
          --counter stage_retry_counts --key "iter-<N>:<stage>" --value <count>
       ```
@@ -837,9 +840,9 @@ For each iter (until convergence or any safety rail fires):
       - **B. Skip with explicit `verdict: skipped` marker** — invoke the
         receipt CLI manually (the `--with` flag is required because
         `harness_maker` is not on the user project's default `uv` PATH):
-        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
+        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
         then ALSO append a durable audit entry so `/hm:health` can detect
-        systematic skip patterns (quote `<WT>` + create parent dir; single
+        systematic skip patterns (quote the root + create parent dir; single
         `printf` write of well under 4 KiB stays atomic via POSIX `O_APPEND`):
         `mkdir -p "<WT>/.claude/observability" && printf '{"ts":"%s","slug":"<slug>","iter":<N>,"stage":"<stage>","reason":"gate0-cap-exhausted"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "<WT>/.claude/observability/gate0-skips.jsonl"`
         After both writes, **jump directly to step 5 — specifically "5. Update state" (the per-iter step inside this section 6 — NOT outer Step 5 "Engage worktree") — do NOT return to step 4.5**. The
@@ -880,7 +883,7 @@ When the loop halts (convergence, safety rail, or hard error):
    file on WSL2/NTFS):
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts patch-runtime \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts patch-runtime \
       --context work-docs/loop-context/<slug>.yaml \
       --counter stage_retry_counts --clear
    ```
@@ -953,7 +956,6 @@ When the loop halts (convergence, safety rail, or hard error):
      (step 5 below) is the sole land owner for the `execute-<uuid>` worktree. Running
      wrapup's `task-land` here would either double-land disjoint work or strand an
      orphan `hm/<slug>` branch (the two `<WT>` definitions must not diverge).
-
 4. **Decide finalize status — explicit rule, not judgment**:
 
    | Halt reason | Finalize status | Why |
@@ -972,7 +974,7 @@ When the loop halts (convergence, safety rail, or hard error):
 
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree finalize <WT> <STATUS>
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree finalize <WT> <STATUS>
    ```
 
 
@@ -983,7 +985,6 @@ When the loop halts (convergence, safety rail, or hard error):
    in place. Treat this as a fail-equivalent: emit the conflicting file
    list in step 6 and instruct the user to resolve manually with
    `cd <WT> && git status && git merge --abort` or similar.
-
 6. **Emit final report** (next section).
 
 ---

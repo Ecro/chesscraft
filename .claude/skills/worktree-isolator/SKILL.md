@@ -1,20 +1,20 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/worktree-isolator/SKILL.md.j2
 provenance: official
 name: worktree-isolator
-description: Isolate /hm:execute changes inside a disposable git worktree. Read harness.yaml.worktree.scope
+description: Isolate a /hm stage's changes inside a git worktree. Read harness.yaml.worktree.enabled
   to decide whether to engage; on success merge back and clean up; on failure preserve
   the worktree for inspection.
-content_hash: 3a1b5c9f5b8b869acf487fdceab3a837a1a7a5e869fe6049921c1dfa07f4198a
+content_hash: 46f7bf27805fff4ad2cc9bc66129d9323b264e63c84818ba59cb20325691a752
 ---
 
 # worktree-isolator
 
-Disposable worktree isolation for `/hm:execute` (and any stage listed in
-`harness.yaml.worktree.scope`). Wraps `harness_maker.worktree` lifecycle
+Worktree isolation for `/hm:` stages, gated by `harness.yaml.worktree.enabled`
+(the retired per-stage `worktree.scope` key no longer exists). Wraps `harness_maker.worktree` lifecycle
 primitives so all file mutations land in `.worktrees/<workflow>-<ts>/` rather
 than the live working tree.
 
@@ -22,35 +22,32 @@ than the live working tree.
 ## When to invoke vs skip
 
 **Invoke when:**
-- `/hm:execute` starts AND `harness.yaml.worktree.scope` includes `execute`.
-- `/hm:plan` starts AND `worktree.scope` includes `plan` (Production preset default).
+- Any `/hm:` stage starts AND `harness.yaml.worktree.enabled` is true.
 - `/hm:loop` allocates the per-loop worktree at iteration start.
 
 **Skip when:**
-- `worktree.scope` does not include the current stage (skill becomes a no-op).
+- `worktree.enabled` is false (skill becomes a no-op — nothing is isolated).
 - Already inside `.worktrees/<name>/` (idempotent — worktree CLI returns the existing path).
 - User passed an explicit `--no-worktree` override (when the harness exposes one).
 ## Triggers
 
 - `/hm:execute` invocation
-- Any `/hm:<stage>` whose name appears in `harness.yaml.worktree.scope`
+- Any `/hm:<stage>` when `harness.yaml.worktree.enabled` is true
 - Autoloop iteration boundaries (each iter gets its own worktree)
 
 ## Behavior
 
 CLI-owned flow, executed deterministically by the orchestrator:
 
-1. **/hm:execute invoked → read `harness.yaml.worktree.scope`.**
-   Parse the `worktree.scope` list (e.g. `[execute]` for Side, `[execute, plan]`
-   for Production). If the current stage name is absent, skip isolation and run
-   the stage in-place — this preserves the lightweight default for stages where
-   isolation costs more than it saves.
+1. **/hm: stage invoked → read `harness.yaml.worktree.enabled`.**
+   One boolean, all stages or none. False → skip isolation, run in-place;
+   deliverable docs then sit uncommitted until `/hm:wrapup` commits them.
 
-2. **If "execute" (or current stage) in scope → call the worktree CLI.**
+2. **If `worktree.enabled` is true → call the worktree CLI.**
 
    CLI (used by stage skills directly):
    ```
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 python -m harness_maker.worktree create execute "$(pwd)"
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 python -m harness_maker.worktree create execute "$(pwd)"
    ```
 
    Create is the primary dirty-base boundary. If the base repo has user WIP,
@@ -74,12 +71,12 @@ CLI-owned flow, executed deterministically by the orchestrator:
    Success for `/hm:execute` uses stage-only handoff so wrapup owns the single
    user-facing commit:
    ```bash
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 python -m harness_maker.worktree finalize <WT> stage-only
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 python -m harness_maker.worktree finalize <WT> stage-only
    ```
 
    Failure preserves the worktree for inspection:
    ```bash
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 python -m harness_maker.worktree finalize <WT> fail
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 python -m harness_maker.worktree finalize <WT> fail
    ```
 
    If dirty-base bypass was used or new base dirt appeared after create,
@@ -88,7 +85,7 @@ CLI-owned flow, executed deterministically by the orchestrator:
    `HM_OWNED_SESSION_UUIDS` from THIS task's slug crumb so only your own stash is
    popped (PLAN-layer3-per-session-ownership; an empty set fail-safe-preserves):
    ```bash
-   HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 python -m harness_maker.worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 python -m harness_maker.worktree post-commit-pop "$(pwd)"
+   HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 python -m harness_maker.worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 python -m harness_maker.worktree post-commit-pop "$(pwd)"
    ```
 
    Never replace this flow with direct `worktree.merge()` +
@@ -106,9 +103,11 @@ CLI-owned flow, executed deterministically by the orchestrator:
 
 ```yaml
 worktree:
-  scope: [execute]            # which /hm:<stage> commands trigger isolation
-  branch_prefix: hm-          # reserved for Phase 9 (currently informational)
+  enabled: true               # isolate every /hm: stage (false = none)
 ```
+
+Change it with `/hm:configure` or the `--worktree` / `--no-worktree` make flag. OFF
+is refused while task worktrees or finalize stashes are in flight.
 
 <!-- @hm:user:extensions -->
 <!-- Project-specific worktree rules (extra cleanup commands, branch naming, etc.). Preserved across harness-maker upgrades. -->

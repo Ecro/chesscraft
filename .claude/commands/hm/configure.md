@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/configure.md.j2
 provenance: official
 description: Change one harness dimension without re-running the full interview.
-content_hash: c73337d41e3fa89140e27b5e92eb73e730ed4b09d20fcd5a7bc8b9c2e3ede801
+content_hash: c98d0ef161a8c38e2864d953a8ecd7d3121c182e4b9efa6c0e306cff0dfa7ec1
 ---
 # /hm:configure
 
@@ -32,6 +32,7 @@ Read `.claude/harness.yaml` body (skip frontmatter) and surface:
 - ref_folders (paths + globs if any)
 - sibling_repos (relative paths if any)
 - second_brain: enabled, vault_path, project_id (if configured)
+- worktree isolation (`worktree.enabled`)
 
 ### 2. Ask what to change
 
@@ -50,32 +51,48 @@ Options (multi-select):
 - **IDE targets** — claude-code, cursor, codex, or combinations. Trade-off:
   extra targets render extra roots and dropping a target does not delete old
   target-specific files.
+- **Worktree isolation** — `worktree.enabled`. ON: every `/hm:` stage runs in a per-task
+  worktree on `hm/<slug>` that wrapup squash-lands, so your branch stays clean. Trade-off:
+  OFF is simpler but deliverable docs sit uncommitted until wrapup. OFF is refused while
+  task worktrees or finalize stashes are in flight — land them first.
 - **Domains** — add/remove domain packs. Trade-off: stronger project-specific
   reviewer context vs more prompt surface.
 - **Mechanical checks** — add/edit/clear pre-review commands. Trade-off:
   deterministic failures stop before LLM reviewers, but commands add their own
   runtime.
-- **Default model** — opus / sonnet / haiku. Trade-off: quality/cost/speed. Per-agent overrides go in `harness.yaml` > `agent_models`.
-  preference only; generated Codex agents still inherit the user's Codex
-  profile model.
+- **Default model** — opus / sonnet / haiku. Trade-off: quality/cost/speed. Per-agent
+  overrides go in `harness.yaml` > `agent_models`. Codex agents inherit the user's Codex
+  profile model regardless.
 - **Wrapup documents** — add/edit/clear docs updated during /hm:wrapup (e.g. CHANGELOG.md, TODO.md)
-- **Reference folders** — add/edit/clear reference doc folders indexed by the
-  `refdocs-search` skill. Trade-off: more folders increase search coverage and
-  index build time; stale paths are registered with a warning.
-- **Sibling repos** — add/edit/clear relative paths to repos that form one
-  logical project with this one (e.g. backend + frontend split). Trade-off:
-  richer cross-repo context during research and review; absolute paths are
-  rejected for portability.
+- **Reference folders** — add/edit/clear folders indexed by `refdocs-search`. Trade-off:
+  more coverage, more index time; stale paths register with a warning.
+- **Sibling repos** — add/edit/clear relative paths to repos forming one logical project
+  (e.g. backend + frontend). Trade-off: richer cross-repo context in research and review;
+  absolute paths are rejected for portability.
 - **Second Brain** — configure Obsidian project memory. First install is
   read-first; this path can continue into advanced vault, allowlist, and
   writable-folder settings.
-- **Delivery metrics tuning** — `/hm:metrics` is a manual, read-only command
-  (CFR + post-merge churn from LOCAL git, zero network) that has no on/off
-  switch — it just runs when you invoke it. This dimension only adjusts the
-  per-project TUNING knobs (`tag_pattern`, `default_branch`, `cfr_window_days`,
-  `churn_maturation_days`, `churn_cohort_days`, `blame_file_cap`, `paths`).
-  Defaults fit a single-package repo tagged `v*`; change them for a different
-  release convention or monorepo path scoping. Preserved on re-render.
+- **Cross-model second opinion** — `second_opinion.models`: `codex` and/or `antigravity`,
+  empty to disable. They vote in review and reconcile in plan — one call per model on every
+  review and plan under Production, high-diff only under Side — and **the diff leaves this
+  machine** for that vendor. Before asking, list which binaries are on PATH — that is
+  presence, not authentication. If the command is absent or unparseable, continue without
+  the list. A missing or unauthenticated CLI warns and skips.
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli detect-tools --json
+```
+
+- **Autopilot** — `autonomy.level`: `gated` (off) / `auto_safe` / `full`, and whether it
+  persists across sessions. Trade-off: fewer stops, but stages pass two-way doors. The plan
+  interview, a CHANGES_REQUESTED review, and the wrapup merge always stop regardless.
+- **Locale** — the `locale` tag (en / ko / …), for this conversation and the re-render.
+  Unknown tags fall back to English.
+- **Delivery metrics tuning** — `/hm:metrics`
+  is manual and read-only (CFR + churn from local git, no network) with no on/off switch.
+  This only adjusts its tuning knobs (`tag_pattern`, `default_branch`, `cfr_window_days`,
+  `churn_maturation_days`, `churn_cohort_days`, `blame_file_cap`, `paths`). Defaults fit a
+  single-package repo tagged `v*`; change them for another release convention or a monorepo.
 
 ### 3. Collect changes
 
@@ -92,23 +109,21 @@ new value alternatives, and a short explanation:
 
 Collect the new values.
 
-For **Reference folders**: ask one structured question:
-1. Show current `ref_folders` list (paths + globs). Ask for the new value.
-   Format: `::` separates entries, `;` separates path from glob within an entry
-   (e.g. `../docs::../specs;**/*.pdf`). Default glob: `**/*.{md,txt,pdf}`.
-   DOCX unsupported — convert first. Enter "none" or blank to clear all folders.
+For **Reference folders**: one question. Show the current `ref_folders` (paths + globs), ask
+for the new value. `::` separates entries, `;` separates path from glob
+(e.g. `../docs::../specs;**/*.pdf`). Default glob `**/*.{md,txt,pdf}`; DOCX unsupported —
+convert first. "none" or blank clears all.
 
-For **Sibling repos**: ask one structured question:
-1. Show current `sibling_repos` list. Ask for the new value.
-   Format: semicolon-separated relative paths (e.g. `../backend;../mobile`).
-   Absolute paths are rejected (portability). Enter "none" or blank to clear.
+For **Sibling repos**: one question. Show the current `sibling_repos`, ask for the new value:
+semicolon-separated relative paths (e.g. `../backend;../mobile`). Absolute paths are rejected
+for portability. "none" or blank clears.
 
 For **Second Brain**: first inspect current state via the CLI subcommand
 (slash commands cannot conditionally branch on file state at invocation
 time — they MUST delegate state inspection to the CLI per CLAUDE.md §4):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm cli \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli \
   configure-second-brain "$(pwd)" --check
 ```
 
@@ -130,7 +145,7 @@ which prompts to surface:
    non-skip answer, dispatch the folder add through the CLI:
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm cli \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli \
      configure-second-brain "$(pwd)" --add-folder "$SB_FOLDER"
    ```
 
@@ -154,20 +169,27 @@ which prompts to surface:
 Run the CLI with only the changed flags:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm cli make "$(pwd)" \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli make "$(pwd)" \
   --grade-threshold "$GRADE" --domains "$DOMAINS" --mechanical-checks "$CHECKS" \
   --default-model "$MODEL" --focus "$FOCUS" --wrapup-docs "$WRAPUP_DOCS" \
   --ref-folders "$REF_FOLDERS" --sibling-repos "$SIBLING_REPOS" \
   --second-brain-vault-path "$SB_VAULT_PATH" --second-brain-project-id "$SB_PROJECT_ID"
 ```
 
-Omit flags for dimensions that weren't changed. Omit `--ref-folders` when
-Reference folders wasn't selected; pass empty string `""` to clear all entries.
-Omit `--sibling-repos` when Sibling repos wasn't selected; pass empty string
-`""` to clear. Omit `--second-brain-vault-path` when Second Brain wasn't
-selected; pass empty string `""` to disable it. Omit `--second-brain-project-id`
-when the user left it unchanged. The CLI preserves unspecified fields from
-`.claude/harness.yaml` — only changed dimensions are overwritten.
+Worktree isolation is a flag pair: append exactly one of `--worktree` /
+`--no-worktree`, only when changed. A refused `--no-worktree` exits non-zero listing
+the branches — surface it verbatim and stop.
+
+Append when changed: `--locale "$LOCALE"`; `--second-opinion-models "$SO_MODELS"` (comma
+list, `""` disables — per-model sub-blocks like `codex.hermetic` survive either way);
+`--autonomy-level "$AUTONOMY"` (`gated` turns auto-advance off while preserving persistence
+and caps) plus `--autonomy-persistent` / `--no-autonomy-persistent` only on an explicit
+choice.
+
+**Omit every flag whose dimension wasn't selected** — the CLI preserves unspecified fields
+from `.claude/harness.yaml`, so only changed dimensions are overwritten. To CLEAR rather
+than preserve, pass an explicit empty string `""`: this works for `--ref-folders`,
+`--sibling-repos`, `--second-brain-vault-path` (disables it), and `--second-opinion-models`.
 
 
 ### 5. Confirm

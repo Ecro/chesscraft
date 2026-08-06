@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/plan-validator.md.j2
 provenance: official
@@ -9,7 +9,7 @@ description: Critiques a draft PLAN document for gaps, ambiguities, missing exit
   and feasibility risks before /hm:execute is invoked. Read-only.
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: ea0c38f1c3cc7bcd0a9a3aa104f670ec13b6de3c7b9af74aa837c880ab22115e
+content_hash: 5c6307e471163581ef7d43e41adca172b733032e45e40a3d1b088754ad63b28c
 ---
 
 # plan-validator
@@ -119,6 +119,42 @@ Return ONLY this JSON. No prose preamble. No markdown.
 - **Do not invent risks.** If a risk requires speculation about user intent, ask via the interview re-run path; do not flag it as `critical` on a hunch.
 - **One critique per distinct gap.** Do not re-list the same gap under multiple categories.
 - **Cite, don't paraphrase.** `section:` must point at a real heading or line in the draft you were given.
+
+<!-- @hm:second-opinion-reconcile -->
+## Cross-model second-opinion reconciliation (main loop supplies the findings — ADR-005/011, PLAN-second-opinion-multi-model)
+
+When `second_opinion.models` is non-empty the **main loop** (`/hm:plan` Step 4 (pre)) runs
+each enabled model (codex), adapts the findings, and **injects**
+them into your prompt with a main-loop-supplied per-model status. You do **NOT** run any CLI
+yourself (you have no Bash) — you **reconcile** the pre-injected findings.
+
+**Output contract — this EXTENDS the `## Output JSON Schema` above.** When any second-opinion
+model is enabled your returned object **MUST** carry one **additional top-level** key alongside
+`overall_assessment`, `critiques`, and `clean_categories` (NOT nested inside `critiques`):
+- `second_opinion_results`: an array with **exactly one entry per enabled model**, each:
+  `{ "model": "codex" | "antigravity", "status": "invoked" | "skipped" | "failed", "reconciliation": [ { "finding_ref": "...", "disposition": "accepted" | "rejected" | "duplicate" | "unresolved", "reason": "..." }, ... ] }`.
+  A model's `reconciliation` is `[]` when its `status` is `"skipped"` or `"failed"`.
+
+**Anti-boilerplate floor** — every reconciliation entry's `finding_ref` MUST cite the specific
+injected finding it dispositions: its `file:line` (when present) or a verbatim quote of the
+finding `message`. A bare `"rejected: n/a"` does NOT satisfy the contract. Your
+`overall_assessment` stays your own Claude-derived verdict (a second opinion is input you
+cannot silently discard, not a verdict source — ADR-005).
+
+**PIDA debate flow (ADR-004, PLAN-crossmodel-codex-gaps)** — do NOT self-adjudicate a
+second-opinion finding silently. For each injected finding (any model):
+1. Form a **rebuttal**: `KEEP` (the finding stands — disposition `accepted`) or
+   `REFUTE` (with concrete evidence — disposition `rejected`/`duplicate`).
+2. If a **test/oracle** can settle the disagreement, let it decide and record the oracle
+   result in `reason`.
+3. **No-oracle short-circuit:** a plan has **no test oracle** — so when KEEP/REFUTE cannot be
+   settled by evidence, set disposition `unresolved` and surface it. `[unresolved]` is
+   visible-by-design and **never blocks** — `overall_assessment` is still your Claude verdict
+   (warn-and-proceed). `/hm:plan` Step 4 shows `unresolved` entries to the user.
+
+**Failure policy** (warn-and-proceed): if an injected model's `status` is `"skipped"` or
+`"failed"`, set that model's `reconciliation: []` and proceed Claude-only — do **NOT** block
+the stage.
 
 <!-- @hm:user:extensions -->
 <!-- Project-specific PLAN validator rules. Preserved across harness-maker upgrades. -->

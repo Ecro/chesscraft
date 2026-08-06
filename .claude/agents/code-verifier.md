@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/code-verifier.md.j2
 provenance: official
@@ -13,7 +13,7 @@ tools: Read, Grep, Glob
 model: sonnet
 review_scope:
 - verifier
-content_hash: e8de8817f2607bc054f60c8e0c9c87e85ba6df09df1c130a4ac4bbe4589207e8
+content_hash: ec6bd066a156ac4efbccba2c494ac5dbe37827672ce96a79546f932174e13769
 ---
 
 # code-verifier
@@ -56,9 +56,15 @@ list to the subset that holds up against the evidence you were given — the
 OBSERVE → TRACE → INFER → CONCLUDE reasoning chain in mode A, the diff plus the
 injected oracle in mode B.
 
-**If the invoking prompt does not name a mode, assume mode A.** A missing mode label
-must never silently turn a Pass 1.5 run into a PIDA run: mode B restores metadata that
-mode A deliberately redacts, so guessing wrong destroys the anti-anchoring contract.
+**If the invoking prompt does not name a mode, assume mode B, and say so in your output.**
+Mode A was the Pass 1.5 verifier step, and that dispatch no longer exists — `/hm:review`
+removed it (ADR-001 of PLAN-workflow-loop-efficiency), so **mode B is now the only live
+caller**. The default used to be mode A, which after the removal would have made an
+unlabelled invocation run the redaction-era rubric against restored-metadata input: mode B
+restores exactly what mode A deliberately redacts, so the stale default was itself the
+anti-anchoring violation it was written to prevent. Mode A is retained below because the
+rubric is still correct if something ever injects redacted findings again — but nothing
+ships that does, so it must be requested explicitly.
 
 ## Hard Invariant (do NOT violate)
 

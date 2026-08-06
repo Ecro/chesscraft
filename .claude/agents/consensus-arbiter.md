@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/consensus-arbiter.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Aggregates findings from multiple reviewer agents via surface match
   weak-consensus | manual-only
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: edc78e2a324c9a80328b1e1d3479a02452c3dc858c48f366451e160c8ddb976d
+content_hash: a5b7278566bef39f3aa13c82fba41da41d4d187dd031cc9f2f69a41d5062995e
 ---
 
 # consensus-arbiter
@@ -49,6 +49,14 @@ Two findings are consensus *candidates* iff they satisfy BOTH:
 2. Same `severity` tier (P0 vs P0; P1 vs P1; **do not bridge tiers**).
 
 Pairs failing surface match are recorded as **independent** findings — preserve both.
+**Second-opinion null-location relaxation (ADR-001, PLAN-second-opinion-multi-model):** a
+finding whose `source` is one of the enabled models
+(codex) with
+`needs_relaxation: true` (null `file`/`line`) substitutes **symbol/message-similarity** for
+predicate 1 — candidate when its message refers to the same symbol/defect as a Claude finding,
+predicate 2 (severity tier) still required. The adapter already mapped severities to P-tiers.
+This lets each second-opinion vote reach `consensus-passed` in the K=2 ring instead of
+`manual-only` (K stays 2 as the voter pool N grows — ADR-006).
 
 ### Step 4a-bis — Scope-aware exemption (ADR-005, Phase 5)
 

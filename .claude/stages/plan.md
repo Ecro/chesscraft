@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/plan.md.j2
 provenance: official
-content_hash: 104b43399cc180c511b3ac64f7ddf36512b32ec26f362e4eff8b5d77ac430651
+content_hash: caef825f985518a39b769fbdeec4475f6fcca85e1c3541de0337f795f6c6da60
 ---
 # Stage: plan
 
@@ -40,7 +40,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -55,9 +55,9 @@ questions:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm second_brain search '<task slug or topic>' --type decision
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm second_brain search '<task slug or topic>' --type preference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm second_brain search '<task slug or topic>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type decision
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type project
 ```
 
 
@@ -68,6 +68,28 @@ knowledge, write a typed `decision` or `preference` note through
 `harness_maker.second_brain`; never edit the vault directly.
 
 ## Procedure
+
+### Task worktree preflight (feature-branch workflow)
+
+`harness.yaml worktree.enabled` is **on**: this stage operates inside the persistent per-task worktree `.worktrees/<slug>/` on branch `hm/<slug>` — shared by every `/hm:` stage for this task — NOT an ephemeral `execute-<uuid>` worktree. Claim/refresh it and surface concurrent work + drift:
+
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
+```
+
+
+- **stdout** = the task worktree absolute path. **Treat that exact string as `<WT>`** for every Read/Write/Edit and every `!cd <WT> && …` in this stage. Do NOT use a shell variable.
+- **stderr warnings**: `[preflight] … other active session(s)` = another session holds a task concurrently (informational, no action needed). `[preflight] … behind …` = the task branch drifted behind the base tip; to rebase it cleanly onto the base before working, run:
+
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
+```
+
+
+  `task-refresh` rebases `hm/<slug>` onto the base tip (base HEAD, not a hardcoded `main`), preserving commits; a conflict aborts and leaves the branch untouched — resolve manually, then retry. Refuse to refresh a dirty worktree: commit or discard first.
+
 
 ### Step 0 — Skip heuristic (ALL 4 criteria must hold to skip the interview)
 
@@ -96,7 +118,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `AskUserQuestion`). Scope the plan to the next master-PLAN phase only.
@@ -348,11 +370,113 @@ After the gate PASSes (or user accepts ambiguity), continue to next round UNLESS
 
 After the internal plan is complete (interview done, draft synthesized), invoke the `plan-validator` agent to critique it before writing to disk:
 
+**Step 4 (pre) — main-loop cross-model second opinion (ADR-002/005/011, PLAN-second-opinion-multi-model).**
+The **main loop** (this stage prompt) runs each enabled second-opinion model — the
+`plan-validator` agent is tool-restricted (`Read, Grep, Glob`, no Bash) and cannot. For every
+model in `second_opinion.models` (codex) the main loop
+runs the CLI, decides invoked-vs-skipped + the skip reason, adapts the findings, and **injects**
+them into the `plan-validator` Task() prompt below. The agent then *reconciles* the pre-injected
+findings and echoes the main-loop-supplied per-model status — it never runs any CLI itself.
+
+**Mandatory gate (ADR-003 matrix — applies uniformly to EVERY enabled model):**
+- Side preset → run **every** enabled model only on a **high-diff** change. Classify the drafted
+  PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
+  that drives the `boundary` signal:
+  ```bash
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm high_diff classify --added-lines "$added"
+  ```
+  Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
+  inject empty findings and a `skipped` entry per model in `second_opinion_results`.
+
+
+
+#### Second opinion — model: `codex`
+
+**Invoke (codex).** Run Codex as a separate, sandbox-isolated step. Do NOT build the
+prompt inside the same shell line as the invoker call.
+
+First create the prompt temp file (ordinary sandboxed Bash) and note the printed path — the
+invoker now owns the output sink, so there is no second temp file to make:
+
+```bash
+prompt_tmp=$(mktemp); printf 'prompt=%s\n' "$prompt_tmp"
+```
+
+Then write the diff + plan context to the prompt-file path **using the
+Write tool** — not a shell variable. The Write tool stores the bytes verbatim, so
+command substitutions or backticks in adversarial diff text are never shell-expanded.
+
+> **Sandbox escape (ADR-003, Claude Code only).** The invoker's `codex exec` call needs
+> outbound network, which Claude Code's Bash sandbox blocks. Run THIS ONE Bash call
+> with the Bash tool parameter **`dangerouslyDisableSandbox: true`** — the scoped
+> `Bash(uv run … hm second_opinion_invoke:*)` settings `allow` rule
+> pre-approves exactly this command, and Codex stays contained by its own
+> `--sandbox read-only` flags. Do NOT disable the sandbox for any other command.
+>
+> **The scoped rule is now the operative grant.** The blanket `Bash(uv:*)` it used to sit
+> behind has been retired: `uv run` executes its arguments as a command, so per Claude
+> Code's own permissions docs a `Bash(uv:*)` rule pre-approved *arbitrary* commands — and
+> pairing that with a sandbox escape was the actual exposure. The shipped rules now name
+> the runner **and** the inner command, one per command.
+>
+> The scoped `Bash(codex exec:*)` rule still ships, but it is a **debugging affordance** for
+> running `codex` by hand, not the gate on this call.
+Finally run the invoker as its **own** Bash call. It owns argv construction, base-root and
+config resolution, prompt delivery, status classification, adaptation, and the ledger row:
+
+```bash
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+```
+
+> **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
+> distinct silent-skip bugs, none of which any test could catch — a rendered recipe has no
+> execution surface, so render tests can only grep its text. The most recent: `--output-schema`
+> was passed cwd-relative, and under the per-task worktree workflow every stage runs inside
+> `.worktrees/<slug>/`, which has no `.claude/schemas/`. `codex exec` exited 1 on the harness's
+> NORMAL Production path and the degrade recorded `skipped` — indistinguishable from "codex is
+> not installed". The invoker resolves that path against the base repo and is unit-tested from
+> both cwds. Do NOT inline the CLI here again.
+
+**Relay the result.** The invoker writes ONE JSON line to stdout:
+`{"model": "codex", "status": "invoked"|"skipped"|"failed", "findings": [...], "reason": ...}`.
+Fold `findings` into the Step 4 filter and copy `status`/`reason` into this model's
+`second_opinion_results` entry verbatim — do **not** re-derive either. `skipped` means the call
+could not run (CLI missing, timeout, non-zero exit, unusable config); `failed` means it ran and
+returned a payload the filter cannot consume. Both are warn-and-proceed: surface the `reason` in
+your turn output and continue. The exit code is always 0 on a graceful degrade, so a non-zero
+exit means the arguments were wrong, not the model.
+
+Clean up the prompt file when you are done:
+
+```bash
+rm -f <the literal path printed above>
+```
+
+A silently-degraded second opinion is the H4 failure mode — the `/hm:health` smoke, which now
+calls this same entrypoint, is the positive backstop.
+
+
+> **Per-model result contract.** Each enabled model above produces exactly one outcome:
+> `status: invoked` (findings adapted + folded in) or `status: skipped`/`failed` (graceful
+> degrade, ledger row written). A missing/unauthenticated/rate-limited CLI never blocks the
+> stage — it warns and proceeds. Record every model's outcome in `second_opinion_results`.
+
+**Ownership contract (ADR-005/011):**
+
+| Owner | Responsibility |
+|-------|----------------|
+| Main loop (this prompt) | Run each enabled model's CLI; decide invoked/skipped/failed + skip reason per model; adapt findings; inject findings + a per-model `second_opinion_results` entry into the validator Task() prompt. |
+| `plan-validator` agent | Reconcile the **pre-injected** findings (no Bash, no CLI); emit `second_opinion_results` (echo the main-loop per-model status) in its JSON. |
+| On skip/fail | Injected findings empty for that model → its `second_opinion_results` entry carries `status: skipped` (or `failed`) with an empty `reconciliation`. |
+
+Exactly one `second_opinion_results` entry per enabled model — success, skip, and failure paths
+all produce one entry (never zero, never duplicated).
+
 ```
 Task(
   subagent_type="plan-validator",
   description="Plan validator: {slug}",
-  prompt="<full draft PLAN body + Interview Transcript + ADRs>\n\nReturn JSON: {overall: APPROVED|NEEDS_REVISION|MAJOR_REVISION, critiques: [...]}"
+  prompt="<full draft PLAN body + Interview Transcript + ADRs>\n\nCross-model second opinion (main-loop supplied — one entry per model in [codex], each with status invoked|skipped|failed + skip reason):\n<adapted findings JSON per model from the Step 4 (pre) adapter, or [] on skip/fail>\n\nReconcile every injected finding (disposition + reason); echo the supplied per-model status in your output.\n\nReturn JSON: {overall: APPROVED|NEEDS_REVISION|MAJOR_REVISION, critiques: [...], second_opinion_results: [{model, status: invoked|skipped|failed, reconciliation: [...]}, ...]}"
 )
 ```
 
@@ -363,11 +487,32 @@ Resolution:
 
 > **If the validator agent itself fails to launch** (0 tool uses, model/launch error): retry the `Task(...)` call once with `model: "opus"` explicitly set (subagent frontmatter may be stale across a model upgrade). When you surface such a failure to the user, name the **tier** (`opus`/`sonnet`) — never a pinned concrete id like `claude-4-7-opus[1m]`; a pinned id in the message is itself the bug class this guidance exists to avoid. If it still cannot launch, self-review the PLAN in the validator's place and say so plainly.
 
+**Record every validator pass (ADR-004).** One row per dispatch, including the second pass
+of a MAJOR_REVISION and including a dispatch that never ran. This validator has ~34
+lifetime dispatches and **zero** ledger rows, so "does the second pass ever change the
+verdict?" — the question that decides whether this loop can be cut — has no data behind it.
+Use the same `<run-id>` for both passes of one PLAN; that shared id is what makes the
+pass-1-vs-pass-2 comparison possible at all:
+
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm stage_agent_ledger emit --run-id <run-id> --agent plan-validator --stage plan --slug {slug} --pass <1|2> --verdict <APPROVED|NEEDS_REVISION|MAJOR_REVISION> --terminal --duration-ms <elapsed> --barrier-index <segment>
+```
+
+
+- Omit `--terminal` on pass 1 when a pass 2 will follow; pass it on the pass that ends Step 4.
+- The launch-failure path immediately above is a **row too**: `--verdict dispatch-failed
+  --reason "<launch error>" --terminal`. Self-reviewing in the validator's place without a
+  row makes an unavailable validator indistinguishable from an approving one.
+- **Omit `--duration-ms` if you did not measure it** — never pass `0`.
+
 Each follow-up interview answer is appended to `## 🎙️ Interview Transcript` and promoted to ADR when Step D criteria apply.
+
+> **Cross-model second-opinion relay (main loop owns the call — ADR-005/011).** The Step 4 (pre) main-loop step already ran (or skipped) each enabled model and injected the results into the validator; the agent only reconciles them. After reading the validator's returned JSON and **before** resolving the verdict, inspect its `second_opinion_results` array (each entry echoes the main-loop per-model status). For every entry whose `status` is `"skipped"` or `"failed"`, the model's call could not complete — surface the reason you recorded in Step 4 (pre) to the user in your turn output (one line per model, e.g. `⚠️ Second opinion skipped (antigravity): <reason> — verdict is Claude-only for that model`). This is a loud notice, **not** a block: resolve the verdict regardless, since it is Claude-derived and valid without any second-opinion model.
 
 ### Step 5 — Write PLAN document
 
-Write to `work-docs/PLAN-{slug}.md` with the structure below.
+Write to `<WT>/work-docs/PLAN-{slug}.md` with the structure below.
 
 **Required frontmatter:**
 
@@ -429,14 +574,14 @@ You have completed the stage. Emit a receipt so the autoloop driver's Gate 0 can
 - **`fail`** — validator returned MAJOR_REVISION after re-run, OR Step 6 verification failed (frontmatter/ADR/phase-field invariants).
 - **`skipped`** — **DO NOT emit this value from a stage prompt.** Reserved for the autoloop driver's auto-retry escape hatch (ADR-005 of PLAN-loop-mid-stop-and-review-skip).
 
-The shell guard below makes the receipt a no-op when `.current-iter` is absent — that file is written only by the autoloop driver at iter start. Standalone runs (no autoloop), no-isolation runs, and post-`/compact` restoration before iter 1 all skip the write naturally. This is by design — Gate 0 only reads receipts written under `iter-N` for N≥1. In standalone `/hm:plan` (no fused execute stage to engage isolation), `<WT>` may be undefined; the guard's `[ -f ]` test on a literal `<WT>` path is also false, so no write fires.
+The shell guard below makes the receipt a no-op when `.current-iter` is absent — that file is written only by the autoloop driver at iter start. Standalone runs (no autoloop), no-isolation runs, and post-`/compact` restoration before iter 1 all skip the write naturally. This is by design — Gate 0 only reads receipts written under `iter-N` for N≥1. In a standalone `/hm:plan` the driver has not written `.current-iter`, so the guard's `[ -f ]` test is false and no write fires.
 
 
 ```bash
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
        --iter "$ITER" --stage plan --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -482,7 +627,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps gate-blocked --root . --stage plan --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage plan --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -492,7 +637,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

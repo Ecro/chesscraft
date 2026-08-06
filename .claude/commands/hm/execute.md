@@ -1,12 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.47.0
+harness_maker_version: 0.49.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
-description: Implement a PLAN's phases TDD-first in an isolated worktree. Stages,
-  never commits.
-content_hash: e624a6f8b6eb29b20a79124ec76a0822ed6da372084ca74014f6252ce2e82e40
+description: Implement a PLAN's phases TDD-first. Stages, never commits.
+content_hash: f72b4fad79885288219f250195c16fb6eccc71187b144be32d96e22b6a96c979
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -39,7 +38,7 @@ content_hash: e624a6f8b6eb29b20a79124ec76a0822ed6da372084ca74014f6252ce2e82e40
 > exists.** Nothing collects a stale marker, so file-existence reads as "already armed"
 > and autopilot silently never turns on; that is the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -53,7 +52,7 @@ content_hash: e624a6f8b6eb29b20a79124ec76a0822ed6da372084ca74014f6252ce2e82e40
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (so a stage inside
@@ -126,36 +125,29 @@ Before any code edits, load memory in tier order (stops at first miss):
 2. **Warm tier** — Skim `.claude/memory/failures.md` first 60 lines; targeted: `rg -F "[fail:" .claude/memory/failures.md` for patterns relevant to the task.
 3. **Warm tier** — Skim `.claude/memory/wiki.md` first 40 lines for conventions in the implementation area.
 
+
 ## Procedure
 
-### Step 0 — Worktree isolation (deterministic — do NOT rely on skill auto-discovery)
+### Task worktree preflight (feature-branch workflow)
 
-<!-- # SIBLING_WORKTREE_PATHS -->
-
-Engage isolation if `harness.yaml.worktree.scope` includes `execute`. The `worktree-isolator` skill is documentation-only — its trigger-based dispatch is probabilistic in Cursor IDE and can silently skip, leaving safety-critical edits on the main branch. **Invoke the worktree CLI directly** so isolation is deterministic across both IDEs.
-
-**Idempotent under `/hm:loop`**: when this stage runs as part of a loop iteration, the loop has already engaged a per-loop worktree at step 5. The `worktree create` CLI detects we're already inside `.worktrees/<name>/` and returns that path — no nested worktrees, just reuse.
+`harness.yaml worktree.enabled` is **on**: this stage operates inside the persistent per-task worktree `.worktrees/<slug>/` on branch `hm/<slug>` — shared by every `/hm:` stage for this task — NOT an ephemeral `execute-<uuid>` worktree. Claim/refresh it and surface concurrent work + drift:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree create execute "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
 ```
 
 
-Read **all non-empty output lines** — that is the contract for the rest of this stage. Three cases:
-
-- **Empty output** → `worktree.scope` does not include `execute`. No isolation; operate in `cwd`. Skip the finalize step at end.
-- **One absolute path** like `/path/to/project/.worktrees/execute-20260506T1830Z` → single-repo isolation. **Treat that exact string as `<WT>` for the rest of this stage.** You (Claude) MUST substitute the literal absolute path everywhere `<WT>` appears below — **do NOT use a shell variable**: each `!` block is a fresh subshell.
-  - Every Read/Write/Edit call uses absolute paths starting with `<WT>/`.
-  - Tests / lints / type checks: `!cd <WT> && <cmd>`.
-- **Multiple lines** → multi-repo isolation. Line 1 = primary repo worktree (`<WT>`). Lines 2+ = sibling repo worktrees (`<WT-sibling-N>`). Use `<WT>` for primary-repo edits and `<WT-sibling-N>` for sibling-repo edits — the per-session gate marker covers all of them.
-
-**Verify before use (anti-drift gate).** Run `worktree verify <WT>` on the path you just read; `verify` confirms it is a real **linked** git worktree root (a non-zero exit means phantom, not-a-worktree, a subdir, or the main repo root — all signs of `<WT>` drift). On non-zero, **HALT** and re-run `worktree create` rather than operating on an unverified path. Never substitute a fabricated path or a `$WT` shell variable. The real dirname format is `execute-<uuid12>-<timestamp>`.
+- **stdout** = the task worktree absolute path. **Treat that exact string as `<WT>`** for every Read/Write/Edit and every `!cd <WT> && …` in this stage. Do NOT use a shell variable.
+- **stderr warnings**: `[preflight] … other active session(s)` = another session holds a task concurrently (informational, no action needed). `[preflight] … behind …` = the task branch drifted behind the base tip; to rebase it cleanly onto the base before working, run:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree verify <WT>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
+
+
+  `task-refresh` rebases `hm/<slug>` onto the base tip (base HEAD, not a hardcoded `main`), preserving commits; a conflict aborts and leaves the branch untouched — resolve manually, then retry. Refuse to refresh a dirty worktree: commit or discard first.
 
 
 ### Step 1 — Load PLAN + flag parsing
@@ -318,6 +310,28 @@ Resolution:
 - `overall_assessment: PASS` → proceed to Phase B.
 - `overall_assessment: FAIL` → for each entry in `blocking_issues[]`, rewrite the offending test (the `passing_tests[]` list is FROZEN — do not re-author them). For each `scenarios_missing[]`, author a new test. **Re-invoke test-reviewer** until PASS. Retry budget: **2 attempts**. After 2 FAILs in a row, surface the latest verdict and stop — escalate to user.
 
+**Record every attempt (ADR-004).** One row per dispatch — including each retry, and
+including the case where the dispatch never ran. This gate has ~42 lifetime dispatches and
+**zero** ledger rows, so the question "is A.5 worth its barrier?" currently has no data at
+all. Run this immediately after each attempt resolves, with `<run-id>` stable across the
+retries of one Phase A.5 (use the task slug plus the phase number):
+
+
+```bash
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm stage_agent_ledger emit --run-id <run-id> --agent test-reviewer --stage execute --slug {slug} --pass <attempt-number> --verdict <PASS|FAIL> --terminal --duration-ms <elapsed> --barrier-index <segment>
+```
+
+
+- Omit `--terminal` on an attempt that will be retried; pass it on the one that ends the gate.
+- If the dispatch **failed to launch or was skipped**, emit `--verdict dispatch-failed` or
+  `--verdict dispatch-skipped` with `--reason "<why>"` and `--terminal`. The CLI rejects
+  those verdicts without a reason — a sentinel row with a null reason is undiagnosable, which
+  is the exact state `delegation_ledger` is in today.
+- `--duration-ms` is wall-clock for the dispatch. **Omit it if you did not measure it** —
+  do not pass `0`. Zero reads as "measured, instantly", and these rows are append-only.
+- `--barrier-index` is which serial segment of the stage this dispatch sat in (A.5 is its own
+  barrier, so `1` unless the stage layout changed).
+
 #### Phase B — RED gate (skipped when `tdd_active == false`)
 
 Run the test command from SPEC's `## ✅ Verification Criteria` table (or the PLAN phase's exit criterion if SPEC absent):
@@ -344,7 +358,7 @@ Select what to run, then run it as ONE call. `mode: full` → run everything and
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm test_dep_map --root . --changed-file <f1> …
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm test_dep_map --root . --changed-file <f1> …
 !cd <WT> && <lint> && <type> && <test> <nodes-or-empty>
 ```
 
@@ -360,7 +374,7 @@ when this PLAN phase authored bindable-mechanical-AC tests and the machine SPEC 
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
 ```
 
 
@@ -377,6 +391,43 @@ prints a skip notice and passes (non-gating) — that is intended, not a failure
 > in the denominator, so kill-rate cannot be inflated by relabeling). The
 > excluded-equivalent count is shown next to the score and exclusion-set GROWTH
 > warns — never silently shrink the denominator to pass.
+
+#### Phase D.5 — Newly-reachable window (ADR-003; runs only after a repair)
+
+**Trigger:** this PLAN phase changed code in order to **fix a defect** — a bug, a review
+finding, a failing test, a regression. Pure new-feature work skips this; say so in one line
+and move on. When in doubt, run it: the cost is a paragraph.
+
+Green gates do not measure your fix. They measure the coverage that existed *before* it.
+`[fail:code] fix-introduced-defect-passes-all-gates` is at **count:4** in this repo —
+ratios 11/22, 7/7, 5, 11/14, each on a four-gate run that was **entirely green**, one of
+them alongside a 7/7 mutation check. Every one of those repairs shipped a second defect
+through the same suite that had just approved the first. The remedy has been written in
+memory for months and was a step in no stage template; this is that step.
+
+Answer all three. Write them into the PLAN phase's notes — this is a **written** artifact,
+not a reflection:
+
+1. **What input window does this repair newly make reachable?** Before the fix, some inputs
+   never reached the repaired code, or reached it and were rejected early. The fix changed
+   that boundary. Name the window concretely — a value range, a state, a call order, an
+   absent field, a length, a concurrency interleaving. "The bug no longer happens" is not a
+   window; it is the absence of one.
+2. **Which test enters that window, and is it in this same commit?** Name the test by node
+   id. It must exercise the newly-reachable window itself, not merely re-assert the original
+   symptom. A test that only proves the reported bug is gone leaves the window it opened
+   untested — that is the shape of all four recurrences.
+3. **If you cannot name one: STOP and say so explicitly.** Do not advance the phase on the
+   strength of a green Phase D. Either add the test now, or file the gap as a blocker with
+   the window from (1) named in it, so the next reader inherits the window rather than
+   rediscovering it. Silence here is the failure mode; an explicit "no fixture, here is why"
+   is an acceptable outcome that a reviewer can act on.
+
+> **Absent-case (the repo's most-recurring class, count:8).** If the repair activates on an
+> optional field or a value that predates the change, the newly-reachable window includes
+> the case where that input is **absent**. State the absent-case behaviour — default,
+> migration, or explicit skip — and cover it. A fixture that only exercises the present case
+> means the fix never fires for the data that motivated it.
 
 ### Step 4 — Stage exit (NO commit — wrapup owns commits)
 
@@ -405,7 +456,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
        --iter "$ITER" --stage execute --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -432,12 +483,12 @@ Pick **exactly one** finalize command. Substitute `<WT>` with the literal absolu
 ```bash
 # All phases GREEN — stage-merge the branch back (NO commit) + cleanup the worktree.
 # /hm:wrapup will create the single user-facing commit (with proper message + Co-Authored-By).
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree finalize <WT> stage-only
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree finalize <WT> stage-only
 ```
 
 ```bash
 # Stage halted on a blocker — preserve the worktree for inspection:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree finalize <WT> fail
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree finalize <WT> fail
 ```
 
 
@@ -448,12 +499,12 @@ finalize that deferred a stash, record THIS session's worktree uuid into a slug-
 crumb so `/hm:wrapup`'s `post-commit-pop` restores **only your own** deferred stash
 (machine-derived, works even in a fresh/recovered wrapup window). Substitute `<slug>`
 (this `/hm:execute` arg) and `<WT>` (your `execute-<uuid>-<ts>` worktree from Step 0).
-On the `feature_branch_workflow` (flag-on) path there is no deferred stash → `wt-uuid`
+On the `worktree.enabled` (flag-on) path there is no deferred stash → `wt-uuid`
 of a `hm/<slug>` task worktree is empty → nothing recorded, by design.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree wt-uuid <WT>)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree wt-uuid <WT>)"
 ```
 
 
@@ -469,7 +520,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 
 
 ```bash
-!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm worktree post-commit-pop "$(pwd)"
+!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree post-commit-pop "$(pwd)"
 ```
 
 
@@ -489,6 +540,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 - Worktree finalized exactly once: success or fail.
 
 
+
 <!-- @hm:autopilot-advance -->
 ## Auto-advance check (autopilot — Claude Code only)
 
@@ -500,12 +552,12 @@ no active marker, or loop-mode is on for THIS session (a `.claude/.hm-loop-*` ma
 matches `$HM_SESSION_ID`, or a legacy `.hm-loop-active` exists).**
 
 **Step 1 — mandatory gate FIRST (absent-case = STOP).** Evaluate THIS stage's gate
-*before* anything else: No mandatory gate — execute may auto-advance (the worktree finalize already ran).
+*before* anything else: No mandatory gate — execute may auto-advance.
 If the gate is pending/unresolved → record it on the ledger, then **STOP** (print the
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -515,7 +567,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.47.0 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/
