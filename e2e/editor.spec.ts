@@ -31,8 +31,11 @@ async function save(page: Page) {
 }
 
 async function play(page: Page, presetId?: string) {
+  // tab-play lands on the home screen since Phase 2, and the preset picker
+  // moved there with it — choosing what to play is a before-the-match decision.
   await page.getByTestId('tab-play').click()
   if (presetId) await page.getByTestId('preset-select').selectOption(presetId)
+  await page.getByTestId('start-match').click()
 }
 
 /**
@@ -49,7 +52,7 @@ async function resolveOpeningDrafts(page: Page) {
     if ((await offers.count()) === 0) break
     await offers.first().click()
   }
-  await expect(page.getByTestId('phase')).toHaveText('play')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
 }
 
 /** Collects the ids currently on offer, for the skill-pool coverage argument. */

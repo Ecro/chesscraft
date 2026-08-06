@@ -131,6 +131,31 @@ export const ko: Record<string, string> = {
   'ui.draft.prompt': '스킬 카드를 한 장 고르세요',
   'ui.tray.empty': '아직 없음',
   'ui.card.spent': '(다 씀)',
+  'ui.phase.play': '두는 중',
+  'ui.phase.draft': '카드 고르는 중',
+  'ui.phase.result': '끝',
+  // Named for the colours actually on the board. tokens.css renders the two
+  // sides blue and red on purpose (a red/green pair would fail one player in
+  // twelve), so '흰편/검은편' described a board nobody sees — review found the
+  // localisation pass reintroducing the very mismatch the palette removed.
+  'ui.side.white': '파란 편',
+  'ui.side.black': '빨간 편',
+  'ui.home.tagline': '친구와 번갈아 두는 이상한 체스. 판마다 규칙이 달라져요.',
+  'ui.action.start-match': '놀러 가기',
+  'ui.action.new-match': '새 판',
+  'ui.action.rematch': '한 판 더',
+  'ui.action.home': '처음으로',
+  'ui.seed.label': '판 번호',
+  'ui.seed.hint': '이 번호를 알려주면 똑같은 판을 다시 할 수 있어요.',
+  'ui.seed.copy': '번호 복사',
+  'ui.seed.copied': '복사했어요',
+  'ui.seed.copy-failed': '복사할 수 없어요',
+  'ui.confirm.discard': '지금 두던 판이 사라져요. 새로 시작할까요?',
+  // Why the match ended. The engine's own codes are king_capture / win_action /
+  // material_cap, and printing those was what a player saw before Phase 2.
+  'ui.result.reason.king_capture': '왕을 잡았어요',
+  'ui.result.reason.win_action': '카드로 이겼어요',
+  'ui.result.reason.material_cap': '기물이 더 많아요',
   'ui.result.win': '승리',
   'ui.result.draw': '무승부',
 }

@@ -19,10 +19,10 @@ test('a match plays to a result using only slice content', async ({ page }) => {
 
   // Both players resolve their opening draft before any board action. The offer
   // is drawn from a six-card pool, so which cards appear is not fixed here.
-  await expect(page.getByTestId('phase')).toHaveText('draft')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'draft')
   await page.locator('[data-testid^="offer-"]').first().click()
   await page.locator('[data-testid^="offer-"]').first().click()
-  await expect(page.getByTestId('phase')).toHaveText('play')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
 
   // White walks an archer onto the beacon at c3. The beacon carries it to d4
   // ahead of the archer's volley, and the rule card ends the match — the Phase 3
@@ -35,8 +35,8 @@ test('a match plays to a result using only slice content', async ({ page }) => {
   await step('d6', 'd5')
   await step('c2', 'c3')
 
-  await expect(page.getByTestId('phase')).toHaveText('result')
-  await expect(page.getByTestId('result')).toContainText('white')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'result')
+  await expect(page.getByTestId('result')).toHaveAttribute('data-winner', 'white')
   await expect(page.getByTestId('sq-d4')).toHaveAttribute('data-piece', 'piece.archer')
 })
 

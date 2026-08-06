@@ -5,5 +5,8 @@ import { expect, test } from '@playwright/test'
 // harness, so the boot signal is now the board itself.
 test('app shell loads', async ({ page }) => {
   await page.goto('/')
+  // The shell opens on the home screen now, not on a live board (RESEARCH #4).
+  await expect(page.getByTestId('home')).toBeVisible()
+  await page.getByTestId('start-match').click()
   await expect(page.getByTestId('board')).toBeVisible()
 })

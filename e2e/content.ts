@@ -25,4 +25,7 @@ export async function useSliceContent(page: Page) {
   await expect(page.getByTestId('editor-errors')).toHaveCount(0)
   await page.getByTestId('tab-play').click()
   await expect(page.getByTestId('preset-select')).toHaveValue('preset.slice')
+  // Phase 2 put a home screen in front of the board; the specs that used this
+  // helper expected to be mid-match when it returned, so it starts one.
+  await page.getByTestId('start-match').click()
 }

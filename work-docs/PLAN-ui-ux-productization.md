@@ -424,6 +424,13 @@ exists to remove.
 - **Rollback:** revert to `01e9e7b`
 
 ### Phase 2 — Match lifecycle: seed provider, home screen, new match, rematch
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (258 unit, 32 e2e). `Play.tsx` became
+  `MatchHost.tsx`; `Home.tsx` and a three-route shell added; seed injected per ADR-024 and shown
+  with a copy control; `new-match` / `rematch` / `go-home`; phase, side and the end-of-match reason
+  localised with the machine value moved onto `data-phase` / `data-side` / `data-winner`; preset
+  picker names presets (#17). Per ADR-016 the e2e suite was migrated in the same change — 12 text
+  assertions became attribute assertions, and `e2e/content.ts` + `editor.spec.ts`'s own `play()`
+  helper now pass through the home screen.
 - `depends_on`: [1]
 - `parallel_group`: `serial-lifecycle`
 - `merge_hazards`: `src/ui/App.tsx` and `src/ui/Play.tsx` are both restructured; Phase 3 builds on the same files

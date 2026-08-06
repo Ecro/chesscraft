@@ -56,8 +56,13 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // `mover`, `opponent` and more, and it belongs to Phase 9 (ADR-019) — a
     // scan that pulled it in here would either fail this phase for work it does
     // not own or push that work forward untracked. Phase 9 adds it to this list.
-    const PHASE_1_CHROME = ['App.tsx', 'Play.tsx']
-    const CODE_FRAGMENT = /[()=";]/
+    // `Play.tsx` became `MatchHost.tsx` in Phase 2 and `Home.tsx` joined it;
+    // the list tracks the files, not the names they had when it was written.
+    const PHASE_1_CHROME = ['App.tsx', 'MatchHost.tsx', 'Home.tsx']
+    // Backtick and `$` join the list because a template literal in ordinary TS
+    // (`return `${a} — ${b}``) is not JSX and matched the capture as a false
+    // positive the moment Phase 2 added one.
+    const CODE_FRAGMENT = /[()=";`$]/
 
     const offenders = PHASE_1_CHROME.flatMap((file) => {
       const src = readFileSync(join(UI_DIR, file), 'utf8').replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')

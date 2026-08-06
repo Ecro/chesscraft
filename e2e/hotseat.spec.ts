@@ -40,7 +40,7 @@ async function offerIds(page: Page): Promise<string[]> {
 
 /** Walks the side to move's king between its home square and the one ahead. */
 async function shuffleKing(page: Page) {
-  const side = (await page.getByTestId('side-to-move').innerText()).trim()
+  const side = (await page.getByTestId('side-to-move').getAttribute('data-side')) ?? ''
   const [home, out] = side === 'white' ? ['d1', 'd2'] : ['d6', 'd5']
   const atHome = (await page.getByTestId(`sq-${home}`).getAttribute('data-piece')) === 'piece.king'
   await (atHome ? move(page, home, out) : move(page, out, home))
@@ -61,10 +61,10 @@ test('plays a hot-seat match through all four draft picks to a result', async ({
   expect(ruleText.length).toBeGreaterThan(0)
 
   // --- Picks 1 and 2: the opening draft, one per player. -------------------
-  await expect(page.getByTestId('phase')).toHaveText('draft')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'draft')
   await pickFirstOffer(page) // white
   await pickFirstOffer(page) // black
-  await expect(page.getByTestId('phase')).toHaveText('play')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
 
   // AC-017 — both trays are on screen, each holding one card.
   expect(await heldBy(page, 'white')).toHaveLength(1)
@@ -75,7 +75,7 @@ test('plays a hot-seat match through all four draft picks to a result', async ({
     if ((await page.locator('[data-testid^="offer-"]').count()) > 0) break
     await shuffleKing(page)
   }
-  await expect(page.getByTestId('phase')).toHaveText('draft')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'draft')
 
   // --- Pick 3, with ADR-013's undo clause in the middle of it. -------------
   const beforeUndo = await offerIds(page)
@@ -100,15 +100,15 @@ test('plays a hot-seat match through all four draft picks to a result', async ({
   expect(await heldBy(page, 'black')).toHaveLength(2)
 
   // --- Play to a result: an archer walks onto the beacon. ------------------
-  while ((await page.getByTestId('side-to-move').innerText()).trim() !== 'white') {
+  while (((await page.getByTestId('side-to-move').getAttribute('data-side')) ?? '') !== 'white') {
     await shuffleKing(page)
   }
   await move(page, 'c1', 'c2')
   await shuffleKing(page)
   await move(page, 'c2', 'c3')
 
-  await expect(page.getByTestId('phase')).toHaveText('result')
-  await expect(page.getByTestId('result')).toContainText('white')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'result')
+  await expect(page.getByTestId('result')).toHaveAttribute('data-winner', 'white')
   // The beacon carried it to d4 ahead of the volley — the Phase 3 line, played
   // through the UI rather than constructed in a fixture.
   await expect(page.getByTestId('sq-d4')).toHaveAttribute('data-piece', 'piece.archer')
@@ -122,7 +122,7 @@ test('surfaces a reason when a card is played out of turn', async ({ page }) => 
   await useSliceContent(page)
   await pickFirstOffer(page)
   await pickFirstOffer(page)
-  await expect(page.getByTestId('side-to-move')).toHaveText('white')
+  await expect(page.getByTestId('side-to-move')).toHaveAttribute('data-side', 'white')
 
   // AC-008 — clicking the opponent's card must say why, not do nothing.
   const blackCard = (await heldBy(page, 'black'))[0]!
@@ -131,8 +131,8 @@ test('surfaces a reason when a card is played out of turn', async ({ page }) => 
   await expect(page.getByTestId('rejection')).toBeVisible()
   expect((await page.getByTestId('rejection').innerText()).trim().length).toBeGreaterThan(0)
   // Nothing happened to the position.
-  await expect(page.getByTestId('side-to-move')).toHaveText('white')
-  await expect(page.getByTestId('phase')).toHaveText('play')
+  await expect(page.getByTestId('side-to-move')).toHaveAttribute('data-side', 'white')
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
 })
 
 test('marks a spent card in the tray, for both players to see', async ({ page }) => {
