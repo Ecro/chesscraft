@@ -569,20 +569,54 @@ exists to remove.
 - **Rollback:** Phase 4
 
 ### Phase 6 — Layout, accessibility, and interaction hygiene
+- **Scope re-derived 2026-08-06.** Same method as Phases 4 and 5, which are the only two phases so
+  far whose drift verdict came back `clean`. This one also **collects what three reviews deferred
+  here** — those items were recorded in REVIEW documents, not in this scope, and would otherwise be
+  found by reading old reviews rather than the plan.
 - `depends_on`: [5]
 - `parallel_group`: `serial-board`
-- `merge_hazards`: `src/ui/styles.css`; `src/ui/Board.tsx` ARIA attributes
-- **Scope in:** touch targets to 44px (#27), `:focus-visible` (#28), board
-  semantics — `role="grid"`, `aria-label`, `aria-pressed`, legal-move state
-  exposed non-visually (#29), safe-area insets (#32), tablet/landscape breakpoints
-  (#33), rejection as a non-shifting toast (#15), card-shaped collapsible trays
-  (#16), designed error/empty states (#18), board flip toggle per ADR-018 (#13)
-- **Scope out:** an a11y audit of the editor (Phase 9 owns that)
-- **Exit criterion:** an automated check asserts every interactive element in the
-  play view is ≥44×44 CSS px; e2e asserts a screen-reader-visible label for every
-  square and that an illegal tap causes no layout shift (bounding box of the
-  board unchanged before/after)
-- **Risk:** medium
+- `merge_hazards`: `src/ui/styles.css` and `src/ui/tokens.css` (every phase touches both);
+  `src/ui/MatchHost.tsx`; `e2e/hotseat.spec.ts`'s portrait no-horizontal-scroll assertion
+- **Scope in — the original list:** touch targets to 44px (#27), `:focus-visible` (#28), board
+  semantics — `role="grid"`, `aria-label`, `aria-pressed`, legal-move state exposed non-visually
+  (#29), safe-area insets (#32), tablet/landscape breakpoints (#33), rejection as a non-shifting
+  toast (#15), card-shaped collapsible trays (#16), designed error/empty states (#18), board flip
+  toggle per ADR-018 (#13)
+- **Scope in — carried here by earlier reviews, one line each:**
+  - **#42 painted-square contrast** (Phase 4 review) — ≈1.03:1 against a plain square; AC-018's
+    "distinguishable at a glance" is currently carried by a 1px border
+  - **Outlined piece glyphs** (Phase 4 review) — the checker and the pieces trade contrast on one
+    axis, measured: a 1.97:1 checker drops the tinted glyphs to ≈2.9:1. An outline decouples them.
+    **This is one piece of work with #42 and the board tokens, not three** — every change moves the
+    same measurements, so they must be re-measured together or the table in the Phase 4 review lies.
+  - **A theme toggle** (Phase 1 review) — `data-theme` has been CSS-only since Phase 1; **verified
+    still true**: no `.tsx` sets it and `Settings` has no theme field, so only the OS-preference
+    layer is reachable by a real person
+  - **Control-row grouping** (Phase 4 and Phase 5 reviews) — the row is now seed, copy, sound,
+    haptics, new-match, home, plus undo above
+  - **`piece-land` perceptibility** (Phase 5 review) — needs the device check below, not a rewrite
+- **Scope in — the wiring the lists above do not name:**
+  - `src/ui/settings.ts` — **gains a `theme` field.** A toggle whose choice does not survive a reload
+    is not a choice; persistence here means the existing injected-`Storage` module, extended
+  - `src/ui/App.tsx` — must **write `data-theme` onto `document.documentElement`**, which is outside
+    React's tree and therefore an effect, not a render
+  - `src/ui/Home.tsx`, `src/ui/Rules.tsx`, `src/ui/Coach.tsx` — **not named in the original scope**,
+    but touch targets and focus rings are properties of every interactive element, and 8 of the 18
+    buttons outside the editor live in these three files
+  - `src/i18n/ko.ts` — labels for theme, flip, and whatever the grouped controls become
+- **Scope out, explicitly:** `src/ui/Edit.tsx`. It holds the largest number of controls in the app
+  and every one of them will fail the 44px and focus-ring checks — but the editor is rebuilt in
+  Phase 9, and fixing its markup now means doing it twice. The tests must therefore scope their
+  element queries to the non-editor surfaces and say so, or Phase 6 cannot go green.
+- **Exit criterion:** `npm run verify`; an **e2e** (layout is required, so jsdom cannot answer)
+  asserts every interactive element outside the editor is ≥44×44 CSS px and that each has a visible
+  focus indicator when focused; e2e asserts the board exposes a grid role with per-square labels and
+  that legal-move state is present non-visually; an e2e asserts an illegal tap causes **no layout
+  shift** (board bounding box unchanged before/after); a test asserts the theme toggle flips
+  `data-theme` on the root, persists, and that an explicit choice beats the OS preference in **both**
+  directions; a measured assertion that the painted square clears 3:1 against a plain square in both
+  themes AND that pieces still clear 3:1 on both parities — the Phase 4 review's table, re-measured
+- **Risk:** high — the contrast items are a three-way constraint, and 45 e2e specs drive this markup
 - **Rollback:** Phase 5
 
 ### Phase 7 — PWA: manifest, icons, offline
