@@ -155,17 +155,37 @@ export function App() {
 
   return (
     <TranslateContext.Provider value={t}>
-    <main>
+    {/* The route is on the shell so CSS can treat the entry screen as a title
+        screen — a big wordmark, the room picker and one obvious way in —
+        without a second <h1> that would put the app's name on the page twice
+        and give a screen reader two headings for one thing. */}
+    <main data-route={route}>
       <h1>{t('ui.app.title')}</h1>
+      {/*
+        Destinations first, then the switch — they are not peers.
+
+        The theme control used to sit BETWEEN the two tabs, so a row that reads
+        "go here / change the look / go there" put an appearance setting at the
+        same weight as the two places the app can be. It stays in the nav rather
+        than moving into the match's settings drawer, because it has to be
+        reachable from home, the rules screen and the editor as well, and that
+        reach is the whole reason it lives up here. What changes is rank: last
+        in the row, pushed to the far edge, and at ghost weight.
+      */}
       <nav>
         <button data-testid="tab-play" onClick={() => leaveMatch('home')}>
           {t('ui.tab.play')}
         </button>
-        <button data-testid="theme-toggle" data-theme-choice={theme} onClick={cycleTheme}>
-          {t(`ui.theme.${theme}`)}
-        </button>
         <button data-testid="tab-edit" onClick={() => leaveMatch('edit')}>
           {t('ui.tab.edit')}
+        </button>
+        <button
+          className="ghost nav-theme"
+          data-testid="theme-toggle"
+          data-theme-choice={theme}
+          onClick={cycleTheme}
+        >
+          {t(`ui.theme.${theme}`)}
         </button>
       </nav>
 

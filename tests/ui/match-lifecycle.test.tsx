@@ -87,6 +87,17 @@ describe('a new match is actually new (RESEARCH #2)', () => {
   })
 })
 
+/**
+ * The seed lives in the match settings drawer, not on the tools row.
+ *
+ * It moved there when the tools row was cut from five wrapping controls to two
+ * actions: a ten-digit number is developer output, and this app's players are
+ * children. ADR-024's contract is that the seed is REACHABLE and copyable, not
+ * that it is permanently on screen — so these tests open the drawer, which is
+ * what a player replaying a match does too.
+ */
+const openSettings = () => fireEvent.click(screen.getByTestId('match-settings'))
+
 describe('the player can start another match', () => {
   // Scoped honestly: this drives the ALWAYS-AVAILABLE new-match control, not the
   // post-result rematch the exit criterion names. Reaching a terminal state
@@ -104,6 +115,7 @@ describe('the player can start another match', () => {
     // property of the draw, and `draws different rule cards across a sample of
     // seeds` above owns it; what THIS test owns is that the control starts a
     // new match at all.
+    openSettings()
     const before = screen.getByTestId('match-seed').textContent
     // A raw DOM .click() does not flush the React state update here; fireEvent
     // wraps it in act, which is what makes the re-draw observable.
@@ -132,6 +144,7 @@ describe('the player can start another match', () => {
     }
     expect(screen.getByTestId('phase').getAttribute('data-phase')).toBe('play')
 
+    openSettings()
     const seedNow = () => screen.getByTestId('match-seed').textContent
     const before = seedNow()
 
@@ -148,6 +161,7 @@ describe('the player can start another match', () => {
 
   it('shows the seed in play so a match can be replayed or shared (ADR-024)', () => {
     render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 4242} />)
+    openSettings()
     expect(screen.getByTestId('match-seed').textContent).toContain('4242')
   })
 })

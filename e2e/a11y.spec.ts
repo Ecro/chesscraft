@@ -214,6 +214,11 @@ test('the board flips without renaming its squares (#13)', async ({ page }) => {
   const order = () =>
     page.locator('[data-testid^="sq-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')))
   const before = await order()
+  // Board orientation is a SETTING now — it moved into the match settings
+  // drawer when the tools row was cut from five wrapping controls to two
+  // actions. ADR-018 still requires the control to exist and to be the
+  // players' to reach; it never required it to occupy the tools row.
+  await page.getByTestId('match-settings').click()
   await page.getByTestId('flip-board').click()
   const after = await order()
 

@@ -41,11 +41,19 @@ test('a first visitor starts from home and lands in a playable match', async ({ 
   await expect(page.getByTestId('rule-card')).toHaveAttribute('data-rule', /.+/)
 })
 
-test('the seed in play is on screen and copyable (ADR-024)', async ({ page, context }) => {
+test('the seed in play is reachable and copyable (ADR-024)', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/')
   await page.getByTestId('start-match').click()
 
+  // Behind the settings drawer rather than on the tools row: a ten-digit
+  // number is developer output and this app's players are children. ADR-024
+  // asks that a match be replayable and shareable, which needs the seed
+  // REACHABLE — one tap, no scrolling, no hidden gesture — not permanently on
+  // screen. The test name says `reachable` for that reason; it used to say
+  // `on screen`, and leaving it would have described a contract that no longer
+  // holds while still passing.
+  await page.getByTestId('match-settings').click()
   const seed = page.getByTestId('match-seed')
   await expect(seed).toBeVisible()
   const shown = (await seed.innerText()).replace(/\D/g, '')

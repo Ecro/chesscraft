@@ -655,21 +655,23 @@ export function MatchHost({
           purpose: a seed, two toggles and three navigation controls are things a
           player reaches for between matches, and above the board they outranked
           the position every turn. */}
+      {/*
+        Two actions and a drawer, not seven controls in a wrapping row.
+        Five equal buttons plus a ten-digit number wrapped onto two lines and
+        said nothing about which of them a player wants — and the number is
+        developer output sitting on a child's screen. Everything that is a
+        SETTING (sound, haptics, board orientation, the seed) now lives behind
+        one affordance; what stays outside is what a player between matches
+        actually reaches for.
+
+        Deliberately moved, NOT deleted. `flip` is ADR-018's whole answer to
+        hot-seat orientation and the seed is ADR-024's reproducibility contract
+        with an AC behind it — removing either would settle a recorded decision
+        by tidying, which is how a constraint gets lost.
+      */}
       <div className="match-tools">
-        <span data-testid="match-seed" title={t('ui.seed.hint')}>
-          {t('ui.seed.label')} {seed}
-        </span>
-        <button data-testid="copy-seed" data-copy-state={copyState} onClick={copySeed}>
-          {t(
-            copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
-          )}
-        </button>
-        {/* Sound and haptics behind one affordance — what Phase 4's and Phase 5's
-            reviews both deferred. The theme control is NOT in here: it lives in
-            App's nav and is reachable from home, the rules screen and the editor
-            too, so moving it into a match's tools row would take it away from
-            three of the four screens. */}
         <button
+          className="ghost"
           data-testid="match-settings"
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((o) => !o)}
@@ -677,7 +679,7 @@ export function MatchHost({
           {t('ui.action.settings')}
         </button>
         {settingsOpen && (
-          <span className="match-settings-panel">
+          <div className="match-settings-panel">
             <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
               {t(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
             </button>
@@ -686,12 +688,26 @@ export function MatchHost({
                 {t(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
               </button>
             )}
-          </span>
+            <button data-testid="flip-board" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
+              {t('ui.action.flip')}
+            </button>
+            <span className="seed-row">
+              <span data-testid="match-seed" title={t('ui.seed.hint')}>
+                {t('ui.seed.label')} {seed}
+              </span>
+              <button data-testid="copy-seed" data-copy-state={copyState} onClick={copySeed}>
+                {t(
+                  copyState === 'copied'
+                    ? 'ui.seed.copied'
+                    : copyState === 'failed'
+                      ? 'ui.seed.copy-failed'
+                      : 'ui.seed.copy',
+                )}
+              </button>
+            </span>
+          </div>
         )}
-        <button data-testid="flip-board" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
-          {t('ui.action.flip')}
-        </button>
-        <button data-testid="new-match" onClick={startNew}>
+        <button className="primary" data-testid="new-match" onClick={startNew}>
           {t('ui.action.new-match')}
         </button>
         {onHome && (

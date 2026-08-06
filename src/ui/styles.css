@@ -50,8 +50,16 @@ h1 {
 
 nav {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+/* Pushed to the far edge, so the two destinations read as a pair and the
+   appearance switch reads as something else entirely. */
+.nav-theme {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
 }
 
 button,
@@ -66,9 +74,70 @@ select {
   color: var(--color-text);
   cursor: pointer;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
+  border-radius: 10px;
+  /* A seam of light at the top and a hard edge underneath — the cheapest thing
+     that reads as a physical button rather than a bordered rectangle, and it
+     costs no asset and no layout. The bottom border is a SHADOW, not a border,
+     so the box height stays exactly what it was and nothing reflows. */
+  background: linear-gradient(180deg, var(--color-surface), var(--color-surface-sunken));
+  box-shadow:
+    inset 0 1px 0 var(--color-cue-hi),
+    0 2px 0 var(--color-border),
+    0 2px 4px var(--color-shadow);
   padding: 6px 10px;
+  font-weight: 600;
+  transition:
+    transform var(--motion-fade-duration) var(--motion-ease),
+    box-shadow var(--motion-fade-duration) var(--motion-ease);
+}
+
+/* The press. A button that does not move under a finger is the single loudest
+   "this is a web page" signal a touch UI can send — the travel is what makes it
+   feel answered. 2px down, and the shadow collapses by exactly the same 2px, so
+   the button appears to meet the surface instead of sliding over it.
+   Routed through `--motion-fade-duration` deliberately: `prefers-reduced-motion`
+   already zeroes every declared duration, so this needs no separate opt-out. */
+button:active,
+[role='button']:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 var(--color-cue-hi),
+    0 0 0 var(--color-border),
+    0 1px 2px var(--color-shadow);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+/*
+ * The third tier: a control with no chrome at all.
+ *
+ * Thirteen buttons rendered as thirteen identical white rectangles is the
+ * actual complaint behind "the buttons look bad" — nothing on the screen said
+ * which of them mattered. Three tiers is enough to fix it: `.primary` is the
+ * one thing to do next, a plain button is an ordinary action, and `.ghost` is a
+ * control that must be reachable without competing — a theme switch, a settings
+ * toggle. Anything that is always visible but rarely wanted belongs here.
+ */
+button.ghost {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+button.ghost:hover {
+  background: var(--color-surface-sunken);
+  border-color: var(--color-border);
+}
+
+button.ghost:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 /* #27. 24px is WCAG 2.5.8's AA floor; 44 is the usability standard, and this
@@ -892,9 +961,47 @@ select {
   color: var(--color-text-muted);
 }
 
+/* The settings drawer opens as its own full-width row rather than pushing the
+   two actions along the flex line — a drawer that reflows the buttons beside it
+   moves the target under the finger that just opened it. */
+.match-settings-panel {
+  order: 1;
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+/* The seed reads as data, not as a control, so it does not sit at button
+   weight beside the toggles it is filed with. */
+.seed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
 .match-tools button {
   font-size: var(--font-size-sm);
   padding: var(--space-2) var(--space-3);
+}
+
+/* The one action in this row that is an action. `new-match` is what a player
+   wants after a result, and at plain weight it was indistinguishable from the
+   settings toggle beside it. */
+.match-tools button.primary {
+  font-size: var(--font-size-base);
+  padding: var(--space-3) var(--space-5);
+  margin-left: auto;
 }
 
 .card[data-used='true'] {
@@ -938,14 +1045,123 @@ textarea {
  * literal, which is the point of it.
  */
 
+/*
+ * The entry screen, treated as a title screen rather than a form.
+ *
+ * It was a 62%-empty page with an 18px document heading in the corner, a native
+ * `<select>` and two same-weight buttons — every element correct and nothing
+ * saying "game". Nothing here adds an asset: the identity comes from type
+ * scale, one board-motif backdrop drawn in gradients, and a single dominant
+ * way in.
+ */
+main[data-route='home'] h1 {
+  font-size: 38px;
+  /* Not 1.1. `background-clip: text` paints inside the line box, so a tight
+     line-height clips the bottom of Hangul glyphs — the descender of 체스 was
+     shaved off against the card below it. */
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin: var(--space-5) 0 var(--space-5);
+  padding-bottom: 2px;
+  /* The two sides' colours, in the name itself — the one piece of identity the
+     product already owns and had never spent. */
+  background: linear-gradient(105deg, var(--color-side-white), var(--color-board-painted-a) 55%, var(--color-side-black));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+main[data-route='home'] nav {
+  justify-content: center;
+}
+
+/* The title screen owns the whole viewport, and the card sits in the middle of
+   what the chrome leaves — it was pinned to the top with 62% of a phone blank
+   underneath it, which reads as a page that failed to finish loading rather
+   than as a screen. `svh` and not `vh`: on a phone `vh` is the viewport with
+   the URL bar hidden, so a `100vh` box overflows by the bar's height for as
+   long as the bar is showing. `margin: auto 0` on the card, rather than
+   `justify-content: center` on the shell, keeps the wordmark and the nav where
+   they are and moves only the thing that should move. */
+main[data-route='home'] {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The wordmark and the card are ONE object and are centred together. Centring
+   only the card left the title marooned at the top of a 300px gap, which read
+   as two unrelated things rather than as a title screen. The nav is ordered
+   above both — it is chrome, and chrome belongs at the edge. */
+main[data-route='home'] nav {
+  order: -1;
+}
+
+main[data-route='home'] h1 {
+  margin-top: auto;
+}
+
+main[data-route='home'] .home {
+  margin-bottom: auto;
+}
+
 .home {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-6, 20px);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
+  border-radius: 20px;
+  /* A checker, at 2% — the board is what this app is, and a flat card said
+     nothing about that. Kept far below the contrast of anything on top of it:
+     it should register as texture, never as content. */
+  background:
+    linear-gradient(180deg, var(--color-surface), var(--color-surface-sunken)),
+    repeating-conic-gradient(
+      color-mix(in srgb, var(--color-board-dark) 6%, transparent) 0% 25%,
+      transparent 0% 50%
+    );
+  background-size: auto, 56px 56px;
+  box-shadow: 0 8px 28px var(--color-shadow);
+  text-align: center;
+}
+
+/* The room picker reads as a chosen thing, not as a form field. A native
+   `<select>` at full width was the single most form-like element on the screen
+   — this keeps the native control (its picker is the accessible, familiar one
+   on a phone) and dresses the row around it. */
+.home label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.home select {
+  width: 100%;
+  max-width: 300px;
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--font-size-base);
+  padding: var(--space-3) var(--space-4);
+}
+
+.home .primary {
+  margin-top: var(--space-2);
+}
+
+/* The way out of the title screen that is not the way in. */
+.home [data-testid='open-rules'] {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .tagline {
@@ -954,12 +1170,32 @@ textarea {
   color: var(--color-text-muted);
 }
 
+/*
+ * The one thing to do next, and it should not be findable — it should be
+ * unmissable. Same physical treatment as every other button, turned up: a
+ * lit top edge, a solid shelf underneath, and a colour shadow so it reads as
+ * raised off the surface rather than painted onto it.
+ */
 button.primary {
-  background: var(--color-selected);
-  border-color: var(--color-selected);
-  color: var(--color-surface);
-  font-weight: 700;
+  background: linear-gradient(180deg, var(--color-selected), color-mix(in srgb, var(--color-selected) 82%, var(--color-cue-lo)));
+  border-color: color-mix(in srgb, var(--color-selected) 70%, var(--color-cue-lo));
+  color: var(--color-cue-hi);
+  font-weight: 800;
+  font-size: var(--font-size-lg);
+  letter-spacing: 0.01em;
   padding: var(--space-4) var(--space-5);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-cue-hi) 45%, transparent),
+    0 3px 0 color-mix(in srgb, var(--color-selected) 60%, var(--color-cue-lo)),
+    0 6px 14px color-mix(in srgb, var(--color-selected) 35%, transparent);
+}
+
+button.primary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-cue-hi) 45%, transparent),
+    0 0 0 color-mix(in srgb, var(--color-selected) 60%, var(--color-cue-lo)),
+    0 2px 6px color-mix(in srgb, var(--color-selected) 30%, transparent);
 }
 
 .seed {
