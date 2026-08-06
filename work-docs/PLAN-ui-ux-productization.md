@@ -672,8 +672,15 @@ exists to remove.
 - **Scope:** `src/content/schema.ts`, `src/content/sets/bundled.ts`, `src/i18n/ko.ts`,
   `src/ui/i18n.ts`, `src/ui/MatchHost.tsx`, `src/ui/styles.css`, `src/ui/tokens.css`,
   `tests/content/bundled.test.ts`
-- **Not reviewed.** No REVIEW document exists for this unit or for 6a; the drift verdict this
-  wrapup gated on is Phase 5's. See the wrapup note below.
+- **Reviewed after the fact** — `REVIEW-ui-ux-productization-phase6a-2026-08-06.md`, run on the
+  landed commit `63b9a1b` rather than on a working tree, because `/hm:wrapup` had gated on Phase
+  5's verdict for want of one. **C → A over two rounds, 12 fixes.** All four P1s were things the
+  suite structurally could not see: `:focus-visible` erasing the last-move ring (same specificity,
+  same property, later in the file); `pieceGlyph` able to paint an unresolved key on the board while
+  the `iconOf` added beside it guarded the other three kinds; no `aria-live` anywhere in `src/`, so
+  a turn change was never announced; and the legend omitting the very icon it exists to decode.
+  Two P2s deferred to a device (a scroll affordance for the tools row, and `display: contents` +
+  `role="row"` on older a11y trees).
 - **Exit criterion:** `npm run verify` GREEN with no decrease in Playwright count — met (56, from 56).
 
 ### Phase 6b — Layout: safe area, breakpoints, trays, and empty states

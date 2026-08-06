@@ -290,7 +290,7 @@ select {
    is scrolled — the tools row simply could not be reached while an offer was
    open, no matter how far you scrolled. The page grows a tail it can scroll
    above the sheet, for exactly as long as the sheet exists. */
-.play:has(.draft-scrim) {
+.play[data-drafting='true'] {
   padding-bottom: 40vh;
 }
 
@@ -408,6 +408,13 @@ select {
   gap: 2px;
   width: 100%;
   margin: 10px 0;
+}
+
+/* `display: contents` so the ARIA row wrapper adds a level to the a11y tree
+   without adding one to the layout — every square stays a direct grid item of
+   `.board`, which is what `grid-template-columns` is sized against. */
+.board-row {
+  display: contents;
 }
 
 .square {
@@ -653,9 +660,28 @@ select {
   }
 }
 
-.square[data-selected='true'] {
-  outline: 3px solid var(--color-selected);
-  outline-offset: -3px;
+/*
+ * The selected square, sandwiched like the legal dot and for the same measured
+ * reason. A lone hue cannot do this job: against the four dark-theme fills a
+ * selection ring can land on — #3a352c, #8d8269 and the two painted violets —
+ * NO single colour clears 3:1. Amber reaches 7.29:1 on the dark tile and 1.58:1
+ * on the painted one; white gets 12.17 and 2.63; near-black gets 1.52 and 7.04.
+ * Every candidate wins on one end of the range and loses on the other, which is
+ * the signature of a cue that needs two tones rather than a better hex.
+ *
+ * On `::before` rather than `box-shadow` on the square itself: `data-last` and
+ * `:focus-visible` already contend for that property, and adding a third
+ * claimant is how the last-move ring got erased in the first place.
+ */
+.square[data-selected='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--color-selected);
+  box-shadow:
+    inset 0 0 0 2px var(--color-cue-lo),
+    0 0 0 2px var(--color-cue-hi);
+  pointer-events: none;
 }
 
 /* The focus ring on a square, declared AFTER the legal/selected rules and on a
@@ -673,6 +699,26 @@ select {
     0 0 0 2px var(--color-focus-ring);
 }
 
+/* The composition the comment above claimed, actually composed.
+   `.square[data-last]` and `.square:focus-visible` are BOTH (0,2,0) and both
+   set `box-shadow`, so the later one — focus — replaced the last-move ring
+   outright rather than adding to it: tabbing onto the square a piece had just
+   landed on erased the only record of the move. That is the same "a later
+   declaration on the same property silently wins" hazard the comment above
+   describes having just fixed for `outline`, reintroduced one property over,
+   because the fix was checked against the cues it was written for and not
+   against every rule sharing the property. Both rings, explicitly. */
+.square[data-last]:focus-visible {
+  /* Two layers, not three. An earlier-listed shadow paints OVER a later one and
+     both insets share the box edge, so a 6px accent ring covers the whole 0-3px
+     band a 3px focus ring would occupy — the middle layer rendered nothing. The
+     inner accent says "the move landed here" and the outer ring says "you are
+     here", which is the whole point and is all that was ever visible. */
+  box-shadow:
+    inset 0 0 0 6px var(--color-border-accent),
+    0 0 0 2px var(--color-focus-ring);
+}
+
 .legend {
   list-style: none;
   margin: 0;
@@ -686,9 +732,18 @@ select {
 /* The legend marker in the same violet the squares are painted, so the list and
    the board are visibly about the same thing. */
 .legend li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   padding-left: var(--space-4);
   border-left: 3px solid var(--color-board-painted-a);
   margin-bottom: var(--space-1);
+}
+
+.legend-icon {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* A hand reads across, not down. Two stacked column trays cost ~160px below the
@@ -933,4 +988,10 @@ button.primary {
 .rules-group li span {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+}
+
+.entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
 }

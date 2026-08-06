@@ -36,7 +36,17 @@ import { type SoundEvent, hapticsSupported, play } from './sound'
  * never a blank square.
  */
 function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): string {
-  if (def.iconKey) return translate(def.iconKey)
+  if (def.iconKey) {
+    const icon = translate(def.iconKey)
+    // Falls THROUGH to the monogram when the key does not resolve, rather than
+    // returning it. `translate` echoes an unresolved key, so the bare version
+    // of this branch painted `piece.foo.icon` across the square — the exact
+    // thing the `nameKey` branch below has guarded against since Phase 4, and
+    // the exact thing `iconOf` guards for the other three content kinds. A
+    // typo'd `iconKey` reaches this through an imported document today, and
+    // through the editor once Phase 9 grows the control.
+    if (icon !== def.iconKey) return icon
+  }
   const name = translate(def.nameKey)
   // `translate` returns the KEY when it cannot resolve one, so a piece with no
   // locale entry would otherwise put the first letter of `piece.foo.name` — a
@@ -340,7 +350,14 @@ export function MatchHost({
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
 
   return (
-    <section className="play">
+    // `data-drafting` rather than a `:has(.draft-scrim)` selector. `:has()` is
+    // Chrome 105 / Safari 15.4, and the audience for this app is children on
+    // whatever phone the household already had — on an older WebView the rule
+    // silently never matches and the tools row becomes unreachable behind the
+    // sheet again, with no test in a modern CI browser able to see it. The
+    // component already knows the phase, so the fact does not need inferring
+    // from the DOM.
+    <section className="play" data-drafting={phase === 'draft'}>
       {/* Whose turn it is, as the loudest thing on the screen after the board.
           It used to be one grey chip among four, the same size and weight as
           the phase and the ply count — on a hot-seat game where the ONLY thing
@@ -351,7 +368,19 @@ export function MatchHost({
         {/* The machine value lives on the attribute and the words on screen are
             translated. That split is what lets the e2e suite keep asserting a
             stable value while a player reads their own language. */}
-        <span className="turn" data-testid="side-to-move" data-side={state.sideToMove}>
+        {/* `aria-live`, because the turn is the one value on this screen that
+            CHANGES and matters. React swaps the text inside the same node, and
+            a screen reader announces nothing for that unless the region is
+            live — so a non-visual player had to re-navigate here after every
+            move to learn it was their turn. `polite` rather than `assertive`:
+            it should not cut off whatever the player is currently reading. */}
+        <span
+          className="turn"
+          data-testid="side-to-move"
+          data-side={state.sideToMove}
+          role="status"
+          aria-live="polite"
+        >
           {translate(`ui.side.${state.sideToMove}`)} {translate('ui.status.turn')}
         </span>
         <span data-testid="phase" data-phase={phase}>
@@ -396,7 +425,19 @@ export function MatchHost({
           position the card is being chosen for. */}
       {phase === 'draft' && drafting && (
         <div className="draft-scrim">
-          <div className="draft" data-testid="draft-offer" data-side={drafting}>
+          {/* `role="dialog"` WITHOUT `aria-modal`, and the omission is the
+              honest part: this sheet deliberately does not trap — the scrim
+              dims and passes pointers through so a player is never stuck in a
+              draft — so claiming modality to assistive tech would describe a
+              containment that does not exist. The role plus a label is what is
+              true: a named region holding a pending choice. */}
+          <div
+            className="draft"
+            data-testid="draft-offer"
+            data-side={drafting}
+            role="dialog"
+            aria-label={translate('ui.draft.prompt')}
+          >
             <p className="draft-prompt">
               {translate(`ui.side.${drafting}`)} — {translate('ui.draft.prompt')}
             </p>
@@ -446,8 +487,15 @@ export function MatchHost({
           aria-label={translate('ui.board.label')}
           style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
         >
-        {ranks.flatMap((rank) =>
-          files.map((file) => {
+        {/* `role="grid"` owns `row`, which owns `gridcell` — the middle level
+            was missing, so the squares were 36 cells with no row or column
+            context and a screen reader read them as a flat run. `flatMap` is
+            now a `map` over ranks with a row wrapper at `display: contents`,
+            which keeps every square a direct grid item so the layout is
+            unchanged. */}
+        {ranks.map((rank) => (
+          <div key={rank} className="board-row" role="row">
+          {files.map((file) => {
             const sq = squareId(file, rank)
             const piece = state.board.get(sq)
             // The checker (#41). Shipped as a dead token in Phase 1 — the colour
@@ -499,8 +547,9 @@ export function MatchHost({
                 <span className="piece">{def ? pieceGlyph(def) : ''}</span>
               </button>
             )
-          }),
-        )}
+          })}
+          </div>
+        ))}
         </div>
         <ol className="file-rail" data-testid="board-files">
           {files.map((f) => (
@@ -551,7 +600,19 @@ export function MatchHost({
       {legendTypes.length > 0 && (
         <ul className="legend" data-testid="square-legend">
           {legendTypes.map((type) => (
+            // The icon belongs HERE most of all. A child sees a badge in a
+            // square's corner and comes to this list to find out what it means
+            // — and until now the list showed the name and the prose and not
+            // the badge, so the one screen built to decode the mark omitted the
+            // mark. `title` does not fire on touch and the aria-label is
+            // screen-reader-only, so this list is the only visual cross-
+            // reference a sighted player has.
             <li key={type.id} data-square-type={type.id}>
+              {iconOf(type) && (
+                <span className="legend-icon" aria-hidden="true">
+                  {iconOf(type)}
+                </span>
+              )}
               <strong>{translate(type.nameKey)}</strong> — {translate(type.textKey)}
             </li>
           ))}

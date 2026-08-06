@@ -25,6 +25,9 @@ import { z } from 'zod'
  * action, a destination relative to the piece being moved, a duration on the
  * three generation-time actions, and a condition over a side's material.
  *
+ * Bumped 3 -> 4 in Phase 4 (ADR-017): `pieceDef.iconKey`, so the board could
+ * draw a glyph instead of a piece's name at 12px inside the square.
+ *
  * Bumped 4 -> 5 for the rest of ADR-017's icon axis. v4 gave `iconKey` to
  * pieces only, which left the three other things a player has to recognise —
  * the rule in play, a skill card in a hand of four, a painted square — as walls

@@ -142,7 +142,11 @@
     --color-side-white: #93c5fd;
     --color-side-black: #f87171;
     --color-legal: #4ade80;
-    --color-selected: #93c5fd;
+    /* NOT #93c5fd. That is `--color-side-white` AND `--color-focus-ring`, so in
+       the dark theme the board's turn outline, a selected square and a focused
+       square all drew the same blue — three cues the rule set two files over
+       argues must stay separable. Amber keeps selection distinct from both. */
+    --color-selected: #fbbf24;
   }
 }
 
@@ -215,5 +219,5 @@
   --color-side-white: #93c5fd;
   --color-side-black: #f87171;
   --color-legal: #4ade80;
-  --color-selected: #93c5fd;
+  --color-selected: #fbbf24;
 }

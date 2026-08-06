@@ -56,7 +56,7 @@ export const ko: Record<string, string> = {
   'square.sanctuary.icon': '🛡️',
   'square.mire.name': '수렁',
   'square.mire.text': '이 칸에 들어온 기물은 두 번의 차례 동안 발이 묶인다.',
-  'square.mire.icon': '🕸️',
+  'square.mire.icon': '⚓',
 
   // --- rule cards ---
   'rule.king-of-the-hill.name': '언덕의 왕',

@@ -14,7 +14,15 @@ import { translate } from './i18n'
  * thing and that each carries a name key and a text key.
  */
 
-type Entry = { id: string; nameKey: string; textKey: string }
+type Entry = { id: string; nameKey: string; textKey: string; iconKey?: string | undefined }
+
+/** Empty when the entry declares no icon, or declares one the locale cannot
+ *  resolve — `translate` echoes an unresolved key, which would print the key. */
+function icon(e: Entry): string {
+  if (!e.iconKey) return ''
+  const resolved = translate(e.iconKey)
+  return resolved === e.iconKey ? '' : resolved
+}
 
 function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; entries: Entry[]; open?: boolean }) {
   return (
@@ -28,7 +36,20 @@ function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; 
         <ul>
           {entries.map((e) => (
             <li key={e.id} data-entry={e.id}>
-              <strong>{translate(e.nameKey)}</strong>
+              {/* The lookup surface for the icon vocabulary. Without it a child
+                  who sees a mark on a square during a match can only learn what
+                  it means DURING that match, from the legend — this screen is
+                  the one place to find out beforehand. Resolved through the
+                  same `translate` as everything else, and `aria-hidden` because
+                  the name sits immediately beside it. */}
+              <span className="entry-head">
+                {icon(e) && (
+                  <span className="legend-icon" aria-hidden="true">
+                    {icon(e)}
+                  </span>
+                )}
+                <strong>{translate(e.nameKey)}</strong>
+              </span>
               <span>{translate(e.textKey)}</span>
             </li>
           ))}
@@ -45,7 +66,7 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
   // optional they were structurally assignable — a fifth Group added by
   // copy-paste would have listed them silently, every description blank.
   const entries = (m: Map<string, Entry>): Entry[] =>
-    [...m.values()].map((v) => ({ id: v.id, nameKey: v.nameKey, textKey: v.textKey }))
+    [...m.values()].map((v) => ({ id: v.id, nameKey: v.nameKey, textKey: v.textKey, iconKey: v.iconKey }))
 
   return (
     <section className="rules" data-testid="rules">

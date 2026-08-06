@@ -15,3 +15,23 @@ an instance that would fail if the implementation were wrong". Two concrete chec
 have caught all three: for any fixture, name the negative instance; for any sample
 (`.first()`, `[0]`, `head`, `LIMIT 1`), justify why the sampled element is the one at
 risk, or iterate.
+
+## Proposal: a closed-set sweep before any fix is declared resolved (2026-08-06)
+**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 3)
+**Proposed mechanism:** rule update — a step in `/hm:review`'s auto-fix loop
+**Rationale:** All three instances share one shape: the remedy was verified
+against the evidence that prompted it rather than against the closed set the
+property has to survive. ADR numbers were checked against the three files the
+validator cited while `match.ts` and `rng.ts` already owned two of the new
+numbers; a `[data-theme='light']` override was hand-copied from the tokens the
+author was looking at and shipped missing two; a focus ring was moved from
+`outline` to `box-shadow` to escape two rules that clobbered it, into a property
+a third rule was already setting at identical specificity. Every one of the
+three was mechanically decidable by a sweep that takes under a minute — a
+tree-wide grep for the identifier, a diff of two token blocks' key sets, a grep
+for the property scoped to the element. The proposed step: before logging a fix
+as applied, when the finding's subject is plural (a namespace, an override set,
+a shared CSS property, a set of callers), run and record the sweep that
+enumerates the whole set, and paste its output into the fix log. The tell to
+match on is a finding whose subject is plural paired with a verification that is
+singular.
