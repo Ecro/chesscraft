@@ -446,6 +446,12 @@ exists to remove.
 - **Rollback:** Phase 1
 
 ### Phase 3 — FTUE: how-to-play, rules reference, contextual first-match coaching
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (266 unit, 36 e2e). `Rules.tsx` renders the
+  loaded set by group and is asserted by COUNT against the content, so an authored piece appears with
+  no code change; `Coach.tsx` shows one card at a time, skippable at every step; `coach.ts` holds the
+  seen flag with `Storage` injected and fails toward already-seen so a storage-denying browser cannot
+  trap a player in a tutorial. Also styled `.home` / `.seed` / `.result-panel` / `.primary` from
+  Phase 2, which had shipped as class names with no rules.
 - `depends_on`: [2]
 - `parallel_group`: `parallel-after-lifecycle` (with Phase 4)
 - `merge_hazards`: `src/ui/App.tsx` route table; `src/i18n/ko.ts` copy. Disjoint from Phase 4's files (`schema.ts`, `Board.tsx`), which is why the two may run concurrently

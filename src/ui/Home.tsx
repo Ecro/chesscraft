@@ -18,11 +18,13 @@ export function Home({
   presetId,
   onPresetChange,
   onStart,
+  onOpenRules,
 }: {
   content: ContentSet
   presetId: string
   onPresetChange: (id: string) => void
   onStart: () => void
+  onOpenRules: () => void
 }) {
   const presets = [...content.presets.entries()]
 
@@ -45,6 +47,10 @@ export function Home({
 
       <button className="primary" data-testid="start-match" onClick={onStart}>
         {translate('ui.action.start-match')}
+      </button>
+
+      <button data-testid="open-rules" onClick={onOpenRules}>
+        {translate('ui.action.rules')}
       </button>
     </section>
   )

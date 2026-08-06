@@ -3,8 +3,11 @@ import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStoredContent } from '@editor/storage'
 import { Edit } from './Edit'
+import { Coach } from './Coach'
 import { Home } from './Home'
 import { MatchHost } from './MatchHost'
+import { Rules } from './Rules'
+import { hasSeenCoach, markCoachSeen } from './coach'
 import { translate } from './i18n'
 
 /**
@@ -41,7 +44,21 @@ function initialSource(): ContentSource {
 export function App() {
   const [source, setSource] = useState<ContentSource>(initialSource)
   const [revision, setRevision] = useState(0)
-  const [route, setRoute] = useState<'home' | 'play' | 'edit'>('home')
+  const [route, setRoute] = useState<'home' | 'play' | 'edit' | 'rules'>('home')
+  // A browser that denies storage reports "already seen" rather than replaying
+  // the tutorial forever — see the note in `coach.ts` on which way this fails.
+  const [coaching, setCoaching] = useState(() => {
+    const storage = browserStorage()
+    return storage ? !hasSeenCoach(storage) : false
+  })
+
+  const [coachStep, setCoachStep] = useState(0)
+
+  const endCoaching = () => {
+    const storage = browserStorage()
+    if (storage) markCoachSeen(storage)
+    setCoaching(false)
+  }
   const [presetId, setPresetId] = useState(BUNDLED_PRESET_ID)
   // `tab-play` unmounts a running match exactly as `new-match` restarts one, so the
   // same guard belongs here. MatchHost reports whether there is anything to lose.
@@ -77,8 +94,15 @@ export function App() {
           presetId={activePreset}
           onPresetChange={setPresetId}
           onStart={() => setRoute('play')}
+          onOpenRules={() => setRoute('rules')}
         />
       )}
+
+      {loaded.ok && route === 'home' && coaching && (
+        <Coach index={coachStep} onNext={() => setCoachStep((i) => i + 1)} onDone={endCoaching} />
+      )}
+
+      {loaded.ok && route === 'rules' && <Rules content={loaded.set} onClose={() => setRoute('home')} />}
 
       {loaded.ok && route === 'play' && (
         <MatchHost

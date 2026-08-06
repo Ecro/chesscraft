@@ -156,6 +156,24 @@ export const ko: Record<string, string> = {
   'ui.result.reason.king_capture': '왕을 잡았어요',
   'ui.result.reason.win_action': '카드로 이겼어요',
   'ui.result.reason.material_cap': '기물이 더 많아요',
+  // --- rules reference (Phase 3) ---
+  'ui.rules.title': '무엇이 있나요',
+  'ui.rules.intro': '이 놀이에 들어 있는 것들이에요. 새로 만든 것도 여기에 바로 나와요.',
+  'ui.rules.close': '닫기',
+  'ui.rules.pieces': '기물',
+  'ui.rules.squares': '특별한 칸',
+  'ui.rules.ruleCards': '규칙 카드',
+  'ui.rules.skillCards': '스킬 카드',
+  'ui.rules.empty': '아직 없어요',
+  'ui.action.rules': '무엇이 있나 보기',
+  // --- first-visit coach marks (Phase 3) ---
+  // '여기' pointed at nothing — the coach is a card beside the button, not a
+  // spotlight on it — so the button is named by the label a child can read.
+  'ui.coach.start': '놀이를 고른 다음 「놀러 가기」를 누르면 시작해요.',
+  'ui.coach.rules': '기물이나 카드가 뭐 하는 건지 모르겠으면 언제든 여기서 볼 수 있어요.',
+  'ui.coach.next': '다음',
+  'ui.coach.skip': '건너뛰기',
+  'ui.coach.done': '알겠어요',
   'ui.result.win': '승리',
   'ui.result.draw': '무승부',
 }
