@@ -30,3 +30,6 @@ test-results/
 
 # git worktrees created by the /hm: stages — checkouts, never content
 .worktrees/
+
+# Playwright MCP writes screenshots and snapshots here when the browser tools run.
+.playwright-mcp/

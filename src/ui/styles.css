@@ -792,6 +792,21 @@ select {
   padding-left: var(--space-4);
   border-left: 3px solid var(--color-board-painted-a);
   margin-bottom: var(--space-1);
+  /* Korean breaks between syllables by default, so a narrow column splits a
+     name down the middle — 폭탄칸 rendered as 폭탄 / 칸. `keep-all` breaks at
+     spaces instead, which is what a Korean reader expects; `break-word` is the
+     safety valve for the one string too long to fit at all, so keeping words
+     whole can never push the column sideways. Visible first on the desktop
+     layout, where the side column is 300-420px, but correct everywhere. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* The name is its own flex item, so it shrinks before the description does and
+   takes the syllable break with it. It is the shortest thing on the line and
+   the one a player scans for — it should be the last thing to give. */
+.legend li > strong {
+  flex: 0 0 auto;
 }
 
 .legend-icon {
@@ -1119,6 +1134,84 @@ button.primary {
     /* 108px is the chrome above and below it in this layout, measured rather
        than guessed: title, nav, and the shell's own padding. */
     width: min(100%, calc(100vh - 108px));
+  }
+
+  .play > *:not(.board-frame):not(.draft-scrim) {
+    grid-column: 2;
+  }
+}
+
+/*
+ * Desktop and tablet-landscape — the shell stops being a phone.
+ *
+ * `main` capped at 480px unconditionally meant a 1920x1080 window threw away
+ * 1440px of width (75%) and STILL scrolled vertically: measured 1110px of
+ * document in a 1080px viewport, with the board pinned at 441px in the middle
+ * of two empty thirds. The two-column layout that fixes it already existed —
+ * directly above — but its query is `max-height: 560px`, i.e. a phone held
+ * sideways, so a desktop never matched it.
+ *
+ * `min-height: 600px` is what keeps these two disjoint rather than cascading.
+ * A 915x412 landscape phone (a viewport `e2e/layout.spec.ts` pins) matches
+ * `min-width: 900px` too, and without the height floor both blocks would apply
+ * with this one winning on source order — quietly retuning the layout that
+ * suite exists to protect.
+ */
+@media (min-width: 900px) and (min-height: 600px) {
+  main {
+    /* Not `none`: a 2560px monitor would give 40em-plus line lengths in the
+       rule text and the legend, which is worse than the empty space it fixes. */
+    max-width: min(1180px, 100%);
+    /* `clip`, not `hidden` — same reason as the block above. `overflow-x:
+       hidden` computes `overflow-y: auto`, which makes `main` a scroll
+       container, and a sticky element then positions against that instead of
+       the viewport and never activates. */
+    overflow-x: clip;
+  }
+
+  h1 {
+    font-size: 24px;
+    margin: 0 0 var(--space-3);
+  }
+
+  .play {
+    display: grid;
+    grid-template-columns: auto minmax(300px, 420px);
+    align-items: start;
+    column-gap: var(--space-5);
+    /*
+     * Without this the side column comes out with a ~590px hole in it.
+     *
+     * The board spans every row, and on a desktop it is TALLER than the stack
+     * beside it — so its height is handed to the tracks it spans and pushes the
+     * rule card, the hands and the legend apart. `align-content: start` does
+     * NOT fix it: that distributes leftover space in the container AFTER track
+     * sizing, and this happens DURING it.
+     *
+     * A trailing flexible track does fix it. Grid gives a spanning item's size
+     * to flexible tracks in preference to intrinsic ones, so the slack lands in
+     * the `1fr` at the bottom and the content rows stay at min-content. Twenty
+     * is simply more rows than `.play` will ever have (six today, plus the
+     * draft dialog); unused tracks resolve to zero.
+     *
+     * The landscape block above never needed any of this — on a 412px-tall
+     * phone the side stack is always the taller of the two.
+     */
+    grid-template-rows: repeat(20, min-content) 1fr;
+  }
+
+  .board-frame {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: start;
+    position: sticky;
+    top: calc(var(--space-5) + env(safe-area-inset-top, 0px));
+    /* Three bounds, and each one is doing work: the column it sits in, the
+       viewport height minus this layout's chrome (title, nav, padding —
+       measured, not guessed) so the board never forces a vertical scroll, and
+       a hard ceiling because a 900px chess board on a tall monitor reads as a
+       mistake rather than as generous. */
+    width: min(100%, calc(100vh - 170px), 620px);
   }
 
   .play > *:not(.board-frame):not(.draft-scrim) {

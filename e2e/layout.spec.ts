@@ -228,3 +228,62 @@ test.describe('at the narrowest supported phone', () => {
     await expect(page.getByTestId('haptics-toggle')).toBeVisible()
   })
 })
+
+/**
+ * Desktop — the shell stops being a phone.
+ *
+ * A viewport this file did not have, and the reason it now does: `main` was
+ * capped at `max-width: 480px` unconditionally, so a 1920x1080 window threw away
+ * 1440px of width (75%) and still scrolled vertically. Nothing here could see
+ * it — every viewport above is a phone or a tablet, where that cap is right.
+ *
+ * The gap assertion is the one worth having. The two-column layout puts the
+ * board in a grid area spanning every row, so when the board is TALLER than the
+ * stack beside it the browser hands the slack to the tracks it spans and blows a
+ * ~590px hole between the rule card and the hands. It looks like a rendering
+ * accident rather than a CSS mistake, no existing assertion touches it, and the
+ * fix (a trailing flexible track) is exactly the kind of line a later cleanup
+ * removes as redundant.
+ */
+test.describe('at desktop (1440x900)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('uses the width instead of leaving a phone column in the middle', async ({ page }) => {
+    await startMatch(page)
+
+    const { mainWidth, boardWidth, horizontal } = await page.evaluate(() => ({
+      mainWidth: Math.round(document.querySelector('main')!.getBoundingClientRect().width),
+      boardWidth: Math.round(document.querySelector('[data-testid="board"]')!.getBoundingClientRect().width),
+      horizontal: document.documentElement.scrollWidth > window.innerWidth,
+    }))
+
+    // Not an exact width — that would break on the first redesign. What is
+    // pinned is that the phone cap no longer applies at all.
+    expect(mainWidth, 'main is still capped at its phone width on a desktop').toBeGreaterThan(700)
+    expect(boardWidth, 'the board did not grow with the room it was given').toBeGreaterThan(480)
+    expect(horizontal, 'the page scrolls sideways').toBe(false)
+  })
+
+  test('the board stays square', async ({ page }) => {
+    await startMatch(page)
+    const box = await boardBox(page)
+    expect(Math.abs(box.w - box.h), `board is ${box.w}x${box.h}`).toBeLessThanOrEqual(2)
+  })
+
+  test('leaves no hole in the side column beside a taller board', async ({ page }) => {
+    await startMatch(page)
+
+    const gaps = await page.evaluate(() => {
+      const side = [...document.querySelectorAll('.play > *')].filter(
+        (el) => !el.classList.contains('board-frame') && !el.classList.contains('draft-scrim'),
+      )
+      return side.slice(1).map((el, i) =>
+        Math.round(el.getBoundingClientRect().top - side[i]!.getBoundingClientRect().bottom),
+      )
+    })
+
+    expect(gaps.length, 'no side column to measure').toBeGreaterThan(1)
+    // The row gap is 8px; anything near the board's height is the bug.
+    expect(Math.max(...gaps), `side column gaps: ${gaps.join(', ')}`).toBeLessThan(40)
+  })
+})
