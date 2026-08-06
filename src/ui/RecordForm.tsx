@@ -165,6 +165,7 @@ export function RecordForm({
   initialId,
   commit,
   onDirtyChange,
+  onOpenedIdChange,
   errors,
   setErrors,
 }: {
@@ -179,6 +180,16 @@ export function RecordForm({
    * shell asking "discard unsaved work?" about a form that has none.
    */
   onDirtyChange?: (dirty: boolean) => void
+  /**
+   * The id this form is responsible for, reported whenever it changes.
+   *
+   * The shell cannot derive it: a save made INSIDE the form moves `openedId`
+   * (a new record gets one, a rename changes it) and the shell's own
+   * `library.id` is set only by navigation. Anything the shell decides from
+   * that lagging value — including whether a delete should close this form —
+   * is deciding from a stale fact.
+   */
+  onOpenedIdChange?: (id: string | null) => void
   errors: ValidationError[]
   setErrors: (errors: ValidationError[]) => void
 }) {
@@ -808,7 +819,23 @@ export function RecordForm({
    * then is the new text written — so the freshly typed name lands on the key
    * the record now points at rather than on the one it just left.
    */
+  /**
+   * The record this form holds is no longer in the document.
+   *
+   * Deleted — from this panel or the other one, which stays mounted. The 9a
+   * stale-snapshot guard already refuses the save, but it refuses it with a
+   * message about the document moving, which is true of an import and misleading
+   * about a deletion the child just performed. Saying so on the screen, at the
+   * moment it becomes true, is the display half of the same rule.
+   */
+  const subjectDeleted = openedId !== null && openDraft(source, kind, openedId) === null
+
   const save = () => {
+    if (subjectDeleted) {
+      setErrors([{ contentId: openedId ?? '', path: '', message: t('ui.editor.form.deleted') }])
+      setSaved(null)
+      return
+    }
     // The document must still be the one this form opened against. A record
     // that changed or vanished under an open form means the save would silently
     // discard someone else's write — including the author's own import.
@@ -866,6 +893,7 @@ export function RecordForm({
     setErrors([])
     setDraft(next)
     setOpenedId(id)
+    onOpenedIdChange?.(id)
     // The snapshot moves forward with the save, or the NEXT save would compare
     // against a version this form itself superseded and refuse every time.
     setOpenedSnapshot(snapshotOf(result.source, kind, id))
@@ -1314,7 +1342,13 @@ export function RecordForm({
         </fieldset>
       )}
 
-      <button type="button" data-testid="editor-save" onClick={save}>
+      {subjectDeleted && (
+        <p className="refusal" data-testid="editor-deleted-notice">
+          {t('ui.editor.form.deleted')}
+        </p>
+      )}
+
+      <button type="button" data-testid="editor-save" onClick={save} disabled={subjectDeleted}>
         {t('ui.editor.form.save')}
       </button>
       {saved && <p data-testid="editor-saved">{t('ui.editor.form.saved')}</p>}

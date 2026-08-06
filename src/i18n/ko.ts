@@ -295,6 +295,21 @@ export const ko: Record<string, string> = {
   'ui.editor.library.intro': '만든 것이 모두 여기 있어요. 하나를 고르면 고칠 수 있어요.',
   'ui.editor.library.kind': '무엇을 볼까요',
   'ui.editor.library.empty': '아직 없어요.',
+  // What an open screen says when the thing it is showing is gone. 9a answered
+  // the SAVE half of that question (refuse, and say the document moved); these
+  // are the display half, so the child is told at the moment it happens rather
+  // than by a staleness error on their next save.
+  'ui.editor.form.deleted': '이건 지워졌어요. 여기서 고친 건 저장되지 않아요.',
+  'ui.editor.room.deleted': '이 방은 지워졌어요. 방 목록으로 돌아가 주세요.',
+  'ui.editor.room.missing-entry': '지워진 것',
+  'ui.editor.delete.label': '지우기',
+  'ui.editor.delete.confirm': '정말 지울까요? 되돌릴 수 없어요.',
+  // Names the rooms, because the room is the thing the child can go and
+  // change. "참조되고 있습니다" is true and tells them nothing.
+  'ui.editor.delete.referenced': '이 방들이 쓰고 있어서 지울 수 없어요:',
+  'ui.editor.delete.last-room': '방이 하나뿐이에요. 마지막 방은 지울 수 없어요.',
+  'ui.editor.delete.missing': '이미 없어졌어요.',
+  'ui.editor.delete.invalid': '이걸 지우면 다른 것이 망가져서 놀이가 안 열려요.',
   'ui.editor.library.unused': '어느 방에도 안 들어감',
 
   'ui.editor.kind.piece': '기물',

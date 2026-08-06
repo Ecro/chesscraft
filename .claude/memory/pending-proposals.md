@@ -76,3 +76,36 @@ Two concrete forms:
 2. `/hm:execute` Step 1 — after parsing the phase, name the files the exit criterion
    makes reachable and diff that against the scope list. Surfacing the delta BEFORE
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
+
+## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 3)
+**Proposed mechanism:** rule update — a step in `/hm:execute` Phase D and in
+`/hm:review`'s fix loop
+**Rationale:** All three instances are the same thing at different layers, and
+the third was created BY the fix for the second. (1) `check_count_at_least` and
+`own_back_rank` validated but no interpreter read them, so an authored card
+passed every check and did nothing. (2) `--color-focus` and `--color-board-dark`
+were declared in all three cascade layers and referenced by no selector — the
+board token was the costly one, because it implied a checkered board that did
+not exist and the flat board therefore read as intentional to everyone,
+including the author of the audit that missed it. (3) A review finding said
+deletion dropped overlay text by id prefix; the repair REPLACED that call with a
+reachability walk and left `dropStrings` exported with no caller but its own
+passing unit test, while the PLAN note written minutes earlier claimed the phase
+had closed an instance of this very entry by giving `dropStrings` a caller.
+
+What links them is not "dead code" in general — it is that each artifact was
+left in a state that ADVERTISES capability it no longer has, and in every case a
+green test or a clean validation is what made it look alive. Instance (3) adds
+the trigger the first two did not have: **a fix that replaces a call site rather
+than changing it makes the replaced symbol a candidate immediately**, and that
+is mechanically detectable at the moment the edit is made.
+
+The proposed step, at both sites: when a fix removes the last call to a symbol,
+grep for remaining references; if the only ones are its own tests, delete the
+symbol and the tests in the same change, or write down why it is being kept.
+One `rg` per removed call site, and it would have caught (3) at the keystroke
+rather than during a self-review two steps later. It does not catch (1) or (2),
+which need the ADR-006-style coverage gates those entries already argue for —
+so this proposal is the cheap half, not the whole answer.
+

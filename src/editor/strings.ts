@@ -80,12 +80,6 @@ export function clearString(
   return next
 }
 
-/** Drops every key belonging to `id`, in every locale. */
-export function dropStrings(strings: ContentStrings | undefined, id: string): ContentStrings | undefined {
-  if (!strings) return strings
-  return mapEntries(strings, (key) => (belongsTo(key, id) ? null : key))
-}
-
 function belongsTo(key: string, id: string): boolean {
   return key.startsWith(`${id}.`)
 }

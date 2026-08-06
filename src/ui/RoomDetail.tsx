@@ -136,23 +136,50 @@ export function RoomDetail({
     })
   }
 
-  const tickList = (field: string, legendKey: string, prefix: string, entries: Array<[string, unknown]>) => (
-    <fieldset>
-      <legend>{t(legendKey)}</legend>
-      {entries.map(([id, nameKey]) => (
-        <label key={id}>
-          <input
-            type="checkbox"
-            data-testid={`${prefix}-${id}`}
-            checked={list(field).includes(id)}
-            onChange={() => toggle(field, id)}
-          />
-          {recordLabel(t, id, nameKey)}
-        </label>
-      ))}
-      {entries.length === 0 && <p className="empty">{t('ui.editor.library.empty')}</p>}
-    </fieldset>
-  )
+  /**
+   * The tick-list, plus a row for anything this draft holds that the document
+   * no longer does.
+   *
+   * Those rows are the point. The lists are built from the current `source`, and
+   * this screen stays mounted while the library deletes things — so a record
+   * ticked here but not yet SAVED could be deleted underneath (no committed room
+   * references it, so the delete is correct), and the id stayed in the draft with
+   * no checkbox left to untick it. The save then failed validation and the only
+   * way out was to abandon the room. A row that exists purely to be unticked is
+   * what turns that dead end back into a decision.
+   */
+  const tickList = (field: string, legendKey: string, prefix: string, entries: Array<[string, unknown]>) => {
+    const present = new Set(entries.map(([id]) => id))
+    const vanished = list(field).filter((id) => !present.has(id))
+    return (
+      <fieldset>
+        <legend>{t(legendKey)}</legend>
+        {entries.map(([id, nameKey]) => (
+          <label key={id}>
+            <input
+              type="checkbox"
+              data-testid={`${prefix}-${id}`}
+              checked={list(field).includes(id)}
+              onChange={() => toggle(field, id)}
+            />
+            {recordLabel(t, id, nameKey)}
+          </label>
+        ))}
+        {vanished.map((id) => (
+          <label key={id} className="vanished">
+            <input
+              type="checkbox"
+              data-testid={`${prefix}-${id}`}
+              checked
+              onChange={() => toggle(field, id)}
+            />
+            {`${id} (${t('ui.editor.room.missing-entry')})`}
+          </label>
+        ))}
+        {entries.length === 0 && vanished.length === 0 && <p className="empty">{t('ui.editor.library.empty')}</p>}
+      </fieldset>
+    )
+  }
 
   /**
    * Saves the room and folds the typed name into the document's overlay.
@@ -164,7 +191,15 @@ export function RoomDetail({
    * today, but the room is also editable as a flat record in the library, and
    * the two paths must not disagree about what a rename means.
    */
+  /** This room is no longer in the document — deleted, from here or the library. */
+  const roomDeleted = openedId !== null && openDraft(source, 'preset', openedId) === null
+
   const save = () => {
+    if (roomDeleted) {
+      setErrors([{ contentId: openedId ?? '', path: '', message: t('ui.editor.room.deleted') }])
+      setSaved(false)
+      return
+    }
     if (openedId !== null && !sameSnapshot(snapshotOf(source, 'preset', openedId), openedSnapshot)) {
       setErrors([{ contentId: openedId, path: '', message: t('ui.editor.form.stale') }])
       setSaved(false)
@@ -273,7 +308,19 @@ export function RoomDetail({
         {t('ui.editor.room.new-skill')}
       </button>
 
-      <button type="button" className="primary" data-testid="room-save" onClick={save}>
+      {roomDeleted && (
+        <p className="refusal" data-testid="room-deleted-notice">
+          {t('ui.editor.room.deleted')}
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="primary"
+        data-testid="room-save"
+        onClick={save}
+        disabled={roomDeleted}
+      >
         {t('ui.editor.room.save')}
       </button>
       {saved && <p data-testid="room-saved">{t('ui.editor.room.saved')}</p>}

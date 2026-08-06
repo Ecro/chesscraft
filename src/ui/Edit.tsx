@@ -79,8 +79,14 @@ export function Edit({ source, onCommit }: { source: ContentSource; onCommit: (n
    * One gate on the one thing they all do is the only shape that cannot rot as
    * a fifth caller appears.
    */
-  const openInLibrary = (kind: DraftKind, id: string | null): boolean => {
-    if (libraryDirty && !window.confirm(t('ui.editor.form.discard-confirm'))) return false
+  const openInLibrary = (kind: DraftKind, id: string | null, force = false): boolean => {
+    // `force` is not "skip the safety check" — it is "there is nothing to ask
+    // about". Its one caller is a delete of the very record the form is holding,
+    // where the buffer's subject is going away with it. Clearing `libraryDirty`
+    // first and then calling in normally does NOT work and is worth recording:
+    // React has not re-rendered yet, so this closure still reads the old `true`
+    // and prompts anyway.
+    if (!force && libraryDirty && !window.confirm(t('ui.editor.form.discard-confirm'))) return false
     setLibrary((prev) => ({ kind, id, seq: prev.seq + 1 }))
     setLibraryDirty(false)
     return true

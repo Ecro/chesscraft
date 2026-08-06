@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveKey, dropStrings, readString, rekeyStrings, writeString } from '@editor/strings'
+import { deriveKey, readString, rekeyStrings, writeString } from '@editor/strings'
 
 /**
  * PLAN Phase 8, ADR-020 — the editor derives the key; the child types the text.
@@ -96,18 +96,3 @@ describe('re-keying an overlay when a record id changes', () => {
   })
 })
 
-describe('dropping a record from the overlay', () => {
-  it('removes only that record’s keys', () => {
-    const strings = {
-      ko: { 'piece.rabbit.name': '토끼', 'piece.rabbitfoot.name': '토끼발', 'piece.king.name': '왕' },
-    }
-    const next = dropStrings(strings, 'piece.rabbit')
-    expect(next?.ko?.['piece.rabbit.name']).toBeUndefined()
-    expect(next?.ko?.['piece.rabbitfoot.name']).toBe('토끼발')
-    expect(next?.ko?.['piece.king.name']).toBe('왕')
-  })
-
-  it('is a no-op on a document with no overlay', () => {
-    expect(dropStrings(undefined, 'piece.rabbit')).toBeUndefined()
-  })
-})

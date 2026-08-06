@@ -1402,3 +1402,37 @@ button.primary {
   font-family: monospace;
   font-size: var(--font-size-sm);
 }
+
+/* The delete controls (PLAN Phase 9b). Deliberately quiet rather than alarming:
+   a red button beside every row makes a screen the child is meant to browse
+   feel like a minefield. The weight is in the confirm and in the refusal, which
+   is where the irreversible step actually is. */
+.editor button.danger {
+  flex: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.editor button.danger:hover {
+  color: var(--color-text-negative);
+  border-color: var(--color-text-negative);
+}
+
+/* The refusal names rooms, so it has to be readable as a sentence rather than
+   as a chip — full width, and it does not disappear on the next render. */
+.refusal {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-negative);
+  background: var(--color-surface-negative);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* A record the draft still holds that the document no longer has (Phase 9b
+   review). Shown so it can be unticked — without a row there is no control at
+   all, and the room becomes unsaveable with no way to see why. */
+.editor label.vanished {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}

@@ -1042,6 +1042,38 @@ exists to remove.
 - **Risk:** high — the failure mode is a content set that no longer loads, which takes the
   whole app down rather than one room
 - **Rollback:** Phase 9a
+- **Status: DONE (2026-08-07).** `npm run verify` GREEN — typecheck + build + 388 unit +
+  73 Playwright + 4 PWA. New: `src/editor/draft.ts` (`deleteRecord` + `DeleteResult`),
+  `src/ui/deleteMessage.ts`; delete controls and refusals in `EditorRooms.tsx` /
+  `EditorLibrary.tsx`; `ui.editor.delete.*` copy; `.danger` / `.refusal` styles.
+  Tests: `tests/editor/delete.test.ts` (11 cases), `e2e/delete.spec.ts` (3). Phase A.5
+  test-reviewer PASS on attempt 1.
+- **Three gates in series, and the third is what makes the first two safe to be wrong:**
+  1. the last room is refused (no schema backstop — `presets` carries no array minimum, so
+     a roomless document validates perfectly and leaves nothing to play);
+  2. a referenced record is refused with the room ids RETURNED, `references.ts` being the
+     single owner of that question so "safe to delete" and "not used by anything" cannot
+     drift apart;
+  3. the result goes back through `loadContentSet`. Gate 3 is **not** redundant with gate 2,
+     and a test pins the gap: `references.ts` walks only boards a room actually plays on,
+     while the loader checks EVERY board's `placements` — so a piece standing on a board no
+     room uses passes gate 2 and is caught only here.
+- **A delete takes the record's overlay text with it, dropped by REACHABILITY.** It collects
+  the keys the deleted record actually pointed at and removes only those nothing else points
+  at. The first version used `dropStrings`, which drops by the `${id}.` prefix — and since
+  Phase 9a a record's keys need not derive from its id (`slotFor` exists so an imported set
+  keeps its namespace), so the prefix answer got both halves wrong at once: it stranded the
+  deleted record's real entries and removed `<id>.name` even when a surviving record was the
+  one pointing at it. The 9b review caught that; `dropStrings` had no other caller and was
+  removed with its tests rather than left exported and inert.
+- **Confirmation is `window.confirm`**, matching the app's two existing destructive moves
+  (leaving a match, discarding a draft). The A.5 reviewer flagged that no other e2e uses a
+  native dialog and asked for the choice to be made once rather than bounced; making a third
+  destructive action look different would teach the child that some of them mean less.
+- **Phase D.5 skipped, deliberately:** this phase is new-feature work, not a repair —
+  nothing in the editor deleted anything before it, so there is no prior input window a fix
+  newly opened. The only defect corrected during the phase was in `e2e/delete.spec.ts`
+  itself (it re-opened a room detail that was already open), not in production code.
 
 ### Phase 10 — Making a room feel makeable: preview, playtest, staged complexity, backup
 - `depends_on`: [9b]
@@ -1123,7 +1155,7 @@ frontmatter still says so.
     criterion says a child *types* the name, and there is no field to type into until 9a.
     Ticking it on the mechanism alone would report a reachable outcome that is not reachable.
 - [x] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
-- [ ] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
+- [x] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
 - [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
 - [x] The app installs and plays offline after one visit. *(Phase 7 — installability on iOS below 16.4 is a manual check; the e2e suite is Chromium-only)*
 - [x] Motion is fully suppressed under `prefers-reduced-motion`; sound and haptics are toggleable and off/on per ADR-023's defaults.

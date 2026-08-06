@@ -1,4 +1,6 @@
 import { type ContentSet, type ContentSource, type ValidationError, loadContentSet } from '@content/load'
+import type { ContentStrings } from '@content/schema'
+import { roomsReferencing } from './references'
 import { rekeyStrings } from './strings'
 
 /**
@@ -171,4 +173,155 @@ export function commitDraft(
   const result = loadContentSet(next)
   if (!result.ok) return { ok: false, errors: result.errors }
   return { ok: true, source: next, set: result.set }
+}
+
+/**
+ * Why a delete was refused, and what the UI needs to say about it.
+ *
+ * `rooms` carries the referring preset IDS rather than a boolean, because the
+ * sentence a child has to read is "이 방들이 쓰고 있어요" with their rooms named.
+ * A guard that only says no leaves them to open every room and guess which one
+ * is holding on — and the whole reason this returns instead of just refusing is
+ * that the caller can then take them straight there.
+ */
+export type DeleteResult =
+  | { ok: true; source: ContentSource; set: ContentSet }
+  | {
+      ok: false
+      /**
+       * `referenced` — at least one room reaches it. `last-room` — it is the only
+       * room left. `missing` — nothing by that id. `invalid` — the reference walk
+       * allowed it and the LOADER refused the result.
+       */
+      reason: 'referenced' | 'last-room' | 'missing' | 'invalid'
+      rooms: string[]
+      errors: ValidationError[]
+    }
+
+const NO_ROOMS: string[] = []
+const NO_ERRORS: ValidationError[] = []
+
+/**
+ * Removes one record, or explains why it cannot.
+ *
+ * Deletion is the least-precedented thing this editor does — nothing here
+ * deleted anything before Phase 9b — and its failure mode is the worst one
+ * available: not a broken screen but a document that will not load, which takes
+ * the whole app down rather than one room. So this is built as three gates in
+ * series, and the third is the one that makes the first two safe to be wrong:
+ *
+ * 1. **The last room is refused**, and that guard has NO schema backstop —
+ *    `presets` carries no array minimum, so a document with zero rooms
+ *    validates perfectly and leaves nothing to play and no way back except the
+ *    editor the child just emptied.
+ * 2. **A referenced record is refused, with the rooms named.** `references.ts`
+ *    is the single owner of that question, shared with the library's unused
+ *    badge, so "safe to delete" and "not used by anything" cannot drift apart.
+ * 3. **The result goes back through `loadContentSet`** — the same validator the
+ *    game loads with, exactly as `commitDraft` does. This is not belt-and-braces
+ *    with gate 2: `references.ts` walks only boards a room actually plays on,
+ *    while the loader checks EVERY board's `placements`, so a piece standing on
+ *    a board no room uses passes gate 2 and is caught here.
+ *
+ * `base` is never mutated — on any refusal the caller still holds a document
+ * that loads.
+ */
+export function deleteRecord(base: ContentSource, kind: DraftKind, id: string): DeleteResult {
+  const collection = COLLECTION_OF[kind]
+  const list = base[collection] as unknown[]
+  if (!list.some((record) => idOf(record) === id)) {
+    return { ok: false, reason: 'missing', rooms: NO_ROOMS, errors: NO_ERRORS }
+  }
+
+  if (kind === 'preset' && base.presets.length <= 1) {
+    return { ok: false, reason: 'last-room', rooms: NO_ROOMS, errors: NO_ERRORS }
+  }
+
+  const rooms = roomsReferencing(base, kind, id)
+  if (rooms.length > 0) {
+    return { ok: false, reason: 'referenced', rooms, errors: NO_ERRORS }
+  }
+
+  const next = structuredClone(base)
+  // Spliced in place rather than reassigned through the indexed key: the union
+  // of `ContentSource`'s value types collapses to `never` under an indexed
+  // write, and casting the assignment away would cast away the collection check
+  // with it.
+  const target = next[collection] as unknown[]
+  for (let i = target.length - 1; i >= 0; i -= 1) {
+    if (idOf(target[i]) === id) target.splice(i, 1)
+  }
+
+  // The record's text goes with the record — but only the text that is now
+  // UNREACHABLE, and reachability is decided by what the surviving records point
+  // at, never by the deleted id's namespace.
+  //
+  // Dropping by the `${id}.` prefix looks equivalent and is not. Since Phase 9a
+  // a record's keys need not derive from its id (`slotFor` exists precisely so
+  // an imported set keeps its own namespace), so an id-prefix drop does both
+  // halves wrong at once: it leaves the deleted record's real entries orphaned,
+  // and it removes `<id>.name` even when a DIFFERENT surviving record is the one
+  // pointing at it. Asking "does anything still reference this key" cannot make
+  // either mistake, and it degenerates to the prefix answer in the ordinary case
+  // where keys are derived.
+  const dropped = dropUnreferenced(next.strings, keysOwnedBy(base, kind, id), next)
+  if (dropped !== undefined) next.strings = dropped
+
+  const result = loadContentSet(next)
+  if (!result.ok) return { ok: false, reason: 'invalid', rooms: NO_ROOMS, errors: result.errors }
+  return { ok: true, source: next, set: result.set }
+}
+
+/** The i18n keys a single record points at. */
+function keysOwnedBy(source: ContentSource, kind: DraftKind, id: string): string[] {
+  const record = (source[COLLECTION_OF[kind]] as unknown[]).find((r) => idOf(r) === id)
+  return keysOf(record)
+}
+
+function keysOf(record: unknown): string[] {
+  if (record === null || typeof record !== 'object') return []
+  const r = record as Record<string, unknown>
+  return ['nameKey', 'textKey', 'iconKey']
+    .map((field) => r[field])
+    .filter((value): value is string => typeof value === 'string' && value !== '')
+}
+
+/** Every i18n key the document still points at, across every collection. */
+function keysStillUsed(source: ContentSource): Set<string> {
+  const used = new Set<string>()
+  for (const collection of Object.values(COLLECTION_OF)) {
+    for (const record of source[collection] as unknown[]) {
+      for (const key of keysOf(record)) used.add(key)
+    }
+  }
+  return used
+}
+
+/**
+ * Drops `candidates` from every locale, except any key something still uses.
+ *
+ * Returns the original overlay unchanged when nothing was dropped, so a document
+ * with no overlay stays a document with no overlay — `strings` is
+ * exactly-optional and an empty object is a different document from an absent
+ * field.
+ */
+function dropUnreferenced(
+  strings: ContentStrings | undefined,
+  candidates: readonly string[],
+  after: ContentSource,
+): ContentStrings | undefined {
+  if (strings === undefined || candidates.length === 0) return strings
+  const used = keysStillUsed(after)
+  const orphaned = candidates.filter((key) => !used.has(key))
+  if (orphaned.length === 0) return strings
+
+  const next: ContentStrings = {}
+  for (const [locale, entries] of Object.entries(strings)) {
+    const bucket: Record<string, string> = {}
+    for (const [key, text] of Object.entries(entries)) {
+      if (!orphaned.includes(key)) bucket[key] = text
+    }
+    next[locale] = bucket
+  }
+  return next
 }
