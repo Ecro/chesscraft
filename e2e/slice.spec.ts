@@ -44,10 +44,15 @@ test('the editor refuses to save content that fails validation', async ({ page }
   await useSliceContent(page)
   await page.getByTestId('tab-edit').click()
 
+  // Phase 9a moved the record forms behind the library tab, and the raw key
+  // slot behind 고급 설정 — a literal name is now something the editor makes an
+  // author go out of their way to write, which is the point of ADR-020.
+  await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption('skillCard')
   await page.getByTestId('editor-id').fill('skill.smokescreen')
+  await page.getByTestId('editor-advanced').locator('summary').click()
   await page.getByTestId('editor-nameKey').fill('Smokescreen')
   await page.getByTestId('editor-save').click()
 
-  await expect(page.getByTestId('editor-errors')).toContainText('nameKey')
+  await expect(page.getByTestId('editor-field-error-nameKey')).toBeVisible()
 })

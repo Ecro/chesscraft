@@ -12,16 +12,31 @@ import { useSliceContent } from './content'
  * board.
  */
 
+/**
+ * Phase 9a moved every selector in this file (ADR-016). The record forms did
+ * not change — the ADR-006 coverage gate proves that — but they now live behind
+ * the editor's 재료 창고 tab, because the editor's front door is the room list.
+ * One helper absorbs the move for the whole suite.
+ */
 async function openEditor(page: Page, kind: string) {
   await useSliceContent(page)
   await page.getByTestId('tab-edit').click()
+  await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption(kind)
 }
 
+/**
+ * Phase 9a: the child types TEXT and the editor derives the key (ADR-020), so
+ * these fills go through the name/description inputs. The values are still the
+ * old key strings on purpose — every assertion downstream watches for
+ * `<id>.name` on the screen, and before this phase that string appeared because
+ * the key was unresolved, while now it appears because it is the authored text.
+ * Same sentinel, so the specs stay honest about what moved and what did not.
+ */
 async function fillIdentity(page: Page, id: string, opts: { text?: boolean } = {}) {
   await page.getByTestId('editor-id').fill(id)
-  await page.getByTestId('editor-nameKey').fill(`${id}.name`)
-  if (opts.text !== false) await page.getByTestId('editor-textKey').fill(`${id}.text`)
+  await page.getByTestId('editor-name').fill(`${id}.name`)
+  if (opts.text !== false) await page.getByTestId('editor-text').fill(`${id}.text`)
 }
 
 async function save(page: Page) {
@@ -78,7 +93,7 @@ test('authored content is playable in the same session', async ({ page }) => {
   await save(page)
 
   await page.getByTestId('editor-kind').selectOption('board')
-  await page.getByTestId('editor-open-board.slice').click()
+  await page.getByTestId('library-open-board.slice').click()
   await page.getByTestId('paint-type').selectOption('square.quicksand')
   await page.getByTestId('paint-d3').click()
   await save(page)
@@ -100,14 +115,14 @@ test.describe('piece axis', () => {
 
     // Put it on the board and into the preset, so a match can reach it.
     await page.getByTestId('editor-kind').selectOption('board')
-    await page.getByTestId('editor-open-board.slice').click()
+    await page.getByTestId('library-open-board.slice').click()
     await page.getByTestId('place-piece').selectOption('piece.hopper')
     await page.getByTestId('place-side').selectOption('white')
     await page.getByTestId('place-a3').click()
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('preset')
-    await page.getByTestId('editor-open-preset.slice').click()
+    await page.getByTestId('library-open-preset.slice').click()
     await page.getByTestId('preset-piece-piece.hopper').check()
     await save(page)
 
@@ -117,7 +132,7 @@ test.describe('piece axis', () => {
 
   test('edits an existing piece and the new movement decides what is legal', async ({ page }) => {
     await openEditor(page, 'piece')
-    await page.getByTestId('editor-open-piece.archer').click()
+    await page.getByTestId('library-open-piece.archer').click()
 
     await page.getByTestId('editor-clear-movement').click()
     await page.getByTestId('vocab-movement-jump').click()
@@ -145,7 +160,7 @@ test.describe('special-square axis', () => {
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('board')
-    await page.getByTestId('editor-open-board.slice').click()
+    await page.getByTestId('library-open-board.slice').click()
     await page.getByTestId('paint-type').selectOption('square.lava')
     await page.getByTestId('paint-e5').click()
     await save(page)
@@ -157,8 +172,8 @@ test.describe('special-square axis', () => {
 
   test('edits a shipped square type and the board legend follows', async ({ page }) => {
     await openEditor(page, 'squareType')
-    await page.getByTestId('editor-open-square.beacon').click()
-    await page.getByTestId('editor-textKey').fill('square.beacon.revised')
+    await page.getByTestId('library-open-square.beacon').click()
+    await page.getByTestId('editor-text').fill('square.beacon.revised')
     await save(page)
 
     await play(page)
@@ -179,7 +194,7 @@ test.describe('rule-card axis', () => {
 
     // A preset that offers exactly one rule card makes the draw deterministic.
     await page.getByTestId('editor-kind').selectOption('preset')
-    await page.getByTestId('editor-open-preset.slice').click()
+    await page.getByTestId('library-open-preset.slice').click()
     await page.getByTestId('preset-rule-rule.beacon-rush').uncheck()
     await page.getByTestId('preset-rule-rule.sudden-death').check()
     await save(page)
@@ -190,8 +205,8 @@ test.describe('rule-card axis', () => {
 
   test('edits a rule card and the edit is what the match plays with', async ({ page }) => {
     await openEditor(page, 'ruleCard')
-    await page.getByTestId('editor-open-rule.beacon-rush').click()
-    await page.getByTestId('editor-textKey').fill('rule.beacon-rush.revised')
+    await page.getByTestId('library-open-rule.beacon-rush').click()
+    await page.getByTestId('editor-text').fill('rule.beacon-rush.revised')
     await save(page)
 
     await play(page)
@@ -216,7 +231,7 @@ test.describe('skill-card axis', () => {
     // card is forced into the very first offer by counting, with no golden RNG
     // value to go stale and no turns to play first.
     await page.getByTestId('editor-kind').selectOption('preset')
-    await page.getByTestId('editor-open-preset.slice').click()
+    await page.getByTestId('library-open-preset.slice').click()
     for (const id of ['skill.rally', 'skill.volley', 'skill.snare', 'skill.ascend']) {
       await page.getByTestId(`preset-skill-${id}`).uncheck()
     }
@@ -231,15 +246,15 @@ test.describe('skill-card axis', () => {
 
   test('edits a skill card and the change shows on the card the player holds', async ({ page }) => {
     await openEditor(page, 'skillCard')
-    await page.getByTestId('editor-open-skill.warp').click()
-    await page.getByTestId('editor-nameKey').fill('skill.warp.renamed')
+    await page.getByTestId('library-open-skill.warp').click()
+    await page.getByTestId('editor-name').fill('skill.warp.renamed')
     await save(page)
 
     // Same counting argument as the create test: a three-card pool IS the
     // offer, so the edited card is reachable without a seed assumption and
     // without a fallback branch that would assert the value it just typed.
     await page.getByTestId('editor-kind').selectOption('preset')
-    await page.getByTestId('editor-open-preset.slice').click()
+    await page.getByTestId('library-open-preset.slice').click()
     for (const id of ['skill.volley', 'skill.snare', 'skill.ascend']) {
       await page.getByTestId(`preset-skill-${id}`).uncheck()
     }
@@ -259,7 +274,7 @@ test.describe('board axis', () => {
   test('creates a board with painted squares and a preset that plays on it', async ({ page }) => {
     await openEditor(page, 'board')
     await page.getByTestId('editor-id').fill('board.duel')
-    await page.getByTestId('editor-nameKey').fill('board.duel.name')
+    await page.getByTestId('editor-name').fill('board.duel.name')
     await page.getByTestId('place-piece').selectOption('piece.king')
     await page.getByTestId('place-side').selectOption('white')
     await page.getByTestId('place-a1').click()
@@ -271,7 +286,7 @@ test.describe('board axis', () => {
 
     await page.getByTestId('editor-kind').selectOption('preset')
     await page.getByTestId('editor-id').fill('preset.duel')
-    await page.getByTestId('editor-nameKey').fill('preset.duel.name')
+    await page.getByTestId('editor-name').fill('preset.duel.name')
     await page.getByTestId('preset-board').selectOption('board.duel')
     for (const id of ['piece.king', 'piece.archer']) await page.getByTestId(`preset-piece-${id}`).check()
     await page.getByTestId('preset-rule-rule.beacon-rush').check()
@@ -289,7 +304,7 @@ test.describe('board axis', () => {
 
   test('edits the shipped board by painting another square', async ({ page }) => {
     await openEditor(page, 'board')
-    await page.getByTestId('editor-open-board.slice').click()
+    await page.getByTestId('library-open-board.slice').click()
     await page.getByTestId('paint-type').selectOption('square.beacon')
     await page.getByTestId('paint-e5').click()
     await save(page)
@@ -303,7 +318,13 @@ test.describe('board axis', () => {
 test.describe('validation and transfer', () => {
   test('blocks a save that fails validation and names the offending field', async ({ page }) => {
     await openEditor(page, 'skillCard')
-    await fillIdentity(page, 'skill.broken')
+    await page.getByTestId('editor-id').fill('skill.broken')
+    await page.getByTestId('editor-text').fill('skill.broken.text')
+    // Reaching past the derived field on purpose: `editor-name` cannot produce
+    // an invalid key any more, so the only way to author one — and the only way
+    // this test still tests what it is named after — is the raw slot under
+    // 고급 설정, which has to be opened first.
+    await page.getByTestId('editor-advanced').locator('summary').click()
     await page.getByTestId('editor-nameKey').fill('Smokescreen')
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
@@ -311,7 +332,10 @@ test.describe('validation and transfer', () => {
     await page.getByTestId('editor-save').click()
 
     await expect(page.getByTestId('editor-errors')).toBeVisible()
-    await expect(page.getByTestId('editor-errors')).toContainText('nameKey')
+    // The error is anchored to the control that caused it (#25) rather than
+    // printed as a schema path — `presets.x.nameKey` names a field the author
+    // has never seen, and Phase 9a's copy rule forbids putting it on screen.
+    await expect(page.getByTestId('editor-field-error-nameKey')).toBeVisible()
     await expect(page.getByTestId('editor-saved')).toHaveCount(0)
 
     // The rejected save must not have half-landed.
@@ -339,8 +363,9 @@ test.describe('validation and transfer', () => {
     await page.getByTestId('editor-import').click()
     await expect(page.getByTestId('editor-errors')).toHaveCount(0)
 
+    await page.getByTestId('editor-tab-library').click()
     await page.getByTestId('editor-kind').selectOption('skillCard')
-    await page.getByTestId('editor-open-skill.mirror').click()
+    await page.getByTestId('library-open-skill.mirror').click()
     await expect(page.getByTestId('editor-id')).toHaveValue('skill.mirror')
   })
 
@@ -365,11 +390,15 @@ test.describe('validation and transfer', () => {
     await page.getByTestId('vocab-action-win').click()
     await save(page)
 
-    await expect(page.getByTestId('editor-storage-status')).toContainText('saved')
+    // The status is Korean copy now (#39), so this asserts it is not EMPTY
+    // rather than matching an English word that no longer appears. The claim
+    // the test is making lives in the reload below either way.
+    await expect(page.getByTestId('editor-storage-status')).not.toBeEmpty()
 
     await page.reload()
     await page.getByTestId('tab-edit').click()
+    await page.getByTestId('editor-tab-library').click()
     await page.getByTestId('editor-kind').selectOption('skillCard')
-    await expect(page.getByTestId('editor-open-skill.keepsake')).toBeVisible()
+    await expect(page.getByTestId('library-open-skill.keepsake')).toBeVisible()
   })
 })

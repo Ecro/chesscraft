@@ -17,7 +17,7 @@ have caught all three: for any fixture, name the negative instance; for any samp
 risk, or iterate.
 
 ## Proposal: a closed-set sweep before any fix is declared resolved (2026-08-06)
-**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 3)
+**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 4)
 **Proposed mechanism:** rule update — a step in `/hm:review`'s auto-fix loop
 **Rationale:** All three instances share one shape: the remedy was verified
 against the evidence that prompted it rather than against the closed set the
@@ -35,6 +35,23 @@ a shared CSS property, a set of callers), run and record the sweep that
 enumerates the whole set, and paste its output into the fix log. The tell to
 match on is a finding whose subject is plural paired with a verification that is
 singular.
+
+**Update (2026-08-06, count 3 -> 4).** The fourth instance fired the shape THREE
+TIMES inside one work unit (PLAN phase 9a's review rounds), which raises the
+proposal's priority and sharpens its trigger. (a) A rename repair re-derived
+`<id>.name` unconditionally — correct for the derived-key record that motivated
+it, silently re-homing a record keyed in a foreign namespace. (b) A
+stale-document guard compared only the stored record, which its own motivating
+case defeats: an import that changes a NAME leaves the record byte-identical
+because the record carries only the key. (c) A discard-confirm was attached to
+the one navigation path the finding named and left the three more-travelled
+paths to the same remount unguarded. Note what (b) adds to the original
+diagnosis: the closed set is not always a set of FILES or CALLERS that a grep
+can enumerate — there it was the set of *representations a value can move
+between* (record field vs overlay entry). So the sweep step needs a second
+prompt beside "enumerate the callers": **name the set the reported case is one
+member of, in the finding's own terms, before writing the guard.** In all three
+of these the set was nameable in one sentence and was never written down.
 
 ## Proposal: derive phase scope from reachability, not prose (2026-08-06)
 **Triggered by:** [fail:design] phase-scope-omits-wiring (count: 3)

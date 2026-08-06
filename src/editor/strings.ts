@@ -57,6 +57,29 @@ export function rekeyStrings(
   return mapEntries(strings, (key) => (belongsTo(key, fromId) ? `${toId}${key.slice(fromId.length)}` : key))
 }
 
+/**
+ * Drops ONE key from ONE locale, returning a new overlay.
+ *
+ * This is what "clear the name I typed" means. The overlay cannot hold an empty
+ * string — the schema is `z.string().min(1)`, deliberately, because a blank name
+ * renders as a blank square and reads as a rendering bug rather than as content
+ * nobody has named. So the only way to un-say something is to stop saying it,
+ * and what the record then shows is whatever the bundle answers for that key.
+ * The caller is responsible for checking that something still answers.
+ */
+export function clearString(
+  strings: ContentStrings | undefined,
+  locale: string,
+  key: string,
+): ContentStrings | undefined {
+  const bucket = strings?.[locale]
+  if (!bucket || !(key in bucket)) return strings
+  const next: ContentStrings = { ...strings }
+  const { [key]: _dropped, ...rest } = bucket
+  next[locale] = rest
+  return next
+}
+
 /** Drops every key belonging to `id`, in every locale. */
 export function dropStrings(strings: ContentStrings | undefined, id: string): ContentStrings | undefined {
   if (!strings) return strings

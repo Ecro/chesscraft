@@ -1,5 +1,6 @@
 import type { ContentSet } from '@content/load'
 import { useTranslate } from './i18n'
+import { recordLabel } from './recordLabel'
 
 /**
  * The screen the app opens on (PLAN Phase 2, RESEARCH #4).
@@ -34,13 +35,17 @@ export function Home({
       <p className="tagline">{t('ui.home.tagline')}</p>
 
       <label>
-        {t('ui.preset.label')}
+        {/* `ui.preset.label` is gone. It read as "choose a different game",
+            and what this selects is one configuration of the same game — the
+            room a child assembled in the editor, which is the unit the whole
+            product turns on (Phase 9a). */}
+        {t('ui.room.label')}
         <select data-testid="preset-select" value={presetId} onChange={(e) => onPresetChange(e.target.value)}>
           {presets.map(([id, preset]) => (
             // #17 — the id is the value the tests and storage use; the label is
             // the name the content already carries and the player can read.
             <option key={id} value={id}>
-              {t(preset.nameKey)}
+              {recordLabel(t, id, preset.nameKey)}
             </option>
           ))}
         </select>

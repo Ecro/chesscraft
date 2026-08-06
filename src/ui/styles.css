@@ -1181,3 +1181,224 @@ button.primary {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
+/* --- the editor (PLAN Phase 9a, RESEARCH #37) -----------------------------
+   Until this phase `styles.css` contained NOT ONE rule targeting the editor.
+   It rendered as a wall of unstyled `<fieldset>`s and a 6x6 painter whose rows
+   collapsed, because `.board-row { display: contents }` — written for the
+   PLAY board, where the row wrapper exists only for the a11y tree — applied to
+   the painter too and dissolved every row into the parent's flow. That is the
+   first rule below, and it is a fix rather than a decoration.
+
+   The palette is the same tokens the rest of the app uses; nothing here
+   introduces a colour. An editor that looks like a different application is an
+   editor a child does not believe is part of the game they are playing. */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* A hidden panel must stay hidden no matter what layout rule targets it. The
+   shell keeps BOTH tabs mounted so a half-built room survives a trip to the
+   library, and every `display:` declaration below is a chance to un-hide one. */
+.editor [hidden] {
+  display: none !important;
+}
+
+.editor-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.editor-tabs button {
+  flex: 1;
+  padding: var(--space-4);
+  font-weight: 700;
+}
+
+.editor-tabs button[data-selected='true'] {
+  background: var(--color-selected);
+  border-color: var(--color-selected);
+  color: var(--color-surface);
+}
+
+.rooms,
+.library,
+.room-detail,
+.record-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.editor h2 {
+  margin: 0;
+  font-size: var(--font-size-base);
+}
+
+.editor .intro,
+.editor .hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.room-list,
+.library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.room-list li,
+.library-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The room button is the row: a child taps a name, not a hit-box beside one. */
+.room-list button,
+.library-list button {
+  flex: 1;
+  text-align: start;
+  padding: var(--space-3) var(--space-4);
+}
+
+.library-list button[data-selected='true'] {
+  border-color: var(--color-border-accent);
+  background: var(--color-surface-accent);
+}
+
+/* "어느 방에도 안 들어감". Deliberately not red: an unused record is a legal
+   state and a piece of information, not a mistake to scold the author for. */
+.badge {
+  flex: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
+
+.editor .empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.editor label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.editor fieldset label {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editor fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.editor legend {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+/* Field-anchored validation (#25). The shell still lists every error, but the
+   sentence a child can act on is the one beside the control they just used. */
+.field-error {
+  margin: 0;
+  width: 100%;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-negative);
+  background: var(--color-surface-negative);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.advanced {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.advanced summary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* The painter's rows. `display: contents` (the play board's rule) dissolves
+   these, which is why the 6x6 grid rendered as one long ribbon. */
+.editor .board-row {
+  display: flex;
+  gap: 2px;
+}
+
+.editor .board-cell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.editor .board-cell button {
+  padding: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.vector-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.vector-row {
+  display: flex;
+  gap: 2px;
+}
+
+.vector-row button,
+.vector-origin {
+  flex: 1;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+}
+
+.vector-row button[data-on='true'] {
+  background: var(--color-selected);
+  border-color: var(--color-selected);
+  color: var(--color-surface);
+}
+
+.transfer textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: var(--font-size-sm);
+}

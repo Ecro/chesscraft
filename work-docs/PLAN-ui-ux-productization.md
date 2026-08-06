@@ -970,6 +970,49 @@ exists to remove.
   UI copy
 - **Risk:** high — the largest restructure in the plan, and every editor e2e selector moves
 - **Rollback:** Phase 8
+- **Status: DONE (2026-08-07).** `npm run verify` GREEN — typecheck + build + 364 unit +
+  70 Playwright + 4 PWA. New: `src/editor/references.ts`, `src/ui/EditorRooms.tsx`,
+  `src/ui/RoomDetail.tsx`, `src/ui/EditorLibrary.tsx`, `src/ui/RecordForm.tsx`,
+  `src/ui/recordLabel.ts`; `Edit.tsx` reduced to the two-tab shell; `Home.tsx` +
+  `ko.ts` (`ui.room.label` replaces `ui.preset.label`, plus ~120 `ui.editor.*` keys
+  including the whole vocabulary palette); editor CSS added to `styles.css`.
+  Tests: `tests/editor/references.test.ts`, `e2e/rooms.spec.ts`,
+  `tests/ui/editor-copy.test.tsx`, `tests/ui/rename-wiring.test.tsx`. Phase A.5
+  test-reviewer PASS on attempt 2.
+- **Three decisions this phase had to make that the scope did not name:**
+  1. **`#19` (raw draft JSON removed) vs "the ADR-006 gate passes UNCHANGED" was a
+     direct contradiction** — the gate reads `editor-draft-json`. Resolved by keeping
+     the node and marking it `hidden`, and by measuring "visible UI copy" with a walk
+     that skips hidden subtrees, so both clauses became the SAME claim rather than two
+     that argue. Same mechanism carries the shell: both tabs stay mounted with the
+     inactive one `hidden`, which is what lets a half-built room survive a trip to the
+     library AND lets the gate keep driving `editor-kind` by test id.
+  2. **"+ 새 기물 / 룰 / 스킬 entering the record form in place"** was implemented as a
+     hand-off to the library tab with a blank form of that kind, not a second form
+     inside the room. Two forms in one document means two `editor-save` nodes; the room
+     is exactly as the child left it because the panel stayed mounted.
+  3. **`editor-id` stayed on the surface** while `nameKey` / `textKey` went under
+     고급 설정. Hiding the id too would make a blank save fail with an error anchored to
+     a control the child cannot see.
+- **Phase D.5 — newly-reachable window (this phase repaired R10's wiring):**
+  1. *Window:* a save where the draft's `id` differs from the id the form opened on.
+     Before this phase nothing in the editor could change an id, so `commitDraft`'s
+     `openedId` had no caller and the entire rename path was unreachable input.
+  2. *Tests entering it:* `e2e/rooms.spec.ts` "renaming a record through the form
+     leaves one record, with its text" (headline case, asserted from the player's
+     Rules screen), plus `tests/ui/rename-wiring.test.tsx` for the two cases the e2e
+     cannot see.
+  3. *Absent case, and it found a real defect:* a record whose keys do NOT belong to
+     the old id — an imported set, or a shipped record — must be left where they are.
+     The first implementation derived `<id>.name` unconditionally, which passed the
+     headline case and silently re-homed the other one, stranding the author's original
+     overlay entry under a key nothing points at. Fixed by `slotFor` (write to the
+     record's OWN key when it has one, derive only when blank), which also turns out to
+     be what makes renaming a BUNDLED record work as an override rather than a shadow.
+     Covered by all three tests in `rename-wiring.test.tsx`.
+- **Phase D note:** the full suite was run rather than a `test_dep_map` selection.
+  Selecting tests would have been strictly weaker here — the change touches every
+  editor selector, the shared `ko` bundle and `styles.css`.
 
 ### Phase 9b — Deletion, with a refusal that names the room
 - **Split out of Phase 9 on 2026-08-06.** Deletion is the least-precedented subsystem here —
@@ -1074,12 +1117,12 @@ frontmatter still says so.
 - [x] The seed in play is visible and copyable, so a match can be replayed or shared.
 - [x] No English enum, raw preset id, or schema field name appears as user-visible copy.
 - [x] Every bundled piece renders a glyph; a piece authored with no icon renders a monogram, not a blank.
-- [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phases 8 + 9a)*
+- [x] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phases 8 + 9a)*
   - Phase 8 built the half that can be tested without a UI: a document carrying `strings.ko`
     survives export → import and renders on the board. **Deliberately left unticked** — the
     criterion says a child *types* the name, and there is no field to type into until 9a.
     Ticking it on the mechanism alone would report a reachable outcome that is not reachable.
-- [ ] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
+- [x] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
 - [ ] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
 - [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
 - [x] The app installs and plays offline after one visit. *(Phase 7 — installability on iOS below 16.4 is a manual check; the e2e suite is Chromium-only)*

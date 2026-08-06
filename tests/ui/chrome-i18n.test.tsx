@@ -61,7 +61,22 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // not own or push that work forward untracked. Phase 9 adds it to this list.
     // `Play.tsx` became `MatchHost.tsx` in Phase 2 and `Home.tsx` joined it;
     // the list tracks the files, not the names they had when it was written.
-    const PHASE_1_CHROME = ['App.tsx', 'MatchHost.tsx', 'Home.tsx']
+    // Phase 9a added the editor, as the note above said it would. `Edit.tsx`
+    // is now a shell and its Phase 5 body moved to `RecordForm.tsx`, so the
+    // list names the files that hold the copy rather than the file that used
+    // to. The English words this catches were real: `kind`, `open`, `save`,
+    // `mover`, `opponent` — every one of them a word from the document format
+    // printed at a nine-year-old.
+    const PHASE_1_CHROME = [
+      'App.tsx',
+      'MatchHost.tsx',
+      'Home.tsx',
+      'Edit.tsx',
+      'EditorRooms.tsx',
+      'EditorLibrary.tsx',
+      'RoomDetail.tsx',
+      'RecordForm.tsx',
+    ]
     // Backtick and `$` join the list because a template literal in ordinary TS
     // (`return `${a} — ${b}``) is not JSX and matched the capture as a false
     // positive the moment Phase 2 added one.
@@ -77,6 +92,13 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // stays a regex because the file it guards is 3 files long and a parser
     // dependency for that is worse than the third exception.
     const BARE_KEYWORD = /^(return|const|let|var|else|try|catch|finally|do|break|continue)$/
+    // Fourth instance of the same blind spot, and the first one Phase 9a's
+    // file-list growth (3 files -> 8) made likely rather than unlucky: a
+    // top-level declaration that follows a closing brace reads as `}`, text,
+    // `{` — e.g. `} \n interface TextSlot {`. Matched TIGHTLY, as exactly a
+    // declaration keyword plus one PascalCase identifier, so ordinary prose
+    // containing the word "type" or "class" is still caught.
+    const DECLARATION_HEAD = /^(interface|type|class|enum|function|declare)\s+[A-Z]\w*$/
 
     const offenders = PHASE_1_CHROME.flatMap((file) => {
       const src = readFileSync(join(UI_DIR, file), 'utf8').replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')
@@ -85,6 +107,7 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
         .filter((text) => /[A-Za-z]/.test(text))
         .filter((text) => !CODE_FRAGMENT.test(text))
         .filter((text) => !BARE_KEYWORD.test(text))
+        .filter((text) => !DECLARATION_HEAD.test(text))
         .map((text) => `${file}: ${text}`)
     })
     expect([...new Set(offenders)]).toEqual([])
