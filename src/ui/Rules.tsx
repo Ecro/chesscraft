@@ -1,5 +1,9 @@
 import type { ContentSet } from '@content/load'
+import type { Side } from '@engine/types'
 import { type Translate, useTranslate } from './i18n'
+import { resolveMark } from './art/resolve'
+import { artRegistry } from './art/registry'
+import { MarkBody } from './art/MarkBody'
 
 /**
  * The reference screen: everything this content set contains, in the player's
@@ -14,17 +18,29 @@ import { type Translate, useTranslate } from './i18n'
  * thing and that each carries a name key and a text key.
  */
 
-type Entry = { id: string; nameKey: string; textKey: string; iconKey?: string | undefined }
+type Entry = { id: string; nameKey: string; textKey: string; iconKey?: string | undefined; artKey?: string | undefined }
 
-/** Empty when the entry declares no icon, or declares one the locale cannot
- *  resolve — `translate` echoes an unresolved key, which would print the key. */
-function icon(t: Translate, e: Entry): string {
-  if (!e.iconKey) return ''
-  const resolved = t(e.iconKey)
-  return resolved === e.iconKey ? '' : resolved
+/** Art if the catalogue has it, else the glyph, else nothing — the same chain
+ *  the board uses, so this screen and the square agree on what a type looks
+ *  like. Nothing rather than a monogram: this is a reference list, and an
+ *  invented mark beside every unmarked entry would decode nothing.
+ *
+ *  `side` matters even though a reference list has no sides. Piece art is
+ *  ALWAYS a sided entry (ADR-007), and a sided entry read with no side falls
+ *  through to the glyph — so omitting this would mean no piece could ever show
+ *  its art on the one screen built to decode the icon vocabulary. One side has
+ *  to be picked; white is the one the board starts from. */
+function markOf(t: Translate, e: Entry, side?: Side) {
+  return resolveMark(t, e, { registry: artRegistry, side, fallback: 'none' })
 }
 
-function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; entries: Entry[]; open?: boolean }) {
+function Group({
+  id,
+  titleKey,
+  entries,
+  open,
+  side,
+}: { id: string; titleKey: string; entries: Entry[]; open?: boolean; side?: Side }) {
   const t = useTranslate()
   return (
     <details className="rules-group" data-testid={`rules-${id}`} open={open}>
@@ -35,7 +51,9 @@ function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; 
         <p className="empty">{t('ui.rules.empty')}</p>
       ) : (
         <ul>
-          {entries.map((e) => (
+          {entries.map((e) => {
+            const mark = markOf(t, e, side)
+            return (
             <li key={e.id} data-entry={e.id}>
               {/* The lookup surface for the icon vocabulary. Without it a child
                   who sees a mark on a square during a match can only learn what
@@ -44,16 +62,17 @@ function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; 
                   same `translate` as everything else, and `aria-hidden` because
                   the name sits immediately beside it. */}
               <span className="entry-head">
-                {icon(t, e) && (
+                {mark.kind !== 'none' && (
                   <span className="legend-icon" aria-hidden="true">
-                    {icon(t, e)}
+                    <MarkBody mark={mark} />
                   </span>
                 )}
                 <strong>{t(e.nameKey)}</strong>
               </span>
               <span>{t(e.textKey)}</span>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </details>
@@ -68,7 +87,7 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
   // optional they were structurally assignable — a fifth Group added by
   // copy-paste would have listed them silently, every description blank.
   const entries = (m: Map<string, Entry>): Entry[] =>
-    [...m.values()].map((v) => ({ id: v.id, nameKey: v.nameKey, textKey: v.textKey, iconKey: v.iconKey }))
+    [...m.values()].map((v) => ({ id: v.id, nameKey: v.nameKey, textKey: v.textKey, iconKey: v.iconKey, artKey: v.artKey }))
 
   return (
     <section className="rules" data-testid="rules">
@@ -81,7 +100,11 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
 
       <p className="rules-intro">{t('ui.rules.intro')}</p>
 
-      <Group id="piece" titleKey="ui.rules.pieces" entries={entries(content.pieces)} open />
+      {/* `side` only here: piece art is always a sided entry (ADR-007), and a
+          sided entry read with no side falls through to the glyph — so without
+          this the one screen built to decode the icon vocabulary would be the
+          one screen that never shows piece art. */}
+      <Group id="piece" titleKey="ui.rules.pieces" entries={entries(content.pieces)} open side="white" />
       <Group id="square" titleKey="ui.rules.squares" entries={entries(content.squareTypes)} />
       <Group id="rule" titleKey="ui.rules.ruleCards" entries={entries(content.ruleCards)} />
       <Group id="skill" titleKey="ui.rules.skillCards" entries={entries(content.skillCards)} />

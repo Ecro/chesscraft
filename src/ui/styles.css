@@ -549,6 +549,43 @@ select {
     -1px 0 0 var(--color-cue-lo);
 }
 
+/*
+ * The same ring, for a mark that is a picture instead of a glyph (schema v7).
+ *
+ * `text-shadow` is a TEXT property — it does nothing to a replaced element, so
+ * the rule above is dead for an `<img>` and the badge shipped with no ring at
+ * all. `drop-shadow` is the equivalent that rasterises against the image's
+ * alpha, so the outline follows the drawn shape rather than its box.
+ *
+ * It matters most exactly here. At `font-size: 12px` the art renders ~13.8px
+ * wide, and an outline baked into a 192px asset is sub-pixel by then — it
+ * anti-aliases into the fill. A ring declared in CSS pixels does not shrink
+ * with the asset, so the cue survives the badge. This is also why the contrast
+ * harness measures at RENDER size rather than at the asset's native one.
+ */
+.square-mark[data-occupied='true'] img {
+  filter:
+    drop-shadow(0 1px 0 var(--color-cue-lo))
+    drop-shadow(0 -1px 0 var(--color-cue-lo))
+    drop-shadow(1px 0 0 var(--color-cue-lo))
+    drop-shadow(-1px 0 0 var(--color-cue-lo));
+}
+
+/*
+ * And for piece art, which has the same problem waiting for it: `.piece` gets
+ * its legibility from a four-offset `text-shadow` in `--color-glyph-outline`
+ * (see the rule further up), which will be equally dead the moment a piece
+ * resolves to an `<img>` instead of a glyph. Landed now rather than with the
+ * art batch, because the batch is where it would be forgotten.
+ */
+.square .piece img {
+  filter:
+    drop-shadow(0 1px 0 var(--color-glyph-outline))
+    drop-shadow(0 -1px 0 var(--color-glyph-outline))
+    drop-shadow(1px 0 0 var(--color-glyph-outline))
+    drop-shadow(-1px 0 0 var(--color-glyph-outline));
+}
+
 /* The mark on a card face — draft sheet and tray tile alike. */
 .card-icon {
   font-size: 26px;

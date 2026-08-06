@@ -50,8 +50,18 @@ import { z } from 'zod'
  * carries `strings` and honestly says so would otherwise be rejected by the
  * build that wrote it. `strings` is optional and every v5 document still loads
  * unchanged.
+ *
+ * Bumped 6 -> 7 (PLAN-mobile-grade-graphics ADR-006): `artKey` on the same four
+ * records that carry `iconKey`. A separate axis rather than a wider `iconKey`,
+ * because `iconKey` resolves through the locale bundle to a TEXT glyph and
+ * raster illustration is neither text nor locale-varying — sharing one slot
+ * would mean a record could have art OR a glyph behind it, never both, which is
+ * exactly the fallback chain the renderer needs. `artKey` is optional, its
+ * absent case is the common one for the whole life of the contract (nothing
+ * bundled carries art until the art batch lands, and no authored record can
+ * until the editor grows a picker), and every v6 document still loads unchanged.
  */
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -93,6 +103,19 @@ export const i18nKey = z
   .regex(/^[a-z][a-z0-9]*(?:\.[a-z0-9-]+)+$/, 'must be a dotted lowercase i18n key, not literal text')
 
 export const contentId = z.string().regex(/^[a-z]+\.[a-z0-9-]+$/, 'must be `<kind>.<slug>`')
+
+/**
+ * An entry in the UI's art catalogue (v7, PLAN-mobile-grade-graphics ADR-006).
+ *
+ * Shaped like `i18nKey` and deliberately NOT one. An art id names a picture the
+ * UI ships, so it never varies by locale and never reaches `translate` — and
+ * `textKeysOf` must not walk it, or AC-016 would demand a Korean string for a
+ * bomb. The `art.` prefix is required so the two axes cannot be confused by
+ * eye in a document, which is the failure this validation is cheap insurance
+ * against: `iconKey` and `artKey` are adjacent optional strings on the same
+ * record and a swapped pair validates perfectly without it.
+ */
+export const artId = z.string().regex(/^art\.[a-z0-9-]+$/, 'must be `art.<picture>` — exactly one segment, never a content id')
 
 /** BCP-47-ish, narrow on purpose: `ko`, `en`, `en-US`. */
 export const localeCode = z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/, 'must be a locale code like `ko` or `en-US`')
@@ -289,6 +312,15 @@ export const pieceDef = z.strictObject({
    * first grapheme of the translated name — never a blank square.
    */
   iconKey: i18nKey.optional(),
+  /**
+   * Illustration for this piece, resolved against the UI's art catalogue (v7).
+   *
+   * Sided: one art id resolves to two assets, one per side, because the two
+   * armies currently separate by hue AND weight AND lightness and a raster
+   * illustration inherits none of those tokens. An id registered without both
+   * sides falls through to `iconKey` rather than rendering a broken image.
+   */
+  artKey: artId.optional(),
   movement: z.array(movePattern).min(1),
   /** Omitted means captures use the movement patterns. */
   attack: z.array(movePattern).min(1).optional(),
@@ -319,6 +351,8 @@ export const squareTypeDef = z.strictObject({
    * range from "your pawn becomes a queen" to "your piece is destroyed".
    */
   iconKey: i18nKey.optional(),
+  /** Illustration for this square type, one asset, no side (v7). */
+  artKey: artId.optional(),
   /** Paired types require a symmetric partner on every board (ADR-010). */
   paired: z.boolean(),
   effects: z.array(squareEffect),
@@ -331,6 +365,8 @@ export const ruleCardDef = z.strictObject({
   textKey: i18nKey,
   /** The mark shown beside the rule in play, and on the board's rule badge (v5). */
   iconKey: i18nKey.optional(),
+  /** Illustration for the rule badge, one asset, no side (v7). */
+  artKey: artId.optional(),
   /** Balance budget, in the Knightmare Chess sense. Unused by the MVP engine. */
   cost: z.number().int().nonnegative(),
   effects: z.array(lifecycleEffect),
@@ -343,6 +379,8 @@ export const skillCardDef = z.strictObject({
   textKey: i18nKey,
   /** The mark on the card face, in the draft sheet and in the tray tile (v5). */
   iconKey: i18nKey.optional(),
+  /** Illustration for the card face, one asset, no side (v7). */
+  artKey: artId.optional(),
   cost: z.number().int().nonnegative(),
   uses: z.number().int().positive(),
   effects: z.array(skillEffect),

@@ -97,6 +97,35 @@ export function textKeysOf(set: ContentSet): string[] {
 }
 
 /**
+ * Every art id a content set declares (schema v7, ADR-006).
+ *
+ * Deliberately a SECOND walker rather than a wider `textKeysOf`. An art id
+ * names a picture the UI ships — it never reaches `translate`, so folding it
+ * into the text walker would make AC-016's coverage check demand a Korean
+ * string for a bomb and report every art-bearing record as untranslated. What
+ * this list is for is the mirror-image question: which declared ids the art
+ * catalogue does not answer. Unregistered ids are safe at render time — the
+ * resolver falls through to the glyph — but they are still a content bug, and
+ * silent fallback is exactly how one goes unnoticed.
+ *
+ * De-duplicated in declaration order, like `textKeysOf`, so a coverage report
+ * counts distinct missing art rather than distinct references to it.
+ */
+export function artKeysOf(set: ContentSet): string[] {
+  const ids: string[] = []
+  const add = (id: string | undefined) => {
+    if (id && !ids.includes(id)) ids.push(id)
+  }
+
+  for (const piece of set.pieces.values()) add(piece.artKey)
+  for (const type of set.squareTypes.values()) add(type.artKey)
+  for (const card of set.ruleCards.values()) add(card.artKey)
+  for (const card of set.skillCards.values()) add(card.artKey)
+
+  return ids
+}
+
+/**
  * AC-016's second clause: which declared keys nothing can resolve.
  *
  * Reads the set's OWN overlay, not only the bundle. A set whose text lives

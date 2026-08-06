@@ -42,6 +42,29 @@ test('a second visit plays with the network switched off', async ({ page, contex
     return sq ? getComputedStyle(sq).backgroundColor : ''
   })
   expect(painted, 'squares have no background — the stylesheet did not come from cache').not.toBe('rgba(0, 0, 0, 0)')
+
+  /*
+   * And the art decoded, offline, from the cache.
+   *
+   * `naturalWidth` and not `toBeVisible()`: a broken <img> is still a visible
+   * element with a layout box, so the visibility assertion passes on exactly
+   * the failure this line exists for. A non-zero natural width means the bytes
+   * arrived and the browser decoded them.
+   *
+   * Checked directly rather than inferred. `cache.addAll` is all-or-nothing, so
+   * a missing asset would fail the worker install and be caught above — but
+   * that reasoning only holds while the asset is IN the precache list, which is
+   * the thing that silently stops being true (see tests/build/precache.test.ts).
+   * Depending on the atomicity would make this suite's coverage of the art a
+   * side effect of a mechanism one commit could remove.
+   */
+  const art = page.locator('.square-mark img')
+  // Unconditional, not `if (count > 0)`. The bundled board paints a marked
+  // square, so a count of zero means the art stopped rendering — which is a
+  // finding, not a reason to skip.
+  await expect(art.first()).toBeAttached()
+  const decoded = await art.first().evaluate((el) => (el as HTMLImageElement).naturalWidth)
+  expect(decoded, 'the art asset did not decode offline — it is missing from the precache').toBeGreaterThan(0)
 })
 
 test('ships a manifest an installable app needs', async ({ page, request }) => {

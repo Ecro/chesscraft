@@ -5,6 +5,9 @@ import { apply, describeRejection, legalActions, pendingDraftSide } from '@engin
 import { type Match, createMatch, currentState, undo } from '@engine/match'
 import { type Action, type MatchResult, type Side, type SquareId, squareId } from '@engine/types'
 import { type Translate, useTranslate } from './i18n'
+import { type Mark, resolveMark } from './art/resolve'
+import { artRegistry } from './art/registry'
+import { MarkBody } from './art/MarkBody'
 import { browserStorage } from '@editor/storage'
 import { DEFAULT_SETTINGS, type Settings, loadSettings, saveSettings } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
@@ -35,24 +38,8 @@ import { type SoundEvent, hapticsSupported, play } from './sound'
  * (which is what the board used to render, at 12px, inside the square) and
  * never a blank square.
  */
-function pieceGlyph(t: Translate, def: { iconKey?: string | undefined; nameKey: string }): string {
-  if (def.iconKey) {
-    const icon = t(def.iconKey)
-    // Falls THROUGH to the monogram when the key does not resolve, rather than
-    // returning it. `translate` echoes an unresolved key, so the bare version
-    // of this branch painted `piece.foo.icon` across the square — the exact
-    // thing the `nameKey` branch below has guarded against since Phase 4, and
-    // the exact thing `iconOf` guards for the other three content kinds. A
-    // typo'd `iconKey` reaches this through an imported document today, and
-    // through the editor once Phase 9 grows the control.
-    if (icon !== def.iconKey) return icon
-  }
-  const name = t(def.nameKey)
-  // `translate` returns the KEY when it cannot resolve one, so a piece with no
-  // locale entry would otherwise put the first letter of `piece.foo.name` — a
-  // bare `p` — on the board, indistinguishable from a real glyph.
-  if (name === def.nameKey) return '?'
-  return [...name][0] ?? '?'
+function pieceMark(t: Translate, def: { artKey?: string | undefined; iconKey?: string | undefined; nameKey: string }, side: Side | undefined): Mark {
+  return resolveMark(t, def, { registry: artRegistry, side, fallback: 'monogram' })
 }
 
 /**
@@ -64,13 +51,10 @@ function pieceGlyph(t: Translate, def: { iconKey?: string | undefined; nameKey: 
  * meant the same thing. The piece board is the one place a fallback is right —
  * a square with nothing in it is not a piece.
  */
-function iconOf(t: Translate, def: { iconKey?: string | undefined } | undefined): string {
-  if (!def?.iconKey) return ''
-  const icon = t(def.iconKey)
-  // `translate` echoes the key when it cannot resolve one, which would paint
-  // the raw key string across a card face.
-  return icon === def.iconKey ? '' : icon
+function iconMark(t: Translate, def: { artKey?: string | undefined; iconKey?: string | undefined } | undefined): Mark {
+  return resolveMark(t, def, { registry: artRegistry, fallback: 'none' })
 }
+
 
 /**
  * Which feedback an applied action earns.
@@ -357,6 +341,9 @@ export function MatchHost({
   const ranks = Array.from({ length: state.height }, (_, i) => (flipped ? i : state.height - 1 - i))
   const files = Array.from({ length: state.width }, (_, i) => (flipped ? state.width - 1 - i : i))
   const rule = state.ruleCardId ? content.ruleCards.get(state.ruleCardId) : undefined
+  // Resolved once and reused for both the presence test and the body. Calling
+  // it twice was correct (the function is pure) but says the two could differ.
+  const ruleMark = iconMark(t, rule)
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
 
   return (
@@ -407,9 +394,9 @@ export function MatchHost({
       {/* AC-004's display clause: the drawn rule card stays on screen for the
           whole match, not shown once at the start and forgotten. */}
       <div className="card rule" data-testid="rule-card" data-rule={state.ruleCardId ?? ''}>
-        {iconOf(t, rule) && (
+        {ruleMark.kind !== 'none' && (
           <span className="rule-icon" aria-hidden="true">
-            {iconOf(t, rule)}
+            <MarkBody mark={ruleMark} />
           </span>
         )}
         <div className="rule-body">
@@ -463,7 +450,7 @@ export function MatchHost({
                     onClick={() => push({ kind: 'draft_pick', cardId })}
                   >
                     <span className="card-icon" aria-hidden="true">
-                      {iconOf(t, card)}
+                      <MarkBody mark={iconMark(t, card)} />
                     </span>
                     <strong>{card ? t(card.nameKey) : cardId}</strong>
                     {card && <span>{t(card.textKey)}</span>}
@@ -513,6 +500,7 @@ export function MatchHost({
             const parity = (file + rank) % 2
             const type = painted.get(sq)?.type
             const def = piece ? content.pieces.get(piece.pieceId) : undefined
+            const typeMark = iconMark(t, type)
             return (
               <button
                 key={sq}
@@ -549,12 +537,12 @@ export function MatchHost({
                     only "something happens here", and the five bundled types
                     range from promotion to destruction. Marked aria-hidden
                     because `squareLabel` already names the type in words. */}
-                {iconOf(t, type) && (
+                {typeMark.kind !== 'none' && (
                   <span className="square-mark" data-occupied={Boolean(piece)} aria-hidden="true">
-                    {iconOf(t, type)}
+                    <MarkBody mark={typeMark} />
                   </span>
                 )}
-                <span className="piece">{def ? pieceGlyph(t, def) : ''}</span>
+                <span className="piece">{def ? <MarkBody mark={pieceMark(t, def, piece?.side)} /> : ''}</span>
               </button>
             )
           })}
@@ -621,7 +609,7 @@ export function MatchHost({
                 onClick={() => clickCard(side, cardId)}
               >
                 <span className="card-icon" aria-hidden="true">
-                  {iconOf(t, card)}
+                  <MarkBody mark={iconMark(t, card)} />
                 </span>
                 <span className="card-body">
                   <strong>
@@ -640,7 +628,9 @@ export function MatchHost({
           both players can read what a marked square does. */}
       {legendTypes.length > 0 && (
         <ul className="legend" data-testid="square-legend">
-          {legendTypes.map((type) => (
+          {legendTypes.map((type) => {
+            const mark = iconMark(t, type)
+            return (
             // The icon belongs HERE most of all. A child sees a badge in a
             // square's corner and comes to this list to find out what it means
             // — and until now the list showed the name and the prose and not
@@ -649,14 +639,15 @@ export function MatchHost({
             // screen-reader-only, so this list is the only visual cross-
             // reference a sighted player has.
             <li key={type.id} data-square-type={type.id}>
-              {iconOf(t, type) && (
+              {mark.kind !== 'none' && (
                 <span className="legend-icon" aria-hidden="true">
-                  {iconOf(t, type)}
+                  <MarkBody mark={mark} />
                 </span>
               )}
               <strong>{t(type.nameKey)}</strong> — {t(type.textKey)}
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
 

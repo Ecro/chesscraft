@@ -58,7 +58,7 @@ function losAlamosPlacements() {
 }
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 6,
+  schemaVersion: 7,
 
   pieces: [
     {
@@ -146,6 +146,22 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'square.bomb.name',
       textKey: 'square.bomb.text',
       iconKey: 'square.bomb.icon',
+      /**
+       * The one record carrying art in this cycle (ADR-010).
+       *
+       * It is here to prove the pipeline — bundler import, hashed emit, service
+       * worker precache, render, both themes — because that chain's failure
+       * mode is invisible without a real asset in a real build, and a contract
+       * whose only exercised path is the ABSENT one is the black hole the
+       * absent-case rule warns about. A square type rather than a piece: the
+       * square mark is already its own layer, so one illustrated mark among
+       * emoji does not make the board incoherent the way one illustrated king
+       * would, and it needs one asset rather than ADR-007's two.
+       *
+       * `iconKey` stays. It is what every build without the asset falls back
+       * to, and removing it would make this record depend on the catalogue.
+       */
+      artKey: 'art.bomb',
       paired: false,
       effects: [
         {

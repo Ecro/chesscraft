@@ -1,0 +1,205 @@
+import { describe, expect, it } from 'vitest'
+import { SCHEMA_VERSION } from '@content/schema'
+import { type ContentSource, loadContentSet } from '@content/load'
+import { sliceContentSource } from '@content/sets/slice'
+import { bundledContentSource } from '@content/sets/bundled'
+import { artRegistry } from '@ui/art/registry'
+import { exportContent, importContent } from '@editor/io'
+import { artKeysOf, textKeysOf } from '@ui/i18n'
+
+/**
+ * Schema v7 — `artKey` (PLAN-mobile-grade-graphics ADR-006).
+ *
+ * The axis exists because `iconKey` resolves through the locale bundle to a
+ * TEXT glyph, and raster illustration is neither text nor locale-varying. The
+ * two must not share a slot: a record has to be able to carry art AND keep a
+ * glyph behind it, which is the fallback chain ADR-006 specifies and this file
+ * pins at the schema level.
+ *
+ * The version bump is not cosmetic. `io.ts:44` refuses any document declaring a
+ * version above `SCHEMA_VERSION`, so leaving the constant at 6 while adding the
+ * field ships a build that cannot re-import its own export.
+ */
+
+/** A v6 document — the shape every previously-exported file has. */
+function v6Document(): ContentSource {
+  const source = structuredClone(sliceContentSource) as ContentSource
+  source.schemaVersion = 6
+  return source
+}
+
+describe('schema v7 artKey', () => {
+  it('declares version 7', () => {
+    expect(SCHEMA_VERSION).toBe(7)
+  })
+
+  it('loads a v6 document unchanged — artKey absent is the common case, not an edge', () => {
+    const doc = v6Document()
+    const result = importContent(exportContent(doc))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.source).toEqual(doc)
+    // Not merely "it imported": nothing may have acquired an artKey by default.
+    for (const piece of result.source.pieces) {
+      expect(piece).not.toHaveProperty('artKey')
+    }
+  })
+
+  it('round-trips artKey on all four content kinds', () => {
+    const doc = structuredClone(sliceContentSource) as ContentSource
+    doc.schemaVersion = SCHEMA_VERSION
+    // Each kind is asserted separately because `strictObject` rejects an unknown
+    // key per-shape — adding the field to `pieceDef` alone would pass a
+    // pieces-only test while every card still refused its own art.
+    ;(doc.pieces[0] as Record<string, unknown>).artKey = 'art.king'
+    ;(doc.squareTypes[0] as Record<string, unknown>).artKey = 'art.bomb'
+    ;(doc.ruleCards[0] as Record<string, unknown>).artKey = 'art.blitz'
+    ;(doc.skillCards[0] as Record<string, unknown>).artKey = 'art.teleport'
+
+    const result = importContent(exportContent(doc))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.source).toEqual(doc)
+  })
+
+  it('still refuses a document from a future build', () => {
+    const doc = structuredClone(sliceContentSource) as ContentSource
+    doc.schemaVersion = SCHEMA_VERSION + 1
+
+    const result = importContent(exportContent(doc))
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errors[0]?.path).toBe('schemaVersion')
+  })
+})
+
+describe('artKey is not a text key', () => {
+  it('textKeysOf ignores artKey', () => {
+    const doc = structuredClone(sliceContentSource) as ContentSource
+    doc.schemaVersion = SCHEMA_VERSION
+    ;(doc.pieces[0] as Record<string, unknown>).artKey = 'art.king'
+
+    const loaded = loadContentSet(doc)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+
+    // An art id is not translatable, so counting it as a text key would make
+    // AC-016's coverage check demand a locale entry for a picture and report
+    // every art-bearing record as untranslated.
+    expect(textKeysOf(loaded.set)).not.toContain('art.king')
+  })
+
+  it('artKeysOf collects declared art ids across all four kinds', () => {
+    const doc = structuredClone(sliceContentSource) as ContentSource
+    doc.schemaVersion = SCHEMA_VERSION
+    ;(doc.pieces[0] as Record<string, unknown>).artKey = 'art.king'
+    ;(doc.squareTypes[0] as Record<string, unknown>).artKey = 'art.bomb'
+
+    const loaded = loadContentSet(doc)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+
+    const ids = artKeysOf(loaded.set)
+    expect(ids).toContain('art.king')
+    expect(ids).toContain('art.bomb')
+    // Registry coverage is the whole point of this walker, so it must not
+    // report an id twice and inflate a "how many are unregistered" count.
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('artKeysOf is empty for a set that declares no art', () => {
+    const loaded = loadContentSet(v6Document())
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+    expect(artKeysOf(loaded.set)).toEqual([])
+  })
+})
+
+describe('the art catalogue and the content that points at it', () => {
+  const contentIds = () => {
+    const src = bundledContentSource as unknown as Record<string, { id: string }[]>
+    return ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards'].flatMap((c) => src[c]!.map((r) => r.id))
+  }
+
+  it('names pictures, never content — no art id may echo a content id', () => {
+    /*
+     * `no-content-in-engine.test.ts` scans `src/ui` for bundled content ids and
+     * caught the first entry here written as `art.square.bomb`, which contains
+     * `square.bomb`. That guard is a substring scan over files, so it will keep
+     * working — but it reports a FILE, and by the time 43 entries land the
+     * useful message is which ID is wrong. This is that message, and it is the
+     * reason the convention (`art.bomb`, one segment, the picture's name) is
+     * worth stating twice.
+     */
+    const offences = [...artRegistry.keys()].flatMap((artId) =>
+      contentIds().filter((id) => artId.includes(id)).map((id) => `${artId} echoes content id ${id}`),
+    )
+    expect(offences).toEqual([])
+  })
+
+  it('registers every art id the bundled set actually declares', () => {
+    // The resolver falls through to the glyph for an unregistered id, so this
+    // can never break a board — which is exactly why it needs a test. A typo'd
+    // artKey ships silently as "the art just did not show up".
+    const loaded = loadContentSet(bundledContentSource)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+
+    const unregistered = artKeysOf(loaded.set).filter((id) => !artRegistry.has(id))
+    expect(unregistered).toEqual([])
+  })
+
+  it('uses one segment after `art.` — the schema, not just convention, forbids a content-shaped id', () => {
+    // The echo test above only catches ids containing a CURRENT content id.
+    // `art.piece.rabbit` embeds none and is still the mirrored form the rule
+    // forbids, so the segment count has to be checked on its own — the PLAN
+    // claimed the catalogue was enforced and only half of it was.
+    for (const id of artRegistry.keys()) {
+      expect(id, `${id} must be art.<picture>, one segment`).toMatch(/^art\.[a-z0-9-]+$/)
+    }
+  })
+
+  it('points each record at art whose filename matches the surface that record renders on', () => {
+    /*
+     * `e2e/art-contrast.spec.ts` decides which surfaces to gate an asset
+     * against from its filename prefix. Nothing otherwise stops a rule card
+     * from pointing at a `square-` asset: it would render on a card face while
+     * being contrast-tested only against painted board squares, and pass while
+     * being unreadable where it actually appears.
+     */
+    const expected: Record<string, string> = {
+      pieces: 'piece-',
+      squareTypes: 'square-',
+      ruleCards: 'card-',
+      skillCards: 'card-',
+    }
+    const src = bundledContentSource as unknown as Record<string, { id: string; artKey?: string }[]>
+
+    const offences: string[] = []
+    for (const [collection, prefix] of Object.entries(expected)) {
+      for (const record of src[collection] ?? []) {
+        if (!record.artKey) continue
+        const entry = artRegistry.get(record.artKey)
+        if (!entry) continue // the unregistered case is the test above
+        const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
+        for (const url of urls) {
+          const name = url.split('/').pop() ?? ''
+          if (!name.startsWith(prefix)) {
+            offences.push(`${record.id} (${collection}) points at ${name}, which is not a \`${prefix}\` asset`)
+          }
+        }
+      }
+    }
+    expect(offences, offences.join('\n')).toEqual([])
+  })
+
+  it('gives every registered entry a usable asset url', () => {
+    for (const [id, entry] of artRegistry) {
+      const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
+      for (const url of urls) {
+        expect(url, `${id} has an empty asset url`).toBeTruthy()
+      }
+    }
+  })
+})

@@ -109,3 +109,25 @@ rather than during a self-review two steps later. It does not catch (1) or (2),
 which need the ADR-006-style coverage gates those entries already argue for —
 so this proposal is the cheap half, not the whole answer.
 
+
+## Proposal: assert the cue's OUTCOME, not the property that usually produces it (2026-08-07)
+**Triggered by:** [fail:render] glyph-opts-out-of-its-styling (count: 3)
+**Proposed mechanism:** a project e2e probe (`cue-outcome.spec.ts`) plus a note in the review rubric
+**Rationale:** All three instances are the same shape and none was catchable by
+reading CSS. A colour emoji ignored `color` and `font-weight`; form controls did
+not inherit `color` and the UA substituted `buttontext`; an `<img>` ignored
+`text-shadow`. In every case the stylesheet kept parsing, the rule stayed in the
+file, and the only signal was pixels. Tests that assert the MECHANISM ("the rule
+is applied", "the class is present", "the token is set") cannot see any of them,
+which is why each was found by a human or a reviewer looking at a screenshot.
+
+The probe would enumerate the elements that carry a legibility cue — board
+marks, pieces, form controls — and assert the cue's *outcome* by computed style
+and measured contrast: something separates this element from its background, by
+whatever means. That single assertion catches all three past instances and does
+not care which property delivers it, so it survives the next technology swap
+too. The companion rubric line: **when one member of a styled set changes
+rendering technology, grep the stylesheet for the properties the old technology
+consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
+`-webkit-text-stroke` are all silently inert on `<img>`, `<canvas>`, `<svg>` and
+`<iframe>`.
