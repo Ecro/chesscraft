@@ -5,10 +5,10 @@ status: planning
 created: 2026-08-06
 tags: [strange-chess, plan, react, ui-ux, mobile-web, pwa, content-editor]
 research_doc: "[[RESEARCH-ui-ux-productization]]"
-interview_rounds: 3
-adrs: 10
+interview_rounds: 5
+adrs: 13
 validator_outcome: MAJOR_REVISION_RESOLVED
-summary: "Close the match loop, then art+juice, then a kid-usable editor — 40 gaps in 10 phases"
+summary: "Close the match loop, then art+juice, then rooms a child can build, name and play"
 ---
 
 # PLAN — UI/UX productization
@@ -94,6 +94,10 @@ interview:
 | 7 | Authored display text | Contract shape | How does user content carry its name? | type name → key auto-derived / allow literals / separate string-editor tab | **Type the name; the editor derives the key** | AC-016's literal ban survives | ADR-020 |
 | 8 | Sound & haptics | Scope boundaries | In scope? | haptics only / both (4-6 SFX) / neither | **Both, 4-6 effects** | Asset strategy deferred to ADR-023 | ADR-023 |
 | 9 | Distribution | Dependencies | Decide packaging now? | PWA first / defer to Capacitor / end interview | **PWA first — manifest + icons + service worker** | Capacitor remains a later wrapper | ADR-022 |
+| 10 | What a "room" is | Architecture | Is a room a reference set over one shared library, or does it own copies of its content? | preset = room, shared library / room owns private copies | **preset = room; content stays one shared library** | Editing a card changes it in every room that uses it — accepted | ADR-025 |
+| 11 | Sharing | Scope boundaries | Does a room get its own export so it can be handed to a friend? | room bundle export / whole-set export only | **Out of scope entirely** | User: sharing belongs with online play, later | — |
+| 12 | Editor entry point | Architecture | Is the library reachable on its own, or only through a room? | rooms-first + library tab / rooms-only / keep the flat 6-kind list | **Rooms are the entry; the library stays a tab of its own** | A record in no room must still be visible — otherwise it exists in storage and nowhere on screen | ADR-026 |
+| 13 | Deletion | Contract shape | What may be deleted, and what happens to what references it? | refuse while referenced, naming the referrer / cascade-untick / rooms only | **Rooms deletable (never the last); a record refused while referenced, and the refusal names the rooms** | Cascade would change another room silently with no way to know why | ADR-027 |
 
 Two candidate questions were **not** asked, per the 5-term gate:
 - *Seed provider shape* — failed common-ground: `browserStorage(storage)` already
@@ -179,8 +183,13 @@ rotation, no "pass the phone" interstitial.
   for a mode nobody has asked for yet.
 **Source:** Interview #5
 
-### ADR-019: Editor is restructured as list → detail with collapsible sections and elementary-level Korean copy
-**Status:** Accepted (2026-08-06, via /hm:plan interview)
+### ADR-019: The editor's record form is list → detail with collapsible sections and elementary-level Korean copy
+**Status:** **Superseded in part by ADR-026** (2026-08-06) — the browse→detail pattern
+survives, but only *inside the library tab*. This ADR was written when the editor's
+entry point was the per-kind browse view; ADR-026 makes that a room list. Everything
+below still governs how a single record is browsed and edited; it no longer describes
+the screen a child lands on.
+**Originally:** Accepted (2026-08-06, via /hm:plan interview)
 **Context:** `Edit.tsx:667` is one `<section>` of sequential fieldsets; the `open`
 fieldset renders a raw-id button per record (40 on the bundled set); labels are
 schema field names in English; and no CSS rule targets the editor at all.
@@ -306,6 +315,85 @@ The seed in play is surfaced in the UI so a match can be reproduced or shared.
   and forces tests onto a separate code path from users.
 **Source:** plan default; recorded because it changes a component contract.
 
+### ADR-025: A preset IS the room; content stays one shared library
+**Status:** Accepted (2026-08-06, via /hm:plan interview)
+**Context:** The product goal is that a child assembles a board, pieces, rules and
+skills into a thing they name, keep, and play with a friend — and that these
+accumulate. `presetDef` is already `{ id, nameKey, boardId, pieceIds[],
+ruleCardIds[], skillCardIds[] }`, i.e. exactly that unit, but nothing in the
+product presents it as one.
+**Decision:** A preset is the room. Pieces, square types, rule cards, skill cards
+and boards remain ONE shared library that every room references by id. A room is a
+reference set, never a copy.
+**Consequences:**
+- ✅ No schema change, no storage change, no export-format change — the concept
+  already exists and only the product surface is missing.
+- ✅ A piece authored once is available to every room.
+- ⚠️ Editing a card changes it in every room that references it, and there is no
+  such thing as a room-private piece. Accepted: the alternative buys isolation
+  that only *sharing* would cash in, and sharing is out of scope (see ADR-027's
+  context and the Non-Goals).
+**Rejected alternatives:**
+- Rooms owning private copies of their content — rejected: a much larger schema,
+  storage and export change whose payoff is isolation during transfer, which this
+  cycle does not do.
+**Source:** Interview #10
+
+### ADR-026: Rooms are the editor's entry point, and the library keeps a tab of its own
+**Status:** Accepted (2026-08-06, via /hm:plan interview)
+**Context:** `Edit.tsx` is one screen with a `<select>` over six record kinds, so
+"preset" reads as one of six equal things rather than as the thing being built.
+ADR-019 assumed the per-kind browse view was the editor's top level; ADR-025 makes
+the room the unit, which moves the top level.
+**Decision:** The editor opens on a room list. Opening a room shows its name, its
+board and tick-lists of the pieces, rule cards and skill cards it uses, with
+"+ new" entering the record form in place. A **standalone library tab** lists every
+record of every kind, whether or not a room uses it.
+**Consequences:**
+- ✅ "Make a room" is a thing the product visibly does.
+- ✅ A record that no room references is still reachable, and is badged as such —
+  without the tab it would exist in storage and nowhere on screen, which is the
+  absent-case black hole this repo's global learned correction names.
+- ⚠️ One more screen than ADR-019 assumed, and every `editor.spec.ts` selector
+  moves (ADR-016 already permits this).
+- ⚠️ ADR-019 is superseded in part: its browse→detail pattern now governs the
+  library tab only.
+**Rejected alternatives:**
+- Rooms-only navigation — rejected on the black-hole consequence above.
+- Keeping the flat six-kind list and only restyling — rejected: it leaves the
+  product with no room-making experience at all, which is the point of the work.
+**Source:** Interview #12
+
+### ADR-027: Deletion refuses while referenced, and the refusal names the rooms
+**Status:** Accepted (2026-08-06, via /hm:plan interview)
+**Context:** There is no record-level delete anywhere today — `commitDraft`
+(`draft.ts:123-136`) only adds or replaces — so rooms would accumulate with no way
+to remove one. And deletion is not locally safe: `load.ts:193-250` enforces
+referential integrity across the whole document, so removing a record something
+references fails `loadContentSet` and the ENTIRE content set stops loading, not
+just the room that used it.
+**Decision:** A room may be deleted, except the last one. A library record may be
+deleted only when nothing references it; when something does, the delete is refused
+and the message NAMES the rooms involved. Reference resolution is transitive: a room
+references a board, and a board references pieces (`placements[].pieceId`) and square
+types (`squares[].typeId`), so a record reachable only through a room's board counts
+as referenced by that room.
+**Consequences:**
+- ✅ A child cannot break the app by deleting something, and is told which room to
+  change if they want the delete to succeed.
+- ✅ The refusal is a UI-level guard in front of a check `load.ts` already performs,
+  so the two cannot disagree about what is legal.
+- ⚠️ "Never the last room" has NO schema backstop — `presets` carries no array
+  minimum the way `pieceIds` carries `.min(1)` — so it lives entirely in
+  `deleteRecord` and needs its own test.
+- ⚠️ Deleting takes more than one step when a record is in use.
+**Rejected alternatives:**
+- Cascade-untick (delete the record and silently remove it from every room) —
+  rejected: another room changes with no way to know why and no way back.
+- Rooms-only deletion, leaving library records undeletable — rejected: material
+  then only ever accumulates, which is the same clutter problem one level down.
+**Source:** Interview #13
+
 ## 🏗️ Technical Design
 
 ### Current state (verified on `01e9e7b`)
@@ -391,7 +479,11 @@ Consolidated so a phase's output can be diffed against one list rather than ten
   possible, but no second bundle ships here.
 - Card/piece balance tuning — this plan changes presentation, never the engine's
   resolution order or any content's effect.
-- Network play, accounts, servers.
+- Network play, accounts, servers
+- **Handing one room to a friend as a file.** Sharing is a transfer problem and belongs
+  with online play; whole-set export/import (AC-015) stays as backup, not as sharing
+- **Room-private content.** ADR-025 keeps one shared library — a room is a reference set
+  over it, not a copy of it, so there is no such thing as a piece that belongs to one room.
 
 ## 📝 Implementation Plan
 
@@ -638,6 +730,19 @@ exists to remove.
   own unit instead of being folded into 6a's record. It **partially consumes Phase 6b** (the tray
   and control-row items below) and **partially extends ADR-017** with a schema bump; 6b keeps the
   safe-area and breakpoint items, which this did not touch.
+- `depends_on`: [6a]
+- `parallel_group`: `serial-board`
+- `merge_hazards`: `src/ui/styles.css` and `src/ui/tokens.css` (every phase touches both);
+  `src/ui/MatchHost.tsx`; `src/content/schema.ts` — the v5 bump lands here, so Phase 8's
+  `strings` addition to the same file must come after it
+- **Risk (recorded after the fact):** high — a schema version bump plus the board's markup
+  plus the play screen's whole layout in one unit, executed without a review gate in front
+  of it. The review that eventually ran found four P1s, which is what that risk looks like
+  when it lands.
+- **Rollback:** Phase 6a
+- **These five fields were written retrospectively.** The work was user-directed from a
+  running app rather than planned, so the metadata describes what happened rather than what
+  was decided in advance — which is exactly why the drift gate could not judge this unit.
 - **What it found, and why each was invisible until someone looked:**
   - **Every `button` / `select` / `input` / `textarea` rendered black-on-dark in the dark theme**
     (≈1.2:1). Form controls do not inherit `color`; the UA substitutes `buttontext`. `styles.css`
@@ -705,7 +810,9 @@ exists to remove.
 - **Rollback:** Phase 6a
 
 ### Phase 7 — PWA: manifest, icons, offline
-- `depends_on`: [6]
+- `depends_on`: [6b] — **was `[6]`, a node that no longer exists.** Phase 6 was split into
+  6a (DONE), 6a+ (DONE) and 6b (pending) on 2026-08-06 and this reference was left dangling;
+  6b is the last serial-board phase, so it is the real predecessor.
 - `parallel_group`: `serial-platform`
 - `merge_hazards`: `vite.config.ts`, `index.html`, new `public/`
 - **Scope in:** `public/manifest.webmanifest`, icon set generated from the ADR-021
@@ -741,43 +848,112 @@ exists to remove.
 - **Risk:** high — `translate`'s signature change touches every rendering call site
 - **Rollback:** Phase 7
 
-### Phase 9 — Editor IA: browse → detail, collapsible sections, elementary Korean copy, editor styling
-- `depends_on`: [8]
+### Phase 9a — Rooms: the editor's entry, room detail, naming, and the library tab
+- **Re-planned 2026-08-06 (ADR-025/026/027).** Phase 9 was written as "make the editor
+  pleasant to browse". The product goal is that a child assembles a room, names it, keeps
+  several, and picks one to play — which touches the same files and produces a different
+  screen. Split into 9a (structure) and 9b (deletion) on the validator's finding that one
+  phase carried four separable bodies of work; the same split judgement that produced
+  6a/6b, and for the same reason.
+- `depends_on`: [8] — **because any typed Korean name in the editor needs ADR-020's
+  overlay**, not only a room's. `presetDef.nameKey` is an i18n key and the schema rejects
+  literal text (AC-016), and so does every record created through "+ new" inside a room.
+  Without Phase 8 the child types a name and the board renders `my.piece.name`.
 - `parallel_group`: `serial-editor`
-- `merge_hazards`: `src/ui/Edit.tsx` is split into new files; every `editor.spec.ts` selector moves (ADR-016)
-- **Scope in:** `src/ui/EditorBrowse.tsx` + `EditorDetail.tsx` (new, split from
-  `Edit.tsx`), section grouping over the existing `controls.ts` table, `editor.*`
-  Korean copy written for an elementary reader, editor CSS (#37, the entire
-  screen is currently unstyled), name/description fields taking plain text per
-  ADR-020, the opened-record id threaded from `EditorBrowse` through
-  `EditorDetail` into `commitDraft` so the Phase 8 rename primitive is actually
-  reachable from the UI, raw draft-JSON `<pre>` removed (#19), field-anchored
-  validation (#25)
-- **Scope out:** playtest, previews, file import/export (Phase 10)
-- **Exit criterion:** the pre-existing ADR-006 vocabulary-coverage test still passes unchanged
-  (proving controls were re-grouped, not re-authored); e2e authors a piece by
-  typing only Korean text and finds it on the board; an assertion proves no schema
-  field name (`nameKey`, `textKey`, `iconKey`, `kind`) appears as visible UI copy;
-  an e2e renames an existing record's id through the form and asserts the list
-  still shows one record with its text intact
-- **Risk:** high — largest single-file restructure in the plan
+- `merge_hazards`: `src/ui/Edit.tsx` splits into new files; every `editor.spec.ts` selector
+  moves (ADR-016); `src/editor/draft.ts` is edited by Phase 8 for the rename primitive, so
+  8 must land first; `src/ui/Home.tsx` and `src/i18n/ko.ts` (every phase touches the latter)
+- **Scope in — new screens:**
+  - `src/ui/EditorRooms.tsx` (new) — the room list, "새 방 만들기", and opening a room. A new
+    room cannot be empty: `pieceIds` carries `.min(1)` (`schema.ts:375`), so creation seeds
+    at least one piece and the form refuses to untick the last one
+  - `src/ui/RoomDetail.tsx` (new) — name field (plain Korean, via Phase 8's overlay), board
+    select, tick-lists over pieces / rule cards / skill cards, and "+ 새 기물 / 룰 / 스킬"
+    entering the record form in place
+  - `src/ui/EditorLibrary.tsx` (new) — today's six-kind surface, restructured browse → detail
+    per ADR-019, with an "어느 방에도 안 들어감" badge (ADR-026's black-hole guard)
+  - `src/ui/Edit.tsx` — reduced to a two-tab shell
+- **Scope in — the wiring the screens do not name:**
+  - `src/editor/references.ts` (new) — "which rooms reference this record", walking the
+    **transitive** path room → board → `placements[].pieceId` / `squares[].typeId` as well
+    as the four direct preset fields. 9b's delete guard and 9a's library badge are the two
+    callers, and they must not answer this question differently
+  - `src/editor/draft.ts` — the opened-record id threaded into `commitDraft`, which is what
+    makes Phase 8's rename primitive reachable from a form at all (R10)
+  - `src/ui/Home.tsx`, `src/i18n/ko.ts` — the preset `<select>` becomes a room picker.
+    `ui.preset.label` ("놀이 고르기") is replaced: it reads as *choose a different game*,
+    and what it selects is a configuration of the same game
+  - editor CSS (#37 — no rule targets the editor today), `editor.*` Korean copy for an
+    elementary reader (#39), field-anchored validation (#25), raw draft-JSON `<pre>` removed (#19)
+- **Scope out:** deletion of any kind (9b); preview, playtest, file I/O (Phase 10); room
+  sharing and online play (Non-Goals — not in this PLAN)
+- **Exit criterion:** `npm run verify`; an **e2e** creates a room by typing a Korean name,
+  picking a board and ticking pieces, one rule card and one skill card, saves, then starts a
+  match on it from Home and asserts the board renders exactly those pieces; an e2e asserts a
+  record belonging to no room is listed and badged in the library tab; a unit test asserts
+  `references.ts` reports a room for a piece reachable ONLY through that room's board
+  `placements` (never through `pieceIds`) and for a square type reachable only through
+  `squares[].typeId`; an e2e renames a record's id through the form and asserts one record
+  remains with its text intact; the pre-existing ADR-006 vocabulary-coverage test passes
+  UNCHANGED, proving controls were re-grouped rather than re-authored; an assertion proves no
+  schema field name (`nameKey`, `textKey`, `iconKey`, `kind`, `pieceIds`) appears as visible
+  UI copy
+- **Risk:** high — the largest restructure in the plan, and every editor e2e selector moves
 - **Rollback:** Phase 8
 
-### Phase 10 — Editor creation UX: preview, playtest, named drafts, file I/O
-- `depends_on`: [9]
+### Phase 9b — Deletion, with a refusal that names the room
+- **Split out of Phase 9 on 2026-08-06.** Deletion is the least-precedented subsystem here —
+  nothing in the editor deletes anything today — and its edge cases are where a child can
+  break the app. As three bullets inside 9a they would have had no exit criteria of their own.
+- `depends_on`: [9a]
 - `parallel_group`: `serial-editor`
-- `merge_hazards`: `e2e/content.ts` depends on `editor-json` + `editor-import` as the content bootstrap for most specs — that control must keep working or every spec that uses it must migrate in the same commit
-- **Scope in:** movement/card preview (#21), playtest-from-editor returning to the
-  editor (#20), named draft list replacing raw ids (#24), file download/upload and
-  share alongside the existing JSON textarea (#22), confirmation before a
-  destructive import (#23), staged complexity — advanced sections collapsed by
-  default (#26)
-- **Scope out:** editor undo/redo (deferred; see Risks)
-- **Exit criterion:** e2e — author a piece, preview it, playtest it, return to the
-  editor with the draft intact; the existing `useSliceContent` bootstrap still
-  passes; an import shows a confirmation and can be dismissed without data loss
+- `merge_hazards`: `src/editor/draft.ts` (9a threads the opened id through `commitDraft` in
+  the same file); `src/editor/references.ts` (authored in 9a, gains its second caller here)
+- **Scope in:**
+  - `src/editor/draft.ts` — `deleteRecord(base, kind, id)`, refusing when `references.ts`
+    reports referrers and RETURNING them so the UI can name the rooms; revalidating through
+    `loadContentSet` exactly as `commitDraft` does, so a delete can never leave a document
+    that will not load
+  - the "마지막 방은 지울 수 없어요" guard, which has **no schema backstop** — `presets`
+    carries no array minimum — and therefore lives here and needs its own test
+  - `src/ui/EditorRooms.tsx`, `src/ui/EditorLibrary.tsx` — the delete controls and the
+    refusal message
+- **Scope out:** undo of a delete (R9's family; a delete is confirmed, not undoable this cycle)
+- **Exit criterion:** `npm run verify`; unit tests cover `deleteRecord` in five cases —
+  unreferenced record deletes; referenced record refuses AND returns the referring room ids;
+  a record referenced only through a room's board (both `placements[].pieceId` and
+  `squares[].typeId`) refuses; the sole remaining room refuses; the last piece of a room
+  refuses. An **e2e** deletes a room and asserts it leaves Home's picker while the remaining
+  rooms still play; an e2e attempts to delete a piece a room uses, asserts the refusal text
+  contains that room's name, unticks it there, and asserts the delete then succeeds
+- **Risk:** high — the failure mode is a content set that no longer loads, which takes the
+  whole app down rather than one room
+- **Rollback:** Phase 9a
+
+### Phase 10 — Making a room feel makeable: preview, playtest, staged complexity, backup
+- `depends_on`: [9b]
+- `parallel_group`: `serial-editor`
+- `merge_hazards`: `e2e/content.ts` bootstraps most specs through `editor-json` +
+  `editor-import`; that control must keep working or every spec using it migrates in the
+  same commit
+- **Scope in:** movement / card preview (#21); playtest the open room and return to it intact
+  (#20); staged complexity — advanced sections collapsed by default (#26); file download /
+  upload as **whole-set backup** alongside the JSON textarea (#22); confirmation before a
+  destructive import (#23)
+- **Scope out:** editor undo/redo (deferred — R9); per-room export and any online transport
+  (Non-Goals)
+- **Note on #24.** "A named draft list replacing raw ids" is largely dissolved by 9a — the
+  room list IS the named list, and the library's browse view names records. What remains is
+  nothing this phase needs to build.
+- **Note on #22.** File I/O here is backup and restore of the whole content set, NOT room
+  sharing. Handing one room to a friend is a transfer problem that belongs with online play
+  and is out of this PLAN entirely.
+- **Exit criterion:** `npm run verify`; an e2e authors a piece, sees its movement preview,
+  playtests the room and returns to the editor with the room intact; an e2e shows the import
+  confirmation and dismisses it with no data loss; the existing `useSliceContent` bootstrap
+  still passes
 - **Risk:** medium
-- **Rollback:** Phase 9
+- **Rollback:** Phase 9b
 
 ## 🧪 Testing Strategy
 
@@ -814,6 +990,8 @@ being told anything. The last one is the only test that can falsify Phase 3.
 | R8 | Scope (39+1 gaps, 10 phases) exceeds the cycle | medium | medium | ADR-015's ordering makes every phase boundary shippable; phases 8-10 can slip without leaving a broken product |
 | R9 | Editor undo/redo (#24's sibling) is deferred, so a mis-edit still loses work | medium | medium | Phase 10 keeps `openDraft`'s clone semantics so a reload restores the last save; full undo is a follow-up |
 | R10 | Changing a record's id in the editor currently appends a duplicate instead of renaming (`draft.ts:123-136`) — pre-existing today, and ADR-020 would additionally orphan the record's text | high | high | Phase 8 adds the rename primitive to `commitDraft` and Phase 9 wires it to the form; both carry a dedicated exit-criterion test |
+| R11 | Reference resolution is transitive (room → board → `placements[].pieceId` / `squares[].typeId`), so a delete guard that walks only the four direct preset fields lets a squareType or a board-placed piece through — and `loadContentSet` then fails for the WHOLE document, not one room | medium | high | `src/editor/references.ts` is the single source for both the guard and the library badge, authored in 9a with unit tests for both transitive paths before 9b's delete calls it |
+| R12 | "Never the last room" has no schema backstop — `presets` carries no array minimum the way `pieceIds` carries `.min(1)` — so nothing outside `deleteRecord` prevents a content set with zero rooms, and `Home.tsx:37` renders a `<select>` with no empty state | low | high | The guard lives in `deleteRecord` with a dedicated unit test; 9b's exit criterion names the sole-remaining-room case explicitly |
 
 ## ✅ Success Criteria
 
@@ -827,13 +1005,39 @@ frontmatter still says so.
 - [x] No English enum, raw preset id, or schema field name appears as user-visible copy.
 - [x] Every bundled piece renders a glyph; a piece authored with no icon renders a monogram, not a blank.
 - [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phase 8)*
-- [ ] The editor opens on a browsable list, not a 40-button row, and every label is Korean an elementary reader understands. *(Phase 9)*
+- [ ] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
+- [ ] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
 - [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.
 - [ ] The app installs and plays offline after one visit. *(Phase 7)*
 - [x] Motion is fully suppressed under `prefers-reduced-motion`; sound and haptics are toggleable and off/on per ADR-023's defaults.
 - [x] `npm run verify` passes at every phase boundary, with no decrease in Playwright test count.
 
 ## 🔍 Plan Validation
+
+### Pass 2 — room-axis re-plan of Phases 9/10 (2026-08-06): MAJOR_REVISION → resolved
+
+Ten critiques (3 critical, 5 warning, 2 suggestion). All were resolved by revising
+this document; none needed a further interview round, because each named an
+objectively-wrong artifact rather than an open user decision — the same resolution
+path pass 1 took.
+
+| Severity | Finding | Resolution |
+|---|---|---|
+| critical | ADR-019 ("the editor is a per-kind browse view → detail") and the new ADR-026 ("rooms are the entry point") are two Accepted ADRs asserting incompatible top-level structures, with nothing marking the first superseded | ADR-019 is now **Superseded in part by ADR-026**: its browse→detail pattern governs the library tab only, and its heading says so |
+| critical | The delete guard was scoped as "which rooms reference this record", which walks only the four direct preset fields. A room also depends on records **through its board** — `boardDef.placements[].pieceId` and `boardDef.squares[].typeId` — so a square type or a board-placed piece could be deleted, and `loadContentSet` would then fail for the whole document rather than produce ADR-027's room-naming refusal | `references.ts` is scoped explicitly as a **transitive** walk (room → board → pieces/square types); 9a's exit criterion unit-tests both indirect paths before 9b's delete has a caller; recorded as **R11** |
+| critical | ADR-027's "never the last room" has no schema backstop — `presets` carries no array minimum the way `pieceIds` carries `.min(1)` — and no exit criterion tested the boundary | The guard is named as living in `deleteRecord`, 9b's exit criterion covers the sole-remaining-room case, and it is recorded as **R12** with `Home.tsx:37`'s missing empty state as the consequence |
+| warning | Phase 9 bundled four separable bodies of work (IA restructure, the Room concept, a whole deletion subsystem, rename wiring); this project already splits on that signal | Split into **9a** (structure) and **9b** (deletion). Deletion is the least-precedented subsystem and now carries five named unit cases of its own |
+| warning | The Affected Components table still named `EditorBrowse` + `EditorDetail` | Updated to `EditorRooms` + `RoomDetail` + `EditorLibrary` |
+| warning | The Phase 9 Success Criteria line described the old single-library IA, so ticking it would not verify what 9a builds | Rewritten against ADR-026, and a second line added for 9b's deletion contract |
+| warning | Non-Goals did not carry ADR-025's shared-library trade-off, though that section exists to consolidate exclusions | Added, alongside an explicit line that handing one room to a friend is out of scope |
+| warning | Phase 7's `depends_on: [6]` is a dangling reference — Phase 6 was split into 6a/6a+/6b and no longer exists as a node, and it sits directly upstream of the phases under review | Corrected to `[6b]`, with the reason stated inline |
+| suggestion | The stated reason for `depends_on: [8]` mentioned only room naming, but "+ 새 기물" inside a room needs the same overlay | Widened: any typed Korean name in the editor, room or record |
+| suggestion | "Korean copy for an elementary reader" has no measurable exit criterion | Left as-is deliberately. A reading-level rubric routed through `judgment-reviewer` is worth doing, but as an advisory gate rather than a blocking exit criterion, and inventing one here would put an unmeasured claim in a phase boundary — which is the failure this document has already recorded twice |
+
+Verification after the revision: frontmatter `adrs: 13` matches 13 ADR headings; the
+interview transcript carries 13 rows; every phase — including the retrospective 6a+ —
+carries `depends_on`, `parallel_group`, `merge_hazards`, an exit criterion, a risk and a
+rollback point.
 
 **Pass 1 — `plan-validator`: MAJOR_REVISION** (3 critical, 3 warning, 1 nit).
 All seven were resolved by revising this document; none required a further
