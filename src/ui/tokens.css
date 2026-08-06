@@ -35,10 +35,15 @@
   --color-surface-positive: #dcfce7;
   --color-surface-negative: #fee2e2;
 
-  /* board — one square colour today; the checker parity token lands with the
-     attribute that would use it, in Phase 4 (review round 2 found the pair
-     shipped as a dead token and a flat board). */
+  /* board — the checker step is bounded by the pieces standing on it. Measured:
+     a dark square at #b8ab90 reads 1.97:1 against the light square but drops the
+     blue/red glyphs to ~2.9:1, under the 3:1 they need. #c9bfa8 is the darkest
+     value that keeps every piece at or above 3.5:1. A 3:1 CHECKER, which review
+     asked for, is unreachable with tinted glyphs alone — an outlined glyph would
+     decouple the two, and that is recorded for Phase 6 rather than guessed at
+     here without a device in hand. */
   --color-board-light: #f2efe9;
+  --color-board-dark: #c9bfa8;
   --color-board-painted-a: #fef3c7;
   --color-board-painted-b: #fde68a;
 
@@ -71,6 +76,7 @@
   --font-size-base: 14px;
   --font-size-lg: 18px;
   --font-size-xs: 9px;
+  --font-size-coord: 13px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -83,6 +89,7 @@
     --color-surface-negative: #3a1a1a;
 
     --color-board-light: #3a352c;
+    --color-board-dark: #554d3f;
     --color-board-painted-a: #4a3a15;
     --color-board-painted-b: #5c4718;
 
@@ -112,6 +119,7 @@
   --color-surface-negative: #fee2e2;
 
   --color-board-light: #f2efe9;
+  --color-board-dark: #c9bfa8;
   --color-board-painted-a: #fef3c7;
   --color-board-painted-b: #fde68a;
 
@@ -139,6 +147,7 @@
   --color-surface-negative: #3a1a1a;
 
   --color-board-light: #3a352c;
+  --color-board-dark: #554d3f;
   --color-board-painted-a: #4a3a15;
   --color-board-painted-b: #5c4718;
 

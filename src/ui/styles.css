@@ -111,23 +111,68 @@ button {
   aspect-ratio: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding: 3px;
+  padding: 2px;
   overflow: hidden;
   background: var(--color-board-light);
 }
 
-.square .coord {
-  font-size: 9px;
-  color: var(--color-text-subtle);
-  align-self: flex-start;
+/* The checker (#41). The board rendered flat for three phases while the dark
+   token sat unused in every cascade layer — the attribute and the rule have to
+   arrive together, which is what `board-render.test.tsx` now pins. */
+.square[data-parity='1'] {
+  background: var(--color-board-dark);
 }
 
 .square .piece {
-  font-size: 12px;
+  font-size: 26px;
+  line-height: 1;
   font-weight: 600;
-  padding-bottom: 4px;
+}
+
+/* Coordinates live on the frame now, not inside the squares, where they were
+   9px and competing with the piece for a 60px box on a phone. */
+.board-frame {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'ranks board' '. files';
+  gap: var(--space-1);
+  margin: var(--space-4) 0;
+}
+
+.board-frame .board {
+  grid-area: board;
+  margin: 0;
+}
+
+.rank-rail,
+.file-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Its own size, not `--font-size-xs`. Relocating 9px muted text to the frame
+     fixes the crowding and leaves it just as unreadable, and the rail is now the
+     ONLY visible source of a square's name — `title` does not fire on touch. */
+  font-size: var(--font-size-coord);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-rail {
+  grid-area: ranks;
+  grid-auto-rows: 1fr;
+  align-items: center;
+  justify-items: center;
+  min-width: 12px;
+}
+
+.file-rail {
+  grid-area: files;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  justify-items: center;
 }
 
 .square[data-side='white'] .piece {

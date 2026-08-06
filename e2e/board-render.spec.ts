@@ -1,0 +1,155 @@
+import { expect, test } from '@playwright/test'
+import { bundledContentSource } from '../src/content/sets/bundled'
+import { translate } from '../src/ui/i18n'
+
+/**
+ * PLAN Phase 4's exit criterion, after real layout and paint.
+ *
+ * The component tests assert `textContent`, which is blind to two things a
+ * browser is not: a coordinate injected through CSS `content:` on a pseudo
+ * element (a normal way to label a compact board edge, and invisible to the DOM
+ * text the jsdom test reads), and a glyph that renders but cannot be seen —
+ * because its colour matches the square, or because the font has no such
+ * character and paints tofu. Both are exactly the defects "renders a glyph, not
+ * a blank square" and "no coordinate text in squares" exist to catch.
+ */
+
+async function startMatch(page: import('@playwright/test').Page) {
+  await page.goto('/')
+  await page.getByTestId('coach-skip').click()
+  await page.getByTestId('start-match').click()
+}
+
+test('every occupied square shows exactly one grapheme after layout', async ({ page }) => {
+  await startMatch(page)
+
+  const occupied = page.locator('[data-testid^="sq-"]:not([data-piece=""])')
+  const count = await occupied.count()
+  expect(count).toBe(24) // the Los Alamos array
+
+  // IDENTITY, not grapheme count. Counting looked discriminating until you check
+  // the fixture: '왕' (king) and '성' (rook) are already one grapheme, so six of
+  // these twenty-four squares would pass with the OLD name rendering untouched —
+  // an incomplete edit to bundled.ts that missed those two entries would ship
+  // behind a green test. The adjacent unit test had already learned this against
+  // the slice fixture; the lesson did not get carried across, which is the whole
+  // reason it is written down here.
+  const expectedFor = (pieceId: string) => {
+    const def = (bundledContentSource.pieces as Array<{ id: string; iconKey?: string; nameKey: string }>).find(
+      (p) => p.id === pieceId,
+    )
+    if (!def) throw new Error(`no such piece in the bundle: ${pieceId}`)
+    return def.iconKey ? translate(def.iconKey) : [...translate(def.nameKey)][0]
+  }
+
+  for (let i = 0; i < count; i++) {
+    const sq = occupied.nth(i)
+    const id = await sq.getAttribute('data-testid')
+    const pieceId = (await sq.getAttribute('data-piece')) ?? ''
+    // innerText is post-layout, so this also fails for a glyph that renders but
+    // is not displayed — the half a jsdom textContent read cannot see.
+    expect((await sq.innerText()).trim(), `${id} (${pieceId})`).toBe(expectedFor(pieceId))
+  }
+})
+
+test('a piece stays legible on the checker\'s DARK square (#41)', async ({ page }) => {
+  await startMatch(page)
+
+  // The first version compared `color` to `backgroundColor` for inequality on
+  // `.first()`. That could not fail — the side tokens never equalled the board
+  // token — and it was vacuous on painted squares anyway, whose gradient leaves
+  // `backgroundColor` transparent. The property this phase actually introduces
+  // is a SECOND square colour, so what matters is whether a piece survives it.
+  // EVERY occupied dark square, not `.first()`. The first version bound to a6 —
+  // a rook — because it is first in DOM order, so the one glyph that could not
+  // pass (the archer at e1/e6, an emoji that ignores `color`) was never sampled
+  // and the defect would have shipped behind a green test.
+  const probes = page.locator('[data-testid^="sq-"][data-parity="1"][data-square-type=""]:not([data-piece=""])')
+  const n = await probes.count()
+  expect(n).toBeGreaterThan(1)
+
+  const ratios = await probes.evaluateAll((els) =>
+    els.map((el) => {
+    const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+    const lum = ([r, g, b]: number[]) => {
+      const f = (v: number) => {
+        const s = (v ?? 0) / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r!) + 0.7152 * f(g!) + 0.0722 * f(b!)
+    }
+      const piece = (el.querySelector('.piece') ?? el) as Element
+      const a = lum(parse(getComputedStyle(piece).color))
+      const b = lum(parse(getComputedStyle(el).backgroundColor))
+      const [hi, lo] = a > b ? [a, b] : [b, a]
+      return { id: el.getAttribute('data-testid'), piece: el.getAttribute('data-piece'), ratio: (hi + 0.05) / (lo + 0.05) }
+    }),
+  )
+  // 3:1 is the non-text floor; a piece glyph is a graphical object at this size.
+  for (const r of ratios) expect(r.ratio, `${r.id} (${r.piece})`).toBeGreaterThanOrEqual(3)
+})
+
+test('no square carries its coordinate, including through CSS content', async ({ page }) => {
+  await startMatch(page)
+
+  const leaks = await page.locator('[data-testid^="sq-"]').evaluateAll((els) =>
+    els
+      .map((el) => {
+        const coord = (el.getAttribute('data-testid') ?? '').replace('sq-', '')
+        const pseudo = ['::before', '::after']
+          .map((p) => getComputedStyle(el, p).content)
+          .join(' ')
+        const text = `${(el as HTMLElement).innerText} ${pseudo}`
+        return coord && text.includes(coord) ? coord : ''
+      })
+      .filter(Boolean),
+  )
+  expect(leaks).toEqual([])
+})
+
+test('the two square colours actually differ on screen (#41)', async ({ page }) => {
+  await startMatch(page)
+  const colours = await page.locator('[data-testid^="sq-"]').evaluateAll((els) => {
+    const byParity: Record<string, string> = {}
+    for (const el of els) {
+      const p = el.getAttribute('data-parity') ?? ''
+      byParity[p] = getComputedStyle(el).backgroundColor
+    }
+    return byParity
+  })
+  expect(Object.keys(colours).sort()).toEqual(['0', '1'])
+  // Inequality was the first version and it passed at 1.27:1 — two different
+  // strings describing a board a child reads as flat, which is the same defect
+  // as the painted-square gradient (#42). The floor is a luminance step.
+  const step = await page.evaluate((c: Record<string, string>) => {
+    const parse = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+    const lum = (v: number[]) => {
+      const f = (x: number) => {
+        const s = (x ?? 0) / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(v[0]!) + 0.7152 * f(v[1]!) + 0.0722 * f(v[2]!)
+    }
+    const a = lum(parse(c['0']!))
+    const b = lum(parse(c['1']!))
+    const [hi, lo] = a > b ? [a, b] : [b, a]
+    return (hi + 0.05) / (lo + 0.05)
+  }, colours)
+  // Not 3:1. Measured trade-off: a 3:1 checker drives the tinted glyphs standing
+  // on it under 3:1 themselves, and an unreadable piece beats an unreadable
+  // board. Recorded for Phase 6 with the numbers.
+  expect(step).toBeGreaterThanOrEqual(1.5)
+})
+
+test('the edge rails label the board the squares no longer do', async ({ page }) => {
+  await startMatch(page)
+  // `ContentSource.boards` is the raw pre-validation shape, so the dimensions
+  // are read through a narrow cast rather than assumed on an unknown.
+  const board = bundledContentSource.boards[0] as { width: number; height: number } | undefined
+  expect(board, 'the bundle must ship a board').toBeTruthy()
+
+  const files = (await page.getByTestId('board-files').innerText()).replace(/\s+/g, '')
+  const ranks = (await page.getByTestId('board-ranks').innerText()).replace(/\s+/g, '')
+  expect(files.length).toBe(board!.width)
+  expect(ranks.length).toBe(board!.height)
+})

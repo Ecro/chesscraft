@@ -58,13 +58,14 @@ function losAlamosPlacements() {
 }
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 3,
+  schemaVersion: 4,
 
   pieces: [
     {
       id: 'piece.king',
       nameKey: 'piece.king.name',
       textKey: 'piece.king.text',
+      iconKey: 'piece.king.icon',
       movement: [{ kind: 'step', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       royal: true,
       effects: [],
@@ -73,6 +74,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.queen',
       nameKey: 'piece.queen.name',
       textKey: 'piece.queen.text',
+      iconKey: 'piece.queen.icon',
       movement: [{ kind: 'slide', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       effects: [],
     },
@@ -80,6 +82,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.rook',
       nameKey: 'piece.rook.name',
       textKey: 'piece.rook.text',
+      iconKey: 'piece.rook.icon',
       movement: [{ kind: 'slide', vectors: ORTHOGONAL }],
       effects: [],
     },
@@ -87,6 +90,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.knight',
       nameKey: 'piece.knight.name',
       textKey: 'piece.knight.text',
+      iconKey: 'piece.knight.icon',
       movement: [{ kind: 'jump', vectors: KNIGHT }],
       effects: [],
     },
@@ -94,6 +98,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.pawn',
       nameKey: 'piece.pawn.name',
       textKey: 'piece.pawn.text',
+      iconKey: 'piece.pawn.icon',
       movement: [{ kind: 'step', vectors: [[0, 1]], forward: true }],
       attack: [
         {
@@ -112,6 +117,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.archer',
       nameKey: 'piece.archer.name',
       textKey: 'piece.archer.text',
+      iconKey: 'piece.archer.icon',
       movement: [{ kind: 'step', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       attack: [
         {

@@ -19,7 +19,7 @@ describe('AC-010 — the bundled content set', () => {
     if (!result.ok) {
       throw new Error(`bundled content is invalid:\n${JSON.stringify(result.errors, null, 2)}`)
     }
-    expect(result.set.schemaVersion).toBe(3)
+    expect(result.set.schemaVersion).toBe(4) // v4 added pieceDef.iconKey (ADR-017)
   })
 
   it('ships at least 10 rule cards, 14 skill cards and 4 square types', () => {

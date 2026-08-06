@@ -25,7 +25,7 @@ import { z } from 'zod'
  * action, a destination relative to the piece being moved, a duration on the
  * three generation-time actions, and a condition over a side's material.
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -237,6 +237,16 @@ export const pieceDef = z.strictObject({
   id: contentId,
   nameKey: i18nKey,
   textKey: i18nKey,
+  /**
+   * The glyph the board draws for this piece (ADR-017), resolved through the
+   * same locale bundle as every other key so the UI keeps naming no piece.
+   *
+   * Optional, and the absent case is the common one rather than an edge: every
+   * document written before v4 lacks it, and so does every piece an author
+   * creates until the editor grows the control. The renderer falls back to the
+   * first grapheme of the translated name — never a blank square.
+   */
+  iconKey: i18nKey.optional(),
   movement: z.array(movePattern).min(1),
   /** Omitted means captures use the movement patterns. */
   attack: z.array(movePattern).min(1).optional(),

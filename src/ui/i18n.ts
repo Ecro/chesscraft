@@ -36,6 +36,10 @@ export function textKeysOf(set: ContentSet): string[] {
   for (const piece of set.pieces.values()) {
     add(piece.nameKey)
     add(piece.textKey)
+    // Optional, so only counted when present — but counted, because `translate`
+    // falls back to the key and an unresolved icon paints `piece.foo.icon`
+    // across a square. AC-016 covers exactly this for the other two keys.
+    add(piece.iconKey)
   }
   for (const type of set.squareTypes.values()) {
     add(type.nameKey)

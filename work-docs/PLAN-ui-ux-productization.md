@@ -465,16 +465,58 @@ exists to remove.
 - **Rollback:** Phase 2
 
 ### Phase 4 — Board rendering: schema v4 `iconKey`, glyphs, coordinate relocation
-- `depends_on`: [2] — `Board.tsx` does not exist until Phase 2 splits `Play.tsx`
-- `parallel_group`: `parallel-after-lifecycle` (with Phase 3)
-- `merge_hazards`: `src/content/schema.ts` — Phase 8 edits the same file for `strings`, and must land strictly after this phase
-- **Scope in:** `src/content/schema.ts` (+`iconKey`), `src/content/load.ts`, bundled content gains icons, `src/ui/Board.tsx` (extracted), coordinates moved to the board edge (#8), monogram fallback per ADR-017's absent-case rule
-- **Scope out:** animation, drag, sound
-- **Exit criterion:** `npm run verify`; a test loads a v3 document (no `iconKey`)
-  and asserts the monogram fallback renders; an e2e asserts every bundled piece
-  renders a glyph and no square contains its coordinate text
-- **Risk:** medium — schema migration
-- **Rollback:** Phase 2
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (277 unit, 41 e2e). Schema v4 adds
+  `pieceDef.iconKey` and `SCHEMA_VERSION` 3→4 (which is what lets `io.ts` re-import a v4 export);
+  the bundle authors six icons; the board draws the glyph with a first-grapheme monogram fallback
+  for every pre-v4 document; coordinates moved to rank/file rails on the frame; and #41's checker
+  landed with `data-parity` plus the `--color-board-dark` rule that Phase 1 had removed as dead.
+  The A.5 gate ran three times — the third round found that '왕' and '성' are already one grapheme,
+  so a grapheme-COUNT assertion would have missed king and rook keeping their names.
+- **Scope re-derived 2026-08-06** by tracing reachability rather than listing new files, after
+  `[fail:design] phase-scope-omits-wiring` recorded three consecutive phases drifting the same way.
+  What the original one-line scope missed is below; the findings are cited, not assumed.
+- `depends_on`: [2] — `Board`/`MatchHost` does not exist until Phase 2 splits `Play.tsx`
+- `parallel_group`: `serial-board`
+- `merge_hazards`: `src/content/schema.ts` (Phase 8 edits the same file for `strings`, and must land
+  after this); `src/editor/io.ts` (its import gate is keyed to `SCHEMA_VERSION`); `src/ui/styles.css`
+  and `src/i18n/ko.ts` (every phase touches both); `e2e/hotseat.spec.ts`'s portrait-scroll assertion
+- **Scope in — content layer:**
+  - `src/content/schema.ts` — `pieceDef.iconKey?` (note `pieceDef` is a `z.strictObject`, so an
+    unknown key is *rejected*, not ignored: the field must exist before any document can carry it),
+    and `SCHEMA_VERSION` 3 → 4
+  - `src/editor/io.ts` — **not in the original scope.** `io.ts:44` refuses any document declaring
+    `schemaVersion > SCHEMA_VERSION`, so the bump is what makes a v4 export importable at all
+  - `src/content/sets/bundled.ts` — six pieces gain icons; the document's own `schemaVersion: 3` → 4
+  - `src/i18n/ko.ts` — the icon entries `iconKey` resolves through `translate`
+- **Scope in — render layer:**
+  - `src/ui/MatchHost.tsx` — glyph instead of the piece's name text; coordinates moved off the square
+  - `src/ui/styles.css` — square/piece/coordinate rules and the edge rail
+  - `src/ui/tokens.css` — reinstate `--color-board-dark`, removed in Phase 1's review as a dead
+    token, together with the `data-parity` attribute that gives the board a checker (**gap #41**)
+- **Scope in — tests:**
+  - `tests/content/` — a v4 document round-trips; **the absent case is already exercised in-tree**:
+    `slice.ts` declares `schemaVersion: 1` and `gate6a.ts` declares `2`, and both are loaded by
+    existing suites, so a piece with no `iconKey` is not a hypothetical fixture
+  - `tests/ui/` — the monogram fallback renders rather than a blank square; no square contains its
+    own coordinate text
+  - `e2e/` — `hotseat.spec.ts:172` ("lays out in portrait without horizontal scrolling") is the
+    assertion an edge coordinate rail can break; it is the reason the rail must be sized, not added
+- **Scope out — and the consequence, stated because it is not obvious:** the editor gets **no
+  `iconKey` control** in this phase; that belongs to Phase 9's form work. **ADR-017's consequence
+  "editor-authored pieces get icons too" is therefore NOT true until Phase 9**, and until then an
+  authored piece renders the monogram fallback. This has to be written down because nothing will
+  catch it: the ADR-006 coverage gate derives its vocabulary from the Zod *discriminated unions*
+  (`src/editor/vocabulary.ts:6,26` — it unwraps `kind` options), and no test asserts coverage of
+  record-level fields against `pieceDef.shape`. `royal`, `promotion` and `attack` are in that gate
+  because someone added rows for them by hand. A new optional field is invisible to it — which is
+  `[fail:design] declared-but-inert-vocabulary` for the third time if it is left implicit.
+- **Exit criterion:** `npm run verify`; a test loads `slice.ts` (v1) and asserts the monogram
+  fallback renders for a piece with no `iconKey`; an e2e asserts every bundled piece renders a glyph
+  and that no square contains its coordinate text; `hotseat.spec.ts`'s portrait no-horizontal-scroll
+  assertion still passes with the coordinate rail present; a test asserts the board renders two
+  distinct square colours (#41 — the checker, which shipped as a dead token in Phase 1)
+- **Risk:** medium-high — schema migration plus the first change to the board's own markup
+- **Rollback:** Phase 3
 
 ### Phase 5 — Game feel: animation, last-move, drag, sound, haptics
 - `depends_on`: [4]

@@ -11,6 +11,22 @@
  */
 export const ko: Record<string, string> = {
   // --- pieces ---
+  // Icons (schema v4, ADR-017). They live in the locale bundle with everything
+  // else the player sees, which is not pedantry: a locale that prefers a
+  // different set of piece symbols can override them without touching content.
+  'piece.king.icon': '♚',
+  'piece.queen.icon': '♛',
+  'piece.rook.icon': '♜',
+  'piece.knight.icon': '♞',
+  'piece.pawn.icon': '♟',
+  // NOT an emoji. '🏹' is default-emoji-presentation, so browsers draw it from a
+  // colour font that ignores `color` and `font-weight` — the two cues tokens.css
+  // commits to — and both sides' archers rendered identically. '♝' is in the same
+  // monochrome family as the rest, inherits both cues, and is the slot the archer
+  // occupies: Los Alamos has no bishops. It reads as "bishop" to a chess-literate
+  // adult, which is the accepted cost; the audience learns the piece from its name
+  // and its rules entry, not from the glyph's chess history.
+  'piece.archer.icon': '♝',
   'piece.king.name': '왕',
   'piece.king.text': '어느 방향으로든 한 칸씩 움직인다. 왕이 잡히면 그 자리에서 게임이 끝난다.',
   'piece.queen.name': '여왕',

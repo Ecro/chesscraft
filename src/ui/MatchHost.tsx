@@ -22,6 +22,26 @@ import { translate } from './i18n'
  * able to pin it through the same code path a player takes.
  */
 
+/**
+ * What the board draws for a piece.
+ *
+ * `iconKey` is optional and its ABSENT case is the common one, not an edge:
+ * every document written before schema v4 lacks it, and so does every piece an
+ * author creates until the editor grows the control in Phase 9. The fallback is
+ * the first grapheme of the translated name — a monogram, never the whole word
+ * (which is what the board used to render, at 12px, inside the square) and
+ * never a blank square.
+ */
+function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): string {
+  if (def.iconKey) return translate(def.iconKey)
+  const name = translate(def.nameKey)
+  // `translate` returns the KEY when it cannot resolve one, so a piece with no
+  // locale entry would otherwise put the first letter of `piece.foo.name` — a
+  // bare `p` — on the board, indistinguishable from a real glyph.
+  if (name === def.nameKey) return '?'
+  return [...name][0] ?? '?'
+}
+
 /** A 31-bit non-negative seed — the default when no generator is injected. */
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
 
@@ -275,11 +295,23 @@ export function MatchHost({
         </p>
       )}
 
-      <div className="board" data-testid="board" style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}>
+      {/* Coordinates moved off the squares and onto the edge. In the square they
+          competed with the piece for a 60px box on a phone, which is why they
+          were 9px and unreadable anyway. */}
+      <div className="board-frame">
+        <ol className="rank-rail" data-testid="board-ranks">
+          {ranks.map((r) => (
+            <li key={r}>{r + 1}</li>
+          ))}
+        </ol>
+        <div className="board" data-testid="board" style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}>
         {ranks.flatMap((rank) =>
           files.map((file) => {
             const sq = squareId(file, rank)
             const piece = state.board.get(sq)
+            // The checker (#41). Shipped as a dead token in Phase 1 — the colour
+            // existed in three cascade layers and no square ever asked for it.
+            const parity = (file + rank) % 2
             const type = painted.get(sq)?.type
             const def = piece ? content.pieces.get(piece.pieceId) : undefined
             return (
@@ -290,17 +322,23 @@ export function MatchHost({
                 data-piece={piece?.pieceId ?? ''}
                 data-side={piece?.side ?? ''}
                 data-square-type={type?.id ?? ''}
+                data-parity={parity}
                 data-legal={reachable.has(sq)}
                 data-selected={selected === sq}
                 title={type ? `${translate(type.nameKey)} — ${translate(type.textKey)}` : sq}
                 onClick={() => clickSquare(sq)}
               >
-                <span className="coord">{sq}</span>
-                <span className="piece">{def ? translate(def.nameKey) : ''}</span>
+                <span className="piece">{def ? pieceGlyph(def) : ''}</span>
               </button>
             )
           }),
         )}
+        </div>
+        <ol className="file-rail" data-testid="board-files">
+          {files.map((f) => (
+            <li key={f}>{String.fromCharCode(97 + f)}</li>
+          ))}
+        </ol>
       </div>
 
       {/* AC-018's UI clause: painted types listed with their ability text, so
