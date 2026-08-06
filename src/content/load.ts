@@ -2,6 +2,8 @@ import {
   type BoardDef,
   COLLECTIONS,
   type CollectionName,
+  type ContentStrings,
+  contentStrings,
   type PieceDef,
   type PresetDef,
   type RuleCardDef,
@@ -29,6 +31,13 @@ export interface ValidationError {
 
 export interface ContentSet {
   schemaVersion: number
+  /**
+   * The document's own text (ADR-020), always present — `{}` for a document
+   * that declares none. Defaulted rather than optional because every consumer
+   * would otherwise write the same `?? {}`, and the one that forgot would
+   * silently take the bundle-only path for authored content.
+   */
+  strings: ContentStrings
   pieces: Map<string, PieceDef>
   squareTypes: Map<string, SquareTypeDef>
   ruleCards: Map<string, RuleCardDef>
@@ -47,6 +56,17 @@ export type LoadResult = { ok: true; set: ContentSet } | { ok: false; errors: Va
  */
 export interface ContentSource {
   schemaVersion: number
+  /**
+   * Authored text (ADR-020). Optional, and its ABSENT case is the common one:
+   * every document written before schema v6 lacks it entirely.
+   *
+   * Typed rather than `unknown` — unlike the record arrays, which stay `unknown`
+   * so nothing upstream can assert a record into shape past the Zod schemas.
+   * This is a plain string map with no cross-references to check, and the editor
+   * writes into it directly, so a type here buys real safety at the one call
+   * site that matters instead of a cast.
+   */
+  strings?: ContentStrings
   pieces: unknown[]
   squareTypes: unknown[]
   ruleCards: unknown[]
@@ -75,6 +95,28 @@ export function loadContentSet(source: unknown): LoadResult {
   const schemaVersion = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : null
   if (schemaVersion === null) {
     errors.push({ contentId: 'root', path: 'schemaVersion', message: 'schemaVersion is required' })
+  }
+
+  /**
+   * The document's own text (ADR-020). Absent is not an error — it is what
+   * every document written before schema v6 looks like — but present-and-wrong
+   * is, and it is reported with the same field-level path AC-011 requires of
+   * the records.
+   */
+  let strings: ContentStrings = {}
+  if (raw.strings !== undefined) {
+    const parsedStrings = contentStrings.safeParse(raw.strings)
+    if (parsedStrings.success) {
+      strings = parsedStrings.data
+    } else {
+      for (const issue of parsedStrings.error.issues) {
+        errors.push({
+          contentId: 'root',
+          path: ['strings', ...issue.path.map(String)].join('.'),
+          message: issue.message,
+        })
+      }
+    }
   }
 
   // --- Pass 1: per-record shape ------------------------------------------
@@ -257,6 +299,7 @@ export function loadContentSet(source: unknown): LoadResult {
     ok: true,
     set: {
       schemaVersion: schemaVersion!,
+      strings,
       pieces,
       squareTypes,
       ruleCards,

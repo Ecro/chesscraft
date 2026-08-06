@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { translate } from './i18n'
+import { useTranslate } from './i18n'
 
 /**
  * The screen the app opens on (PLAN Phase 2, RESEARCH #4).
@@ -26,31 +26,32 @@ export function Home({
   onStart: () => void
   onOpenRules: () => void
 }) {
+  const t = useTranslate()
   const presets = [...content.presets.entries()]
 
   return (
     <section className="home" data-testid="home">
-      <p className="tagline">{translate('ui.home.tagline')}</p>
+      <p className="tagline">{t('ui.home.tagline')}</p>
 
       <label>
-        {translate('ui.preset.label')}
+        {t('ui.preset.label')}
         <select data-testid="preset-select" value={presetId} onChange={(e) => onPresetChange(e.target.value)}>
           {presets.map(([id, preset]) => (
             // #17 — the id is the value the tests and storage use; the label is
             // the name the content already carries and the player can read.
             <option key={id} value={id}>
-              {translate(preset.nameKey)}
+              {t(preset.nameKey)}
             </option>
           ))}
         </select>
       </label>
 
       <button className="primary" data-testid="start-match" onClick={onStart}>
-        {translate('ui.action.start-match')}
+        {t('ui.action.start-match')}
       </button>
 
       <button data-testid="open-rules" onClick={onOpenRules}>
-        {translate('ui.action.rules')}
+        {t('ui.action.rules')}
       </button>
     </section>
   )

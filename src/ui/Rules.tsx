@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { translate } from './i18n'
+import { type Translate, useTranslate } from './i18n'
 
 /**
  * The reference screen: everything this content set contains, in the player's
@@ -18,20 +18,21 @@ type Entry = { id: string; nameKey: string; textKey: string; iconKey?: string | 
 
 /** Empty when the entry declares no icon, or declares one the locale cannot
  *  resolve — `translate` echoes an unresolved key, which would print the key. */
-function icon(e: Entry): string {
+function icon(t: Translate, e: Entry): string {
   if (!e.iconKey) return ''
-  const resolved = translate(e.iconKey)
+  const resolved = t(e.iconKey)
   return resolved === e.iconKey ? '' : resolved
 }
 
 function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; entries: Entry[]; open?: boolean }) {
+  const t = useTranslate()
   return (
     <details className="rules-group" data-testid={`rules-${id}`} open={open}>
       <summary>
-        <h3>{translate(titleKey)}</h3>
+        <h3>{t(titleKey)}</h3>
       </summary>
       {entries.length === 0 ? (
-        <p className="empty">{translate('ui.rules.empty')}</p>
+        <p className="empty">{t('ui.rules.empty')}</p>
       ) : (
         <ul>
           {entries.map((e) => (
@@ -43,14 +44,14 @@ function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; 
                   same `translate` as everything else, and `aria-hidden` because
                   the name sits immediately beside it. */}
               <span className="entry-head">
-                {icon(e) && (
+                {icon(t, e) && (
                   <span className="legend-icon" aria-hidden="true">
-                    {icon(e)}
+                    {icon(t, e)}
                   </span>
                 )}
-                <strong>{translate(e.nameKey)}</strong>
+                <strong>{t(e.nameKey)}</strong>
               </span>
-              <span>{translate(e.textKey)}</span>
+              <span>{t(e.textKey)}</span>
             </li>
           ))}
         </ul>
@@ -60,6 +61,7 @@ function Group({ id, titleKey, entries, open }: { id: string; titleKey: string; 
 }
 
 export function Rules({ content, onClose }: { content: ContentSet; onClose: () => void }) {
+  const t = useTranslate()
   // `textKey` is REQUIRED here on purpose. It is the only compile-time guard
   // keeping this screen to the four collections that carry player-facing prose:
   // `boards` and `presets` have no textKey at all, and with the property
@@ -71,13 +73,13 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
   return (
     <section className="rules" data-testid="rules">
       <div className="rules-head">
-        <h2>{translate('ui.rules.title')}</h2>
+        <h2>{t('ui.rules.title')}</h2>
         <button data-testid="rules-close" onClick={onClose}>
-          {translate('ui.rules.close')}
+          {t('ui.rules.close')}
         </button>
       </div>
 
-      <p className="rules-intro">{translate('ui.rules.intro')}</p>
+      <p className="rules-intro">{t('ui.rules.intro')}</p>
 
       <Group id="piece" titleKey="ui.rules.pieces" entries={entries(content.pieces)} open />
       <Group id="square" titleKey="ui.rules.squares" entries={entries(content.squareTypes)} />

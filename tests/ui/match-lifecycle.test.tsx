@@ -5,6 +5,7 @@ import { BUNDLED_PRESET_ID, bundledContentSource } from '../../src/content/sets/
 import { loadContentSet } from '../../src/content/load'
 import { App } from '../../src/ui/App'
 import { MatchHost, resultLabel } from '../../src/ui/MatchHost'
+import { makeTranslate } from '../../src/ui/i18n'
 
 /**
  * PLAN Phase 2 — the match lifecycle, and the two defects that made the
@@ -172,7 +173,7 @@ describe('nothing machine-readable reaches the player as text', () => {
     // passed either way. That is the same blind spot REVIEW recorded one level
     // up, reproduced one level down. The banner is asserted here through the
     // function the component actually renders it with.
-    const label = resultLabel(result)
+    const label = resultLabel(makeTranslate(), result)
     expect(label).not.toMatch(MACHINE_WORDS)
     expect(label).toMatch(/[가-힣]/)
   })

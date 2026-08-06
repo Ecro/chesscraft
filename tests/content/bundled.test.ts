@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource, loadBundledContent } from '@content/sets/bundled'
 import { createMatch, currentState } from '@engine/match'
-import { missingKeys, textKeysOf, translate } from '@ui/i18n'
+import { makeTranslate, missingKeys, textKeysOf } from '@ui/i18n'
+
+/** Bundle-only resolution — these assertions are about the SHIPPED text. */
+const translate = (key: string, _locale?: 'ko') => makeTranslate()(key)
 
 /**
  * PLAN Phase 6b exit criterion — AC-010 and AC-016 over the shipped set.
@@ -21,8 +24,18 @@ describe('AC-010 — the bundled content set', () => {
     }
     // v4 added pieceDef.iconKey (ADR-017); v5 carried the same field to square
     // types, rule cards and skill cards, which is what lets the board and the
-    // card faces say WHAT happens rather than only that something does.
-    expect(result.set.schemaVersion).toBe(5)
+    // card faces say WHAT happens rather than only that something does; v6
+    // added the document-level `strings` overlay (ADR-020).
+    //
+    // The shipped document declares the CURRENT version even though it carries
+    // no overlay of its own — `strings` is optional, so an older declaration
+    // would still load, but the export a child hands a friend is this document
+    // plus their edits, and a v6 field inside a document that says v5 is the
+    // lie `io.ts`'s version gate exists to catch.
+    expect(result.set.schemaVersion).toBe(6)
+    // Absent, not empty-but-declared: the shipped set names everything through
+    // the built-in bundle, which is what ADR-020's absent case must keep working.
+    expect(result.set.strings).toEqual({})
   })
 
   it('ships at least 10 rule cards, 14 skill cards and 4 square types', () => {

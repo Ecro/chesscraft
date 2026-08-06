@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { loadSliceContent } from '@content/sets/slice'
-import { missingKeys, textKeysOf, translate } from '@ui/i18n'
+import { makeTranslate, missingKeys, textKeysOf } from '@ui/i18n'
+
+/** Bundle-only resolution — the overlay path has its own suite. */
+const translate = (key: string, _locale?: 'ko') => makeTranslate()(key)
 
 /**
  * PLAN Phase 4 — the display seam AC-016 needs.

@@ -38,8 +38,20 @@ import { z } from 'zod'
  * icon is content, exactly as the piece glyph is.
  *
  * Every field is optional and every v4 document still loads unchanged.
+ *
+ * Bumped 5 -> 6 in Phase 8 (ADR-020): the document-level `strings` overlay. The
+ * editor accepts only keys, and `translate` echoes a key it cannot resolve, so
+ * until now anything a child authored rendered as `piece.rabbit.name` on the
+ * board. The text has to live SOMEWHERE the document carries, or an exported
+ * variant is unreadable on the next device; putting it beside the records
+ * rather than inside them keeps AC-016's literal ban intact on both sides.
+ * The bump is what makes such a document importable at all — `io.ts:44` refuses
+ * anything declaring a version this build does not know, so an export that
+ * carries `strings` and honestly says so would otherwise be rejected by the
+ * build that wrote it. `strings` is optional and every v5 document still loads
+ * unchanged.
  */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -81,6 +93,22 @@ export const i18nKey = z
   .regex(/^[a-z][a-z0-9]*(?:\.[a-z0-9-]+)+$/, 'must be a dotted lowercase i18n key, not literal text')
 
 export const contentId = z.string().regex(/^[a-z]+\.[a-z0-9-]+$/, 'must be `<kind>.<slug>`')
+
+/** BCP-47-ish, narrow on purpose: `ko`, `en`, `en-US`. */
+export const localeCode = z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/, 'must be a locale code like `ko` or `en-US`')
+
+/**
+ * Authored text, keyed by locale and then by the same i18n key the records
+ * carry (ADR-020).
+ *
+ * Keyed by `i18nKey` rather than by any string: the overlay is an ANSWER to a
+ * key the content already declares, and a free-text key would mean the editor
+ * derived nothing and wrote literals on both sides — the shape AC-016 exists to
+ * forbid. Values are `.min(1)` because an empty name renders as an empty square,
+ * which reads as a rendering bug rather than as content nobody has named yet.
+ */
+export const contentStrings = z.record(localeCode, z.record(i18nKey, z.string().min(1)))
+export type ContentStrings = z.infer<typeof contentStrings>
 
 /** Algebraic square notation, e.g. `c3`. Bounds are checked against the board. */
 export const squareRef = z.string().regex(/^[a-z][1-9][0-9]*$/, 'must be algebraic square notation')

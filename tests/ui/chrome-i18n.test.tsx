@@ -5,7 +5,10 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ko } from '../../src/i18n/ko'
 import { App } from '../../src/ui/App'
-import { translate } from '../../src/ui/i18n'
+import { makeTranslate } from '../../src/ui/i18n'
+
+/** The chrome is bundle text — `ui.*` keys never live in a content overlay. */
+const translate = makeTranslate()
 
 /**
  * PLAN Phase 1 exit criterion — the UI chrome goes through the same key

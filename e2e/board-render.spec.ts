@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { bundledContentSource } from '../src/content/sets/bundled'
-import { translate } from '../src/ui/i18n'
+import { makeTranslate } from '../src/ui/i18n'
+
+/** Bundle-only: this spec drives the shipped content, which declares no overlay. */
+const translate = makeTranslate()
 
 /**
  * PLAN Phase 4's exit criterion, after real layout and paint.

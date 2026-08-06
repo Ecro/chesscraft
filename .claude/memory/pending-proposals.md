@@ -35,3 +35,27 @@ a shared CSS property, a set of callers), run and record the sweep that
 enumerates the whole set, and paste its output into the fix log. The tell to
 match on is a finding whose subject is plural paired with a verification that is
 singular.
+
+## Proposal: derive phase scope from reachability, not prose (2026-08-06)
+**Triggered by:** [fail:design] phase-scope-omits-wiring (count: 3)
+**Proposed mechanism:** rule update to `/hm:plan` + a check in `/hm:execute` Step 1
+
+**Rationale:** Five phases of one PLAN have now come back `scope_violation`, and not
+once because something wrong was changed — every time because the scope list named an
+OUTCOME ("overlay-aware `translate`") and omitted the files that carry it (the five
+components whose every call site the change touches). The drift gate then reports a
+violation that is real by its own rule and meaningless as a signal, which is the worse
+failure: a gate that cries wolf five times stops being read.
+
+Phases 4 and 5 are the only two in this PLAN whose drift came back `clean`, and both
+got there the same way — by asking, before writing the scope list, *which files must
+change for this to be true*, rather than describing the change.
+
+Two concrete forms:
+1. `/hm:plan` — when a phase's scope names a function whose signature changes, the
+   scope list must enumerate its call sites (`rg` the symbol) or state why they are
+   exempt. The PLAN already prices this risk in prose ("touches every rendering call
+   site") while omitting it from the list the gate reads.
+2. `/hm:execute` Step 1 — after parsing the phase, name the files the exit criterion
+   makes reachable and diff that against the scope list. Surfacing the delta BEFORE
+   the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.

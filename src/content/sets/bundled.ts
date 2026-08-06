@@ -58,7 +58,7 @@ function losAlamosPlacements() {
 }
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 5,
+  schemaVersion: 6,
 
   pieces: [
     {

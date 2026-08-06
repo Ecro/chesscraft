@@ -415,9 +415,9 @@ No `public/`, no service worker, no design tokens, no animation, no audio.
 
 | Component | Change |
 |---|---|
-| `src/content/schema.ts` | v4: `pieceDef.iconKey?`, `ContentSource.strings?` |
+| `src/content/schema.ts` | v4: `pieceDef.iconKey?` · v5: the same field on the other three kinds · v6: `ContentSource.strings?` |
 | `src/content/load.ts` | carry `strings` onto `ContentSet`; keep fail-closed validation |
-| `src/ui/i18n.ts` | `translate(key, content?, locale?)` — overlay → bundle → key |
+| `src/ui/i18n.ts` | `makeTranslate(strings?, locale?) => Translate` + `TranslateContext` / `useTranslate()` — overlay → bundle → key. The bare `translate(key)` export is GONE: a call site resolving without the active overlay renders bundled text over the author's with nothing on screen to say so, so the compiler is the gate. Phase 9a inherits this shape, not the one this row used to describe. |
 | `src/i18n/ko.ts` | new `ui.*` and `editor.*` namespaces |
 | `src/ui/App.tsx` | becomes a router: Home / Play / Edit / Rules; owns theme + settings |
 | `src/ui/Play.tsx` | split into `MatchHost` (lifecycle, seed, result) + `Board` + `Tray` + `DraftPanel` |
@@ -883,7 +883,19 @@ exists to remove.
 - **Risk:** medium — service-worker cache invalidation
 - **Rollback:** Phase 6
 
-### Phase 8 — Schema v4 `strings` overlay, key derivation, and the rename primitive
+### Phase 8 — Schema v6 `strings` overlay, key derivation, and the rename primitive
+- **Status:** DONE (2026-08-06) — `npm run verify` GREEN (346 unit, 66 e2e, 4 pwa-e2e).
+  Reviewed at grade A ([[REVIEW-ui-ux-productization-phase8-2026-08-06]]), 3 fixes in round 2.
+  `ContentSource.strings` carries a document's own text; resolution is overlay -> bundle -> key.
+  `translate(key)` was REMOVED in favour of `makeTranslate(strings?)` + `TranslateContext` /
+  `useTranslate()` — a call site resolving without the active overlay would silently render
+  bundled text over the author's, so the compiler is the gate. It found all 11 stale call sites.
+  `commitDraft` gained `openedId`, which is what makes a rename replace instead of orphan (R10).
+  **Carried forward:** `deriveKey` / `writeString` / `dropStrings` have no production caller —
+  the PLAN's own split puts the form in 9a, but a primitive shipped ahead of its consumer can
+  drift from what that consumer needs. Review also deferred a P2: a partially-authored overlay
+  (name authored, description shipped) has no on-screen cue, and becomes producible the moment
+  9a's form lands.
 - `depends_on`: [7] — strictly after the whole board track; see **Execution order**
 - `parallel_group`: `serial-editor`
 - `merge_hazards`: `src/content/schema.ts` (same file as Phase 4 — strictly after it); `src/ui/i18n.ts`'s signature change ripples to every render call site, which Phases 5 and 6 rewrite — hence the serial dependency on 7 rather than 4
@@ -1062,7 +1074,11 @@ frontmatter still says so.
 - [x] The seed in play is visible and copyable, so a match can be replayed or shared.
 - [x] No English enum, raw preset id, or schema field name appears as user-visible copy.
 - [x] Every bundled piece renders a glyph; a piece authored with no icon renders a monogram, not a blank.
-- [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phase 8)*
+- [ ] A child types a Korean name in the editor and sees that name on the board — no source edit, and the name survives export → import. *(Phases 8 + 9a)*
+  - Phase 8 built the half that can be tested without a UI: a document carrying `strings.ko`
+    survives export → import and renders on the board. **Deliberately left unticked** — the
+    criterion says a child *types* the name, and there is no field to type into until 9a.
+    Ticking it on the mechanism alone would report a reachable outcome that is not reachable.
 - [ ] A room can be assembled, named in Korean, and played from Home; a library tab still reaches every record, including ones no room uses; every label is Korean an elementary reader understands. *(Phase 9a)*
 - [ ] A room can be deleted, the last one cannot, and deleting a record something uses is refused by naming the room that uses it. *(Phase 9b)*
 - [x] The play view passes 44×44 touch targets, has visible focus, exposes squares to a screen reader, and renders in dark mode.

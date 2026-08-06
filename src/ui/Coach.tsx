@@ -1,4 +1,4 @@
-import { translate } from './i18n'
+import { useTranslate } from './i18n'
 
 /**
  * First-visit coach marks (PLAN Phase 3).
@@ -32,6 +32,7 @@ export function Coach({
   onNext: () => void
   onDone: () => void
 }) {
+  const t = useTranslate()
   // Unreachable by construction — the next button unmounts at the last step —
   // but the component takes its index from a caller now, so it does not get to
   // assume that.
@@ -42,23 +43,23 @@ export function Coach({
 
   return (
     <div className="coach" data-testid={`coach-step-${step}`} role="dialog" aria-modal="false">
-      <p className="coach-body">{translate(`ui.coach.${step}`)}</p>
+      <p className="coach-body">{t(`ui.coach.${step}`)}</p>
       <div className="coach-actions">
         {/* Skip is on every step EXCEPT the last, where it would be a second
             button doing exactly what the first one does — and a child cannot
             tell what "skip" skips when there is nothing left. */}
         {!isLast && (
           <button data-testid="coach-skip" onClick={onDone}>
-            {translate('ui.coach.skip')}
+            {t('ui.coach.skip')}
           </button>
         )}
         {isLast ? (
           <button className="primary" data-testid="coach-done" onClick={onDone}>
-            {translate('ui.coach.done')}
+            {t('ui.coach.done')}
           </button>
         ) : (
           <button className="primary" data-testid="coach-next" onClick={onNext}>
-            {translate('ui.coach.next')}
+            {t('ui.coach.next')}
           </button>
         )}
       </div>

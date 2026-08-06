@@ -62,5 +62,12 @@ export function importContent(text: string): ImportResult {
     const list = raw[collection]
     source[collection] = Array.isArray(list) ? (list as unknown[]) : []
   }
+  // The result is rebuilt field by field rather than passed through, so a field
+  // missing from this function round-trips as `undefined` while every schema
+  // test stays green. `strings` (ADR-020) is a field, not a collection, and it
+  // is the whole of what an author typed — dropping it here would make an
+  // export readable on the device that wrote it and nowhere else.
+  // The cast is safe: `loadContentSet` above has already validated this shape.
+  if (raw.strings !== undefined) source.strings = raw.strings as NonNullable<ContentSource['strings']>
   return { ok: true, source }
 }

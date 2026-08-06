@@ -9,7 +9,7 @@ import { MatchHost } from './MatchHost'
 import { Rules } from './Rules'
 import { hasSeenCoach, markCoachSeen } from './coach'
 import { type Theme, loadSettings, saveSettings } from './settings'
-import { translate } from './i18n'
+import { TranslateContext, makeTranslate } from './i18n'
 import { applyUpdate, registerServiceWorker } from './sw-update'
 
 /**
@@ -103,7 +103,7 @@ export function App() {
   const [matchInProgress, setMatchInProgress] = useState(false)
 
   const leaveMatch = (to: 'home' | 'edit') => {
-    if (route === 'play' && matchInProgress && !window.confirm(translate('ui.confirm.discard'))) return
+    if (route === 'play' && matchInProgress && !window.confirm(t('ui.confirm.discard'))) return
     setRoute(to)
   }
 
@@ -133,27 +133,43 @@ export function App() {
     }
   }, [])
 
+  /**
+   * The resolver every screen below uses (ADR-020).
+   *
+   * Built from `source` rather than from `loaded.set`, and that is the reachable
+   * difference: a document that FAILS to load still carries the text its author
+   * typed, and the notice explaining the failure sits on the same screen. Taking
+   * the overlay from the loaded set would drop it exactly when it is needed.
+   *
+   * `App` is the only place this can be built — it is the only thing that knows
+   * which document is loaded — which is why the resolver is provided rather than
+   * imported. A screen that reached for a bundle-only `translate` would silently
+   * render shipped text over the author's, and nothing on screen would say so.
+   */
+  const t = useMemo(() => makeTranslate(source.strings), [source.strings])
+
   const loaded = useMemo(() => loadContentSet(source), [source])
   const presetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
   // A preset the author deleted must not leave the board pointing at nothing.
   const activePreset = presetIds.includes(presetId) ? presetId : (presetIds[0] ?? BUNDLED_PRESET_ID)
 
   return (
+    <TranslateContext.Provider value={t}>
     <main>
-      <h1>{translate('ui.app.title')}</h1>
+      <h1>{t('ui.app.title')}</h1>
       <nav>
         <button data-testid="tab-play" onClick={() => leaveMatch('home')}>
-          {translate('ui.tab.play')}
+          {t('ui.tab.play')}
         </button>
         <button data-testid="theme-toggle" data-theme-choice={theme} onClick={cycleTheme}>
-          {translate(`ui.theme.${theme}`)}
+          {t(`ui.theme.${theme}`)}
         </button>
         <button data-testid="tab-edit" onClick={() => leaveMatch('edit')}>
-          {translate('ui.tab.edit')}
+          {t('ui.tab.edit')}
         </button>
       </nav>
 
-      {!loaded.ok && <p data-testid="content-broken">{translate('ui.content.broken')}</p>}
+      {!loaded.ok && <p data-testid="content-broken">{t('ui.content.broken')}</p>}
 
       {/* One stack, not two independently-fixed siblings. Both notices are
           `position: fixed` at the same coordinates, and their conditions are
@@ -166,14 +182,14 @@ export function App() {
       <div className="notice-stack">
       {updateReady && (
         <section className="notice" data-testid="update-prompt">
-          <strong>{translate('ui.update.title')}</strong>
-          <p>{translate('ui.update.body')}</p>
+          <strong>{t('ui.update.title')}</strong>
+          <p>{t('ui.update.body')}</p>
           <div className="notice-actions">
             <button data-testid="update-apply" onClick={() => applyUpdate(updateReady, navigator.serviceWorker)}>
-              {translate('ui.update.apply')}
+              {t('ui.update.apply')}
             </button>
             <button data-testid="update-later" onClick={() => setUpdateReady(null)}>
-              {translate('ui.update.later')}
+              {t('ui.update.later')}
             </button>
           </div>
         </section>
@@ -181,14 +197,14 @@ export function App() {
 
       {initial.failedToLoad && !noticeDismissed && (
         <section className="notice" data-testid="content-notice">
-          <strong>{translate('ui.content.notice.title')}</strong>
-          <p>{translate('ui.content.notice.body')}</p>
+          <strong>{t('ui.content.notice.title')}</strong>
+          <p>{t('ui.content.notice.body')}</p>
           <div className="notice-actions">
             <button data-testid="notice-open-editor" onClick={() => setRoute('edit')}>
-              {translate('ui.content.notice.open-editor')}
+              {t('ui.content.notice.open-editor')}
             </button>
             <button data-testid="notice-dismiss" onClick={() => setNoticeDismissed(true)}>
-              {translate('ui.content.notice.dismiss')}
+              {t('ui.content.notice.dismiss')}
             </button>
           </div>
         </section>
@@ -231,5 +247,6 @@ export function App() {
         />
       )}
     </main>
+    </TranslateContext.Provider>
   )
 }

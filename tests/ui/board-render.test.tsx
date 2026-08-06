@@ -8,7 +8,10 @@ import { SCHEMA_VERSION } from '../../src/content/schema'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '../../src/content/sets/bundled'
 import { SLICE_PRESET_ID, sliceContentSource } from '../../src/content/sets/slice'
 import { MatchHost } from '../../src/ui/MatchHost'
-import { translate } from '../../src/ui/i18n'
+import { makeTranslate } from '../../src/ui/i18n'
+
+/** Bundle-only, matching what `MatchHost` resolves with no provider above it. */
+const translate = makeTranslate()
 
 /**
  * PLAN Phase 4 — the board stops rendering pieces as their own names.

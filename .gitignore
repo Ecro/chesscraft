@@ -27,3 +27,6 @@ test-results/
 .claude/memory/*.lock
 *.swp
 .backup-*/
+
+# git worktrees created by the /hm: stages — checkouts, never content
+.worktrees/

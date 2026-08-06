@@ -1,4 +1,5 @@
 import { type ContentSet, type ContentSource, type ValidationError, loadContentSet } from '@content/load'
+import { rekeyStrings } from './strings'
 
 /**
  * The editor's first pass (PLAN Phase 3), over the four content kinds the slice
@@ -119,16 +120,53 @@ function idOf(draft: unknown): unknown {
  * `base` is never mutated: on failure the caller still holds the last content
  * that loaded, so a rejected save cannot leave the session in a state that no
  * longer starts a match.
+ *
+ * `openedId` is the rename primitive (PLAN Phase 8, R10). Without it this
+ * matches solely on the DRAFT'S OWN id, which is correct while an id never
+ * changes and wrong the moment one does: the changed id matches nothing, so the
+ * save APPENDS a second record and the original is orphaned in the document
+ * forever. Nothing surfaced it because nothing in the editor could change an id
+ * yet — Phase 9a threads it through the form. ADR-020 is what makes the orphan
+ * visible rather than merely present: it takes its text with it.
+ *
+ * Optional, and every existing call site omits it, so the pre-Phase-8 behaviour
+ * is exactly what an omitted `openedId` still does.
  */
-export function commitDraft(base: ContentSource, kind: DraftKind, draft: unknown): CommitResult {
+export function commitDraft(
+  base: ContentSource,
+  kind: DraftKind,
+  draft: unknown,
+  openedId?: string,
+): CommitResult {
   const next = structuredClone(base)
   const list = next[COLLECTION_OF[kind]] as unknown[]
 
   const id = idOf(draft)
-  const at = list.findIndex((record) => idOf(record) === id)
+  // WHICH record this save replaces is decided by `openedId` ALONE once the
+  // caller supplies one — never by falling back to the draft's own id.
+  //
+  // The fallback was the first version of this, and it is a data-loss bug:
+  // when the opened record is gone (deleted through another path while the
+  // buffer stayed open) and the author has typed an id that ALREADY belongs to
+  // a different record, matching by the draft id finds that other record and
+  // overwrites it. The save validates, so nothing reports anything — the
+  // author sees a successful save and someone else's piece is gone.
+  //
+  // Not matching means the record is pushed instead, and `loadContentSet`
+  // refuses the document with `duplicate id <x>`. Refusing a stale save is the
+  // honest answer; the author is told the id is taken and picks another.
+  const at = list.findIndex((record) => idOf(record) === (openedId ?? id))
   const record = structuredClone(draft)
   if (at >= 0) list[at] = record
   else list.push(record)
+
+  // The text follows the record, and only a rename moves it.
+  if (openedId !== undefined && typeof id === 'string' && openedId !== id) {
+    // Assigned only when there IS an overlay: the field is exactly-optional,
+    // so writing `undefined` into it is a different document from omitting it.
+    const moved = rekeyStrings(next.strings, openedId, id)
+    if (moved !== undefined) next.strings = moved
+  }
 
   const result = loadContentSet(next)
   if (!result.ok) return { ok: false, errors: result.errors }

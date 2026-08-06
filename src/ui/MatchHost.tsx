@@ -4,7 +4,7 @@ import { paintedSquares } from '@engine/effects'
 import { apply, describeRejection, legalActions, pendingDraftSide } from '@engine/engine'
 import { type Match, createMatch, currentState, undo } from '@engine/match'
 import { type Action, type MatchResult, type Side, type SquareId, squareId } from '@engine/types'
-import { translate } from './i18n'
+import { type Translate, useTranslate } from './i18n'
 import { browserStorage } from '@editor/storage'
 import { DEFAULT_SETTINGS, type Settings, loadSettings, saveSettings } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
@@ -35,9 +35,9 @@ import { type SoundEvent, hapticsSupported, play } from './sound'
  * (which is what the board used to render, at 12px, inside the square) and
  * never a blank square.
  */
-function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): string {
+function pieceGlyph(t: Translate, def: { iconKey?: string | undefined; nameKey: string }): string {
   if (def.iconKey) {
-    const icon = translate(def.iconKey)
+    const icon = t(def.iconKey)
     // Falls THROUGH to the monogram when the key does not resolve, rather than
     // returning it. `translate` echoes an unresolved key, so the bare version
     // of this branch painted `piece.foo.icon` across the square — the exact
@@ -47,7 +47,7 @@ function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): str
     // through the editor once Phase 9 grows the control.
     if (icon !== def.iconKey) return icon
   }
-  const name = translate(def.nameKey)
+  const name = t(def.nameKey)
   // `translate` returns the KEY when it cannot resolve one, so a piece with no
   // locale entry would otherwise put the first letter of `piece.foo.name` — a
   // bare `p` — on the board, indistinguishable from a real glyph.
@@ -64,9 +64,9 @@ function pieceGlyph(def: { iconKey?: string | undefined; nameKey: string }): str
  * meant the same thing. The piece board is the one place a fallback is right —
  * a square with nothing in it is not a piece.
  */
-function iconOf(def: { iconKey?: string | undefined } | undefined): string {
+function iconOf(t: Translate, def: { iconKey?: string | undefined } | undefined): string {
   if (!def?.iconKey) return ''
-  const icon = translate(def.iconKey)
+  const icon = t(def.iconKey)
   // `translate` echoes the key when it cannot resolve one, which would paint
   // the raw key string across a card face.
   return icon === def.iconKey ? '' : icon
@@ -100,6 +100,7 @@ export function eventFor(
  * where a selected piece may go, which is the whole of the criterion.
  */
 function squareLabel(
+  t: Translate,
   sq: string,
   def: { nameKey: string } | undefined,
   piece: { side: string } | undefined,
@@ -107,10 +108,10 @@ function squareLabel(
   reachable: boolean,
 ): string {
   const parts = [sq]
-  if (def && piece) parts.push(`${translate(`ui.side.${piece.side}`)} ${translate(def.nameKey)}`)
-  else parts.push(translate('ui.board.empty'))
-  if (type) parts.push(translate(type.nameKey))
-  if (reachable) parts.push(translate('ui.board.reachable'))
+  if (def && piece) parts.push(`${t(`ui.side.${piece.side}`)} ${t(def.nameKey)}`)
+  else parts.push(t('ui.board.empty'))
+  if (type) parts.push(t(type.nameKey))
+  if (reachable) parts.push(t('ui.board.reachable'))
   return parts.join(', ')
 }
 
@@ -129,10 +130,10 @@ const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
  * 'material_cap'`, and rendering it directly — which is what this file did
  * before Phase 2 — prints `king_capture` on screen at the end of every match.
  */
-export function resultLabel(result: MatchResult): string {
-  const reason = translate(`ui.result.reason.${result.reason}`)
-  if (result.kind !== 'win') return `${translate('ui.result.draw')} — ${reason}`
-  return `${translate(`ui.side.${result.winner}`)} ${translate('ui.result.win')} — ${reason}`
+export function resultLabel(t: Translate, result: MatchResult): string {
+  const reason = t(`ui.result.reason.${result.reason}`)
+  if (result.kind !== 'win') return `${t('ui.result.draw')} — ${reason}`
+  return `${t(`ui.side.${result.winner}`)} ${t('ui.result.win')} — ${reason}`
 }
 
 export function MatchHost({
@@ -148,6 +149,10 @@ export function MatchHost({
   onHome?: () => void
   onProgressChange?: (inProgress: boolean) => void
 }) {
+  // Bound to the ACTIVE document's overlay (ADR-020), not to the shipped bundle:
+  // a piece a child renamed must render under the name they gave it, and the
+  // only thing that knows which document is loaded is `App`.
+  const t = useTranslate()
   // Seed and match move together — a seed without the match it produced would
   // let the two drift, and the seed on screen is the one a player copies.
   const [{ seed, match }, setPlay] = useState<{ seed: number; match: Match }>(() => {
@@ -211,7 +216,7 @@ export function MatchHost({
     // Two children share one phone and this button sits beside the board. A
     // mis-tap used to discard the position, both hands and the ply count with
     // no undo — `undo` steps one ply, it cannot bring a match back.
-    if (inProgress && !window.confirm(translate('ui.confirm.discard'))) return
+    if (inProgress && !window.confirm(t('ui.confirm.discard'))) return
     const s = newSeed()
     setLastMove(null)
     setPlay({ seed: s, match: createMatch({ content, presetId, seed: s }) })
@@ -386,40 +391,40 @@ export function MatchHost({
           role="status"
           aria-live="polite"
         >
-          {translate(`ui.side.${state.sideToMove}`)} {translate('ui.status.turn')}
+          {t(`ui.side.${state.sideToMove}`)} {t('ui.status.turn')}
         </span>
         <span data-testid="phase" data-phase={phase}>
-          {translate(`ui.phase.${phase}`)}
+          {t(`ui.phase.${phase}`)}
         </span>
         <span>
-          {translate('ui.status.ply')} {state.plyCount}
+          {t('ui.status.ply')} {state.plyCount}
         </span>
         <button data-testid="undo" onClick={doUndo}>
-          {translate('ui.action.undo')}
+          {t('ui.action.undo')}
         </button>
       </div>
 
       {/* AC-004's display clause: the drawn rule card stays on screen for the
           whole match, not shown once at the start and forgotten. */}
       <div className="card rule" data-testid="rule-card" data-rule={state.ruleCardId ?? ''}>
-        {iconOf(rule) && (
+        {iconOf(t, rule) && (
           <span className="rule-icon" aria-hidden="true">
-            {iconOf(rule)}
+            {iconOf(t, rule)}
           </span>
         )}
         <div className="rule-body">
-          <strong>{rule ? translate(rule.nameKey) : translate('ui.rule.none')}</strong>
-          {rule && <span>{translate(rule.textKey)}</span>}
+          <strong>{rule ? t(rule.nameKey) : t('ui.rule.none')}</strong>
+          {rule && <span>{t(rule.textKey)}</span>}
         </div>
       </div>
 
       {state.result && (
         <div className="result-panel">
           <p className="result" data-testid="result" data-winner={state.result.kind === 'win' ? state.result.winner : ''}>
-            {resultLabel(state.result)}
+            {resultLabel(t, state.result)}
           </p>
           <button data-testid="rematch" onClick={startNew}>
-            {translate('ui.action.rematch')}
+            {t('ui.action.rematch')}
           </button>
         </div>
       )}
@@ -441,10 +446,10 @@ export function MatchHost({
             data-testid="draft-offer"
             data-side={drafting}
             role="dialog"
-            aria-label={translate('ui.draft.prompt')}
+            aria-label={t('ui.draft.prompt')}
           >
             <p className="draft-prompt">
-              {translate(`ui.side.${drafting}`)} — {translate('ui.draft.prompt')}
+              {t(`ui.side.${drafting}`)} — {t('ui.draft.prompt')}
             </p>
             <div className="draft-cards">
               {(state.drafts[drafting].offers ?? []).map((cardId) => {
@@ -458,10 +463,10 @@ export function MatchHost({
                     onClick={() => push({ kind: 'draft_pick', cardId })}
                   >
                     <span className="card-icon" aria-hidden="true">
-                      {iconOf(card)}
+                      {iconOf(t, card)}
                     </span>
-                    <strong>{card ? translate(card.nameKey) : cardId}</strong>
-                    {card && <span>{translate(card.textKey)}</span>}
+                    <strong>{card ? t(card.nameKey) : cardId}</strong>
+                    {card && <span>{t(card.textKey)}</span>}
                   </button>
                 )
               })}
@@ -489,7 +494,7 @@ export function MatchHost({
           className="board"
           data-testid="board"
           role="grid"
-          aria-label={translate('ui.board.label')}
+          aria-label={t('ui.board.label')}
           style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
         >
         {/* `role="grid"` owns `row`, which owns `gridcell` — the middle level
@@ -531,25 +536,25 @@ export function MatchHost({
                 data-legal={reachable.has(sq)}
                 data-selected={selected === sq}
                 role="gridcell"
-                aria-label={squareLabel(sq, def, piece, type, reachable.has(sq))}
+                aria-label={squareLabel(t, sq, def, piece, type, reachable.has(sq))}
                 // `aria-selected`, not `aria-pressed`: the explicit gridcell role
                 // overrides the native button role, and `aria-pressed` is a
                 // button-family state a gridcell does not support, so the
                 // selection would simply never have been announced.
                 aria-selected={selected === sq}
-                title={type ? `${translate(type.nameKey)} — ${translate(type.textKey)}` : sq}
+                title={type ? `${t(type.nameKey)} — ${t(type.textKey)}` : sq}
                 onClick={() => clickSquare(sq)}
               >
                 {/* What this square DOES, drawn on it. The stripe alone said
                     only "something happens here", and the five bundled types
                     range from promotion to destruction. Marked aria-hidden
                     because `squareLabel` already names the type in words. */}
-                {iconOf(type) && (
+                {iconOf(t, type) && (
                   <span className="square-mark" data-occupied={Boolean(piece)} aria-hidden="true">
-                    {iconOf(type)}
+                    {iconOf(t, type)}
                   </span>
                 )}
-                <span className="piece">{def ? pieceGlyph(def) : ''}</span>
+                <span className="piece">{def ? pieceGlyph(t, def) : ''}</span>
               </button>
             )
           })}
@@ -584,9 +589,9 @@ export function MatchHost({
             aria-expanded={openTrays[side]}
             onClick={() => setOpenTrays((t) => ({ ...t, [side]: !t[side] }))}
           >
-            {translate(`ui.side.${side}`)}
+            {t(`ui.side.${side}`)}
           </button>
-          {state.drafts[side].held.length === 0 && <span className="empty">{translate('ui.tray.empty')}</span>}
+          {state.drafts[side].held.length === 0 && <span className="empty">{t('ui.tray.empty')}</span>}
           {/* The cards stay MOUNTED when a tray is collapsed. ADR-018 keeps
               AC-017's model — "both hands, one board, both trays always
               visible" — and the first version of this unmounted them, so a tap
@@ -612,18 +617,18 @@ export function MatchHost({
                 // it out of the accessibility tree, and the icon beside it is
                 // `aria-hidden` — so the button was left with no accessible
                 // name at all. Condensing must cost prose, never identity.
-                aria-label={card ? translate(card.nameKey) : cardId}
+                aria-label={card ? t(card.nameKey) : cardId}
                 onClick={() => clickCard(side, cardId)}
               >
                 <span className="card-icon" aria-hidden="true">
-                  {iconOf(card)}
+                  {iconOf(t, card)}
                 </span>
                 <span className="card-body">
                   <strong>
-                    {card ? translate(card.nameKey) : cardId}
-                    {spent ? ` ${translate('ui.card.spent')}` : ''}
+                    {card ? t(card.nameKey) : cardId}
+                    {spent ? ` ${t('ui.card.spent')}` : ''}
                   </strong>
-                  {card && <span>{translate(card.textKey)}</span>}
+                  {card && <span>{t(card.textKey)}</span>}
                 </span>
                 </button>
               )
@@ -644,12 +649,12 @@ export function MatchHost({
             // screen-reader-only, so this list is the only visual cross-
             // reference a sighted player has.
             <li key={type.id} data-square-type={type.id}>
-              {iconOf(type) && (
+              {iconOf(t, type) && (
                 <span className="legend-icon" aria-hidden="true">
-                  {iconOf(type)}
+                  {iconOf(t, type)}
                 </span>
               )}
-              <strong>{translate(type.nameKey)}</strong> — {translate(type.textKey)}
+              <strong>{t(type.nameKey)}</strong> — {t(type.textKey)}
             </li>
           ))}
         </ul>
@@ -660,11 +665,11 @@ export function MatchHost({
           player reaches for between matches, and above the board they outranked
           the position every turn. */}
       <div className="match-tools">
-        <span data-testid="match-seed" title={translate('ui.seed.hint')}>
-          {translate('ui.seed.label')} {seed}
+        <span data-testid="match-seed" title={t('ui.seed.hint')}>
+          {t('ui.seed.label')} {seed}
         </span>
         <button data-testid="copy-seed" data-copy-state={copyState} onClick={copySeed}>
-          {translate(
+          {t(
             copyState === 'copied' ? 'ui.seed.copied' : copyState === 'failed' ? 'ui.seed.copy-failed' : 'ui.seed.copy',
           )}
         </button>
@@ -678,35 +683,35 @@ export function MatchHost({
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((o) => !o)}
         >
-          {translate('ui.action.settings')}
+          {t('ui.action.settings')}
         </button>
         {settingsOpen && (
           <span className="match-settings-panel">
             <button data-testid="sound-toggle" data-on={settings.sound} onClick={() => toggle('sound')}>
-              {translate(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
+              {t(settings.sound ? 'ui.sound.on' : 'ui.sound.off')}
             </button>
             {hapticsSupported() && (
               <button data-testid="haptics-toggle" data-on={settings.haptics} onClick={() => toggle('haptics')}>
-                {translate(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
+                {t(settings.haptics ? 'ui.haptics.on' : 'ui.haptics.off')}
               </button>
             )}
           </span>
         )}
         <button data-testid="flip-board" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
-          {translate('ui.action.flip')}
+          {t('ui.action.flip')}
         </button>
         <button data-testid="new-match" onClick={startNew}>
-          {translate('ui.action.new-match')}
+          {t('ui.action.new-match')}
         </button>
         {onHome && (
           <button
             data-testid="go-home"
             onClick={() => {
-              if (inProgress && !window.confirm(translate('ui.confirm.discard'))) return
+              if (inProgress && !window.confirm(t('ui.confirm.discard'))) return
               onHome()
             }}
           >
-            {translate('ui.action.home')}
+            {t('ui.action.home')}
           </button>
         )}
       </div>
