@@ -519,20 +519,45 @@ exists to remove.
 - **Rollback:** Phase 3
 
 ### Phase 5 — Game feel: animation, last-move, drag, sound, haptics
+- **Scope re-derived 2026-08-06**, same method as Phase 4: trace what must be touched for the new
+  thing to be reachable, not what the phase creates. Four items below were absent from the original.
 - `depends_on`: [4]
 - `parallel_group`: `serial-board`
-- `merge_hazards`: `src/ui/Board.tsx`; `src/ui/styles.css` motion rules
-- **Scope in:** move/capture animation driven by the last `Action` held in host
-  state (no engine change — the engine has no piece-instance identity, so the UI
-  animates the action it just applied and clears it on undo), last-move highlight
-  (#11), drag-and-drop alongside tap (#12), `src/ui/sound.ts` per ADR-023,
-  sound/haptics toggle, `prefers-reduced-motion` (#30)
-- **Scope out:** particles, screen shake
-- **Exit criterion:** e2e passes with animation enabled and with reduced-motion
-  forced; a unit test asserts every sound event maps to synthesis parameters and
-  that the toggle silences all of them; undo after a move leaves no stale
-  animation state
-- **Risk:** high — the positional-piece-identity trap in RESEARCH §Pitfalls
+- `merge_hazards`: `src/ui/MatchHost.tsx`, `src/ui/styles.css`, `src/ui/tokens.css`; and
+  `playwright.config.ts`, which is shared by all 41 existing specs
+- **Scope in — the animation itself:**
+  - `src/ui/MatchHost.tsx` — **must start retaining the applied `Action`.** `push` currently keeps
+    only the resulting state (`MatchHost.tsx:118-119`), and the engine gives pieces no instance
+    identity — `state.board.get(sq)` is keyed by square — so a tween derived from diffing board maps
+    animates *squares*, and a piece fades out and in instead of sliding. The action that was applied
+    is the only thing that says what moved where. Cleared on undo, or the last move replays.
+  - `src/ui/tokens.css` — **not in the original scope.** Duration and easing become tokens so
+    `prefers-reduced-motion` has one place to zero them rather than a sweep through component rules
+  - `src/ui/styles.css` — motion rules, last-move highlight (#11), and the reduced-motion block (#30)
+- **Scope in — input:**
+  - drag-and-drop **alongside** tap (#12). Tap is not replaced: all 41 existing specs drive the board
+    by clicking, and they are the regression net for this phase
+- **Scope in — sound and haptics (ADR-023):**
+  - `src/ui/sound.ts` (new) — Web Audio synthesis, no binary assets
+  - `src/ui/settings.ts` (new) — **not in the original scope.** The toggle has to persist, and
+    persistence in this repo means `Storage` injected as a parameter with a stated failure
+    direction; `src/ui/coach.ts` is the precedent, including its read/write asymmetry lesson
+  - `src/i18n/ko.ts` — the toggle's labels
+  - `navigator.vibrate` is **absent on iOS Safari** (ADR-023's own consequence): feature-detect, and
+    do not let the toggle promise what the platform cannot do
+- **Scope in — the test harness itself:**
+  - `playwright.config.ts` — **not in the original scope, and the trap is specific.** Adding motion
+    puts 41 existing specs on a moving board. Setting `reducedMotion: 'reduce'` project-wide would
+    make them stable *and never exercise the animation path* — which is
+    `[fail:test] test-setup-hides-the-failure-path`, already recorded in this repo from the clipboard
+    e2e that granted the permission whose absence was the risk. So: reduced by default for the
+    existing suite, plus **at least one spec that explicitly opts into full motion**
+- **Exit criterion:** `npm run verify`; the suite passes with reduced motion AND the opted-in spec
+  passes with motion on; a unit test asserts undo after a move leaves no stale animation state; a
+  unit test asserts every sound event maps to synthesis parameters and that the toggle silences all
+  of them; a test asserts the haptics toggle reflects actual `navigator.vibrate` support rather than
+  intent; tap-to-move still passes every pre-existing spec unchanged
+- **Risk:** high — the positional-identity trap above, and 41 specs newly racing an animation
 - **Rollback:** Phase 4
 
 ### Phase 6 — Layout, accessibility, and interaction hygiene
