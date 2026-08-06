@@ -26,3 +26,4 @@ test-results/
 # transient flock files written by hm memory_md
 .claude/memory/*.lock
 *.swp
+.backup-*/
