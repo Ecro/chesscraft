@@ -83,7 +83,21 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --port ${PORT} --strictPort`,
+    /*
+     * `--host 127.0.0.1`, matching `ORIGIN` exactly rather than relying on a name.
+     *
+     * Vite's default host is `localhost`, and `localhost` is a NAME — on a machine whose
+     * resolver answers `::1` first, the server binds to IPv6 only while Playwright polls
+     * the IPv4 literal above and never connects. From outside the two are
+     * indistinguishable from a server that has not finished starting: the process is
+     * alive, the port never answers, and the run ends on `Timed out waiting … from
+     * config.webServer` with no error from Vite at all.
+     *
+     * That is exactly what two GitHub runs did, and raising the bound to 180s did not
+     * change it — which is what ruled out a slow start and left the address. Binding to
+     * the same literal Playwright asks for removes the resolver from the question.
+     */
+    command: `npm run dev -- --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: ORIGIN,
     reuseExistingServer: !process.env.CI,
     /*
