@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { liftCurtain, startMatch } from './nav'
+import { startMatch } from './nav'
 
 /**
  * PLAN Phase 5 — the spec that runs with motion ON.
@@ -76,10 +76,6 @@ test('a move can still be made by tap while motion is on', async ({ page }) => {
   await page.getByTestId('sq-d3').click()
   await expect(page.getByTestId('sq-d3')).not.toHaveAttribute('data-piece', '')
 
-  // The hand-off curtain is up — a completed ply passes the phone — and undo is
-  // behind it. Lifting it is what a player does, and what the other specs that
-  // play a line do through `move`.
-  await liftCurtain(page)
   const undone = page.getByTestId('undo')
   await undone.click()
   await expect(page.locator('[data-last]')).toHaveCount(0)

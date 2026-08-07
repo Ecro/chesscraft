@@ -119,12 +119,6 @@ describe('the animation follows the action that was applied', () => {
     pastDraft(container)
     fireEvent.click(screen.getByTestId('sq-d2'))
     fireEvent.click(screen.getByTestId('sq-d3'))
-    // The ply handed the phone over, so the curtain is up — and the tools row is
-    // UNMOUNTED behind it, deliberately: a full-screen overlay must not leave
-    // live controls underneath, and nobody should start a new match from a
-    // screen addressed to the other player. Lifting it first is what a player
-    // does, and it is one tap.
-    fireEvent.click(screen.getByTestId('curtain'))
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByTestId('new-match'))
     expect(container.querySelectorAll('[data-last]').length).toBe(0)

@@ -78,7 +78,19 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
-**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 3)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 4)
+
+**Updated 2026-08-07 — the mechanism above would not have caught the 4th
+instance.** A no-caller sweep finds vocabulary nothing *invokes*; `rule.blood-toll`
+is invoked, logs that it ran, and still does nothing, because at `on_capture` the
+square its target resolves to is empty. Static analysis cannot see that — the
+trigger is legal for the target, and only the runtime ordering makes it inert. So
+the sweep needs a second half: **every content record must have a test that
+observes a STATE CHANGE it caused**, not merely that its effect fired. The log
+line `on_capture:rule:rule.blood-toll` was present and proved nothing. A
+per-record "play it and diff the board" harness over the bundled set is the
+shape; 26 cards is small enough to do exhaustively, and the survey has not been
+run, so the number of inert cards is currently unknown.
 **Proposed mechanism:** rule update — a step in `/hm:execute` Phase D and in
 `/hm:review`'s fix loop
 **Rationale:** All three instances are the same thing at different layers, and

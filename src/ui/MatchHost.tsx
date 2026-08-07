@@ -8,8 +8,6 @@ import { type Translate, useTranslate } from './i18n'
 import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
 import { type Settings, DEFAULT_SETTINGS } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
 import { Result } from './Result'
@@ -42,11 +40,15 @@ import { Sheet } from './Sheet'
  * is what it used to be and it does not fit; a chip per type, opening the same
  * text in a sheet, keeps the text one tap away and reachable during the match.
  *
- * **There is a hand-off curtain.** ADR-018 chose one shared board over automatic
- * rotation on the grounds that both players are looking at the same thing. That
- * is still true, and it is exactly why the moment the phone changes hands needed
- * marking — nothing on the old screen said "stop, it is the other one's turn"
- * except a chip changing colour.
+ * **The hand-off is announced, not enforced.** ADR-018 chose one shared board
+ * over automatic rotation on the grounds that both players are looking at the
+ * same thing, and the moment the phone changes hands is still worth marking —
+ * a chip changing colour is easy to miss. It was briefly a full-screen curtain
+ * you had to tap through, and that was too much for what it buys: it covered the
+ * position two children were mid-argument about, and put a mandatory tap between
+ * every single ply. What replaces it is a brief banner that names whose turn it
+ * is, dismisses itself, and takes no pointer events — so the board is never
+ * hidden and nothing is ever waiting on a tap.
  */
 
 /**
@@ -127,6 +129,15 @@ const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
 /** How long the rule banner sits on screen at the start of a match. */
 const BANNER_MS = 3200
 
+/**
+ * How long the hand-off banner names the player whose turn it now is.
+ *
+ * Shorter than the rule banner: the rule is something to read once, and this is
+ * a nudge you glance at. Long enough that a player looking down at the board
+ * rather than the top of the screen still catches it on the way back up.
+ */
+const HAND_OFF_MS = 1600
+
 /** What the detail sheet is currently showing. Content-agnostic on purpose. */
 type Peek = { mark: Mark; name: string; kind: string; text: string }
 
@@ -189,13 +200,13 @@ export function MatchHost({
   const [ruleOpen, setRuleOpen] = useState(false)
   const [peek, setPeek] = useState<Peek | null>(null)
   /**
-   * Whose turn the curtain is announcing, or null when the board is visible.
+   * Whose turn a hand-off is announcing, or null when nothing is being said.
    *
-   * Raised by `push` when a ply hands the phone over, and only then — an undo is
-   * a player correcting their own move, and putting a "pass the phone" screen in
-   * front of that would be telling them to hand over a board they just took back.
+   * Set by `push` when a ply passes the phone, and only then — an undo is a
+   * player correcting their own move, and announcing a hand-off there would be
+   * telling them to pass a board they just took back.
    */
-  const [curtain, setCurtain] = useState<Side | null>(null)
+  const [handOff, setHandOff] = useState<Side | null>(null)
   /** The rule drawn for this match, shown once and then dismissed on a timer. */
   const [banner, setBanner] = useState(true)
   /**
@@ -246,6 +257,21 @@ export function MatchHost({
     return () => clearTimeout(id)
   }, [banner, seed])
 
+  /**
+   * The hand-off banner clears itself.
+   *
+   * On a timer rather than on the next interaction, because the thing it marks
+   * has already happened by the time it appears — waiting for a tap is what the
+   * curtain did, and the tap was the problem. Keyed on the side so a second
+   * hand-off restarts the countdown rather than inheriting the remainder of the
+   * first one's.
+   */
+  useEffect(() => {
+    if (!handOff) return
+    const id = setTimeout(() => setHandOff(null), HAND_OFF_MS)
+    return () => clearTimeout(id)
+  }, [handOff, state.plyCount])
+
   const toggle = (key: 'sound' | 'haptics') => applySettings({ ...live, [key]: !live[key] })
 
   const startNew = () => {
@@ -260,26 +286,30 @@ export function MatchHost({
     setPendingCard(null)
     setRejection(null)
     setCopyState('idle')
-    setCurtain(null)
+    setHandOff(null)
     setPeek(null)
     setRuleOpen(false)
     setBanner(true)
   }
 
   const push = (action: Action) => {
-    // Derived from the render's state only to choose the SOUND and the curtain —
-    // the worst case there is the wrong tone. The state itself is recomputed
+    // Derived from the render's state only to choose the SOUND and the hand-off
+    // announcement — the worst case there is the wrong tone. The state itself is recomputed
     // inside the updater, so a second action dispatched in the same tick cannot
     // apply to the pre-first-action board.
     const next = apply(state, action, content)
     play(eventFor(action, state, next), live)
     // Only a board action hands the phone over. A draft pick alternates the
-    // DRAFTING side, which the sheet already names, and raising a curtain
-    // between two card choices would put a full-screen interstitial in the
-    // middle of the one part of the match that is already a dialogue.
+    // DRAFTING side, which the sheet already names, so announcing it again
+    // would talk over the one part of the match that is already a dialogue.
     const handedOver =
       action.kind !== 'draft_pick' && !next.result && !pendingDraftSide(next) && next.sideToMove !== state.sideToMove
     setLastMove(action.kind === 'move' ? { from: action.from, to: action.to } : null)
+    // The rule banner has done its job once someone has acted on the rule. It
+    // also has to go so the hand-off banner below it has somewhere to be — two
+    // announcements stacked at the same coordinates is how the notice stack bug
+    // happened one screen over.
+    setBanner(false)
     setPlay((p) => ({
       seed: p.seed,
       match: { states: [...p.match.states, apply(currentState(p.match), action, content)] },
@@ -288,7 +318,7 @@ export function MatchHost({
     setPendingCard(null)
     setRejection(null)
     setPeek(null)
-    if (handedOver) setCurtain(next.sideToMove)
+    if (handedOver) setHandOff(next.sideToMove)
   }
 
   const doUndo = () => {
@@ -299,8 +329,8 @@ export function MatchHost({
     setSelected(null)
     setPendingCard(null)
     setRejection(null)
-    // See the note on `curtain`: taking a move back is not a hand-off.
-    setCurtain(null)
+    // See the note on `handOff`: taking a move back is not a hand-off.
+    setHandOff(null)
   }
 
   const copySeed = () => {
@@ -330,7 +360,7 @@ export function MatchHost({
   }
 
   const clickSquare = (sq: SquareId) => {
-    if (phase !== 'play' || curtain) return
+    if (phase !== 'play') return
     setRejection(null)
 
     if (pendingCard) {
@@ -372,7 +402,7 @@ export function MatchHost({
     // Not while a card is choosing its targets: `reachable` belongs to the card
     // then, and setting `selected` here left a highlight on a square the player
     // never chose once the card resolved.
-    if (pendingCard || phase !== 'play' || curtain) return
+    if (pendingCard || phase !== 'play') return
     if (state.board.get(sq)?.side !== state.sideToMove) return
     dragFrom.current = sq
     setSelected(sq)
@@ -389,7 +419,36 @@ export function MatchHost({
 
   const clickCard = (side: Side, cardId: string) => {
     setSelected(null)
-    if (phase !== 'play' || side !== state.sideToMove || curtain) {
+
+    /*
+     * Tapping the armed card again disarms it.
+     *
+     * There was no way out of a pending card at all: the only exit was
+     * completing it, and every square tap that did not match reset the targets
+     * and left it armed. A card with no legal target anywhere — a spent one, a
+     * revive with an empty graveyard — was a dead end you could not leave
+     * without starting a new match. The card that armed it is the obvious thing
+     * to press, and pressing it twice is how every hotbar in every game works.
+     */
+    if (pendingCard?.cardId === cardId) {
+      setPendingCard(null)
+      setRejection(null)
+      return
+    }
+
+    /*
+     * Refused BEFORE arming, not after.
+     *
+     * A spent card stays on screen deliberately (AC-017 — both hands visible,
+     * with spent cards marked, so each player can see what the other used), but
+     * visible is not playable. The old check only asked whose turn it was, so
+     * the mover's own spent card armed itself and then matched nothing.
+     * `legalActions` is the authority rather than the `used` list alone: a card
+     * can also be unplayable because nothing on the board fits it, and that is
+     * the same dead end from the player's side.
+     */
+    const playable = legal.some((a) => a.kind === 'play_card' && a.cardId === cardId)
+    if (phase !== 'play' || side !== state.sideToMove || !playable) {
       // AC-008 — say why. A dead click reads as a broken app, and poking the
       // other player's cards is the first thing a hot-seat player does.
       setPendingCard(null)
@@ -419,20 +478,19 @@ export function MatchHost({
   /**
    * Whether a full-screen overlay currently owns the screen.
    *
-   * `Result` and the curtain are `position: absolute; inset: 0` inside `.play`,
-   * and z-index changes paint order only — not tab order, not the accessibility
-   * tree, and not what a locator matches. So everything they cover stayed live:
-   * a keyboard or screen-reader user tabbed through five invisible controls at
-   * the result screen and could fire the new-match button from a screen that
-   * never shows it, and — worse — every board square stayed reachable behind
-   * the curtain, whose
-   * entire purpose is that the waiting player must not reach the position.
+   * `Result` is `position: absolute; inset: 0` inside `.play`, and z-index
+   * changes paint order only — not tab order, not the accessibility tree, and
+   * not what a locator matches. So everything it covered stayed live: a keyboard
+   * or screen-reader user tabbed through five invisible controls at the result
+   * screen and could fire the new-match button from a screen that never shows it.
    *
-   * The draft sheet is deliberately NOT in this set. It dims rather than owns:
+   * The set used to include the hand-off curtain, which is gone — a full-screen
+   * cover demanding a tap between every ply was too much for what it bought.
+   * The draft sheet is deliberately NOT in it either: it dims rather than owns,
    * #43 put the tools row back within reach during a draft on purpose, and its
    * scrim passes pointers through so a player is never trapped in one.
    */
-  const overlayOwnsScreen = Boolean(state.result) || Boolean(curtain)
+  const overlayOwnsScreen = Boolean(state.result)
 
   const mover = state.sideToMove
   const waiter: Side = mover === 'white' ? 'black' : 'white'
@@ -452,24 +510,22 @@ export function MatchHost({
           phase and the ply count — on a hot-seat game where the ONLY thing two
           players need from the chrome is which of them moves next. */}
       {/*
-        Two different treatments, because the two overlays want different things
-        from what they cover.
+        Visible but unreachable while the result screen is up.
 
-        The CURTAIN must hide it: the waiting player is about to be handed the
-        phone and the whole point is that they do not see the position, so
-        `hidden` — which removes it from the accessibility tree and from tab
-        order in every browser — is both the fix and the product intent.
-
-        `Result` must NOT hide it: the final position staying visible behind the
-        summary is why `Result` is an overlay rather than an early return, and
-        two children argue about that position. `inert` is the one mechanism that
-        makes a visible subtree unreachable. Where it is unsupported (a WebView
-        older than Chrome 102 / Safari 15.5) the degradation is tab-order noise
-        only — nothing behind the result screen can be ACTIVATED, because
+        The final position staying readable behind the summary is why `Result` is
+        an overlay rather than an early return — two children argue about that
+        position — so hiding it is not an option and `inert` is the one mechanism
+        that makes a VISIBLE subtree unreachable. Where it is unsupported (a
+        WebView older than Chrome 102 / Safari 15.5) the degradation is tab-order
+        noise only: nothing behind the result screen can be ACTIVATED, because
         `clickSquare` and `clickCard` both early-return once `phase !== 'play'`
         and the tools row is unmounted above.
+
+        The wrapper stays even though one overlay now uses it, because the
+        alternative is repeating the decision on six siblings and forgetting the
+        seventh.
       */}
-      <div className="play-cover" hidden={Boolean(curtain)} {...(state.result ? { inert: '' } : {})}>
+      <div className="play-cover" {...(state.result ? { inert: '' } : {})}>
       <div className="turn-bar" data-turn={mover}>
         {/* The machine value lives on the attribute and the words on screen are
             translated. That split is what lets the e2e suite keep asserting a
@@ -836,16 +892,24 @@ export function MatchHost({
           correct interaction is "the other player takes the phone and taps", and
           anything else on screen is a chance to see a position that is not yours
           to see yet. */}
-      {curtain && (
-        <button type="button" className="curtain" data-testid="curtain" data-side={curtain} onClick={() => setCurtain(null)}>
-          <span className="curtain-kicker">{t('ui.curtain.pass')}</span>
-          <span className="curtain-crest" data-side={curtain}>
-            <Pix sprite={PIXEL_SPRITES.king} tint={`var(--pix-tint-${curtain})`} />
-          </span>
-          <strong className="curtain-name">{nameOf(curtain)}</strong>
-          <span>{t('ui.curtain.your-turn')}</span>
-          <span className="curtain-cta">{t('ui.curtain.tap')}</span>
-        </button>
+      {/*
+        The hand-off, announced rather than enforced.
+
+        `pointer-events: none` and no control of its own: it is not something to
+        dismiss, it is something to notice. `role="status"` with `aria-live` is
+        what carries the same information to a screen reader that the colour
+        change carries to everyone else — which is the half the curtain was
+        genuinely good at, kept without the full-screen cover or the tap.
+
+        Suppressed while the rule banner is up so the two never stack; the rule
+        is 3.2s at the start of a match and this is 1.6s from the first ply, so
+        they only meet if someone moves very fast.
+      */}
+      {handOff && !banner && (
+        <div className="turn-toast" data-testid="hand-off" data-side={handOff} role="status" aria-live="polite">
+          <span className="turn-chip" data-side={handOff} aria-hidden="true" />
+          <span>{t('ui.status.whose-turn').replace('{name}', nameOf(handOff))}</span>
+        </div>
       )}
 
       {/* The end of the match, OVER the board rather than instead of it.

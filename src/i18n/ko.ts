@@ -465,15 +465,16 @@ export const ko: Record<string, string> = {
   'ui.rule.this-match': '이 판의 규칙',
   'ui.draft.hint': '가져간 카드는 대국 중 아무 때나 쓸 수 있어요.',
   'ui.hint.tap-piece': '기물을 눌러 움직이세요',
-  'ui.hint.choose-target': '카드를 쓸 곳을 고르세요',
+  // Names the way out as well as the way forward. A pending card used to have
+  // no exit but completing it.
+  'ui.hint.choose-target': '카드를 쓸 곳을 고르세요. 카드를 다시 누르면 취소돼요.',
   'ui.hand.owner': '{name}의 카드',
   'ui.hand.no-cards': '스킬 카드를 뽑으면 여기에 들어와요.',
   'ui.dex.more': '도감 ▸',
-  // Handing the phone over. '넘겨 주세요' rather than '넘기세요' — the person
-  // reading it is the one who just finished, and this is a request to them.
-  'ui.curtain.pass': '폰을 넘겨 주세요',
-  'ui.curtain.your-turn': '차례예요',
-  'ui.curtain.tap': '눌러서 시작',
+  // The hand-off used to be a full-screen curtain with its own three strings
+  // ('폰을 넘겨 주세요' / '차례예요' / '눌러서 시작'). It is a brief banner now,
+  // and it reuses `ui.status.whose-turn` — the same sentence the turn bar shows,
+  // which is the point: one way of saying whose turn it is, in two places.
 
   // --- result ---
   'ui.result.winner': '{name} 승리!',

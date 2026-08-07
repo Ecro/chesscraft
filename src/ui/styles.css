@@ -879,17 +879,11 @@ hr {
  * to carry one `hidden` / `inert` decision for everything underneath, rather
  * than repeating it on six siblings where the seventh gets forgotten.
  *
- * `hidden` needs the explicit `display: none`: the UA rule is
- * `[hidden] { display: none }` at author-origin-beating specificity 0, and the
- * `display: contents` above would otherwise win. This is the same override the
- * editor panels needed — see `.editor > div:not([hidden])`.
+ * It carries `inert` while the result screen is up and nothing else — the
+ * `hidden` branch went with the hand-off curtain that used it.
  */
 .play-cover {
   display: contents;
-}
-
-.play-cover[hidden] {
-  display: none;
 }
 
 .turn-bar {
@@ -1831,70 +1825,48 @@ hr {
 }
 
 /**
- * The hand-off.
+ * The hand-off, announced.
  *
- * A full-screen button, because the only correct interaction at this moment is
- * "the other player takes the phone and taps" — anything else reachable is a
- * chance to see a position that is not yours to see yet.
+ * This replaced a full-screen curtain the player had to tap through. The curtain
+ * marked the moment well and cost too much for it: it covered the position two
+ * children were mid-argument about, and put a mandatory tap between every ply.
+ *
+ * `pointer-events: none` is the whole design. It is not something to dismiss —
+ * it names whose turn it is, sits over the board's top edge where the eye
+ * already is, and leaves on its own. Nothing behind it is blocked, so a player
+ * who has already seen it can move immediately.
  */
-.curtain {
+.turn-toast {
   position: absolute;
-  inset: 0;
-  z-index: 38;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-w) solid var(--color-outline);
+  font-size: var(--font-size-md);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: pop var(--motion-fade-duration) var(--motion-fade-steps);
 }
 
-.curtain[data-side='white'] {
+.turn-toast[data-side='white'] {
   background: var(--color-side-white-deep);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-side-white),
+    0 6px 0 var(--color-shadow);
   color: var(--color-side-white-hi);
 }
 
-.curtain[data-side='black'] {
+.turn-toast[data-side='black'] {
   background: var(--color-side-black-deep);
-  color: var(--color-side-black-hi);
-}
-
-.curtain-kicker {
-  font-size: var(--font-size-base);
-  opacity: 0.8;
-}
-
-.curtain-crest {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 92px;
-  height: 92px;
-  font-size: 60px;
-  border: var(--border-w) solid var(--color-outline);
-  background: var(--color-shadow);
-  animation: bob var(--motion-idle-duration) steps(6) infinite;
-}
-
-.curtain-name {
-  font-weight: 400;
-  font-size: 30px;
-  color: var(--color-heading);
-  text-shadow: 4px 4px 0 var(--color-heading-shadow);
-}
-
-.curtain-cta {
-  margin-top: var(--space-5);
-  padding: var(--space-5) var(--space-7);
-  border: var(--border-w) solid var(--color-outline);
-  background: var(--color-primary);
   box-shadow:
-    inset var(--bevel-lg) var(--bevel-lg) 0 var(--color-primary-hi),
-    inset calc(-1 * var(--bevel-lg)) calc(-1 * var(--bevel-lg)) 0 var(--color-primary-lo);
-  color: var(--color-primary-ink);
-  font-size: var(--font-size-base);
+    inset var(--bevel) var(--bevel) 0 var(--color-side-black),
+    0 6px 0 var(--color-shadow);
+  color: var(--color-side-black-hi);
 }
 
 /* -------------------------------------------------------------------- result */

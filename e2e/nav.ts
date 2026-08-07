@@ -60,27 +60,16 @@ export async function buildStep(page: Page, step: BuildStep) {
 }
 
 /**
- * Lifts the hand-off curtain, if one is up.
+ * One move.
  *
- * A ply that changes the side to move raises a full-screen "pass the phone"
- * screen — that is the whole point of it, and it means a scripted line of play
- * has to tap through it exactly as a child would. Tolerating its absence rather
- * than asserting it is deliberate: the FIRST move of a match has no curtain
- * before it, and a card play that does not end the turn has none after.
- */
-export async function liftCurtain(page: Page) {
-  const curtain = page.getByTestId('curtain')
-  if (await curtain.isVisible()) await curtain.click()
-}
-
-/**
- * One move, through whatever is currently between the player and the board.
- *
- * Every spec that plays a line had its own two-line `step` helper, and every one
- * of them broke the day the curtain landed. This is that helper, once.
+ * There used to be a `liftCurtain` step here, because a completed ply raised a
+ * full-screen cover the player had to tap through. That is gone — the hand-off
+ * is a banner that takes no pointer events and dismisses itself — so a move is
+ * just the two taps it always was. Kept as a helper because every spec that
+ * plays a line used to carry its own copy, and the last change to this shape
+ * broke all of them at once.
  */
 export async function move(page: Page, from: string, to: string) {
-  await liftCurtain(page)
   await page.getByTestId(`sq-${from}`).click()
   await page.getByTestId(`sq-${to}`).click()
 }

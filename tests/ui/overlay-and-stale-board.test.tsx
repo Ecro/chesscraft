@@ -47,38 +47,46 @@ function pastDraft(container: HTMLElement) {
   }
 }
 
-describe('a full-screen overlay leaves nothing live underneath (P1 046cbe6a)', () => {
+describe('the result screen leaves nothing live underneath (P1 046cbe6a)', () => {
   /*
-   * `Result` and the curtain are `position: absolute; inset: 0` inside `.play`.
-   * z-index changes paint order — not tab order, not the accessibility tree, and
-   * not what a locator matches. Before the fix a keyboard user tabbed through
-   * five invisible controls at the result screen, and every board square stayed
-   * reachable behind the curtain, whose whole purpose is that the waiting player
-   * must not reach the position.
+   * `Result` is `position: absolute; inset: 0` inside `.play`. z-index changes
+   * paint order — not tab order, not the accessibility tree, and not what a
+   * locator matches. Before the fix a keyboard user tabbed through five
+   * invisible controls at the result screen and could fire the new-match button
+   * from a screen that never shows it.
    */
 
-  it('unmounts the tools row behind the hand-off curtain', () => {
+  it('announces a hand-off without covering the board or waiting on a tap', () => {
+    /*
+     * This used to assert a full-screen curtain that unmounted the tools row and
+     * hid the position until tapped. It was removed as too heavy for what it
+     * bought — it covered the position two children were mid-argument about and
+     * put a mandatory tap between every ply. What is asserted now is the thing
+     * the curtain was genuinely good at, minus the cost: the hand-off is SAID,
+     * the board stays live, and nothing waits for a dismissal.
+     */
     const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 7} />)
     pastDraft(container)
-    expect(screen.getByTestId('new-match'), 'precondition: the tools row is there mid-match').toBeTruthy()
+    expect(screen.queryByTestId('hand-off'), 'nothing to announce before a ply').toBeNull()
 
     fireEvent.click(screen.getByTestId('sq-d2'))
     fireEvent.click(screen.getByTestId('sq-d3'))
-    expect(screen.getByTestId('curtain'), 'a completed ply raises the curtain').toBeTruthy()
 
-    // UNMOUNTED, not merely hidden — see the note on the duplicate test id below.
-    expect(screen.queryByTestId('new-match')).toBeNull()
-    expect(screen.queryByTestId('go-home')).toBeNull()
-    expect(screen.queryByTestId('match-settings')).toBeNull()
+    const toast = screen.getByTestId('hand-off')
+    expect(toast.getAttribute('data-side'), 'it names the side now to move').toBe('black')
+    // Announced to assistive tech too — that is the half of the curtain worth
+    // keeping, and a colour change alone does not carry it.
+    expect(toast.getAttribute('role')).toBe('status')
 
-    // And the position itself is hidden, which is the curtain's entire reason to
-    // exist. `hidden` rather than `inert`: the waiting player must not SEE it.
-    expect(container.querySelector('.play-cover')?.hasAttribute('hidden')).toBe(true)
-
-    // One tap brings everything back — the cost of the fix is that tap.
-    fireEvent.click(screen.getByTestId('curtain'))
-    expect(screen.getByTestId('new-match')).toBeTruthy()
+    // Nothing is blocked: the board is still there, the tools row is still
+    // mounted, and no overlay is claiming the screen.
     expect(container.querySelector('.play-cover')?.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelector('.play-cover')?.hasAttribute('inert')).toBe(false)
+    expect(screen.getByTestId('new-match')).toBeTruthy()
+    expect(screen.getByTestId('undo')).toBeTruthy()
+    // And the next player can move immediately, with no dismissal in between.
+    fireEvent.click(screen.getByTestId('sq-d5'))
+    expect(container.querySelector('[data-legal="true"]'), 'the board accepts input straight away').toBeTruthy()
   })
 
   it('leaves exactly one home button at the result screen', () => {
@@ -99,8 +107,6 @@ describe('a full-screen overlay leaves nothing live underneath (P1 046cbe6a)', (
     pastDraft(container)
 
     const step = (from: string, to: string) => {
-      const curtain = container.querySelector<HTMLElement>('[data-testid="curtain"]')
-      if (curtain) fireEvent.click(curtain)
       fireEvent.click(screen.getByTestId(`sq-${from}`))
       fireEvent.click(screen.getByTestId(`sq-${to}`))
     }
@@ -118,6 +124,99 @@ describe('a full-screen overlay leaves nothing live underneath (P1 046cbe6a)', (
     expect(cover?.hasAttribute('hidden'), 'the final position must stay readable').toBe(false)
     expect(cover?.hasAttribute('inert'), 'a visible subtree behind a modal must be inert').toBe(true)
     expect(container.querySelector('[data-testid^="sq-"]'), 'the board is still rendered').toBeTruthy()
+  })
+})
+
+describe('a card the player cannot use is never a dead end', () => {
+  /*
+   * Seed 1 rather than the file's usual 7, and the reason is the bug itself:
+   * seed 7 deals `skill.recall`, which at the opening has NO legal play — its
+   * destination is an empty square on a back rank that is still full. That is a
+   * perfectly good fixture for the refusal case and a useless one for the
+   * disarm case, because nothing arms. Seed 1 deals `skill.swap`, which does.
+   */
+  /*
+   * Reported from play: selecting an already-spent card left the match stuck.
+   * Two holes met. A spent card stays on screen by design (AC-017 — both hands
+   * visible with spent cards marked) but `clickCard` only asked whose turn it
+   * was, so the mover's own spent card armed itself; and once armed there was no
+   * way out, because every non-matching square tap reset the targets and left it
+   * armed. The only exit was a new match.
+   */
+
+  /**
+   * The first card in the mover's hand that actually arms.
+   *
+   * Not simply the first held card: at the opening, several bundled cards have
+   * no legal play at all — `skill.recall` wants an empty square on a back rank
+   * that is still full — and the fix under test is precisely that those are
+   * refused rather than armed. A fixture that assumed the first card was
+   * playable would be asserting against the bug.
+   */
+  function armable(container: HTMLElement): HTMLElement | null {
+    for (const slot of container.querySelectorAll<HTMLElement>('.hotbar .slot[data-card]')) {
+      fireEvent.click(slot)
+      if (slot.getAttribute('data-pending') === 'true') return slot
+    }
+    return null
+  }
+
+  it('refuses a spent card instead of arming it', () => {
+    /*
+     * The reported sequence: use a card, play on, and on your next turn the
+     * spent card is still in your hand — it stays visible by design — and
+     * tapping it armed a card that could never resolve.
+     */
+    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
+    pastDraft(container)
+    expect(armable(container), 'no card in the opening hand can be played').toBeTruthy()
+
+    // Spend it. A card can want more than one square — `skill.swap` names a
+    // friendly and an enemy — so feed it highlighted squares until it resolves.
+    // Re-queried each pass: resolving ends the ply and unmounts the tile.
+    for (let i = 0; i < 4; i++) {
+      const armed = container.querySelector<HTMLElement>('.hotbar .slot[data-pending="true"]')
+      if (!armed) break
+      const target = container.querySelector<HTMLElement>('[data-legal="true"]')
+      expect(target, 'an armed card must highlight somewhere to use it').toBeTruthy()
+      fireEvent.click(target!)
+    }
+
+    // Hand the turn back: black moves, and white is on strike again holding a
+    // card it has already spent.
+    // The FIRST black piece is not necessarily a piece that can move — a back
+    // rank boxed in by its own pawns is the normal opening — so try each until
+    // one highlights something.
+    let moved = false
+    for (const sq of container.querySelectorAll<HTMLElement>('[data-side="black"]')) {
+      fireEvent.click(sq)
+      const target = container.querySelector<HTMLElement>('[data-legal="true"]')
+      if (!target) continue
+      fireEvent.click(target)
+      moved = true
+      break
+    }
+    expect(moved, 'black had no legal move at all — the fixture is broken').toBe(true)
+
+    const spent = container.querySelector<HTMLElement>('.hotbar .slot[data-used="true"]')
+    expect(spent, "the spent card is not in its owner's hand — AC-017 wants it visible").toBeTruthy()
+    fireEvent.click(spent!)
+    expect(spent!.getAttribute('data-pending'), 'a spent card must not arm').toBe('false')
+    expect(screen.getByTestId('rejection'), 'and it must say why').toBeTruthy()
+  })
+
+  it('disarms an armed card when it is tapped again', () => {
+    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
+    pastDraft(container)
+    const tile = armable(container)
+    expect(tile, 'no card in the opening hand can be played — the fixture is broken').toBeTruthy()
+    expect(tile!.getAttribute('data-pending'), 'precondition: the card armed').toBe('true')
+
+    // The way out. Without it the only exit from a card that matches nothing is
+    // starting a new match.
+    fireEvent.click(tile!)
+    expect(tile!.getAttribute('data-pending'), 'tapping the armed card again disarms it').toBe('false')
+    expect(screen.queryByTestId('rejection'), 'and cancelling is not an error').toBeNull()
   })
 })
 
