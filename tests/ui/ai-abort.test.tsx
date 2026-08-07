@@ -125,6 +125,32 @@ describe('AC-007 — the computer’s turn is announced, not handed over', () =>
   })
 })
 
+describe('the computer\'s move is slow enough to watch', () => {
+  it('holds the indicator for a beat even when the search answers instantly', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const stub = stubClient()
+      renderMatch(stub)
+      humanDrafts()
+      await waitFor(() => expect(stub.requests).toBeGreaterThan(0))
+
+      // The search answers at once — the easiest level really does, in ~150ms.
+      stub.deliver({ action: null, nodes: 1, depthReached: 1, valveTripped: false })
+
+      // Still thinking: without a floor the indicator would have flashed and
+      // gone before a player who was looking at their own move looked up, and
+      // the board would appear to have changed by itself.
+      await Promise.resolve()
+      expect(screen.queryByTestId('ai-thinking')).not.toBeNull()
+
+      await vi.advanceTimersByTimeAsync(700)
+      await waitFor(() => expect(screen.queryByTestId('ai-thinking')).toBeNull())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('AC-008 — leaving mid-search ends the search', () => {
   it('cancels the in-flight request when the match unmounts', async () => {
     const stub = stubClient()

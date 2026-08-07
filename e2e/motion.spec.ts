@@ -66,6 +66,55 @@ test('the board settles after a move and the highlight lands on the right two sq
   await expect(page.locator('[data-last]')).toHaveCount(2)
 })
 
+test('both ends of the last move are DRAWN, and the origin survives reduced motion', async ({ page }) => {
+  await openBoard(page)
+  await page.getByTestId('sq-d2').click()
+  await page.getByTestId('sq-d3').click()
+
+  // The record (an outline on both squares) is asserted by the test above. This
+  // is about the EFFECT: a mark a player can actually see arrive, because
+  // against the computer the reply lands while they are still looking at their
+  // own move.
+  const originMark = (sq: string) =>
+    page.getByTestId(sq).evaluate((el) => {
+      const style = getComputedStyle(el, '::before')
+      return { content: style.content, width: style.borderTopWidth, inset: style.insetInlineStart }
+    })
+
+  const from = await originMark('sq-d2')
+  expect(from.content, 'the origin draws no ::before mark').not.toBe('none')
+  expect(Number.parseFloat(from.width), 'the origin mark has no border').toBeGreaterThan(0)
+
+  const to = await originMark('sq-d3')
+  expect(to.content, 'the destination draws no ::before mark').not.toBe('none')
+
+  // The two must not be the same mark. The origin is inset — "it left from
+  // here" — and the destination is the full square, so a single shared rule
+  // that drew one ring on both would say nothing about direction.
+  expect(from.inset).not.toBe(to.inset)
+})
+
+test('reduced motion keeps the origin mark, because it is information', async ({ browser }) => {
+  // The failure this guards: zeroing the duration is the right way to suppress
+  // the arrival flash, and it is the wrong way to suppress a mark that TELLS
+  // the reader where the piece came from. One is motion, the other is content.
+  const context = await browser.newContext({ reducedMotion: 'reduce' })
+  const page = await context.newPage()
+  await openBoard(page)
+  await page.getByTestId('sq-d2').click()
+  await page.getByTestId('sq-d3').click()
+
+  const originBorder = await page
+    .getByTestId('sq-d2')
+    .evaluate((el) => getComputedStyle(el, '::before').borderTopWidth)
+  expect(Number.parseFloat(originBorder), 'the origin mark vanished under reduced motion').toBeGreaterThan(0)
+
+  // And the record itself is untouched either way.
+  await expect(page.getByTestId('sq-d2')).toHaveAttribute('data-last', 'from')
+  await expect(page.getByTestId('sq-d3')).toHaveAttribute('data-last', 'to')
+  await context.close()
+})
+
 test('a move can still be made by tap while motion is on', async ({ page }) => {
   // Drag is added this phase ALONGSIDE tap, and every pre-existing spec drives
   // the board by clicking. If motion made tap unreliable the whole suite would

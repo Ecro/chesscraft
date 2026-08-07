@@ -1297,6 +1297,60 @@ hr {
     inset 0 0 0 var(--border-w) var(--color-last);
 }
 
+/*
+ * The last move, as an effect rather than only as a record.
+ *
+ * The outline above is the RECORD — it persists until the next move, and it is
+ * information, so reduced-motion must never take it away. What was missing is
+ * the EVENT. Against the computer the reply lands while the player is still
+ * looking at their own move, so a mark that was already there when they looked
+ * up told them nothing about what had just happened; the position appeared to
+ * change by itself.
+ *
+ * Two marks, and they say different things:
+ *
+ * - **Origin** — a small hollow square, STATIC. "It left from here." Static on
+ *   purpose: this is the half that survives `prefers-reduced-motion`, so a
+ *   reader who suppresses motion still gets both ends of the move.
+ * - **Destination** — a ring that snaps inward onto the square and is gone.
+ *   Four hard steps, no fade and no blur, because everything here is drawn from
+ *   12x12 sprites and a smooth ring would be the one soft edge on the board.
+ *
+ * `::before` rather than `::after`: `[data-legal-kind='move']` already owns
+ * `::after` for the legal-move dot, and a square can be BOTH the last
+ * destination and a legal target for the piece now selected.
+ */
+.square[data-last='from']::before {
+  content: '';
+  position: absolute;
+  inset: 30%;
+  border: var(--border-w) solid var(--color-last);
+  pointer-events: none;
+}
+
+.square[data-last='to']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--border-w) solid var(--color-last);
+  pointer-events: none;
+  /* Invisible at rest, so when the duration is zeroed for reduced motion this
+     leaves nothing behind — the outline is still there to carry the meaning. */
+  opacity: 0;
+  animation: arrive var(--motion-arrive-duration) var(--motion-arrive-steps);
+}
+
+@keyframes arrive {
+  0% {
+    transform: scale(1.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
 .square .piece {
   position: relative;
   line-height: 0;
@@ -2537,6 +2591,7 @@ details.advanced summary {
     --motion-sheet-duration: 0ms;
     --motion-idle-duration: 0ms;
     --motion-ready-duration: 0ms;
+    --motion-arrive-duration: 0ms;
   }
 }
 

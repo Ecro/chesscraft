@@ -140,6 +140,26 @@ const BANNER_MS = 3200
  */
 const HAND_OFF_MS = 1600
 
+/**
+ * The floor on how long a computer turn takes, in milliseconds.
+ *
+ * Not a delay for its own sake. The board already marks the last move — an
+ * outline on the two squares and a landing slide — but a player who has just
+ * moved is still looking at their OWN move when the reply lands, and the
+ * easiest level answers in about 150ms. The mark is there and nobody saw it
+ * arrive, so the position appears to have changed by itself.
+ *
+ * A floor puts a beat between the two moves, which is what makes the landing
+ * animation land somewhere the eye is already going, and it is what gives the
+ * thinking indicator long enough to be read rather than flashed.
+ *
+ * It bounds nothing about the SEARCH: the budget is still nodes (ADR-003), the
+ * move is already decided when the wait starts, and the hardest level's ~850ms
+ * usually exceeds this on its own. It costs time only where the search was
+ * faster than a person can follow.
+ */
+const AI_MIN_THINK_MS = 650
+
 /** What the detail sheet is currently showing. Content-agnostic on purpose. */
 type Peek = { mark: Mark; name: string; kind: string; text: string }
 
@@ -375,19 +395,37 @@ export function MatchHost({
     if (!client) return
 
     let cancelled = false
+    let dwell: ReturnType<typeof setTimeout> | null = null
+    const startedAt = Date.now()
     setAiThinking(true)
+
     void client.request(state, aiDifficulty, seed).then((move) => {
       if (cancelled) return
-      setAiThinking(false)
-      // A search that overran its wall-clock backstop still returns a legal
-      // move — it just stops being reproducible from the seed, and the player
-      // is told rather than left with a seed that no longer replays (AC-011).
-      if (move?.valveTripped) setAiDegraded(true)
-      if (move?.action) push(move.action)
+
+      const land = () => {
+        if (cancelled) return
+        setAiThinking(false)
+        // A search that overran its wall-clock backstop still returns a legal
+        // move — it just stops being reproducible from the seed, and the player
+        // is told rather than left with a seed that no longer replays (AC-011).
+        if (move?.valveTripped) setAiDegraded(true)
+        if (move?.action) push(move.action)
+      }
+
+      // The floor. Waiting AFTER the search rather than before it means a slow
+      // search is never made slower — the remainder is whatever is left of
+      // `AI_MIN_THINK_MS`, and at the hardest level that is usually nothing.
+      const remaining = AI_MIN_THINK_MS - (Date.now() - startedAt)
+      if (remaining <= 0) land()
+      else dwell = setTimeout(land, remaining)
     })
 
     return () => {
       cancelled = true
+      // Cleared, not merely ignored: a pending timer on an unmounted match would
+      // still fire, and "the AI is thinking" is a mode that owes an exit which
+      // actually ends it.
+      if (dwell) clearTimeout(dwell)
       setAiThinking(false)
       client.cancel()
     }

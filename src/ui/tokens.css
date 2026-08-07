@@ -294,4 +294,12 @@
      reusing the idle bob's: they are the same length today and mean different
      things, and the reduced-motion block zeroes each by name. */
   --motion-ready-duration: 1600ms;
+  /* The arrival flash on the square a piece just landed on. Its own token
+     because it is the one piece of motion that exists to be NOTICED rather than
+     to feel smooth: against the computer the reply lands while the player is
+     still looking at their own move, and the persistent outline alone was
+     arriving unseen. Short and hard-stepped so it reads as an impact, not a
+     glow. */
+  --motion-arrive-duration: 260ms;
+  --motion-arrive-steps: steps(4);
 }
