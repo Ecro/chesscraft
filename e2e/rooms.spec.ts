@@ -133,7 +133,24 @@ test('renaming a record through the form leaves one record, with its text', asyn
   await expect(page.getByTestId('rules')).not.toContainText('piece.bunny.name')
 })
 
-test('the editor scrolls, and the room builder keeps its header while it does', async ({ page }) => {
+test('the editor scrolls, and the room builder keeps its header while it does', async ({ page }, testInfo) => {
+  /*
+   * Mobile only, and the reason is a finding rather than a convenience.
+   *
+   * The `desktop` project (1280x900) was added in Phase 5, and this spec failed there on
+   * its own premise guard: "the cards step fits on screen — pick a longer step for this
+   * test". That guard doing its job is the useful part — the spec refuses to assert that a
+   * sticky header survives scrolling in a box that does not scroll, rather than passing
+   * vacuously the way `[fail:test] assertion-equals-its-own-default` describes.
+   *
+   * What it tells Phase 9, which owns the desktop editor: at desktop width the builder's
+   * steps already fit, so the desktop editor is not "the mobile editor, wider" — the
+   * scroll-and-sticky-header problem this spec exists for does not arise there, and
+   * whatever layout Phase 9 builds needs its own claim rather than this one widened.
+   * Skipped here rather than deleted so that claim has a marker to replace.
+   */
+  test.skip(testInfo.project.name === 'desktop', 'Phase 9 owns the desktop editor; nothing scrolls here yet')
+
   /*
    * Two defects, one screen, both invisible to every other assertion here.
    *

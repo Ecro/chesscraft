@@ -266,20 +266,34 @@ test.describe('at the narrowest supported phone', () => {
 test.describe('at desktop (1440x900)', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('uses the width instead of leaving a phone column in the middle', async ({ page }) => {
+  test('gives the shell the width, with no frame around it', async ({ page }) => {
+    /*
+     * Replaces an assertion that could not fail. It read `mainWidth > 700`, and `main` is
+     * `width: 100%` unconditionally (`styles.css` shell rule) — so on a 1440px viewport it
+     * was true whatever the layout did, including the phone column this whole band exists
+     * to retire. Its companion, `boardWidth > 480`, was satisfied by the board's own
+     * `calc(100dvh - 200px)` at any desktop height.
+     *
+     * What is pinned instead is the two things ADR-006 actually decides at this boundary:
+     * the shell is no longer capped at the phone width, and it is no longer wearing the
+     * 390x844 device frame. Both are read off `.phone` itself rather than off `main`,
+     * because `.phone` is the element either rule applies to.
+     */
     await openBoard(page)
 
-    const { mainWidth, boardWidth, horizontal } = await page.evaluate(() => ({
-      mainWidth: Math.round(document.querySelector('main')!.getBoundingClientRect().width),
-      boardWidth: Math.round(document.querySelector('[data-testid="board"]')!.getBoundingClientRect().width),
-      horizontal: document.documentElement.scrollWidth > window.innerWidth,
-    }))
+    const shell = await page.evaluate(() => {
+      const el = document.querySelector('.phone')!
+      const style = getComputedStyle(el)
+      return {
+        width: Math.round(el.getBoundingClientRect().width),
+        borderTop: Math.round(parseFloat(style.borderTopWidth)),
+        horizontal: document.documentElement.scrollWidth > window.innerWidth,
+      }
+    })
 
-    // Not an exact width — that would break on the first redesign. What is
-    // pinned is that the phone cap no longer applies at all.
-    expect(mainWidth, 'main is still capped at its phone width on a desktop').toBeGreaterThan(700)
-    expect(boardWidth, 'the board did not grow with the room it was given').toBeGreaterThan(480)
-    expect(horizontal, 'the page scrolls sideways').toBe(false)
+    expect(shell.width, 'the shell is still at or near its phone width on a desktop').toBeGreaterThan(900)
+    expect(shell.borderTop, 'the device frame is still drawn at desktop width').toBe(0)
+    expect(shell.horizontal, 'the page scrolls sideways').toBe(false)
   })
 
   test('the board stays square', async ({ page }) => {
@@ -289,6 +303,16 @@ test.describe('at desktop (1440x900)', () => {
   })
 
   test('leaves no hole in the side column beside a taller board', async ({ page }) => {
+    /*
+     * Skipped at Phase 5, re-enabled here — Phase 7 built the column it measures.
+     *
+     * It was written for a two-column play layout the Chess Craft redesign removed, and
+     * between then and Phase 7 it passed vacuously: `.play` was a single flex column, so
+     * there was no side column for a board to leave a hole beside. It is a real assertion
+     * again now, and the failure it names is specific — a board spanning every row hands
+     * its surplus height to the tracks it spans, opening a gap between the rule card and
+     * the hands that looks like a rendering accident rather than a CSS mistake.
+     */
     await openBoard(page)
 
     const gaps = await page.evaluate(() => {
@@ -306,9 +330,23 @@ test.describe('at desktop (1440x900)', () => {
        */
       const flatten = (el: Element): Element[] =>
         getComputedStyle(el).display === 'contents' ? [...el.children].flatMap(flatten) : [el]
+      /*
+       * Excluded by column, not by name.
+       *
+       * The earlier version filtered out `.board-frame`. That was right when the board was
+       * a direct member of the same vertical stack; Phase 7's split puts the board inside
+       * `.play-body`, which is itself the whole of column 1. Keeping the old filter left
+       * `.play-body` in the list and measured the vertical distance between elements in
+       * DIFFERENT columns — which produced -813 and -796, numbers that describe nothing.
+       *
+       * So the members are taken by their grid column instead: whatever is not in column 1
+       * and is not the overlay. That survives another reshuffle of which element holds the
+       * board, which is the thing this test has now been wrong about twice.
+       */
       const side = [...document.querySelectorAll('.play > *')]
         .flatMap(flatten)
-        .filter((el) => !el.classList.contains('board-frame') && !el.classList.contains('draft-scrim'))
+        .filter((el) => !el.classList.contains('draft-scrim'))
+        .filter((el) => getComputedStyle(el).gridColumnStart !== '1')
       return side.slice(1).map((el, i) =>
         Math.round(el.getBoundingClientRect().top - side[i]!.getBoundingClientRect().bottom),
       )
@@ -317,5 +355,525 @@ test.describe('at desktop (1440x900)', () => {
     expect(gaps.length, 'no side column to measure').toBeGreaterThan(1)
     // The row gap is 8px; anything near the board's height is the bug.
     expect(Math.max(...gaps), `side column gaps: ${gaps.join(', ')}`).toBeLessThan(40)
+  })
+})
+
+/**
+ * The boundary itself, from both sides (ADR-006).
+ *
+ * Two-sided on purpose. A one-sided assertion — "the desktop shell is there at 1280" —
+ * passes just as well against a layout that applies the desktop rules at EVERY width,
+ * which is a worse bug than not having them: it hands a phone the two-column shell. The
+ * pair is what makes the media query's bounds the subject, rather than its contents.
+ *
+ * This is also the countermeasure to `[fail:design] condition-narrower-than-its-case`,
+ * the failure recorded in this repo where a complete desktop layout never rendered because
+ * its query said `(orientation: landscape) and (max-height: 560px)`. The lesson taken was
+ * that a widened bound must be checked for what ELSE it now matches, so 915x412 — a
+ * landscape phone, the viewport that failure turned on — is asserted here explicitly.
+ */
+const FRAME_EDGE = { width: 1279, height: 900 }
+const DESKTOP_EDGE = { width: 1280, height: 900 }
+const LANDSCAPE_PHONE = { width: 915, height: 412 }
+
+/** The shell's two tells: how wide it is, and whether it is wearing the device frame. */
+async function shellShape(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('.phone')!
+    return {
+      width: Math.round(el.getBoundingClientRect().width),
+      framed: Math.round(parseFloat(getComputedStyle(el).borderTopWidth)) > 0,
+    }
+  })
+}
+
+test.describe('at the desktop boundary', () => {
+  test.describe(`one pixel below it (${FRAME_EDGE.width}x${FRAME_EDGE.height})`, () => {
+    test.use({ viewport: FRAME_EDGE })
+
+    test('is still the phone in its frame', async ({ page }) => {
+      await page.goto('/')
+      const shell = await shellShape(page)
+
+      expect(shell.framed, 'the device frame is gone one pixel below the desktop band').toBe(true)
+      expect(shell.width, `shell is ${shell.width}px — the phone cap is not holding`).toBeLessThanOrEqual(420)
+    })
+  })
+
+  test.describe(`at it (${DESKTOP_EDGE.width}x${DESKTOP_EDGE.height})`, () => {
+    test.use({ viewport: DESKTOP_EDGE })
+
+    test('has become the desktop shell', async ({ page }) => {
+      await page.goto('/')
+      const shell = await shellShape(page)
+
+      expect(shell.framed, 'the device frame is still drawn at the desktop band').toBe(false)
+      expect(shell.width, `shell is ${shell.width}px — it did not take the width`).toBeGreaterThan(900)
+    })
+  })
+
+  test.describe('the screens that are not the board', () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+
+    test('a sheet is a centred dialog over the whole window, not a slab pinned to the bottom', async ({ page }) => {
+      /*
+       * Two defects in one assertion, and neither shows on a phone.
+       *
+       * `.sheet-scrim` is `position: absolute`, so it covers its containing screen — which
+       * on desktop is the grid area beside the navigation rail, leaving the rail lit and
+       * clickable behind a dialog that is supposed to have taken over. And `.sheet` carries
+       * no `max-width` and `justify-content: flex-end`, so at 1440px it renders as a
+       * 1344px-wide slab welded to the bottom edge. Both are right for a phone: the scrim
+       * IS the screen there, and a bottom sheet is the native idiom.
+       */
+      await page.goto('/dex')
+      await page.getByTestId('dex-sheet').waitFor({ state: 'detached' })
+      // Any entry in the grid opens its detail sheet; the first is as good as any.
+      await page.locator('.dex-grid li button').first().click()
+      await expect(page.getByTestId('dex-sheet')).toBeVisible()
+
+      const seen = await page.evaluate(() => {
+        const scrim = document.querySelector('.sheet-scrim')
+        const sheet = document.querySelector('.sheet')
+        if (!scrim || !sheet) return null
+        const sc = scrim.getBoundingClientRect()
+        const sh = sheet.getBoundingClientRect()
+        return {
+          scrimCoversWindow: Math.round(sc.width) >= window.innerWidth - 1 && Math.round(sc.left) <= 1,
+          sheetWidth: Math.round(sh.width),
+          windowWidth: window.innerWidth,
+          leftGap: Math.round(sh.left),
+          rightGap: Math.round(window.innerWidth - sh.right),
+          bottomGap: Math.round(window.innerHeight - sh.bottom),
+        }
+      })
+
+      expect(seen, 'no sheet opened').not.toBeNull()
+      expect(seen!.scrimCoversWindow, 'the scrim stops short of the window — the nav rail stays lit').toBe(true)
+      expect(seen!.sheetWidth, `sheet is ${seen!.sheetWidth}px of ${seen!.windowWidth}px`).toBeLessThan(760)
+      expect(Math.abs(seen!.leftGap - seen!.rightGap), 'the sheet is not centred').toBeLessThanOrEqual(2)
+      expect(seen!.bottomGap, 'the sheet is still welded to the bottom edge').toBeGreaterThan(0)
+    })
+
+    for (const screen of [
+      { path: '/', testid: 'home' },
+      { path: '/dex', testid: 'rules' },
+    ]) {
+      test(`${screen.testid} keeps its content to a readable measure`, async ({ page }) => {
+        /*
+         * A single column of controls stretched to 1344px is not a desktop layout, it is a
+         * phone layout that stopped resisting. What is pinned is a bound, not a number: the
+         * content stays narrower than the room it was given, and does not scroll sideways.
+         */
+        await page.goto(screen.path)
+        const el = page.getByTestId(screen.testid)
+        await expect(el).toBeVisible()
+
+        const seen = await el.evaluate((node) => ({
+          width: Math.round(node.getBoundingClientRect().width),
+          /*
+           * The BODY, not the widest child. The header, the tab strip and the step rail
+           * are deliberately full-bleed (see the `max-width: none` exception in
+           * `desktop.css`), so a max-over-all-children reads them as violations of a
+           * measure they were exempted from — which is exactly what happened when the
+           * exception landed. The paired test below asserts the header IS full width, so
+           * between them both halves are pinned rather than averaged.
+           */
+          inner: Math.round(
+            (node.querySelector('.screen-body') ?? node.children[node.children.length - 1]!).getBoundingClientRect()
+              .width,
+          ),
+          sideways: document.documentElement.scrollWidth > window.innerWidth,
+        }))
+
+        expect(seen.inner, `content runs to ${seen.inner}px inside a ${seen.width}px screen`).toBeLessThan(1100)
+        expect(seen.sideways, 'the page scrolls sideways').toBe(false)
+      })
+    }
+  })
+
+  test.describe('what the broad selectors nearly caught', () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+
+    test('the match banner is not confined to the side column', async ({ page }) => {
+      /*
+       * A review finding said `.play-cover > * { grid-column: 2 }` was catching the rule
+       * banner and the hand-off toast and squeezing them into the side rail. Measured, it
+       * was not: both are children of `.play` itself, not of `.play-cover`, so that rule
+       * never reached them — with the desktop override removed entirely the banner sits at
+       * the same place, 720px, the centre of the match area. The finding was a false
+       * positive and the "fix" for it was reverted.
+       *
+       * The test stays, retargeted at the claim that is actually true and actually at risk.
+       * The banner is an absolutely-positioned child of a grid container with no placement,
+       * so its containing block is the container's padding box; the moment someone gives
+       * `.play > *` a `grid-column`, that silently becomes a cell instead and the banner
+       * lands on the rail for real. What is pinned is therefore overlap with the board, not
+       * a centre: it survives the banner being positioned in any reasonable way and fails
+       * the one way that matters.
+       *
+       * Note what is NOT claimed: that the banner is centred on the BOARD. `styles.css`
+       * says it sits "where the eye already is", which on a phone is the same point as the
+       * screen centre and on a desktop is not. Making those agree is a design decision
+       * nobody has taken, and asserting it here would invent one.
+       */
+      await openBoard(page)
+      await expect(page.getByTestId('rule-banner')).toBeVisible()
+
+      const seen = await page.evaluate(() => {
+        const t = document.querySelector('[data-testid="rule-banner"]')!.getBoundingClientRect()
+        const b = document.querySelector('[data-testid="board"]')!.getBoundingClientRect()
+        const overlap = Math.max(0, Math.min(t.right, b.right) - Math.max(t.left, b.left))
+        return { overlap: Math.round(overlap), boardWidth: Math.round(b.width) }
+      })
+
+      expect(
+        seen.overlap / seen.boardWidth,
+        `banner overlaps the board by ${seen.overlap}px of ${seen.boardWidth}px`,
+      ).toBeGreaterThan(0.8)
+    })
+
+    test('the screen header spans the screen, and the content under it does not', async ({ page }) => {
+      /*
+       * Two claims that only mean something together. The measure rule caps every direct
+       * child of `.lobby`/`.dex`, and `.screen-head` is one — so the masthead shrank to
+       * 900px and its background and bottom border shrank with it, leaving a floating bar
+       * with gutters. Asserting only "content is narrow" passes on that layout; asserting
+       * only "header is wide" passes on a layout with no measure at all.
+       */
+      await page.goto('/dex')
+      const seen = await page.evaluate(() => {
+        const screen = document.querySelector('[data-testid="rules"]')!.getBoundingClientRect()
+        const head = document.querySelector('.screen-head')!.getBoundingClientRect()
+        const body = document.querySelector('.screen-body')!.getBoundingClientRect()
+        return { screen: Math.round(screen.width), head: Math.round(head.width), body: Math.round(body.width) }
+      })
+
+      expect(seen.head, `header is ${seen.head}px of a ${seen.screen}px screen`).toBeGreaterThanOrEqual(
+        seen.screen - 1,
+      )
+      expect(seen.body, `content is ${seen.body}px — the measure is not holding`).toBeLessThanOrEqual(900)
+    })
+
+    test('the art picker gets desktop-sized cells, not phone-sized ones', async ({ page }) => {
+      /*
+       * `.palette.wrap` is (0,2,0) in `styles.css` and the desktop rule was a bare
+       * `.palette` at (0,1,0) — it lost on specificity, which loading later cannot fix, so
+       * the sprite grid shipped at `minmax(48px, 1fr)`. The failure is invisible in every
+       * sense except looking at it: no error, no layout break, just a phone-sized grid.
+       *
+       * The wrapped palette lives in the RECORD form (`RecordForm.tsx`), reached through the
+       * library, not in the room builder — a first version of this test opened the builder's
+       * board step, found nothing, and measured 0px. A locator that matches nothing is not a
+       * passing test, so the path is walked explicitly here.
+       */
+      await page.goto('/edit')
+      await page.getByTestId('editor-tab-library').click()
+      await page.locator('[data-testid^="library-open-"]').first().click()
+      const palette = page.locator('.palette.wrap button').first()
+      await expect(palette).toBeVisible()
+
+      const cell = await palette.evaluate((el) => Math.round(el.getBoundingClientRect().width))
+      expect(cell, `art picker cell is ${cell}px`).toBeGreaterThan(80)
+    })
+  })
+
+  test.describe('pointer affordances (ADR-007)', () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+
+    test('a hovered control changes its bevel and nothing else', async ({ page }, testInfo) => {
+      /*
+       * ADR-007 reopened a recorded decision — `styles.css` says "a block that lights up on
+       * hover would look like glass" — and the reopening is narrow. Feedback yes; a
+       * different visual language no. So the assertion is about what must NOT change:
+       * `filter` and `opacity` are the two properties a glow is usually built from, and the
+       * box size is the one that would reflow the page under the cursor.
+       */
+      await page.goto('/')
+      const target = page.getByTestId('start-match')
+      await expect(target).toBeVisible()
+
+      const before = await target.evaluate((el) => {
+        const s = getComputedStyle(el)
+        const r = el.getBoundingClientRect()
+        return { shadow: s.boxShadow, filter: s.filter, opacity: s.opacity, w: Math.round(r.width), h: Math.round(r.height) }
+      })
+      await target.hover()
+      const after = await target.evaluate((el) => {
+        const s = getComputedStyle(el)
+        const r = el.getBoundingClientRect()
+        return { shadow: s.boxShadow, filter: s.filter, opacity: s.opacity, w: Math.round(r.width), h: Math.round(r.height) }
+      })
+
+      /*
+       * Two-sided, across the two projects rather than across two viewports.
+       *
+       * `@media (hover: hover)` is a CAPABILITY query, so the thing that decides whether it
+       * applies is the device, not the width — and Playwright's `Desktop Chrome` and
+       * `Pixel 7` differ in exactly that. Running the same test under both is what pins the
+       * gate: a rule written without the capability query would give a phone a hover state
+       * it can never clear (tap, and it stays lit until you tap elsewhere), and a
+       * desktop-only test could never see it.
+       */
+      if (testInfo.project.name === 'desktop') {
+        expect(after.shadow, 'hover changed nothing — a desktop user cannot tell this is interactive').not.toBe(
+          before.shadow,
+        )
+      } else {
+        expect(after.shadow, 'a touch device got a hover state it cannot clear').toBe(before.shadow)
+      }
+      expect(after.filter, 'hover applied a filter — that is the glass look ADR-007 forbids').toBe(before.filter)
+      expect(after.opacity, 'hover changed opacity').toBe(before.opacity)
+      expect([after.w, after.h], 'hover resized the control, which reflows the page under the cursor').toEqual([
+        before.w,
+        before.h,
+      ])
+    })
+
+    test('a hovered board square does not change its box', async ({ page }) => {
+      /*
+       * Squares opt out of the 44px minimum (`min-height: 0`) and sit in a grid whose
+       * columns are `1fr`. Anything that changes a square's box on hover reflows the whole
+       * board as the pointer crosses it — the one place where the general rule above has a
+       * specific and very visible failure.
+       */
+      await openBoard(page)
+      const square = page.getByTestId('sq-c1')
+
+      const before = await square.evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        return [Math.round(r.width), Math.round(r.height)]
+      })
+      await square.hover()
+      const after = await square.evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        return [Math.round(r.width), Math.round(r.height)]
+      })
+
+      expect(after, `square went from ${before.join('x')} to ${after.join('x')} on hover`).toEqual(before)
+    })
+  })
+
+  test.describe('the editor', () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+
+    test('the rooms list and the library both render inside the measure', async ({ page }) => {
+      await page.goto('/edit')
+      await expect(page.getByTestId('editor')).toBeVisible()
+
+      for (const tab of ['editor-tab-rooms', 'editor-tab-library'] as const) {
+        const control = page.getByTestId(tab)
+        if (await control.count()) await control.click()
+        // Same exemption as the list screens: `.editor-tabs` and `.build-top` are the
+        // editor's masthead and are meant to span. What must hold the measure is the panel
+        // under them.
+        const widest = await page.getByTestId('editor').evaluate((node) =>
+          Math.max(
+            ...[...node.querySelectorAll('.screen-body, .library-list, .rooms-list')].map((c) =>
+              Math.round(c.getBoundingClientRect().width),
+            ),
+            0,
+          ),
+        )
+        expect(widest, `${tab} panel runs to ${widest}px`).toBeLessThanOrEqual(900)
+      }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+        'the editor scrolls sideways',
+      ).toBe(false)
+    })
+
+    test('the board painter uses more than its phone width', async ({ page }) => {
+      /*
+       * `.build-grid` is `width: 300px` — a size chosen so a 6x6 board of tappable cells
+       * fits a 390px phone. On a desktop it is the one thing in the editor that is doing
+       * real spatial work, and 300px of it in the middle of 1440 is the phone layout
+       * showing through. Asserted as "bigger than the phone value" rather than as a number,
+       * so a later spacing change does not have to come back here.
+       */
+      await page.goto('/edit')
+      // Whichever room the bundled set ships first — this is about the painter's size, not
+      // about a particular room, and naming one couples the test to the content set.
+      await page.locator('[data-testid^="room-open-"]').first().click()
+      await page.getByTestId('room-step-board').click()
+
+      const width = await page
+        .locator('.build-grid')
+        .evaluate((el) => Math.round(el.getBoundingClientRect().width))
+      expect(width, `board painter is ${width}px`).toBeGreaterThan(300)
+    })
+  })
+
+  test.describe('the play screen, at three desktop widths', () => {
+    /*
+     * The board's own size rule is the subtle part of this phase, so it is asserted at
+     * three widths rather than one. On a phone the board is sized off `calc(100dvh - 200px)`
+     * — 200px being the chrome stacked ABOVE it. In the two-column layout nothing is
+     * stacked above it: the turn bar, the rule card, the hands and the tools all moved
+     * beside it. A rule that kept subtracting 200px would waste a fifth of the height at
+     * every desktop size, and one that subtracted nothing would push the board off the
+     * bottom on a short window. Neither shows up at a single viewport.
+     */
+    for (const size of [
+      { width: 1280, height: 900 },
+      { width: 1440, height: 900 },
+      { width: 1920, height: 1080 },
+    ]) {
+      test.describe(`${size.width}x${size.height}`, () => {
+        test.use({ viewport: size })
+
+        test('puts the board beside the side column, square and fully visible', async ({ page }) => {
+          await openBoard(page)
+
+          const seen = await page.evaluate(() => {
+            const board = document.querySelector('[data-testid="board"]')!.getBoundingClientRect()
+            const turn = document.querySelector('.turn-bar')!.getBoundingClientRect()
+            const play = document.querySelector('.play')!
+            return {
+              w: Math.round(board.width),
+              h: Math.round(board.height),
+              top: Math.round(board.top),
+              bottom: Math.round(board.bottom),
+              viewportH: window.innerHeight,
+              boardLeftOfTurnBar: Math.round(board.right) <= Math.round(turn.left) + 1,
+              playScrolls: play.scrollHeight > play.clientHeight + 1,
+              documentScrollsSideways: document.documentElement.scrollWidth > window.innerWidth,
+            }
+          })
+
+          expect(Math.abs(seen.w - seen.h), `board is ${seen.w}x${seen.h}`).toBeLessThanOrEqual(2)
+          expect(seen.boardLeftOfTurnBar, 'the turn bar is not beside the board').toBe(true)
+          expect(seen.top, `board starts ${seen.top}px from the top`).toBeGreaterThanOrEqual(0)
+          expect(
+            seen.bottom,
+            `board runs to ${seen.bottom}px in a ${seen.viewportH}px window`,
+          ).toBeLessThanOrEqual(seen.viewportH)
+          expect(seen.playScrolls, 'the play screen scrolls — the board did not fit its column').toBe(false)
+          expect(seen.documentScrollsSideways, 'the page scrolls sideways').toBe(false)
+        })
+      })
+    }
+
+    test.describe('grows with the window', () => {
+      test.use({ viewport: { width: 1920, height: 1080 } })
+
+      test('is a bigger board at 1080px tall than at 700px tall', async ({ page }) => {
+        /*
+         * The claim the phone's `calc(100dvh - 200px)` would satisfy by accident and a
+         * hard-coded desktop size would not satisfy at all. Measured as a comparison
+         * rather than against a number, so it survives the next spacing change.
+         */
+        await openBoard(page)
+        const tall = await page.getByTestId('board').evaluate((el) => Math.round(el.getBoundingClientRect().width))
+
+        await page.setViewportSize({ width: 1920, height: 700 })
+        const short = await page.getByTestId('board').evaluate((el) => Math.round(el.getBoundingClientRect().width))
+
+        expect(tall, `board was ${tall}px at 1080px tall and ${short}px at 700px tall`).toBeGreaterThan(short)
+      })
+    })
+  })
+
+  test.describe('the navigation, at 1440x900 and at 1279x900', () => {
+    /**
+     * Where the nav sits, measured geometrically rather than by class name.
+     *
+     * `.tabbar` is the same element and the same component in both bands (ADR-005 — the
+     * rail is a CSS presentation change, not a second nav), so asserting it exists proves
+     * nothing about where it went. What distinguishes a left rail from a bottom bar is the
+     * relationship between two boxes: a rail ends before the screen begins horizontally, a
+     * bar begins after the screen ends vertically. Either assertion alone is satisfied by
+     * a layout that stacks them wrongly.
+     */
+    async function navVsScreen(page: Page) {
+      return page.evaluate(() => {
+        const nav = document.querySelector('.tabbar')
+        const screen = document.querySelector('.phone > section')
+        if (!nav || !screen) return null
+        const n = nav.getBoundingClientRect()
+        const s = screen.getBoundingClientRect()
+        return {
+          leftOfScreen: Math.round(n.right) <= Math.round(s.left) + 1,
+          belowScreen: Math.round(n.top) >= Math.round(s.bottom) - 1,
+        }
+      })
+    }
+
+    test.describe('at 1440x900', () => {
+      test.use({ viewport: { width: 1440, height: 900 } })
+
+      test('is a rail beside the screen, not a bar under it', async ({ page }) => {
+        await page.goto('/')
+        const nav = await navVsScreen(page)
+
+        expect(nav, 'no tab bar and no screen to compare').not.toBeNull()
+        expect(nav!.leftOfScreen, 'the nav is not beside the screen').toBe(true)
+        expect(nav!.belowScreen, 'the nav is still stacked under the screen').toBe(false)
+      })
+
+      test('is absent during a match, exactly as on a phone', async ({ page }) => {
+        /*
+         * The rail must not become a reason to put navigation next to a board. The bar is
+         * deliberately absent on `play` (a match is a thing you are IN, and leaving it goes
+         * through a confirm), and moving it to the side does not change that argument —
+         * a wider screen makes a mis-click easier to reach, not harder.
+         */
+        await openBoard(page)
+        expect(await page.locator('.tabbar').count()).toBe(0)
+      })
+    })
+
+    test.describe('at 1279x900', () => {
+      test.use({ viewport: { width: 1279, height: 900 } })
+
+      test('is still a bar under the screen', async ({ page }) => {
+        await page.goto('/')
+        const nav = await navVsScreen(page)
+
+        expect(nav!.belowScreen, 'the nav left the bottom one pixel below the desktop band').toBe(true)
+        expect(nav!.leftOfScreen, 'the nav became a rail below the desktop band').toBe(false)
+      })
+    })
+  })
+
+  test.describe('on a short laptop window (1366x640)', () => {
+    test.use({ viewport: { width: 1366, height: 640 } })
+
+    test('takes the desktop shell, because the height floor is not the frame band’s', async ({ page }) => {
+      /*
+       * A regression this band introduced and nearly shipped. The desktop query's height
+       * floor started at 700px, copied from the frame band — where 700 is right, since that
+       * band draws an 844px device. A maximized browser on a 1366x768 laptop has roughly
+       * 630px of viewport height, so it satisfied neither band and fell to the base rules:
+       * a 390px phone column on a 1366px window. Worse than what it replaced, since the
+       * deleted `min-width: 900px` block had no height term and had been covering exactly
+       * these machines.
+       *
+       * Paired with the landscape-phone test below. One says the floor must not be too
+       * high, the other that it must not be too low; either alone justifies moving it in
+       * the direction that breaks the other.
+       */
+      await page.goto('/')
+      const shell = await shellShape(page)
+
+      expect(shell.framed, 'a laptop window is wearing the phone frame').toBe(false)
+      expect(shell.width, `shell is ${shell.width}px on a 1366px window`).toBeGreaterThan(900)
+    })
+  })
+
+  test.describe(`on a landscape phone (${LANDSCAPE_PHONE.width}x${LANDSCAPE_PHONE.height})`, () => {
+    test.use({ viewport: LANDSCAPE_PHONE })
+
+    test('stays a phone, because the desktop band has a height floor', async ({ page }) => {
+      /*
+       * 915px wide is past several plausible desktop breakpoints and 412px tall is a
+       * handset held sideways. Without `min-height: 700px` on the desktop query this
+       * viewport takes the desktop layout, and `e2e/layout.spec.ts`'s landscape block —
+       * which pins the whole board being on screen at this exact size — starts failing
+       * for a reason that has nothing to do with what it is testing.
+       */
+      await page.goto('/')
+      expect((await shellShape(page)).width).toBeLessThanOrEqual(420)
+    })
   })
 })

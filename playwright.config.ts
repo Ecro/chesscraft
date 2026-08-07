@@ -63,6 +63,24 @@ export default defineConfig({
       name: 'mobile-portrait',
       use: { ...devices['Pixel 7'] },
     },
+    /*
+     * Desktop, as a PROJECT rather than as per-describe overrides.
+     *
+     * The distinction is the whole point. `e2e/layout.spec.ts` had a 1440x900 describe
+     * block, which meant desktop coverage was three tests that someone remembered to opt
+     * in — Home, Lobby, the editor, the dex, the result screen and every sheet had none,
+     * and 1920 had none at all. A project makes the wide viewport a default the whole
+     * suite runs under, so a screen added later is covered by not being excluded rather
+     * than by being remembered.
+     *
+     * 1280x900 is the floor of the desktop band (ADR-006) rather than a comfortable
+     * middle: bugs live at the edge of a range, and the specs that care about a
+     * particular width state it themselves.
+     */
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } },
+    },
   ],
   webServer: {
     command: `npm run dev -- --port ${PORT} --strictPort`,

@@ -10,6 +10,9 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: 'node',
+      // One `window` serves a whole jsdom test file, so the URL a test leaves behind is
+      // the URL the next one starts on — and `App` now reads it. See the file's header.
+      setupFiles: ['tests/helpers/fresh-url.ts'],
       include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
       // e2e/ belongs to Playwright, not Vitest.
       //

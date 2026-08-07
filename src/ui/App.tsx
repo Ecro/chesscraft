@@ -10,6 +10,7 @@ import { MatchHost } from './MatchHost'
 import { Rules } from './Rules'
 import { TabBar } from './TabBar'
 import { hasSeenCoach, markCoachSeen } from './coach'
+import { type Route, isKnownPath, pathToRoute, routeToPath } from './router'
 import { type Settings, DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings'
 import { TranslateContext, makeTranslate } from './i18n'
 import { applyUpdate, registerServiceWorker } from './sw-update'
@@ -53,12 +54,11 @@ function initialSource(): { source: ContentSource; failedToLoad: boolean } {
  *   said nothing at all. Naming the players is what makes the curtain in
  *   `MatchHost` mean anything.
  *
- * `result` is deliberately NOT here. The end of a match is rendered by
- * `MatchHost`, over the board it belongs to, because promoting it to a route
- * would mean lifting the whole match — position, hands, ply count — into this
- * component so the screen could report on it.
+ * The union itself, and the URL each member lives at, moved to `./router` when the
+ * screens got real addresses (ADR-003) — a path table that the shell alone could see
+ * would be a path table no test could iterate. `result` stays out of it for the reason
+ * recorded there.
  */
-type Route = 'boot' | 'home' | 'lobby' | 'play' | 'edit' | 'dex'
 
 /** The routes the bottom tab bar is part of, and the tab each one lights up. */
 const TAB_OF: Partial<Record<Route, 'home' | 'edit' | 'dex'>> = {
@@ -96,10 +96,52 @@ export function App() {
    * "already seen" rather than replaying the tutorial forever — see the note in
    * `coach.ts` on which way this fails.
    */
-  const [route, setRoute] = useState<Route>(() => {
+  const [route, setRouteState] = useState<Route>(() => {
     const storage = browserStorage()
-    return storage && !hasSeenCoach(storage) ? 'boot' : 'home'
+    if (storage && !hasSeenCoach(storage)) return 'boot'
+    return pathToRoute(window.location.pathname)
   })
+
+  /**
+   * Every route change, and the URL that goes with it.
+   *
+   * A wrapper around the raw setter rather than a push at each call site, because there
+   * are ten call sites — the notice, the title screen's three controls, the lobby's two,
+   * the board's two, the dex, and the builder's play button — and only the tab bar goes
+   * through `go`. Pushing at each one means the URL is correct until someone adds an
+   * eleventh, and a route change that forgets its push does not break anything visible:
+   * the screen is right, the address bar is stale, and the next reload lands somewhere
+   * else. That is `[fail:design] phase-scope-omits-wiring`, so the wiring lives at the one
+   * point every caller already passes through.
+   *
+   * Guarded on the path rather than the route because `boot` and `home` share `/`, and
+   * finishing onboarding must not push a duplicate entry that Back would then land on.
+   */
+  const setRoute = (to: Route) => {
+    const path = routeToPath(to)
+    if (path !== window.location.pathname) window.history.pushState(null, '', path)
+    setRouteState(to)
+  }
+
+  /**
+   * Makes the address bar honest about the screen that actually opened.
+   *
+   * Two cases, both at mount only. A first visitor deep-linked to `/edit` gets onboarding,
+   * because the coach flag decides that and a URL must not be able to skip it — so the URL
+   * has to stop claiming `/edit`. And an unknown path (`/room/ABC123`, a typo) reaches the
+   * app rather than 404ing, since the edge serves the shell for everything; it renders home
+   * and the URL must say so, or a reload disagrees with the display.
+   *
+   * `replaceState`, not `push`: neither case is a place the player navigated to, so neither
+   * belongs in their history.
+   */
+  useEffect(() => {
+    if (route === 'boot' || !isKnownPath(window.location.pathname)) {
+      window.history.replaceState(null, '', routeToPath(route))
+    }
+    // Mount only — a later route change is the wrapper's business, not this effect's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [settings, setSettings] = useState<Settings>(() => {
     const storage = browserStorage()
@@ -153,6 +195,7 @@ export function App() {
     setRoute(to)
   }
 
+
   /**
    * Registers the service worker once, and remembers the registration so the
    * update button has a worker to hand over to.
@@ -193,6 +236,38 @@ export function App() {
    * render shipped text over the author's, and nothing on screen would say so.
    */
   const t = useMemo(() => makeTranslate(source.strings), [source.strings])
+
+  /**
+   * The Back button, and the one thing about it that is not like `go`.
+   *
+   * `go` can refuse: it asks, and on "no" it returns having moved nothing. `popstate`
+   * cannot. By the time this runs the browser has ALREADY changed the URL, so declining is
+   * not an early return — it is pushing the entry back and leaving the screen where it was.
+   * Without that push the board stays on screen under a URL that says `/lobby`, which looks
+   * like nothing is wrong right up until the player reloads and the match is gone. On a
+   * phone the gesture that triggers this is a swipe from the edge, so it is not a rare path.
+   *
+   * `setRouteState`, not `setRoute` — the URL is already where it needs to be, and the
+   * wrapper would push a duplicate entry that Back would then have to walk back through.
+   *
+   * Declared here rather than beside `go` because the dependency array evaluates `t`
+   * eagerly, and `t` is memoized on the content source a few lines above.
+   */
+  useEffect(() => {
+    const onPop = () => {
+      if (route === 'play' && matchInProgress && !window.confirm(t('ui.confirm.discard'))) {
+        window.history.pushState(null, '', routeToPath(route))
+        return
+      }
+      const next = pathToRoute(window.location.pathname)
+      // Same reset as `go`, for the same reason: arriving at the editor without naming a
+      // room means the list, not whatever room the last visit left open.
+      if (next === 'edit') setEditorTarget(undefined)
+      setRouteState(next)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [route, matchInProgress, t])
 
   const loaded = useMemo(() => loadContentSet(source), [source])
   const presetIds = loaded.ok ? [...loaded.set.presets.keys()] : []

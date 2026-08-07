@@ -1,0 +1,28 @@
+{
+  // An ASSETS-ONLY Worker: no `main`, no script, nothing but the built SPA served
+  // from the edge. That absence is load-bearing rather than incidental — Cloudflare
+  // does not apply `public/_headers` to responses a Worker script generates, so the
+  // moment `main` appears the cache policy stops governing whatever that script
+  // serves, while the `_headers` file it was read from is unchanged and every test
+  // over it keeps passing. `tests/structure/deploy-config.test.ts` asserts `main` is
+  // absent for exactly that reason; when the Durable Object room layer eventually
+  // needs a script, that failing assertion is the prompt to move the headers into it.
+  "name": "chesscraft",
+
+  // Pinned so a platform default changing under us is a deliberate edit here rather
+  // than a behaviour change nobody made.
+  "compatibility_date": "2026-08-08",
+
+  "assets": {
+    "directory": "./dist/",
+
+    // Serve `index.html` for any path that is not a file. The app has real routes
+    // (`/play`, `/edit`, `/dex`, `/lobby` — ADR-003) and they exist only in the
+    // client, so without this every one of them is a 404 at the edge and every link
+    // anyone shares is dead. Note this REWRITES rather than redirects: a host that
+    // 302s to `/index.html` breaks service-worker registration, which is a documented
+    // failure mode of the redirect-based approach and the reason this key, not a
+    // `_redirects` catch-all, is what configures the fallback.
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -129,11 +129,27 @@ main {
  * with a spec behind it): a 390px column in the middle of 1440px is a website
  * pretending to be a phone.
  *
- * So the frame appears in the middle band and the cap lifts above it. The look
- * is unchanged either way — every block is still a bevelled block; there are
- * simply more pixels for the board.
+ * So the frame appears in the middle band and the DESKTOP band above it drops it
+ * entirely (`desktop.css`, from 1280px). The look is unchanged either way — every
+ * block is still a bevelled block; there are simply more pixels for the board.
+ *
+ * The upper bound is load-bearing rather than defensive. It is what makes the frame
+ * band and the desktop band meet exactly, with no viewport belonging to both and none
+ * belonging to neither (ADR-006). The band that used to sit between them — a bare
+ * `min-width: 900px` that widened the box to 1100px and changed nothing inside it —
+ * is gone: 900 to 1280 was a range nobody had designed, reachable and unowned, which
+ * is the shape `[fail:design] condition-narrower-than-its-case` warns about from the
+ * other direction.
+ *
+ * The bound is `not (min-width: 1280px)` — the desktop band's exact complement — and not
+ * `max-width: 1279.98px`. The 0.02px idiom is Bootstrap's, and it carries Bootstrap's
+ * known hole: a viewport width is a fractional length, so anything in (1279.98, 1280)
+ * matches NEITHER band and falls through to the base rules, which is a 390px unframed
+ * column on a wide window — the one outcome this whole structure exists to prevent. The
+ * window is small enough that no integer-width test can see it, which is precisely why it
+ * has to be closed by construction rather than by a number.
  */
-@media (min-width: 480px) and (min-height: 700px) {
+@media (min-width: 480px) and (min-height: 700px) and (not (min-width: 1280px)) {
   .phone {
     height: 844px;
     flex: none;
@@ -141,13 +157,6 @@ main {
     box-shadow:
       0 0 0 3px var(--color-shell-edge),
       0 26px 70px var(--color-shadow-deep);
-  }
-}
-
-@media (min-width: 900px) {
-  .phone {
-    max-width: min(94vw, 1100px);
-    height: min(94vh, 900px);
   }
 }
 

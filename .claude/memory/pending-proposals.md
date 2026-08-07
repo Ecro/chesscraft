@@ -173,3 +173,18 @@ enforces it. When the answer is "the comment", that is the finding. Worth adding
 to the reviewer's prompt because in all three cases the comment and the gap were
 within ten lines of each other and a human reviewer found it in seconds once
 looking for it.
+
+## Proposal: flag a spec whose setup makes the asserted branch unreachable (2026-08-08)
+**Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 3)
+**Proposed mechanism:** rule update — a review-stage checklist item, plus a `/hm:execute` Phase A.5 prompt line
+**Rationale:** All three instances share one shape and none was caught by running the suite,
+because in every case the suite was GREEN. A clipboard spec granted the permission whose
+absence was the risk; a routing spec asserted a discard-confirm in a match that had nothing
+to discard, so no dialog ever appeared and BOTH outcomes it asserted are what happens with no
+guard at all. The tell is mechanical and cheap to look for: the test's SETUP mentions the same
+capability, state or precondition the code under test is optional about. A guard that asked
+"does this test's arrange step guarantee the branch its assert step is about?" would have
+caught all three at authoring time. The cheapest concrete form is an assertion that the
+dangerous branch was ENTERED — count the dialogs, assert the rejected state, check the
+fallback ran — rather than only asserting the outcome, since the outcome is usually reachable
+without the mechanism.

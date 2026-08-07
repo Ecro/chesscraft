@@ -13,7 +13,8 @@
     "test:build": "vitest run --config=vitest.build.config.ts",
     "e2e": "playwright test",
     "e2e:pwa": "playwright test --config=playwright.pwa.config.ts",
-    "verify": "npm run typecheck && npm run build && npm run test && npm run test:build && npm run e2e && npm run e2e:pwa"
+    "deploy": "npm run build && wrangler deploy",
+    "verify": "npm run typecheck && npm run build && npm run test && npm run e2e && npm run e2e:pwa && npm run test:build"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
@@ -33,6 +34,7 @@
     "jsdom": "^29.1.1",
     "typescript": "^5.6.3",
     "vite": "^8.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.120.0"
   }
 }

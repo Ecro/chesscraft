@@ -1,0 +1,431 @@
+/**
+ * Desktop, and nothing else (ADR-005, ADR-006, ADR-008).
+ *
+ * One media query, one file. `styles.css` is 2,500 lines with three media queries in it,
+ * and giving six screens desktop variants inline would scatter dozens more through it —
+ * at which point "what does desktop change?" stops being a question anyone can answer by
+ * reading. Here the answer is the file, and the reach of the rules is one bound at the top
+ * that can be audited in a glance. That auditability is not a tidiness preference: this
+ * repo has already shipped a complete desktop layout that never rendered because its media
+ * query was wrong, and nothing noticed for phases (`[fail:design]
+ * condition-narrower-than-its-case`).
+ *
+ * Loaded AFTER `styles.css` in `main.tsx`, which is how these win ties without a specificity
+ * arms race. `tests/ui/shell-layout.test.ts` pins that order, because an import reorder is
+ * the kind of edit that looks like tidying and silently drops every rule below.
+ *
+ * The height floor is 600px, and the number was wrong once in a way worth recording. It
+ * started at 700px, copied from the frame band below — where 700 is correct, because that
+ * band draws an 844px-tall device and needs the room. This band draws no such thing, and
+ * 700px excluded a viewport nobody had thought about: a 1366x768 laptop with the browser
+ * maximized has roughly 630px of viewport height once chrome is subtracted. Those machines
+ * had been getting the old `min-width: 900px` block, which carried no height term at all,
+ * so the "fix" handed a common budget laptop a 390px phone column and called it a desktop
+ * band. 600px clears that and still sits far above any handset — a landscape phone is
+ * ~412px tall, and is in any case already excluded by the 1280px width.
+ *
+ * `e2e/layout.spec.ts` asserts both edges of that: 915x412 stays a phone, 1366x640 does not.
+ *
+ * The band below this one is the 390x844 device frame (`styles.css`), whose width bound is
+ * this band's exact complement — `not (min-width: 1280px)`, not an epsilon. The two
+ * partition the width axis with no gap and no overlap; their height floors differ because
+ * they are answering different questions.
+ */
+
+@media (min-width: 1280px) and (min-height: 600px) {
+  /*
+   * The shell stops being a phone.
+   *
+   * `styles.css` caps `.phone` at 390px and, in the frame band, wraps it in a 6px border
+   * at a fixed 844px height. Both are the right answer for a phone and for a tablet, and
+   * neither is the right answer for a monitor: the result was a 1100x900 box with 820px of
+   * backdrop beside it on a 1920px screen, holding a layout designed at 390px stretched to
+   * fill it. There is no upper cap here on purpose (ADR-006) — the window keeps being used
+   * as it grows rather than snapping back to a centred column.
+   */
+  .phone {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    flex: 1 1 auto;
+    border: none;
+    box-shadow: none;
+  }
+
+  /*
+   * `main` centres `.phone` on a backdrop, which is exactly what should stop happening
+   * once `.phone` IS the page.
+   */
+  main {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  /* ------------------------------------------------------------------ the shell grid */
+
+  /*
+   * Two tracks: the navigation rail, then the screen.
+   *
+   * A grid rather than `flex-direction: row` because the rail is not always there — it is
+   * absent on `boot` and on `play` (a tab bar under a board is an invitation to lose the
+   * position, and a rail beside one is the same argument on a wider screen). An `auto`
+   * track with no element in it collapses to zero, so the same rule serves both cases
+   * without the shell needing to know which route is up.
+   *
+   * `.phone`'s other two children stay out of this: `h1.sr-only` is positioned absolutely
+   * and `.notice-stack` is fixed, so neither takes a track.
+   */
+  .phone {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'rail screen';
+  }
+
+  .phone > section {
+    grid-area: screen;
+    min-width: 0;
+  }
+
+  /*
+   * The bar becomes the rail.
+   *
+   * Same element, same component, same three destinations — ADR-005 keeps `TabBar.tsx`
+   * untouched, so there is no second navigation to keep in step with the first. What
+   * changes is the axis and which edge carries the border.
+   *
+   * DOM order is unchanged: the screen still comes before the nav, so the rail is visually
+   * first and reached last by Tab. That is deliberate rather than tolerated — content
+   * before navigation is what a skip-link exists to produce, and `<nav>` is a landmark, so
+   * assistive tech reaches it directly regardless of position. Reordering the DOM to match
+   * the visual order would fix desktop and break the phone, where nav-last is correct.
+   */
+  .tabbar {
+    grid-area: rail;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 96px;
+    border-top: none;
+    border-right: var(--border-w) solid var(--color-outline);
+    /* The home indicator is a phone concern; the rail does not sit above one. */
+    padding-bottom: 0;
+  }
+
+  .tabbar .tab {
+    /* `flex: 1` divides a ROW three ways; down a column it stretches each tab to a third
+       of the viewport height. The rail's tabs are their content's height, at the top. */
+    flex: none;
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .tabbar .tab[data-selected='true'] {
+    /* The 4px marker moves with the axis: it marked the top edge of a bar sitting at the
+       bottom of the screen, and marks the inner edge of a rail sitting at its left. */
+    box-shadow: inset calc(-1 * var(--bevel-lg)) 0 0 var(--color-primary);
+  }
+
+  /* ------------------------------------------------------------------- the match */
+
+  /*
+   * Board on the left, the chrome that framed it on the right.
+   *
+   * `.phone > .play`, not `.play`, and the reason is written in `styles.css` already:
+   * "`.phone > section` outranks a bare `.editor` or `.home`, [so] that one declaration
+   * silently won over every screen that had asked to scroll." The same trap, one property
+   * over. `.phone > section { display: flex }` is (0,1,1) and a bare `.play` is (0,1,0), so
+   * being later in the cascade buys nothing — `grid-template-columns` applied and `display`
+   * did not, leaving a flex container holding column definitions nothing could use. It
+   * renders as the old single column: the failure mode that looks like the rules were
+   * never written.
+   */
+  .phone > .play {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    /*
+     * Five content rows and a trailing flexible one that nothing occupies.
+     *
+     * The trailing track is the whole point and it is the fix the old two-column layout's
+     * e2e comment already prescribed. The board's column spans every row; a grid whose only
+     * flexible row sits at the TOP hands that row the surplus height and pushes a hole
+     * between the first two items in the side column — measured at 76px before this line
+     * existed. Putting the slack last means the side column stacks tight and the leftover
+     * falls below it, where there is nothing to push apart.
+     *
+     * Rows are assigned by class below rather than auto-placed, because two of the side
+     * column's items are conditional (the rule text, the settings drawer) and auto-placement
+     * would shift everything under them each time one appears. A row with no element in it
+     * is simply zero high.
+     */
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .play-cover > .turn-bar { grid-row: 1; }
+  .play-cover > .rule-bar { grid-row: 2; }
+  .play-cover > .rule-text { grid-row: 3; }
+  .play-cover > .match-tools { grid-row: 4; }
+  .play-cover > .match-settings-panel { grid-row: 5; }
+
+  /*
+   * The split, and why it is not the one ADR-005 wrote down.
+   *
+   * The ADR said the side rail would carry "turn bar, rule bar, hands, tool row". Three of
+   * those four are siblings of `.play-body`; the hands are INSIDE it, beside the board. To
+   * put the hands in a far rail, `MatchHost`'s JSX would have to be reparented — CSS can
+   * flatten a wrapper with `display: contents`, but it cannot move a child out of one.
+   *
+   * Flattening was tried first and produced a worse layout, not merely a different one:
+   * with `.play-body` set to `display: contents` its `overflow-y: auto` goes with it, and
+   * nothing is left in the side column to scroll. Measured at 1440x900 that column came to
+   * 1292px against a 900px screen, so the entire match scrolled — including the board,
+   * which had fit perfectly well at 886px.
+   *
+   * So the seam moved to where the DOM already has one. Column 1 is `.play-body`: the board
+   * and the things physically attached to it — the waiting player's strip above, the hint
+   * line and the mover's hand below — keeping the scroller it already had. Column 2 is
+   * everything that was already a sibling: whose turn it is, the rule in play, the tools.
+   * Same idea (the board gets the room, the chrome moves beside it), no JSX change.
+   * ADR-005's exact wording is recorded as a deviation in the PLAN.
+   */
+  .play-cover > * {
+    grid-column: 2;
+    /* Nothing in the side column may force its track past the max above; without this a
+       long rule sentence widens column 2 and narrows the board out from under it. */
+    min-width: 0;
+  }
+
+  /*
+   * `.play-cover > .play-body`, not `.play-body` — the rule above is (0,1,1) and would
+   * otherwise place the board's column in the side column with everything else. The same
+   * specificity trap as `.phone > section`, one level down.
+   *
+   * The board's own size rule needs no desktop override: `calc(100dvh - 200px)` subtracts
+   * what sits ABOVE the board and must stay on screen with it, and in this split the foe
+   * strip is still exactly that.
+   */
+  .play-cover > .play-body {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    min-height: 0;
+  }
+
+  /*
+   * The draft sheet covers the whole match, not one column. It is `position: absolute`
+   * against `.play`, so without this the `grid-column: 2` rule claims it and the scrim
+   * stops at the side column's edge, dimming a third of what it is meant to dim.
+   */
+  .play-cover > .draft-scrim {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+  }
+
+
+
+  /* ---------------------------------------------------------- the other screens */
+
+  /*
+   * A readable measure, not the whole window.
+   *
+   * Home, the lobby and the dex are single columns of controls. Stretched to 1344px they
+   * are not a desktop layout — they are a phone layout that stopped resisting, with a
+   * button whose label sits at one end of a metre of empty surface. The board earns the
+   * width because it is a board; a list of rooms does not.
+   *
+   * `.screen-body` is where the scrolling content lives on these screens, so it takes the
+   * measure and the header keeps the full width — the same shape as every document layout
+   * that centres its text under a full-bleed masthead.
+   */
+  .home,
+  .lobby,
+  .dex,
+  .editor {
+    align-items: center;
+  }
+
+  .home > *,
+  .lobby > *,
+  .dex > *,
+  .editor > * {
+    width: 100%;
+    max-width: 900px;
+  }
+
+  /*
+   * The header is not content, and the rule above caught it anyway.
+   *
+   * The comment two blocks up promised "the header keeps the full width — the same shape
+   * as every document layout that centres its text under a full-bleed masthead", and then
+   * `.lobby > *` capped `.screen-head` at 900px along with everything else. Its background
+   * and bottom border came with it, so the masthead became a floating bar with gutters on
+   * both sides. The prose was right and the selector was not; this is the exception the
+   * prose already described.
+   */
+  .screen-head,
+  .dex-tabs,
+  .editor-tabs,
+  .build-top {
+    max-width: none;
+  }
+
+  /*
+   * The dex grid gets the extra room instead of stretching four cards across it.
+   * `auto-fill` rather than a fixed count, so 900px and 1400px both look deliberate.
+   */
+  .dex-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  /* ------------------------------------------------------------------ overlays */
+
+  /*
+   * The scrim covers the WINDOW, not the screen it was opened from.
+   *
+   * `position: absolute` is right on a phone, where the shell is the viewport and the
+   * scrim's containing block is the whole of what the player can see. On desktop the
+   * containing block is the grid area beside the navigation rail, so the rail stayed lit
+   * and clickable underneath a dialog that had supposedly taken over — the same shape as
+   * `[fail:render] fixed-overlay-blocks-what-it-only-dims`, inverted: this one dimmed less
+   * than it blocked.
+   */
+  .phone .sheet-scrim,
+  .phone .result-screen {
+    position: fixed;
+    inset: 0;
+    /*
+     * `.phone .x`, and the width reset, because of the measure rule above. `.dex > *` is
+     * (0,1,1) and gives every child `width: 100%; max-width: 900px` — the scrim is a child
+     * of `.dex`, and `max-width` constrains a fixed element just as happily as a static
+     * one. The overlay came out 900px wide on a 1440px window, left-aligned, having been
+     * told to cover everything. A rule written for the content column reached the thing
+     * layered over it.
+     */
+    width: auto;
+    max-width: none;
+  }
+
+  /*
+   * A bottom sheet becomes a centred dialog.
+   *
+   * `justify-content: flex-end` on the scrim welds the sheet to the bottom edge, which is
+   * where a thumb is and where nothing on a desktop is. Centred, bounded, and given its
+   * outline back — a slab that meets three window edges reads as a new page rather than as
+   * something layered over the one behind it.
+   */
+  .sheet-scrim {
+    justify-content: center;
+    align-items: center;
+  }
+
+  .sheet {
+    width: min(100%, 640px);
+    max-height: 80vh;
+    overflow-y: auto;
+    border: var(--border-w) solid var(--color-outline);
+    padding-bottom: var(--space-6);
+    animation: none;
+  }
+
+  /*
+   * The update / content-broken banner.
+   *
+   * `.notice` is capped at 390px — the phone's width — inside a stack that is `position:
+   * fixed` across the whole window, so on a desktop it rendered as a narrow card pinned to
+   * the bottom-left corner with no relationship to anything. Centred and given the same
+   * measure as the sheet.
+   */
+  .notice-stack {
+    align-items: center;
+  }
+
+  .notice {
+    max-width: 640px;
+  }
+
+  /* ------------------------------------------------------------------- the editor */
+
+  /*
+   * The fixed-pixel grids, unpinned.
+   *
+   * These sizes are not arbitrary and they are not wrong — `.build-grid` is 300px so a 6x6
+   * board of tappable cells fits a 390px phone, `.move-grid` is 294px for a 7x7 of the
+   * same, and `.tile-grid` is three across because that is what fits. On a desktop they are
+   * the phone layout showing through: the board painter is the one thing in the editor
+   * doing real spatial work, and 300px of it in the middle of 1440 is a postage stamp.
+   *
+   * Widened, not unbounded. A 900px board painter would put the two ends of a rank far
+   * enough apart to need a head turn, so each grows to a size a person can still take in at
+   * once and the surrounding measure (900px, above) holds the rest.
+   *
+   * What this deliberately does NOT do is put a form and a live preview side by side, which
+   * is what the PLAN's Phase 9 exit criterion asked for. That criterion rested on a premise
+   * that is no longer true — the editor was "4,700px of forms" before the Chess Craft
+   * redesign turned it into a five-step wizard that shows one step at a time, so there is no
+   * long scroll left to split. And there is no preview component to place beside a form: the
+   * board painter IS the preview for the board step, and the other four steps are lists. A
+   * real preview pane is new component work, not a CSS layer. Recorded in the PLAN.
+   */
+  .build-grid {
+    width: min(100%, 520px);
+  }
+
+  .move-grid {
+    width: min(100%, 420px);
+  }
+
+  .tile-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  /*
+   * `.palette.wrap`, not `.palette` — the THIRD time this trap has fired in this file.
+   * `styles.css` gives the art picker `.palette.wrap { grid-template-columns:
+   * repeat(auto-fill, minmax(48px, 1fr)) }` at (0,2,0); a bare `.palette` here is (0,1,0)
+   * and loses on specificity, which source order cannot overturn. The rule would simply
+   * never apply and the sprite grid would ship at phone size with nothing to show for it.
+   */
+  .palette,
+  .palette.wrap {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  /* ----------------------------------------------------------------- the pointer */
+
+  /*
+   * Hover, in the bevel language (ADR-007).
+   *
+   * This reopens a decision `styles.css` records: "A block that lights up on hover would
+   * look like glass; a block that swaps its bevel looks like it went in, which is what a
+   * button does." The press already speaks that language. What was missing was the state
+   * BEFORE the press — on a phone there is no such state, and on a desktop its absence
+   * means a player cannot tell what is interactive until they click it.
+   *
+   * So the answer is the same grammar one step earlier: the press pushes the block IN by
+   * swapping the bevel; hover lifts it OUT by deepening the lit edge. No glow, no
+   * brightness shift, no filter — those are the glass look the original rule was guarding
+   * against, and `e2e/layout.spec.ts` asserts `filter` and `opacity` are untouched.
+   *
+   * `@media (hover: hover)` nested inside the desktop band, so a touch device that happens
+   * to be 1280px wide never gets a sticky hover state it cannot clear. The size is
+   * deliberately unchanged: a control that grows under the cursor reflows the page while
+   * the pointer is moving across it.
+   */
+  @media (hover: hover) {
+    button:hover:not(:disabled):not(:active) {
+      box-shadow:
+        inset calc(2 * var(--bevel)) calc(2 * var(--bevel)) 0 var(--color-control-hi),
+        inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-control-lo);
+    }
+
+    /*
+     * The board is its own case. A square is not a bevelled block — it is a painted cell in
+     * a grid whose columns are `1fr` and whose marks are sized in `cqw`, so an inset shadow
+     * on it competes with the piece rather than framing it. An outline is drawn OUTSIDE the
+     * box model, so it cannot change the square's size and cannot reflow the board as the
+     * pointer crosses it.
+     */
+    .square:hover:not(:disabled) {
+      outline: var(--bevel-lg) solid var(--color-primary);
+      outline-offset: calc(-1 * var(--bevel-lg));
+    }
+  }
+}

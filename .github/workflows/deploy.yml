@@ -1,0 +1,103 @@
+# Verify, then publish — in that order, with no way to reach the second without the first.
+#
+# The repository had no CI at all before this, which meant `npm run verify` — the script
+# that chains typecheck, build, unit tests, build-output tests and both Playwright suites —
+# ran wherever someone remembered to run it. That is a gate in name only. Here the deploy
+# step is a separate job that `needs: verify`, so a red suite does not produce a partial
+# deploy or a deploy at all; GitHub simply never starts the second job.
+#
+# Two jobs rather than two steps in one, deliberately. In a single job a `continue-on-error`
+# left on a test step, or a later refactor that reorders steps, silently reconnects the two.
+# `needs:` is a dependency the workflow file cannot express incorrectly by accident.
+name: deploy
+
+on:
+  push:
+    branches: [master]
+  # Runs the gate on proposed changes without ever reaching the deploy job, which is
+  # skipped outside `master` by the `if` below.
+  pull_request:
+    branches: [master]
+
+# A second push while the first is still deploying would race two `wrangler deploy` calls
+# at the same Worker. Newer wins; the older is cancelled before it can publish.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Both Playwright suites are part of `verify`, and neither can run without a
+      # browser. `--with-deps` because the runner image does not carry the shared
+      # libraries Chromium needs. Chromium only: both configs declare a single
+      # `mobile-portrait` project on `devices['Pixel 7']`, so installing the other two
+      # engines is minutes of download for browsers nothing launches.
+      - run: npx playwright install --with-deps chromium
+
+      # The authoritative gate, unchanged and unsplit. If this script grows a step, CI
+      # gets it for free; if CI listed the steps itself the two would drift, and the one
+      # that drifts is always the one nobody runs locally.
+      - run: npm run verify
+
+      # `verify` already built. Handing `dist/` to the deploy job means the bytes that get
+      # published are the exact bytes the suite passed against, rather than the output of a
+      # second build that nothing verified.
+      #
+      # That is only true because `verify` runs `test:build` LAST. It used to run it fourth,
+      # before `e2e:pwa` — and `playwright.pwa.config.ts` rebuilds `dist/` from scratch to
+      # serve a real build, so the artifact uploaded here was the output of a second `vite
+      # build` that the build-output assertions had never seen. Two builds from the same
+      # source are near-certainly identical, but "near-certainly" is not what this comment
+      # was claiming, and the fix was an ordering change rather than a caveat.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  deploy:
+    needs: verify
+    # Pull requests run the gate and stop here. Only `master` publishes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # `npx wrangler deploy`, not `npm run deploy` — that script rebuilds first, which
+      # would discard the verified artifact downloaded above and publish something no
+      # suite has seen. The script exists for a human deploying from a laptop, where
+      # rebuilding IS the safe default.
+      #
+      # The token must be a scoped Workers-deploy token, never an account-global API key:
+      # this is the one credential in the repository and its blast radius is whatever
+      # scope it was minted with.
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,58 @@
+# Cache policy for the deployed origin. Cloudflare reads this from the build output;
+# Vite copies everything in `public/` into `dist/`, which is why it lives here rather
+# than beside `wrangler.jsonc`.
+#
+# The split below is the whole file. Fingerprinted assets never change under their
+# name, so they are cached for a year and never revalidated. Everything that names
+# them — the shell, the worker, the manifest — must be revalidated on every visit,
+# because a returning visitor holding a stale `index.html` is holding script tags that
+# point at bundles the last deploy deleted, and a stale `sw.js` registration points at
+# a worker that no longer exists. There is no user action that recovers from that: the
+# cache keeps handing back the same broken shell. It also cannot happen locally — it
+# needs a SECOND deploy to exist, which is why `tests/build/deploy-headers.test.ts`
+# asserts both directions rather than trusting a smoke test.
+#
+# `no-cache` means "revalidate before reuse", NOT "do not store". `no-store` would look
+# like the more cautious choice and would defeat the offline cache the service worker
+# exists to fill.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Every client-side route, not just `/`.
+#
+# A navigation asks for the URL, not for the file — the same reason `vite-plugin-sw.ts`
+# precaches `/` by hand rather than relying on `/index.html`. The edge rewrites all of
+# these to the same `index.html` bytes (wrangler.jsonc's single-page-application
+# handling), so they are all the shell and all must revalidate; a rule that named only
+# `/` would leave the four addresses this app just became able to SHARE governed by a
+# platform default rather than by this file. Someone who bookmarked `/play` is exactly
+# the visitor a stale shell strands.
+#
+# There is no catch-all here on purpose: `_headers` applies EVERY matching rule, so a
+# `/*` block would also match `/assets/*` and send two conflicting Cache-Control values.
+# `tests/build/deploy-headers.test.ts` derives this list from the router, so a route
+# added without an entry here fails the build tests rather than shipping uncovered.
+/
+  Cache-Control: no-cache
+
+/lobby
+  Cache-Control: no-cache
+
+/play
+  Cache-Control: no-cache
+
+/dex
+  Cache-Control: no-cache
+
+/edit
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache

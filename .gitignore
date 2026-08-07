@@ -17,6 +17,8 @@ work-docs/p5-batch-state.yaml
 # --- app build artifacts ---
 node_modules/
 dist/
+# wrangler's local state (build cache, dev-server scratch). Never content.
+.wrangler/
 playwright-report/
 test-results/
 .vite/
