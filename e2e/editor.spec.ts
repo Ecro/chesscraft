@@ -34,6 +34,19 @@ async function openEditor(page: Page, kind: string) {
  * the key was unresolved, while now it appears because it is the authored text.
  * Same sentinel, so the specs stay honest about what moved and what did not.
  */
+/*
+ * There is no `editor-cost` step here, and its absence is the product, not an omission.
+ *
+ * Schema v8 removed the control: it let an author type their own balance number that
+ * nothing ever read, and a number the author picks could not be the objective index the
+ * grade has to be. Records are measured now, not priced by hand
+ * (`tests/editor/vocabulary-coverage.test.ts` asserts the control is gone).
+ *
+ * The specs in this file kept filling it for one commit after it was removed, so five
+ * tests across two files timed out waiting 30s for a field that no longer exists — a
+ * broken suite that read like a broken editor. Anyone re-adding a cost step here should
+ * check that the form offers one first.
+ */
 async function fillIdentity(page: Page, id: string, opts: { text?: boolean } = {}) {
   await page.getByTestId('editor-id').fill(id)
   await page.getByTestId('editor-name').fill(`${id}.name`)
@@ -195,7 +208,6 @@ test.describe('rule-card axis', () => {
   test('creates a rule card and it is the card the match draws', async ({ page }) => {
     await openEditor(page, 'ruleCard')
     await fillIdentity(page, 'rule.sudden-death')
-    await page.getByTestId('editor-cost').fill('3')
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-end_of_ply').click()
     await page.getByTestId('vocab-condition-check_count_at_least').click()
@@ -233,7 +245,6 @@ test.describe('skill-card axis', () => {
   test('creates a skill card and it reaches a player hand in the same session', async ({ page }) => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.smokescreen')
-    await page.getByTestId('editor-cost').fill('2')
     await page.getByTestId('editor-uses').fill('1')
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
@@ -365,7 +376,6 @@ test.describe('validation and transfer', () => {
   test('exports and re-imports the whole content set (AC-015)', async ({ page }) => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.mirror')
-    await page.getByTestId('editor-cost').fill('1')
     await page.getByTestId('editor-uses').fill('1')
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
@@ -402,7 +412,6 @@ test.describe('validation and transfer', () => {
   test('keeps authored content across a reload through browser-local storage', async ({ page }) => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.keepsake')
-    await page.getByTestId('editor-cost').fill('1')
     await page.getByTestId('editor-uses').fill('1')
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()

@@ -84,7 +84,6 @@ test('the library lists a record no room uses, and says so', async ({ page }) =>
   await page.getByTestId('editor-id').fill('skill.orphan')
   await page.getByTestId('editor-name').fill('외톨이')
   await page.getByTestId('editor-text').fill('아무 방에도 없어요')
-  await page.getByTestId('editor-cost').fill('1')
   await page.getByTestId('editor-uses').fill('1')
   await page.getByTestId('editor-add-effect').click()
   await page.getByTestId('vocab-trigger-on_play').click()
