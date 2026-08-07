@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import React from 'react'
 import { type CachedGrade, type GradeCache, keyForRecord, memoryCache } from '@balance/cache'
 import type { Calibration } from '@balance/predict'
+import type { GradeClient } from '@balance/grade-client'
 import { GRADE_SEEDS } from '@balance/measure'
 import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
@@ -24,6 +25,8 @@ import { RoomDetail } from '../../src/ui/RoomDetail'
 afterEach(cleanup)
 
 const OWN_CARD = 'skill.probe-own'
+/** A piece the shipped grade table cannot know, because the author just made it. */
+const OWN_PIECE = 'piece.probe-own'
 
 /** The shipped document plus one card the room does NOT deal, so a side can own it. */
 function documentWithOwnCard(): ContentSource {
@@ -36,6 +39,13 @@ function documentWithOwnCard(): ContentSource {
     effects: [
       { trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }] },
     ],
+  })
+  ;(source.pieces as unknown[]).push({
+    id: OWN_PIECE,
+    nameKey: 'piece.probe-own.name',
+    textKey: 'piece.probe-own.text',
+    movement: [{ kind: 'step', vectors: [[0, 1], [1, 0], [-1, 0], [0, -1]] }],
+    effects: [],
   })
   return source
 }
@@ -157,11 +167,25 @@ describe('PLAN Phase 6 — the room screen offers a loadout and prices it', () =
   })
 
   it('says a grade is still being measured rather than showing it as zero', () => {
+    // Targets the record the author just made: the bundled ones answer from the
+    // shipped table, and a test that could not tell those two apart would pass
+    // whether or not the unmeasured case worked.
     const source = documentWithOwnCard()
     mountRoom(source, memoryCache())
     const options = screen.getByTestId('loadout-piece').textContent ?? ''
-    expect(options).toContain('세는 중')
-    expect(options).not.toContain('세기 0')
+    expect(options, 'the authored piece should still be measuring').toContain('세는 중')
+    expect(options).not.toContain(`${OWN_PIECE} — 세기 0`)
+  })
+
+  it('answers instantly for a bundled record, from the shipped table', () => {
+    // The reason the table exists: a fresh install must not spend 24,000
+    // self-play matches rediscovering a constant before it can say anything.
+    const source = documentWithOwnCard()
+    mountRoom(source, memoryCache())
+    const options = [...screen.getByTestId('loadout-piece').querySelectorAll('option')]
+    const queen = options.find((o) => o.getAttribute('value') === 'piece.queen')!
+    expect(queen.textContent).toMatch(/세기 \d/)
+    expect(queen.textContent).not.toContain('세는 중')
   })
 
   it('states the limit of what a grade measures', () => {
@@ -217,18 +241,22 @@ describe('PLAN Phase 6 — the provisional grade, and the gate in front of it', 
 
   it('shows an estimate, marked as one, when the fit has earned it', () => {
     mountRoom(documentWithOwnCard(), memoryCache(), usableFit)
-    const options = screen.getByTestId('loadout-piece').textContent ?? ''
-    expect(options).toContain('예상')
-    expect(options).not.toContain('세는 중')
+    const own = [...screen.getByTestId('loadout-piece').querySelectorAll('option')].find(
+      (o) => o.getAttribute('value') === OWN_PIECE,
+    )!
+    expect(own.textContent).toContain('예상')
+    expect(own.textContent).not.toContain('세는 중')
   })
 
   it('shows the wait instead when the fit has not earned it', () => {
     // The production case as of today: the fit does not beat "always answer
     // zero" out of sample, so no estimate is offered at all.
     mountRoom(documentWithOwnCard(), memoryCache(), { ...usableFit, usable: false })
-    const options = screen.getByTestId('loadout-piece').textContent ?? ''
-    expect(options).toContain('세는 중')
-    expect(options).not.toContain('예상')
+    const own = [...screen.getByTestId('loadout-piece').querySelectorAll('option')].find(
+      (o) => o.getAttribute('value') === OWN_PIECE,
+    )!
+    expect(own.textContent).toContain('세는 중')
+    expect(own.textContent).not.toContain('예상')
   })
 
   it('never charges the budget for an estimate', () => {
@@ -240,5 +268,39 @@ describe('PLAN Phase 6 — the provisional grade, and the gate in front of it', 
     fireEvent.change(screen.getByTestId('loadout-replaces'), { target: { value: 'piece.knight' } })
     fireEvent.change(screen.getByTestId('loadout-skill'), { target: { value: OWN_CARD } })
     expect(screen.getByTestId('loadout-budget').textContent).toContain('?')
+  })
+})
+
+describe('PLAN Phase 6 — opening a room does not re-measure what already shipped', () => {
+  it('queues a job only for the records the author made', async () => {
+    // The cost this table exists to remove. Before it, opening the bundled room
+    // fired twenty measurements — five pieces and fifteen cards — of which none
+    // were new, and the picker read "세는 중…" for the better part of a minute
+    // on every fresh install.
+    const asked: string[] = []
+    const client: GradeClient = {
+      measure: (_source, _baseline, contentId) => {
+        asked.push(contentId)
+        return Promise.resolve({ requestId: 'test', ok: false, reason: 'not measured in this test' })
+      },
+      dispose: () => {},
+    }
+    render(
+      React.createElement(RoomDetail, {
+        source: documentWithOwnCard(),
+        roomId: BUNDLED_PRESET_ID,
+        commit: () => {},
+        onBack: () => {},
+        onCreateRecord: () => {},
+        gradeClient: client,
+        gradeCache: memoryCache(),
+      }),
+    )
+    fireEvent.click(screen.getByTestId('room-step-cards'))
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0))
+
+    // Only the authored card is unknown; every bundled record answered from the
+    // shipped table without a job.
+    expect([...new Set(asked)].sort()).toEqual([OWN_CARD])
   })
 })

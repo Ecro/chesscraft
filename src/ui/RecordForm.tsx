@@ -12,6 +12,9 @@ import { PIXEL_SPRITES, isSpriteName } from './art/pixels'
 import { Pix } from './art/Pix'
 import { Cell, GRID_RANGE, type PieceGrid, cycle, describeGrid, readGrid, writeGrid } from './PieceMoves'
 import { type SlotId, optionsFor, readRecipe, recipeSentence, takesTarget, writeRecipe } from './CardRecipe'
+import type { GradeCache } from '@balance/cache'
+import type { Calibration } from '@balance/predict'
+import { RecordGrade } from './RecordGrade'
 
 /**
  * One content record, open for editing (PLAN Phase 9a).
@@ -175,6 +178,8 @@ export function RecordForm({
   onOpenedIdChange,
   errors,
   setErrors,
+  gradeCache,
+  gradeCalibration,
 }: {
   source: ContentSource
   kind: DraftKind
@@ -199,6 +204,9 @@ export function RecordForm({
   onOpenedIdChange?: (id: string | null) => void
   errors: ValidationError[]
   setErrors: (errors: ValidationError[]) => void
+  /** Injected by tests so the grade badge can be exercised without a Worker. */
+  gradeCache?: GradeCache
+  gradeCalibration?: Calibration | null
 }) {
   const t = useTranslate()
 
@@ -1173,6 +1181,13 @@ export function RecordForm({
 
   return (
     <section className="record-form" data-testid="record-form">
+      <RecordGrade
+        source={source}
+        kind={kind}
+        recordId={openedId}
+        {...(gradeCache ? { cache: gradeCache } : {})}
+        {...(gradeCalibration === undefined ? {} : { calibration: gradeCalibration })}
+      />
       <label>
         {t('ui.editor.field.name')}
         <input

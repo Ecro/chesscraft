@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { gradeMapFor, localStorageCache } from '@balance/cache'
+import { withShippedGrades } from '@balance/shipped-grades'
 import { checkLoadoutGrades, gradesFrom } from '@balance/legal'
 import { GRADE_SEEDS } from '@balance/measure'
 import { withinEnvelope } from '@engine/ai/complexity'
@@ -17,7 +18,7 @@ import { DISPLAY_SCALE, useGrades } from './useGrades'
 
 /** One process-wide cache, so a grade measured on one screen is a hit on the next. */
 const gradeCacheFor = (() => {
-  const shared = localStorageCache()
+  const shared = withShippedGrades(localStorageCache())
   return () => shared
 })()
 

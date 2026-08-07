@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type GradeCache, type GradeContext, gradeMapFor, keyForRecord, localStorageCache } from '@balance/cache'
+import { withShippedGrades } from '@balance/shipped-grades'
 import { type BandScale, bandOf, bandValue } from '@balance/bands'
 import { GRADE_SEEDS, type Candidate } from '@balance/measure'
 import { type Calibration, calibrate, pieceFeatures, predict } from '@balance/predict'
@@ -118,7 +119,10 @@ export interface UseGradesOptions {
 }
 
 export function useGrades({ source, content, preset, client, cache, ids, calibration }: UseGradesOptions): Grades {
-  const store = useMemo(() => cache ?? localStorageCache(), [cache])
+  // The shipped table sits under whatever this device has measured, so the
+  // bundled records answer instantly on a fresh install instead of costing
+  // 24,000 self-play matches to rediscover a constant.
+  const store = useMemo(() => withShippedGrades(cache ?? localStorageCache()), [cache])
   const [version, setVersion] = useState(0)
   const [failed, setFailed] = useState<ReadonlyMap<string, string>>(new Map())
   const inFlight = useRef(new Set<string>())

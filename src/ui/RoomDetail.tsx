@@ -256,6 +256,10 @@ export function RoomDetail({
    */
   const content = useMemo(() => contentOf(source), [source])
   const savedPreset = content?.presets.get(String(draft.id ?? '')) ?? undefined
+
+  // Scope is `gradedIdsFor`'s default: everything the picker can offer. What
+  // made that affordable is the shipped table — the bundled records are cache
+  // HITS, so opening a room queues a job only for what the author actually made.
   const grades = useGrades({
     source,
     content: content ?? EMPTY_CONTENT,
