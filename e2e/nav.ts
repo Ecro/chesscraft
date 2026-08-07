@@ -29,6 +29,36 @@ export async function startMatch(page: Page) {
 }
 
 /**
+ * Starts a match against the computer at the given difficulty.
+ *
+ * Separate from `startMatch` rather than a parameter on it, because the lobby
+ * genuinely has a different shape in this mode — the difficulty picker only
+ * exists once the computer is chosen — and a helper that silently skipped it
+ * when the picker was missing would hide exactly the AC-011 refusal it should
+ * fail on.
+ */
+export async function startAiMatch(page: Page, difficulty: 'easy' | 'medium' | 'hard' = 'hard') {
+  await page.getByTestId('start-match').click()
+  await expect(page.getByTestId('lobby')).toBeVisible()
+  await page.getByTestId('mode-ai').check()
+  await page.getByTestId(`difficulty-${difficulty}`).check()
+  await page.getByTestId('lobby-start').click()
+  await expect(page.getByTestId('board')).toBeVisible()
+}
+
+/**
+ * Waits for the computer to answer.
+ *
+ * `move()` returns after two taps, and in single-player the position is not
+ * settled at that point — the reply arrives from a worker. A spec that read the
+ * board straight after `move()` would be asserting on a half-finished turn, and
+ * would do it flakily rather than consistently.
+ */
+export async function awaitAiReply(page: Page) {
+  await expect(page.getByTestId('ai-thinking')).toHaveCount(0, { timeout: 15_000 })
+}
+
+/**
  * Steps the title screen's carousel until the given room is the one on screen.
  *
  * Bounded rather than `while`: a room id that is not in the document should

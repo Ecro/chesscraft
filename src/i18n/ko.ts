@@ -440,6 +440,24 @@ export const ko: Record<string, string> = {
   'ui.lobby.room': '놀 방',
   'ui.lobby.change-room': '바꾸기',
   'ui.lobby.start': '시작!',
+  // Single-player. The mode toggle sits above the two name fields because it
+  // decides whether the second one is a person at all.
+  'ui.lobby.mode': '누구랑 할까?',
+  'ui.lobby.mode.human': '둘이서',
+  'ui.lobby.mode.ai': '컴퓨터랑',
+  'ui.lobby.difficulty': '컴퓨터 실력',
+  'ui.lobby.difficulty.easy': '쉬움',
+  'ui.lobby.difficulty.medium': '보통',
+  'ui.lobby.difficulty.hard': '어려움',
+  'ui.lobby.ai-name': '컴퓨터',
+  // Refusal, not a silent disable. The author wrote this content in the editor
+  // this app ships, so "왜" is the part that lets them do something about it.
+  'ui.lobby.ai-refused.title': '이 방은 컴퓨터랑 할 수 없어',
+  'ui.lobby.ai-refused.card_target_product': '카드가 고를 자리가 너무 많아서 컴퓨터가 생각을 못 끝내. 카드에서 고르는 자리를 줄여봐.',
+  'ui.lobby.ai-refused.piece_reach': '기물이 갈 수 있는 칸이 너무 많아서 컴퓨터가 생각을 못 끝내.',
+  'ui.lobby.ai-refused.board_area': '판이 너무 커서 컴퓨터가 생각을 못 끝내.',
+  'ui.lobby.ai-refused.unscoreable': '이 방을 읽을 수 없어서 컴퓨터가 준비를 못 해.',
+  'ui.lobby.ai-refused.hint': '둘이서는 그대로 할 수 있어.',
   // The share control hands over the whole room as text. It is long, and saying
   // so up front is better than a child pasting half of it — see the note in
   // `Lobby.tsx` on why this is not a short code.
@@ -461,6 +479,10 @@ export const ko: Record<string, string> = {
 
   // --- the board ---
   'ui.status.whose-turn': '{name} 차례',
+  // Replaces the hand-off banner in single-player: there is nobody to hand the
+  // phone to, and "생각 중" is the thing that is actually true.
+  'ui.ai.thinking': '{name} 생각 중…',
+  'ui.ai.degraded': '이 판은 오래 걸려서, 같은 시드로 다시 만들어도 똑같이 재현되지 않아.',
   'ui.status.waiting': '{name} (기다리는 중)',
   'ui.status.taken': '잡은 기물 {n}개',
   'ui.rule.this-match': '이 판의 규칙',

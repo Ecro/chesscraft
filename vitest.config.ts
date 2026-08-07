@@ -20,7 +20,13 @@ export default mergeConfig(
       // checkout — leaving it here would make `npm run test` fail for anyone
       // who has not just built. It runs from `vitest.build.config.ts` behind
       // `npm run test:build`, which `verify` orders after `build`.
-      exclude: ['e2e/**', 'tests/build/**', 'node_modules/**'],
+      //
+      // `tests/strength/` plays hundreds of full matches to measure the AI
+      // difficulty ladder (AC-005). It is tens of minutes at the reduced
+      // surrogate budget, so it runs from `vitest.strength.config.ts` behind
+      // `npm run test:strength`. The sign-only smoke that guards against a
+      // collapsed ladder stays in the default run.
+      exclude: ['e2e/**', 'tests/build/**', 'tests/strength/**', 'node_modules/**'],
     },
   }),
 )

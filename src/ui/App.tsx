@@ -5,8 +5,10 @@ import { browserStorage, loadStoredContent } from '@editor/storage'
 import { Boot } from './Boot'
 import { Edit } from './Edit'
 import { Home } from './Home'
-import { Lobby } from './Lobby'
+import { type Opponent, Lobby } from './Lobby'
 import { MatchHost } from './MatchHost'
+import { createAiClient } from '@engine/ai/client'
+import { spawnSearchWorker } from '@engine/ai/spawn'
 import { Rules } from './Rules'
 import { TabBar } from './TabBar'
 import { hasSeenCoach, markCoachSeen } from './coach'
@@ -177,6 +179,14 @@ export function App() {
   // the same guard belongs here. MatchHost reports whether there is anything to
   // lose.
   const [matchInProgress, setMatchInProgress] = useState(false)
+  /**
+   * Who the second player is, chosen in the lobby and owned here.
+   *
+   * `App` owns it for the same reason it owns unmount: the choice outlives the
+   * screen that made it, and `MatchHost` is remounted whenever content or
+   * preset changes.
+   */
+  const [opponent, setOpponent] = useState<Opponent>({ kind: 'human' })
 
   /**
    * Leaves the board, asking first when a match would be thrown away.
@@ -365,7 +375,10 @@ export function App() {
               setSource(next)
               setRevision((r) => r + 1)
             }}
-            onStart={() => setRoute('play')}
+            onStart={(chosen) => {
+              setOpponent(chosen)
+              setRoute('play')
+            }}
             onBack={() => setRoute('home')}
           />
         )}
@@ -384,6 +397,16 @@ export function App() {
               setRoute('edit')
             }}
             onProgressChange={setMatchInProgress}
+            {...(opponent.kind === 'ai'
+              ? {
+                  // The human is white and moves first, so the computer is
+                  // black. Fixed rather than offered: one more choice in front
+                  // of a child who wants to play.
+                  aiSide: 'black' as const,
+                  aiDifficulty: opponent.difficulty,
+                  createAi: () => createAiClient({ spawn: spawnSearchWorker, source }),
+                }
+              : {})}
           />
         )}
 

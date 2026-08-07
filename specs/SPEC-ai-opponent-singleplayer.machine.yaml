@@ -1,0 +1,240 @@
+schema_version: 2
+spec_slug: ai-opponent-singleplayer
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: property invariants (AC-002, AC-004, AC-006, AC-009), a seeded differential tournament (AC-005), and golden e2e fixtures for the mode's observable surface (AC-001, AC-007, AC-008)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+
+ac:
+  - id: AC-001
+    title: "A single-player match can be started and identifies itself as one"
+    type: mechanical
+    test_ids:
+      - e2e/single-player.spec.ts::starting a single-player match exposes mode, difficulty and sides
+    executable_predicate: "mode_attr(match_root) == 'single' and side_of(human) == 'white' and seed_control_visible(match_root)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The data-* enum contract (data-phase / data-side / match-seed testid) is established by the parent SPEC and asserted by the existing e2e suite; the expected attribute values are fixed by that prior contract, not read off this feature's implementation."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "The AI takes its own turns through the shared action pipeline"
+    type: property
+    test_ids:
+      - tests/engine/ai-agent.test.ts::chosen action is always a member of legalActions
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Membership in legalActions is decided by the engine's own generator, which shares no code with the AI's selection logic; the relation holds for every selection strategy, so it cannot be satisfied by an AI that merely agrees with itself."
+    oracle_independence_waiver: null
+    input_domain: "reachable non-terminal GameStates across loadable content sets, including draft-pending and card-play states"
+    transformation: "ask the AI for an action, then commit it with apply"
+    expected_relation: "chosen in legalActions(state, content) and committed_state == apply(state, chosen, content)"
+    preconditions:
+      - "state.result is null"
+      - "legalActions(state, content) is non-empty"
+    observable_output: "an Action, and the GameState produced by applying it"
+    generator_hint: "walk matches forward with mixed random and AI actions to reach varied phases"
+
+  - id: AC-003
+    title: "A seeded single-player match is reproducible"
+    type: property
+    test_ids:
+      - tests/engine/ai-determinism.test.ts::same seed and difficulty replay to an identical action sequence
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A self-equality relation across two independently constructed matches. It needs no reference value and no knowledge of what the AI should play, so it holds regardless of search quality and cannot be trivially satisfied by reading the search code."
+    oracle_independence_waiver: null
+    input_domain: "arbitrary 31-bit seeds paired with each of the three difficulty levels"
+    transformation: "construct two independent matches from the same (seed, difficulty) and drive both with the same human action sequence"
+    expected_relation: "the two AI action sequences are equal and the two final GameStates are equal"
+    preconditions:
+      - "the search is bounded by node count, not wall-clock"
+      - "the content set is inside the calibrated complexity envelope of AC-011"
+      - "the wall-clock safety valve did not trip during the match"
+    observable_output: "the ordered list of AI actions and the final GameState"
+    generator_hint: "vary machine load between the two runs to prove the bound is not time-based"
+
+  - id: AC-004
+    title: "The AI never returns an illegal or absent action while the match is live"
+    type: property
+    test_ids:
+      - tests/engine/ai-agent.test.ts::returns null exactly when no action is legal
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A biconditional against the engine's own generator. The failure mode it guards (a search constructing an off-list action, which apply silently no-ops per engine.ts:649) is invisible to any test that only checks the resulting state, so this relation catches what state comparison cannot."
+    oracle_independence_waiver: null
+    input_domain: "reachable states in any loadable content set, incl. draft-only states and states whose card-target enumeration reaches the measured worst-case branching of 200"
+    transformation: "ask the AI for an action"
+    expected_relation: "(chosen is None) == (legalActions(state, content) == [])"
+    preconditions: []
+    observable_output: "an Action or null"
+    generator_hint: "fast-check over content sets and ply depths; include wide card-target positions explicitly"
+
+  - id: AC-005
+    title: "Difficulty is monotonic in strength"
+    type: parametric
+    test_ids:
+      - tests/strength/ai-strength.test.ts::each level outscores the level below and the random agent
+      - tests/engine/ai-strength-smoke.test.ts::the three levels are not the same agent wearing three names
+    executable_predicate: null
+    golden_table:
+      - input: { subject: hard, reference: medium, seeds: 200, games: 400, protocol: paired-reciprocal, budget: surrogate }
+        expected: "subject score > 0.58 (win=1, draw=0.5) and 95% CI lower bound > 0.50"
+      - input: { subject: medium, reference: easy, seeds: 200, games: 400, protocol: paired-reciprocal, budget: surrogate }
+        expected: "subject score > 0.58 (win=1, draw=0.5) and 95% CI lower bound > 0.50"
+      - input: { subject: easy, reference: uniform-random-agent, seeds: 200, games: 400, protocol: paired-reciprocal, budget: surrogate }
+        expected: "subject score > 0.65 (win=1, draw=0.5) and 95% CI lower bound > 0.50"
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference implementation is the existing uniform-random agent in src/engine/agent.ts, which shares no code with move generation or evaluation by construction (its own module doc records this), plus each adjacent difficulty level acting as a reference for the one above. Strength is measured against another player, never against an expected move."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "The easiest level plays weakly, not brokenly"
+    type: property
+    test_ids:
+      - tests/engine/ai-blunder-clamp.test.ts::easiest level never picks a king-losing action when a safe one exists
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The king-losing predicate is computed by applying the opponent's replies through the engine, independent of the AI's own evaluation; a clamp implemented by agreeing with the evaluator would still fail this relation. Guards directly against the recorded unasserted-fixture-premise failure, where a degenerate agent satisfied a whole statistical file."
+    oracle_independence_waiver: null
+    input_domain: "states where at least one legal action permits a king capture on the opponent's immediate reply and at least one does not, crossed with all three difficulty levels"
+    transformation: "ask each difficulty level for its action"
+    expected_relation: "for every level, chosen is not in the set of actions that allow an immediate king capture in reply; and the easiest level's chosen action is the search's top-ranked action in more than 25% of turns"
+    preconditions:
+      - "a non-king-losing legal action exists"
+    observable_output: "the chosen Action, and the rank distribution of chosen actions across a match"
+    generator_hint: "construct positions directly with createPosition rather than searching for them in self-play"
+
+  - id: AC-007
+    title: "The interface stays alive while the AI thinks"
+    type: mechanical
+    test_ids:
+      - e2e/single-player.spec.ts::thinking indicator shows, hand-off banner does not, input still lands
+    executable_predicate: "thinking_indicator_visible(page) and not hand_off_banner_present(page) and control_responds_during_search(page)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The absent-element half is pinned to the pre-existing data-testid='hand-off' selector defined by the hot-seat work, so the assertion is written against a contract that predates this feature. Responsiveness is observed through real browser input, not inferred from the implementation's threading choice."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-008
+    title: "Abandoning a match mid-search is clean"
+    type: property
+    test_ids:
+      - e2e/single-player.spec.ts::confirm dialog appears mid-search and cancelling discards the result
+      - tests/ui/ai-abort.test.tsx::an abandoned search never applies its action
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The guard predicate is compared against match.states.length, the state the guard is about, rather than against a counter that correlates with it — this is the exact substitution recorded in failures.md as counter-as-proxy-for-a-state, where plyCount silently exempted a drafted-but-unmoved match."
+    oracle_independence_waiver: null
+    input_domain: "single-player matches with at least one applied action, interrupted at an arbitrary point during the AI's search"
+    transformation: "activate a match-discarding control while the search is in flight, then confirm or dismiss"
+    expected_relation: "the confirm dialog appears whenever match.states.length > 1; on confirm no action from the cancelled search appears in any subsequent match state; on dismiss the AI still produces its move"
+    preconditions:
+      - "the AI search has started and has not yet committed"
+    observable_output: "presence of the confirm dialog, and the resulting match state history"
+    generator_hint: "interrupt at several points within the search rather than only at its start"
+
+  - id: AC-009
+    title: "The AI does not see the future"
+    type: property
+    test_ids:
+      - tests/engine/ai-information-boundary.test.ts::perturbing unrevealed future offers does not change the chosen action
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A metamorphic relation whose discriminating power comes from the engine's own determinism: because every draft offer is derived from state.seed via rngFor, a search that simulated past a draft boundary would necessarily change its answer when only the unrevealed substream changes. No expected move is needed, and the relation cannot be satisfied by an AI that peeks."
+    oracle_independence_waiver: null
+    input_domain: "pairs of matches identical in every player-observable respect at the AI's turn, differing only in draft offers not yet revealed to either side"
+    transformation: "score the root actions, and select, in each match of the pair"
+    expected_relation: "the root-action score vector is exactly equal (same actions, same scores) at every difficulty level, and the argmax-selected action is equal at the hardest level"
+    preconditions:
+      - "the differing offers have not been revealed to either side at the moment of choice"
+      - "the hardest level selects by argmax and draws no random number, so its selection is sampler-independent"
+      - "each match is searched with a FRESH transposition table, and both positions are constructed directly rather than reached by replay - a table carried across a differing history would let path differences reach the scores and make exact equality unattainable for reasons unrelated to the property under test"
+    observable_output: "the root-action score vector, and the chosen Action at the hardest level"
+    generator_hint: "hold the visible state fixed and vary only the substream that feeds not-yet-drawn offers; assert exact score equality, since the projection makes scoring a pure function of observable state; do NOT assert the sampled action at the two temperature levels, whose own RNG substream necessarily differs with the seed"
+
+  - id: AC-010
+    title: "The superseded Non-Goal is amended, not left contradictory"
+    type: mechanical
+    test_ids:
+      - tests/docs/spec-consistency.test.ts::parent SPEC non-goal names the superseding spec
+    executable_predicate: "'ai-opponent-singleplayer' in non_goals_section(read('specs/SPEC-variant-chess-6x6-cards.md'))"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected string is this SPEC's own slug, fixed by this document rather than derived from any implementation; the check reads a file the feature code never writes."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-011
+    title: "Content too expensive to search is refused, not endured"
+    type: property
+    test_ids:
+      - tests/engine/ai-complexity.test.ts::the envelope classifies fixture content on both sides of the bound
+      - e2e/single-player.spec.ts::over-budget content refuses single-player while hot-seat still starts
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The envelope's verdict is checked against independently MEASURED search cost on the same fixtures, not against the score function that produced it - a classifier that disagrees with the measurement fails regardless of how it computes its score. The refusal half is observed through the browser, against content built to straddle the bound rather than sampled from what happens to ship."
+    oracle_independence_waiver: null
+    input_domain: "schema-valid content sets spanning both sides of the calibrated complexity bound, including wide card-target products and long-reach movement patterns"
+    transformation: "score the content with the envelope, then attempt to start a single-player match and a hot-seat match with it"
+    expected_relation: "content the envelope rejects cannot start single-player and surfaces a reason naming the offending content, while hot-seat still starts; content the envelope accepts starts single-player; and a search that trips the wall-clock valve returns its best action so far with the match marked non-reproducible"
+    preconditions:
+      - "the complexity bound has been calibrated from measurement"
+    observable_output: "the envelope verdict, the refusal message, and the non-reproducible marking"
+    generator_hint: "author fixtures deliberately just inside and just outside the bound rather than relying on bundled content"

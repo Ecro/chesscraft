@@ -17,7 +17,7 @@ have caught all three: for any fixture, name the negative instance; for any samp
 risk, or iterate.
 
 ## Proposal: a closed-set sweep before any fix is declared resolved (2026-08-06)
-**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 4)
+**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 5)
 **Proposed mechanism:** rule update — a step in `/hm:review`'s auto-fix loop
 **Rationale:** All three instances share one shape: the remedy was verified
 against the evidence that prompted it rather than against the closed set the
@@ -78,7 +78,7 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
-**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 4)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 5)
 
 **Updated 2026-08-07 — the mechanism above would not have caught the 4th
 instance.** A no-caller sweep finds vocabulary nothing *invokes*; `rule.blood-toll`
@@ -159,7 +159,7 @@ guards were validated exactly this way and two of them were vacuous until the
 mutant proved it.
 
 ## Proposal: check the comment against the code it justifies (2026-08-07)
-**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 3)
+**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 5)
 **Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
 for the `code-reviewer` agent
 **Rationale:** Three instances, and the third landed *inside the fix for the
@@ -175,7 +175,7 @@ within ten lines of each other and a human reviewer found it in seconds once
 looking for it.
 
 ## Proposal: flag a spec whose setup makes the asserted branch unreachable (2026-08-08)
-**Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 3)
+**Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 4)
 **Proposed mechanism:** rule update — a review-stage checklist item, plus a `/hm:execute` Phase A.5 prompt line
 **Rationale:** All three instances share one shape and none was caught by running the suite,
 because in every case the suite was GREEN. A clipboard spec granted the permission whose
@@ -188,3 +188,26 @@ caught all three at authoring time. The cheapest concrete form is an assertion t
 dangerous branch was ENTERED — count the dialogs, assert the rejected state, check the
 fallback ran — rather than only asserting the outcome, since the outcome is usually reachable
 without the mechanism.
+
+## Proposal: fail a browser run that did not start its own server (2026-08-08)
+**Triggered by:** [fail:test] suite-attached-to-a-foreign-server (count: 3)
+**Proposed mechanism:** hook (pre-e2e) — or a `playwright.config.ts` `globalSetup`
+
+**Rationale:** Three times now a browser suite has reported on a checkout nobody was
+editing, and each time the cost was a full diagnosis cycle spent reading code that was
+never loaded. `reuseExistingServer` is doing exactly what it advertises, so there is no
+error to notice — the tell is the ABSENCE of one. The config already exposes `E2E_PORT`
+for the parallel-worktree case and the file's own comment predicts this failure, which
+helps only someone who reads it before debugging rather than after.
+
+A guard costs two lines and cannot be forgotten: in `globalSetup`, when something is
+already listening on the configured port, resolve the serving process's working directory
+(`lsof -ti:<port>` then `ps -o args`) and **throw** unless it matches the repo root the
+suite is running from. A worktree then fails immediately with "port 5173 is serving
+/home/.../strange_chess, this suite is /home/.../.worktrees/<slug> — pass E2E_PORT",
+which is the sentence three separate debugging sessions had to derive by hand.
+
+The generalization is worth encoding beyond Playwright: any harness that can ATTACH to a
+pre-existing process rather than starting one has this hazard, and the question to ask of
+a green run is not "did it pass" but "what did it load".
+

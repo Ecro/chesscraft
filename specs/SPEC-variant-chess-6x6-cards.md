@@ -194,8 +194,13 @@ to both players
 ## 🚫 Non-Goals
 
 - **Online / networked play.** No server, no matchmaking, no authoritative game state. Hot-seat only.
-- **AI opponent.** The random-action agent exists for testing (AC-012, AC-013), not as a playable
-  opponent.
+- **AI opponent — SUPERSEDED (2026-08-08) by `SPEC-ai-opponent-singleplayer`.** This was a Non-Goal:
+  the random-action agent existed for testing (AC-012, AC-013), not as a playable opponent. It still
+  does — `src/engine/agent.ts` is unchanged and is now the reference the difficulty ladder is
+  measured against. What changed is the product decision: single-player is in scope, specified in
+  `specs/SPEC-ai-opponent-singleplayer.md`, and implemented under `src/engine/ai/`. Amended in place
+  rather than deleted, because a reader who arrives at this document first should learn that the
+  answer moved, not the old answer.
 - **Accounts, ranking, leaderboards, monetization, ads.**
 - **Community sharing of user content** beyond manual JSON export/import — no gallery, no remote
   content fetch, no moderation.

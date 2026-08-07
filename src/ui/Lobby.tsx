@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { withinEnvelope } from '@engine/ai/complexity'
+import { DIFFICULTIES, type Difficulty } from '@engine/ai/difficulty'
 import type { ContentSet, ContentSource } from '@content/load'
 import { exportContent, importContent } from '@editor/io'
 import type { Side } from '@engine/types'
@@ -34,6 +36,15 @@ import { recordLabel } from './recordLabel'
  * be a second thing to keep in step with the schema, and the failure mode is a
  * room that exports from the lobby and refuses to import in the editor.
  */
+/**
+ * Who the second player is.
+ *
+ * A union rather than a boolean plus a difficulty, so "human" cannot carry a
+ * difficulty and "ai" cannot be missing one — the absent-case that a pair of
+ * loose fields invites.
+ */
+export type Opponent = { kind: 'human' } | { kind: 'ai'; difficulty: Difficulty }
+
 export function Lobby({
   content,
   source,
@@ -50,7 +61,7 @@ export function Lobby({
   names: Record<Side, string>
   onNamesChange: (names: Record<Side, string>) => void
   onImport: (next: ContentSource) => void
-  onStart: () => void
+  onStart: (opponent: Opponent) => void
   onBack: () => void
 }) {
   const t = useTranslate()
@@ -60,6 +71,29 @@ export function Lobby({
   // One channel for both outcomes of a paste. Two would mean an old success
   // message sitting under a new failure.
   const [importNote, setImportNote] = useState('')
+  const [mode, setMode] = useState<'human' | 'ai'>('human')
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+
+  /**
+   * Whether this room can be played against the computer at all (AC-011).
+   *
+   * Computed here rather than at start, so the answer is visible BEFORE the
+   * choice — a mode that accepts the tap and then refuses is a worse version of
+   * the same message.
+   */
+  const envelope = withinEnvelope(content, presetId)
+
+  /**
+   * The mode that will actually be used, as opposed to the one last tapped.
+   *
+   * Disabling the radio is not enough. A player can choose the computer, then
+   * import a room that the envelope refuses — the import is right there on this
+   * screen — and `mode` still reads `'ai'` while the control that set it has
+   * gone quiet. Guarding the start handler alone would fix that one path and
+   * leave the next one; deriving the answer removes the stale state entirely,
+   * so there is no path to miss.
+   */
+  const effectiveMode = envelope.ok ? mode : 'human'
 
   const share = () => {
     const text = exportContent(source)
@@ -107,6 +141,53 @@ export function Lobby({
       <div className="screen-body">
         <p className="hint">{t('ui.lobby.intro')}</p>
 
+        <fieldset className="mode-picker" data-testid="mode-picker">
+          <legend>{t('ui.lobby.mode')}</legend>
+          {(['human', 'ai'] as const).map((option) => (
+            <label key={option} className="mode-option">
+              <input
+                type="radio"
+                name="opponent-mode"
+                value={option}
+                data-testid={`mode-${option}`}
+                checked={effectiveMode === option}
+                // The refusal disables the CHOICE, and the explanation below
+                // says why. A disabled control with no reason is the version of
+                // this that teaches a child their room is broken.
+                disabled={option === 'ai' && !envelope.ok}
+                onChange={() => setMode(option)}
+              />
+              <span>{t(`ui.lobby.mode.${option}`)}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        {!envelope.ok && (
+          <p className="hint" data-testid="ai-refused" data-reason={envelope.reason}>
+            <strong>{t('ui.lobby.ai-refused.title')}</strong>{' '}
+            {t(`ui.lobby.ai-refused.${envelope.reason}`)} {t('ui.lobby.ai-refused.hint')}
+          </p>
+        )}
+
+        {effectiveMode === 'ai' && (
+          <fieldset className="mode-picker" data-testid="difficulty-picker">
+            <legend>{t('ui.lobby.difficulty')}</legend>
+            {DIFFICULTIES.map((level) => (
+              <label key={level} className="mode-option">
+                <input
+                  type="radio"
+                  name="ai-difficulty"
+                  value={level}
+                  data-testid={`difficulty-${level}`}
+                  checked={difficulty === level}
+                  onChange={() => setDifficulty(level)}
+                />
+                <span>{t(`ui.lobby.difficulty.${level}`)}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+
         <div className="player-cards">
           <PlayerCard
             side="white"
@@ -136,7 +217,7 @@ export function Lobby({
           </div>
         )}
 
-        <button className="primary xl" data-testid="lobby-start" onClick={onStart}>
+        <button className="primary xl" data-testid="lobby-start" onClick={() => onStart(effectiveMode === 'ai' ? { kind: 'ai', difficulty } : { kind: 'human' })}>
           {t('ui.lobby.start')}
         </button>
 

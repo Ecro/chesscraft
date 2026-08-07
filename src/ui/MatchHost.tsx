@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ContentSet } from '@content/load'
+import type { AiClient } from '@engine/ai/client'
+import type { Difficulty } from '@engine/ai/difficulty'
 import { paintedSquares } from '@engine/effects'
 import { apply, describeRejection, legalActions, pendingDraftSide } from '@engine/engine'
 import { type Match, createMatch, currentState, undo } from '@engine/match'
@@ -154,10 +156,27 @@ export function MatchHost({
   onHome,
   onEditRoom,
   onProgressChange,
+  aiSide,
+  aiDifficulty = 'medium',
+  createAi,
 }: {
   content: ContentSet
   presetId: string
   newSeed?: () => number
+  /**
+   * The side the computer plays, or absent for hot-seat.
+   *
+   * Absent is the existing behaviour, unchanged — which is why this is optional
+   * rather than a mode enum every caller has to answer.
+   */
+  aiSide?: Side | undefined
+  aiDifficulty?: Difficulty | undefined
+  /**
+   * Makes the search client. Injected for the same reason `newSeed` is
+   * (ADR-024): a test needs to drive the real search without a worker, and a
+   * component that constructed its own would be untestable without one.
+   */
+  createAi?: (() => AiClient) | undefined
   /** Empty means "not named" — every screen falls back to the side's own word. */
   names?: Record<Side, string>
   /**
@@ -198,6 +217,11 @@ export function MatchHost({
   const [flipped, setFlipped] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [ruleOpen, setRuleOpen] = useState(false)
+  /** The computer is searching. A mode, and one with an exit — see the effect. */
+  const [aiThinking, setAiThinking] = useState(false)
+  /** The wall-clock valve fired at least once, so this match no longer replays. */
+  const [aiDegraded, setAiDegraded] = useState(false)
+  const aiRef = useRef<AiClient | null>(null)
   const [peek, setPeek] = useState<Peek | null>(null)
   /**
    * Whose turn a hand-off is announcing, or null when nothing is being said.
@@ -320,6 +344,63 @@ export function MatchHost({
     setPeek(null)
     if (handedOver) setHandOff(next.sideToMove)
   }
+
+  /**
+   * The computer's turn (ADR-009).
+   *
+   * It goes through `push`, the same function a tap goes through, and that is
+   * the whole design: the discard guard, the sound, the hand-off classification
+   * and the history all keep working because every action still arrives one way.
+   * A second commit path would be one vocabulary with two code paths, which is
+   * the failure this repo has recorded twice.
+   *
+   * The cleanup does two things and both are load-bearing. `cancelled` stops a
+   * reply from landing on a board that has moved on — the player may have undone
+   * the move that triggered this search. `cancel()` goes further and TERMINATES
+   * the worker, because ignoring an answer does not stop the search producing
+   * it, and with one worker that abandoned work would sit in front of the next
+   * request. "The AI is thinking" is a mode, and a mode owes the player a way
+   * out that actually ends it.
+   */
+  useEffect(() => {
+    // Whose turn it is, which during a draft is NOT `sideToMove`: a draft pick
+    // does not advance the ply or hand the board over, so `sideToMove` sits on
+    // white while the DRAFTING side alternates. Reading `sideToMove` alone left
+    // the computer never making its own picks, and the match simply stopped —
+    // the same class of mistake as measuring progress by `plyCount`, which a
+    // draft pick also does not move.
+    const acting = pendingDraftSide(state) ?? state.sideToMove
+    if (!aiSide || state.result || acting !== aiSide) return
+    const client = (aiRef.current ??= createAi?.() ?? null)
+    if (!client) return
+
+    let cancelled = false
+    setAiThinking(true)
+    void client.request(state, aiDifficulty, seed).then((move) => {
+      if (cancelled) return
+      setAiThinking(false)
+      // A search that overran its wall-clock backstop still returns a legal
+      // move — it just stops being reproducible from the seed, and the player
+      // is told rather than left with a seed that no longer replays (AC-011).
+      if (move?.valveTripped) setAiDegraded(true)
+      if (move?.action) push(move.action)
+    })
+
+    return () => {
+      cancelled = true
+      setAiThinking(false)
+      client.cancel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, aiSide, aiDifficulty, seed])
+
+  /** One client per mounted match; disposed with it. */
+  useEffect(() => {
+    return () => {
+      aiRef.current?.dispose()
+      aiRef.current = null
+    }
+  }, [])
 
   const doUndo = () => {
     play('undo', live)
@@ -528,7 +609,20 @@ export function MatchHost({
     // whatever phone the household already had — on an older WebView the rule
     // silently never matches and the tools row becomes unreachable behind the
     // sheet again, with no test in a modern CI browser able to see it.
-    <section className="play" data-drafting={phase === 'draft'} data-turn={mover}>
+    <section
+      className="play"
+      data-drafting={phase === 'draft'}
+      data-turn={mover}
+      /*
+       * The machine-readable half of AC-001, carried alongside the enums the
+       * suite already asserts on. English, like `data-phase` and `data-side`,
+       * because the visible words are translated and a spec that read them
+       * would break on a locale change rather than on a behaviour change.
+       */
+      data-mode={aiSide ? 'single' : 'hotseat'}
+      data-ai-side={aiSide ?? ''}
+      data-difficulty={aiSide ? aiDifficulty : ''}
+    >
       {/* Whose turn it is, as the loudest thing on screen after the board. It
           used to be one grey chip among four, the same size and weight as the
           phase and the ply count — on a hot-seat game where the ONLY thing two
@@ -939,11 +1033,45 @@ export function MatchHost({
         is 3.2s at the start of a match and this is 1.6s from the first ply, so
         they only meet if someone moves very fast.
       */}
-      {handOff && !banner && (
+      {/*
+        Absent in single-player, and that is not a detail. The banner's whole
+        message is "give the phone to the other person"; there is no other
+        person. Reusing it with different words would leave one banner saying
+        two unrelated things, and the thinking indicator below says the one that
+        is actually true — wait, something is happening.
+      */}
+      {handOff && !banner && !aiSide && (
         <div className="turn-toast" data-testid="hand-off" data-side={handOff} role="status" aria-live="polite">
           <span className="turn-chip" data-side={handOff} aria-hidden="true" />
           <span>{t('ui.status.whose-turn').replace('{name}', nameOf(handOff))}</span>
         </div>
+      )}
+
+      {/*
+        The computer is thinking (AC-007).
+
+        `pointer-events: none`, like the hand-off it replaces: nothing here is to
+        be dismissed, and every control on screen stays reachable while it shows
+        — which is the observable half of "the interface stays alive". The search
+        itself is on another thread, so this is a label rather than a promise.
+      */}
+      {aiThinking && !state.result && (
+        <div className="turn-toast" data-testid="ai-thinking" data-side={aiSide} role="status" aria-live="polite">
+          <span className="turn-chip" data-side={aiSide} aria-hidden="true" />
+          <span>{t('ui.ai.thinking').replace('{name}', nameOf(aiSide!))}</span>
+        </div>
+      )}
+
+      {/*
+        The seed no longer replays this match (AC-011).
+
+        Said once, and not dismissible, because the seed control is still on
+        screen offering a share that would now produce a different game.
+      */}
+      {aiDegraded && (
+        <p className="ai-degraded" data-testid="ai-degraded" role="status">
+          {t('ui.ai.degraded')}
+        </p>
       )}
 
       {/* The end of the match, OVER the board rather than instead of it.

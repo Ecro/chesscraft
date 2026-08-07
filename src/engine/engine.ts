@@ -225,7 +225,13 @@ export function sideInCheck(state: GameState, content: ContentSet, side: Side): 
 // ---------------------------------------------------------------------------
 
 /** Ordered choice slots a card requires, derived from its actions. */
-function choiceSlots(content: ContentSet, cardId: string): Array<'friendly' | 'enemy' | 'empty'> {
+/**
+ * Exported so the AI's content-complexity envelope can read the same slot
+ * structure the generator does (ADR-010). Re-deriving it there would be one
+ * vocabulary with two code paths — the failure this repo has recorded twice —
+ * and the copy would go stale the first time a new target kind is added.
+ */
+export function choiceSlots(content: ContentSet, cardId: string): Array<'friendly' | 'enemy' | 'empty'> {
   const card = content.skillCards.get(cardId)
   if (!card) return []
   const slots: Array<'friendly' | 'enemy' | 'empty'> = []
@@ -359,17 +365,33 @@ export function pendingDraftSide(state: GameState): Side | null {
   return hasOpenOffer(state, state.sideToMove) ? state.sideToMove : null
 }
 
-export function legalActions(state: GameState, content: ContentSet): Action[] {
+/**
+ * An action this generator produced, for a state it was produced FOR.
+ *
+ * The brand exists so `applyTrusted` can skip re-deriving the legal list
+ * without that being a promise the caller merely makes in a comment (ADR-004).
+ * `TrustedAction` is assignable to `Action`, so every existing caller of
+ * `legalActions` is unaffected; only the reverse is blocked, which is the whole
+ * point — an action assembled anywhere else cannot reach the unchecked path.
+ *
+ * The one mint is the cast at the end of `legalActions`. That is what a nominal
+ * type is in TypeScript, and keeping it to a single expression is what makes it
+ * auditable.
+ */
+declare const trustedActionBrand: unique symbol
+export type TrustedAction = Action & { readonly [trustedActionBrand]: true }
+
+export function legalActions(state: GameState, content: ContentSet): TrustedAction[] {
   if (state.result) return []
 
   const drafting = pendingDraftSide(state)
   if (drafting) {
     // AC-005: no board action is accepted until the pick is made.
-    return (state.drafts[drafting].offers ?? []).map((cardId) => ({ kind: 'draft_pick', cardId }))
+    return (state.drafts[drafting].offers ?? []).map((cardId) => ({ kind: 'draft_pick', cardId }) as TrustedAction)
   }
 
   const mods = generationModifiers(state, content)
-  return [...movesFor(state, content, mods), ...cardPlays(state, content)]
+  return [...movesFor(state, content, mods), ...cardPlays(state, content)] as TrustedAction[]
 }
 
 function sameAction(a: Action, b: Action): boolean {
@@ -675,7 +697,31 @@ function materialResult(board: ReadonlyMap<SquareId, PieceOnBoard>): MatchResult
 
 export function apply(state: GameState, action: Action, content: ContentSet): GameState {
   if (describeRejection(state, action, content) !== null) return state
+  return transition(state, action, content)
+}
 
+/**
+ * `apply` without the legality re-check, for a caller that cannot be wrong.
+ *
+ * `apply` opens by re-deriving the whole legal-action list to decide whether to
+ * reject — measured at roughly half its cost. A tree search has already chosen
+ * from that list, so it pays for the same answer twice, and at ~20k nodes per
+ * move that is the difference between depth 3 and depth 4 (ADR-004).
+ *
+ * The guard is not discarded, it is moved: the type system stops an off-list
+ * action from arriving here, and `tests/engine/apply-trusted.test.ts` asserts
+ * the two functions agree on every action the generator produces. Both halves
+ * matter — a check that only a debug build performs is absent from the artifact
+ * where the silent corruption would happen.
+ *
+ * The body is shared with `apply`, deliberately. Two transition functions over
+ * one vocabulary is the failure this repo has recorded twice.
+ */
+export function applyTrusted(state: GameState, action: TrustedAction, content: ContentSet): GameState {
+  return transition(state, action, content)
+}
+
+function transition(state: GameState, action: Action, content: ContentSet): GameState {
   if (action.kind === 'draft_pick') {
     const side = pendingDraftSide(state)!
     const draft = state.drafts[side]
