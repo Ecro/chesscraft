@@ -25,7 +25,25 @@ export interface GradeClient {
 
 let nextRequestId = 0
 
+/**
+ * A client for an environment with no `Worker` at all.
+ *
+ * Reachable in a test renderer, in a server render, and on any browser that
+ * blocks workers. It reports a refusal rather than throwing, and a refusal is a
+ * grade that does not exist — which `checkLoadoutGrades` already treats as a
+ * reason to refuse the loadout. Returning a zero here instead would turn a
+ * missing capability into a passing budget check.
+ */
+function unavailableClient(): GradeClient {
+  return {
+    measure: (_source, _baseline, _contentId, _candidate) =>
+      Promise.resolve({ requestId: 'no-worker', ok: false, reason: 'this environment has no Web Worker' }),
+    dispose: () => {},
+  }
+}
+
 export function createGradeClient(): GradeClient {
+  if (typeof Worker === 'undefined') return unavailableClient()
   const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
   const pending = new Map<string, (reply: GradeReply) => void>()
 

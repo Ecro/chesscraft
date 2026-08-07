@@ -11,6 +11,10 @@ import { PIXEL_SPRITES } from './art/pixels'
 import { Pix } from './art/Pix'
 import { namedRecords, recordLabel } from './recordLabel'
 import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i18n'
+import { DISPLAY_SCALE, type Grades, contentOf, useGrades } from './useGrades'
+import type { GradeClient } from '@balance/grade-client'
+import type { GradeCache } from '@balance/cache'
+import { bandValue } from '@balance/bands'
 
 /**
  * One room, open — the five things a room is, one at a time.
@@ -84,6 +88,25 @@ interface Placement {
 
 const DEFAULT_SIZE = 6
 
+/**
+ * What `useGrades` reads when the document does not load.
+ *
+ * A document that fails validation is a reachable state in an editor — that is
+ * the whole point of the save-time validator — and grading nothing is the right
+ * answer for it. Hooks cannot be called conditionally, so the empty set stands in
+ * rather than the hook being skipped.
+ */
+const EMPTY_CONTENT = {
+  schemaVersion: 0,
+  strings: {},
+  pieces: new Map(),
+  squareTypes: new Map(),
+  ruleCards: new Map(),
+  skillCards: new Map(),
+  boards: new Map(),
+  presets: new Map(),
+}
+
 function seedBoard(source: ContentSource): Draft {
   const id = nextFreeId(source.boards, 'board.room-', MAX_SEEDED_BOARDS)
   return { id, nameKey: deriveKey(id, 'name'), width: DEFAULT_SIZE, height: DEFAULT_SIZE, placements: [], squares: [] }
@@ -117,6 +140,8 @@ export function RoomDetail({
   onBack,
   onCreateRecord,
   onPlay,
+  gradeClient,
+  gradeCache,
 }: {
   source: ContentSource
   /** The room being edited, or null to create one. */
@@ -127,6 +152,9 @@ export function RoomDetail({
   /** Save and go straight to a match in this room. Absent means the caller has
    *  nowhere to send them, and the button is not offered. */
   onPlay?: () => void
+  /** Injected by tests so a measurement can be driven without a real Worker. */
+  gradeClient?: GradeClient
+  gradeCache?: GradeCache
 }) {
   const t = useTranslate()
 
@@ -211,6 +239,26 @@ export function RoomDetail({
   const pieces = useMemo(() => namedRecords(source.pieces), [source])
   const rules = useMemo(() => namedRecords(source.ruleCards), [source])
   const skills = useMemo(() => namedRecords(source.skillCards), [source])
+
+  /**
+   * The loaded content, and the grades for whatever this room can put in a
+   * loadout slot.
+   *
+   * Read from the SAVED document rather than from the draft: a grade is a
+   * measurement over a whole content set, and measuring against a half-typed
+   * draft would produce a number that changes as the author types. The draft's
+   * own loadout choice is checked against these grades at save time, which is
+   * where a refusal belongs.
+   */
+  const content = useMemo(() => contentOf(source), [source])
+  const savedPreset = content?.presets.get(String(draft.id ?? '')) ?? undefined
+  const grades = useGrades({
+    source,
+    content: content ?? EMPTY_CONTENT,
+    preset: savedPreset,
+    ...(gradeClient ? { client: gradeClient } : {}),
+    ...(gradeCache ? { cache: gradeCache } : {}),
+  })
   const squareTypes = useMemo(() => namedRecords(source.squareTypes), [source])
 
   const list = (field: string): string[] => (draft[field] as string[] | undefined) ?? []
@@ -754,6 +802,23 @@ export function RoomDetail({
             <button type="button" className="positive" data-testid="room-new-skill" onClick={() => onCreateRecord('skillCard')}>
               {t('ui.editor.room.new-skill')}
             </button>
+
+            <h3>{t('ui.editor.room.loadout')}</h3>
+            <p className="hint">{t('ui.editor.step.loadout-hint')}</p>
+            <LoadoutSection
+              draft={draft}
+              source={source}
+              grades={grades}
+              t={t}
+              onChange={(mutate) => {
+                setDraft((d) => {
+                  const next = structuredClone(d)
+                  mutate(next)
+                  return next
+                })
+                setSaved(false)
+              }}
+            />
           </>
         )}
 
@@ -972,4 +1037,216 @@ function SelectedTypeNote({ source, typeId, t }: { source: ContentSource; typeId
       {Boolean(record.paired) && <p className="hint">{t('ui.editor.paint.paired-hint')}</p>}
     </div>
   )
+}
+
+/**
+ * The loadout: one piece and one skill card each side brings of its own.
+ *
+ * Three choices per side, and the constraint between them is the whole feature:
+ * the piece may only stand in for a bundled piece of the SAME grade (ADR-008),
+ * and the pair must fit the room's budget (ADR-004). Both are shown before the
+ * save rather than reported by the validator afterwards — the validator's message
+ * names a JSON path, which is not a sentence a nine-year-old can act on.
+ *
+ * A grade the cache has not produced yet reads as "measuring", never as zero.
+ * `checkLoadoutGrades` refuses an ungraded record, so a picker that showed 0
+ * would be offering a choice the save is about to reject.
+ */
+function LoadoutSection({
+  draft,
+  source,
+  grades,
+  t,
+  onChange,
+}: {
+  draft: Draft
+  source: ContentSource
+  grades: Grades
+  t: Translate
+  onChange: (mutate: (next: Draft) => void) => void
+}) {
+  const [side, setSide] = useState<'white' | 'black'>('white')
+
+  /**
+   * The in-progress choice, which is NOT the same object as the saved slot.
+   *
+   * A slot carries all three ids together (ADR-001), so a half-filled one cannot
+   * live in the draft — and the first version wrote there anyway, deleting the
+   * partial slot on every change. The author picked a piece, then a target, then
+   * a card, and each write erased the one before it, so the slot could never
+   * reach three. The partial choice belongs to the form; the draft only ever sees
+   * a complete slot or none.
+   */
+  const saved = (draft.loadout as Record<string, LoadoutDraft> | undefined) ?? {}
+  const [pending, setPending] = useState<Record<string, LoadoutDraft>>(() => ({ ...saved }))
+  const slot = pending[side] ?? saved[side]
+  const budget = typeof draft.loadoutBudget === 'number' ? draft.loadoutBudget : null
+  const pieceIds = (draft.pieceIds as string[] | undefined) ?? []
+  const pool = (draft.skillCardIds as string[] | undefined) ?? []
+
+  /** Cards the room does not already deal — the only ones a side may own. */
+  const ownable = namedRecords(source.skillCards).filter(([id]) => !pool.includes(id))
+  const royal = new Set(
+    (source.pieces as Array<Record<string, unknown>>).filter((p) => p.royal === true).map((p) => String(p.id)),
+  )
+  const replaceable = pieceIds.filter((id) => !royal.has(id))
+
+  const costOf = (id: string | undefined): number | null => {
+    if (!id) return null
+    const g = grades.of(id)
+    return g.status === 'graded' ? g.cost : null
+  }
+  const label = (id: string | undefined): string => {
+    if (!id) return t('ui.editor.loadout.none')
+    const g = grades.of(id)
+    if (g.status === 'measuring') return t('ui.editor.loadout.measuring')
+    if (g.status === 'unmeasurable') return t('ui.editor.loadout.unmeasurable')
+    return t('ui.editor.loadout.grade').replace('{cost}', String(g.cost))
+  }
+
+  const pieceCost = costOf(slot?.pieceId)
+  const skillCost = costOf(slot?.skillCardId)
+  const replacedCost = costOf(slot?.replaces)
+  const spent = (pieceCost ?? 0) + (skillCost ?? 0)
+  const priced = pieceCost !== null && skillCost !== null
+
+  const mismatch =
+    pieceCost !== null && replacedCost !== null && bandValue(pieceCost, DISPLAY_SCALE) !== bandValue(replacedCost, DISPLAY_SCALE)
+  const overBudget = priced && budget !== null && spent > budget
+
+  const setSlot = (field: 'pieceId' | 'replaces' | 'skillCardId', value: string) => {
+    const current = pending[side] ?? saved[side] ?? { pieceId: '', replaces: '', skillCardId: '' }
+    const updated = { ...current, [field]: value }
+    setPending((prev) => ({ ...prev, [side]: updated }))
+
+    const complete = updated.pieceId !== '' && updated.replaces !== '' && updated.skillCardId !== ''
+    onChange((next) => {
+      const all = (next.loadout as Record<string, LoadoutDraft> | undefined) ?? {}
+      const nextAll = { ...all }
+      // Only a COMPLETE slot reaches the document. An incomplete one clears the
+      // side rather than being written half-formed, because a slot missing any of
+      // its three ids is a document that will not load.
+      if (complete) nextAll[side] = updated
+      else delete nextAll[side]
+      if (Object.keys(nextAll).length === 0) delete next.loadout
+      else next.loadout = nextAll
+      // The room needs a scale and a budget the moment it has a loadout, and
+      // both are refused at load time when absent (ADR-010). Seeded from the
+      // room's OWN records so no source file names a piece (AC-009).
+      if (complete) {
+        if (next.grading === undefined && replaceable[0] && ownable[0]) {
+          next.grading = { referencePieceId: replaceable[0], referenceSkillCardId: ownable[0][0] }
+        }
+        if (typeof next.loadoutBudget !== 'number') next.loadoutBudget = DEFAULT_LOADOUT_BUDGET
+      }
+    })
+  }
+
+  return (
+    <div className="loadout" data-testid="room-loadout">
+      <div className="loadout-sides">
+        {(['white', 'black'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            data-testid={`loadout-side-${s}`}
+            data-selected={side === s}
+            aria-pressed={side === s}
+            onClick={() => setSide(s)}
+          >
+            {t(`ui.editor.loadout.side-${s}`)}
+          </button>
+        ))}
+      </div>
+
+      <label htmlFor="loadout-piece">{t('ui.editor.loadout.piece')}</label>
+      <select
+        id="loadout-piece"
+        data-testid="loadout-piece"
+        value={slot?.pieceId ?? ''}
+        onChange={(e) => setSlot('pieceId', e.target.value)}
+      >
+        <option value="">{t('ui.editor.loadout.none')}</option>
+        {namedRecords(source.pieces)
+          .filter(([id]) => !royal.has(id))
+          .map(([id, nameKey]) => (
+            <option key={id} value={id}>
+              {`${recordLabel(t, id, nameKey)} — ${label(id)}`}
+            </option>
+          ))}
+      </select>
+
+      <label htmlFor="loadout-replaces">{t('ui.editor.loadout.replaces')}</label>
+      <select
+        id="loadout-replaces"
+        data-testid="loadout-replaces"
+        value={slot?.replaces ?? ''}
+        onChange={(e) => setSlot('replaces', e.target.value)}
+      >
+        <option value="">{t('ui.editor.loadout.none')}</option>
+        {replaceable.map((id) => (
+          <option key={id} value={id}>
+            {`${recordLabel(t, id, keyOf(source.pieces, id))} — ${label(id)}`}
+          </option>
+        ))}
+      </select>
+
+      <label htmlFor="loadout-skill">{t('ui.editor.loadout.skill')}</label>
+      <select
+        id="loadout-skill"
+        data-testid="loadout-skill"
+        value={slot?.skillCardId ?? ''}
+        onChange={(e) => setSlot('skillCardId', e.target.value)}
+      >
+        <option value="">{t('ui.editor.loadout.none')}</option>
+        {ownable.map(([id, nameKey]) => (
+          <option key={id} value={id}>
+            {`${recordLabel(t, id, nameKey)} — ${label(id)}`}
+          </option>
+        ))}
+      </select>
+
+      <p className="loadout-budget" data-testid="loadout-budget">
+        {budget === null
+          ? t('ui.editor.loadout.no-budget')
+          : t('ui.editor.loadout.budget').replace('{spent}', priced ? String(spent) : '?').replace('{budget}', String(budget))}
+      </p>
+
+      {mismatch && (
+        <p className="refusal" data-testid="loadout-mismatch">
+          {t('ui.editor.loadout.mismatch')}
+        </p>
+      )}
+      {overBudget && (
+        <p className="refusal" data-testid="loadout-over-budget">
+          {t('ui.editor.loadout.over-budget')}
+        </p>
+      )}
+      <p className="hint" data-testid="loadout-caveat">
+        {t('ui.editor.loadout.caveat')}
+      </p>
+    </div>
+  )
+}
+
+interface LoadoutDraft {
+  pieceId: string
+  replaces: string
+  skillCardId: string
+}
+
+/**
+ * The budget a room gets when it first grows a loadout.
+ *
+ * Matches the bundled room's, which was derived from that room's own 600-seed
+ * measurement rather than picked — see the comment on `loadoutBudget` in
+ * `src/content/sets/bundled.ts`. An authored room starts from the same footing
+ * and the author can move it.
+ */
+const DEFAULT_LOADOUT_BUDGET = 18
+
+/** The `nameKey` of a record in an unvalidated collection, for labelling only. */
+function keyOf(records: readonly unknown[], id: string): string {
+  const found = records.find((r) => String((r as { id?: unknown }).id ?? '') === id)
+  return String((found as { nameKey?: unknown } | undefined)?.nameKey ?? '')
 }

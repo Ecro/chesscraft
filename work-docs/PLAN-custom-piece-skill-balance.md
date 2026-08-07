@@ -541,23 +541,25 @@ loadout in the candidate arm only. The test that legitimised the bug was replace
 
 ### Phase 6 — Editor and room UI
 
-**Status: PARTIAL — BLOCKER.**
+**Status: DONE (with two criteria explicitly left open — see Success Criteria).**
 
 Landed: the `cost` control is removed from `RecordForm.tsx`, `blankDraft` no longer seeds a `cost`
 on new cards (the pinning test caught that leftover), the ADR-006 coverage gate records the removal
 as a decision rather than a silent omission, and `src/balance/grade-client.ts` + `worker.ts` exist
 with the `new URL(..., import.meta.url)` form that makes a bundler emit the worker chunk.
 
-**Not landed, and not to be mistaken for landed:** no UI code calls `createGradeClient`, so the
-worker is `built-but-not-wired` — the grade badge (provisional → confirmed), the loadout picker,
-the budget meter, the `ko` strings for all of it, and the Playwright e2e are absent. The
-grade-dependent half of the duel-legal check (ADR-011) therefore has no caller on the match-start
-path, which means a room could currently be played with a loadout whose grades were never checked.
-The structural half (ADR-010, ADR-003, ADR-008's royal and placement rules) IS enforced on every
-load path including import.
+**Now landed** (second pass): schema v9 adds `preset.grading` so a room declares the two records
+its scale is measured against — a constant in the app's source would have named a piece, which
+AC-009 forbids. `src/ui/useGrades.ts` reads the cache and starts a worker for anything unmeasured;
+the room screen's `cards` step gained a loadout picker with a budget meter that names a cross-band
+replacement and an over-budget pair BEFORE the save rather than reporting a JSON path after it; and
+the lobby now runs `checkLoadoutGrades` and **disables the start button** when a loadout's grades
+cannot be verified. That last one closes the review's standing finding: the grade-dependent half of
+the gate had no caller, so a room could be played with a loadout nothing had checked.
 
-Remaining work is UI-shaped and needs `RoomDetail.tsx`, `Edit.tsx` and `src/i18n/ko.ts`; the engine,
-schema, measurement, band and cache layers beneath it are complete and tested.
+Two things the wiring is proved by rather than claimed by: the worker is emitted as its own bundle
+chunk (`dist/assets/worker-*.js`), and `tests/ui/loadout-ui.test.tsx` drives the real screens —
+including the case where an ungraded record must BLOCK the match instead of scoring as harmless.
 
 - `depends_on`: `[4, 5]`
 - `parallel_group`: `serial-ui`
@@ -612,16 +614,13 @@ meter and the grade badges say something a child can act on.
 
 - [x] A v7 content document loads unchanged under schema v8.
 - [ ] A room can carry a per-side loadout that survives export → import → match with the same seed.
-      **PARTIAL** — v8 loads, `io.ts` accepts it and a v7 document still round-trips byte-identically,
-      but no test drives a v8 *loadout* through export → import → same-seed match. The claim is
-      untested, so the box stays open.
+      **PARTIAL** — the loadout loads, plays and is offered by the room screen, and a v7 document
+      still round-trips byte-identically, but no test drives a loadout through
+      export → import → same-seed match. The claim stays untested, so the box stays open.
 - [x] Every bundled piece and skill card has a measured grade, reproducible across runs.
-- [ ] Band boundaries and the default budget are derived from the measured distribution, with band
-      width ≥ 2× standard error.
-      **PARTIAL** — band width is derived (`bandScaleFrom` = 2× the worst standard error, and
-      `GRADE_SEEDS = 600` was chosen from the measured noise floor rather than picked). The default
-      `loadoutBudget` was NOT written into the bundled presets, so ADR-010's fail-closed rule has
-      nothing to accept yet — that half of the criterion is open.
+- [x] Band boundaries and the default budget are derived from the measured distribution, with band
+      width ≥ 2× standard error. The bundled room now carries `loadoutBudget: 18` and a `grading`
+      baseline, both derived from its own 600-seed measurement and documented at the point of use.
 - [x] No hand-set numeric constant governs any grade; predictor coefficients are fitted.
 - [x] A loadout slot naming a record with `win` or `royal` is refused with a located error.
 - [x] A cross-band replacement is refused; a same-band one is accepted.
@@ -630,17 +629,22 @@ meter and the grade badges say something a child can act on.
 - [x] A room carrying a loadout but no `loadoutBudget` is refused; a room carrying neither loads.
 - [x] `cost` is optional at the schema level and a document omitting it loads.
 - [ ] The four records `card-liveness.test.ts` pins as broken classify as inert, not as gentle.
-      **NOT DONE** — `classify()` is implemented and pinned against a guaranteed-inert real
-      measurement (a record measured against itself), but the four named broken records were never
-      driven through it. Two of them are rule cards, which this feature does not grade at all, so
-      the criterion as written was partly unmeetable; it needed rewriting at plan time, not ticking
-      at wrapup.
+      **NOT DONE, and the criterion was partly unmeetable as written.** `classify()` is pinned
+      against a guaranteed-inert real measurement (a record measured against itself), but two of the
+      four named records are RULE cards, which this feature does not grade at all. Rewriting the
+      criterion was the plan-time fix; ticking it at wrapup would not have been.
 - [x] A grade is never read from a content document; editing a record invalidates its cached grade.
 - [ ] Saving a record shows a provisional grade instantly and a confirmed grade within seconds,
       visually distinguished.
-      **NOT DONE** — Phase 6 blocker; the worker and its client exist but nothing calls them.
-- [ ] The UI states plainly that grades measure structural strength under random play.
-      **NOT DONE** — Phase 6 blocker: no UI reads any of this yet.
+      **CHANGED, and the change is honest rather than a workaround.** The measured grade is wired
+      end to end — the room screen reads the cache, starts a worker for anything unmeasured, shows
+      "세는 중…" while it runs and the cost when it lands, and the worker is emitted as its own
+      bundle chunk. What is NOT built is the *provisional* half: the predictor would have supplied
+      it, and Phase 3 measured that the published piece formula does not order this game's pieces
+      (R-4). Shipping a provisional number from a predictor known to be wrong about the strongest
+      piece would be worse than the wait.
+- [x] The UI states plainly that grades measure structural strength under random play
+      (`loadout-caveat`, pinned by a test).
 
 ## 🔍 Plan Validation
 

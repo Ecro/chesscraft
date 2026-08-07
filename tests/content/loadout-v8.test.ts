@@ -28,6 +28,7 @@ function v7Document(): ContentSource {
   for (const preset of source.presets as Array<Record<string, unknown>>) {
     delete preset.loadout
     delete preset.loadoutBudget
+    delete preset.grading
   }
   return source
 }

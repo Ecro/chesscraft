@@ -19,9 +19,16 @@ export interface BandScale {
   width: number
 }
 
-/** Rounded up to a half point, so a scale reads as a number rather than a float. */
-function roundUpToHalf(x: number): number {
-  return Math.ceil(x * 2) / 2
+/**
+ * Rounded up to a whole point.
+ *
+ * Whole rather than fractional because a band's representative value IS what the
+ * budget charges, and `loadoutBudget` is an integer — a scale in halves would
+ * make every cost a float compared against a whole number, which is a rounding
+ * argument waiting to happen in the one place the player is told a rule.
+ */
+function roundUpToWhole(x: number): number {
+  return Math.ceil(x)
 }
 
 /**
@@ -38,7 +45,7 @@ export function bandScaleFrom(outcomes: Iterable<MeasureOutcome>): BandScale {
   }
   // A floor, because a distribution of pure no-ops has zero error and a zero
   // width would make every band boundary a division by zero.
-  return { width: Math.max(0.5, roundUpToHalf(2 * worst)) }
+  return { width: Math.max(1, roundUpToWhole(2 * worst)) }
 }
 
 /** Which band a delta falls in. Band 0 straddles zero, so "changes nothing" is the origin. */

@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { gradeMapFor, localStorageCache } from '@balance/cache'
+import { checkLoadoutGrades, gradesFrom } from '@balance/legal'
+import { GRADE_SEEDS } from '@balance/measure'
 import { withinEnvelope } from '@engine/ai/complexity'
 import { DIFFICULTIES, type Difficulty } from '@engine/ai/difficulty'
 import type { ContentSet, ContentSource } from '@content/load'
@@ -10,6 +13,13 @@ import { MiniBoard } from './MiniBoard'
 import { MAX_NAME_LENGTH } from './settings'
 import { useTranslate } from './i18n'
 import { recordLabel } from './recordLabel'
+import { DISPLAY_SCALE, useGrades } from './useGrades'
+
+/** One process-wide cache, so a grade measured on one screen is a hit on the next. */
+const gradeCacheFor = (() => {
+  const shared = localStorageCache()
+  return () => shared
+})()
 
 /**
  * Who is playing, in which room, and how to give that room away.
@@ -82,6 +92,48 @@ export function Lobby({
    * the same message.
    */
   const envelope = withinEnvelope(content, presetId)
+
+  /**
+   * Whether this room's loadout has been checked against its grades (ADR-011).
+   *
+   * The structural half of the duel-legal profile runs in `loadContentSet`, so a
+   * room that reaches this screen already has no `win`, no `royal`, a declared
+   * budget and a replaceable target. The half that needs MEASURED grades cannot
+   * run in a synchronous validator — 600 self-play matches per record — so it
+   * runs here, before the match starts, which is the last place it can.
+   *
+   * Computed before the choice for the same reason `envelope` is: a start button
+   * that accepts the tap and then refuses is a worse version of the message.
+   * A room with no loadout is trivially fine and is the common case.
+   */
+  const loadoutIds = useMemo(() => {
+    const named = new Set<string>()
+    for (const side of ['white', 'black'] as const) {
+      const slot = preset?.loadout?.[side]
+      if (slot) for (const id of [slot.pieceId, slot.replaces, slot.skillCardId]) named.add(id)
+    }
+    return [...named]
+  }, [preset])
+
+  // Scoped to the ids the loadout actually names. Grading everything the room
+  // could offer belongs to the editor, where the author is choosing; here it
+  // would measure every card in the game to open a lobby for a room with none.
+  const grades = useGrades({ source, content, preset, ids: loadoutIds, cache: gradeCacheFor() })
+  const loadoutGate = useMemo(() => {
+    if (loadoutIds.length === 0) return { ok: true as const }
+    if (!preset?.grading) return { ok: false as const, reason: t('ui.lobby.loadout-unscaled') }
+    const context = {
+      presetId,
+      referencePieceId: preset.grading.referencePieceId,
+      referenceSkillCardId: preset.grading.referenceSkillCardId,
+      seeds: GRADE_SEEDS,
+    }
+    const known = gradeMapFor(content, gradeCacheFor(), loadoutIds, context)
+    const errors = checkLoadoutGrades(preset, gradesFrom(known), DISPLAY_SCALE)
+    if (errors.length === 0) return { ok: true as const }
+    const ungraded = errors.some((e) => e.message.includes('not been graded'))
+    return { ok: false as const, reason: ungraded ? t('ui.lobby.loadout-measuring') : t('ui.lobby.loadout-refused') }
+  }, [content, preset, presetId, t, grades, loadoutIds])
 
   /**
    * The mode that will actually be used, as opposed to the one last tapped.
@@ -217,7 +269,17 @@ export function Lobby({
           </div>
         )}
 
-        <button className="primary xl" data-testid="lobby-start" onClick={() => onStart(effectiveMode === 'ai' ? { kind: 'ai', difficulty } : { kind: 'human' })}>
+        {!loadoutGate.ok && (
+          <p className="refusal" data-testid="lobby-loadout-blocked" role="status">
+            {loadoutGate.reason}
+          </p>
+        )}
+        <button
+          className="primary xl"
+          data-testid="lobby-start"
+          disabled={!loadoutGate.ok}
+          onClick={() => onStart(effectiveMode === 'ai' ? { kind: 'ai', difficulty } : { kind: 'human' })}
+        >
           {t('ui.lobby.start')}
         </button>
 

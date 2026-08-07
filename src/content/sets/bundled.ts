@@ -68,7 +68,7 @@ function losAlamosPlacements() {
 }
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 8,
+  schemaVersion: 9,
 
   pieces: [
     {
@@ -709,6 +709,25 @@ export const bundledContentSource: ContentSource = {
         'rule.knights-honour',
         'rule.duel',
       ],
+      /**
+       * The room's grade scale and its loadout budget (v8/v9).
+       *
+       * Both derived from the 600-seed measurement of this room's own content,
+       * not chosen. `piece.pawn` and `skill.teleport` are the references, so both
+       * sit at exactly 0. At that seed count the worst standard error is ~2.7
+       * percentage points, which puts the band width at 6, and the band values of
+       * the replaceable bundled pieces come out 0 (pawn, rook), 6 (knight,
+       * queen) and 18 (archer).
+       *
+       * 18 is therefore the smallest budget under which every legal same-band
+       * replacement of a bundled piece still fits alongside a 0-band skill card.
+       * What it actually forbids is the COMBINATION: an archer-grade piece plus
+       * any card above the noise floor is 24, and refused. The piece alone is
+       * already constrained by grade-matched replacement (ADR-008); the budget is
+       * there for the pair.
+       */
+      grading: { referencePieceId: 'piece.pawn', referenceSkillCardId: 'skill.teleport' },
+      loadoutBudget: 18,
       skillCardIds: [
         'skill.teleport',
         'skill.swap',

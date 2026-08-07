@@ -77,7 +77,20 @@ import { z } from 'zod'
  * recurring failure takes. Optional rather than deleted so every v1..v7 document
  * that carries one still loads.
  */
-export const SCHEMA_VERSION = 8
+/**
+ * Bumped 8 -> 9: `preset.grading`, the two records a room measures its loadout
+ * against.
+ *
+ * A grade is a delta versus a baseline, so something has to name that baseline —
+ * and it cannot be a constant in the app's source, because no source file outside
+ * the content set is allowed to name a piece (AC-009). The room names it, which
+ * also makes the scale inspectable and exportable with the room that uses it.
+ *
+ * Optional in shape, required when `loadout` is declared, exactly like
+ * `loadoutBudget` and for the same reason (ADR-010): a scale nobody declared is
+ * not a lenient scale, it is an absent one.
+ */
+export const SCHEMA_VERSION = 9
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -500,6 +513,15 @@ export const presetDef = z.strictObject({
    * document written before v8 plus every room nobody has customised.
    */
   loadout: z.strictObject({ white: loadoutSlot.optional(), black: loadoutSlot.optional() }).optional(),
+  /**
+   * The records this room measures a loadout against (v9).
+   *
+   * `referencePieceId` is what every graded piece is measured as a replacement
+   * FOR, and `referenceSkillCardId` is what every graded card is measured as an
+   * alternative TO. Both measure exactly 0 against themselves, which is the
+   * origin of the room's scale.
+   */
+  grading: z.strictObject({ referencePieceId: contentId, referenceSkillCardId: contentId }).optional(),
   /**
    * The grade budget a loadout must fit (v8, ADR-004).
    *
