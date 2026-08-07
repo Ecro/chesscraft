@@ -36,6 +36,17 @@ export interface EvalCtx {
   subject: { square: SquareId; piece: PieceOnBoard } | null
   /** Squares the player picked for a card play. */
   chosen: readonly SquareId[]
+  /**
+   * Where the piece making this ply stands RIGHT NOW, which is not always where
+   * the event's subject is.
+   *
+   * At `on_capture` the two come apart, and that gap is what made "the piece
+   * that captured dies too" unauthorable: the victim has been removed and the
+   * capturer has not been placed, so the subject square is empty and every
+   * target resolving through the subject names nothing. Null for events with no
+   * board move behind them, where `mover` falls back to the subject.
+   */
+  moverSquare?: SquareId | null
 }
 
 /** Square types painted on the active board, keyed by square. */
@@ -66,7 +77,7 @@ export function paintedSquares(state: GameState, content: ContentSet): Map<Squar
  * same shape, which is what lets a rule card say "for each king" without the
  * engine knowing what a king is.
  */
-function bindEffect(state: GameState, mover: Side, base: BoundEffect): BoundEffect[] {
+export function bindEffect(state: GameState, mover: Side, base: BoundEffect): BoundEffect[] {
   const selector = base.effect.forEach
   if (!selector) return [base]
 
@@ -179,6 +190,11 @@ export function resolveTarget(
     case 'entering':
       return ctx.subject ? [ctx.subject.square] : []
     case 'mover':
+      // `entering` is about the event's subject; `mover` is about the piece
+      // making the ply. They agree everywhere except a capture, which is the
+      // one place the distinction is worth anything — and while these two were
+      // the same expression, no card could name the capturing piece.
+      if (ctx.moverSquare) return ctx.state.board.has(ctx.moverSquare) ? [ctx.moverSquare] : []
       return ctx.subject ? [ctx.subject.square] : []
     case 'adjacent_friendly': {
       if (!bound.ownerSquare || !bound.ownerSide) return []

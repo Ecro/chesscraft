@@ -1,6 +1,15 @@
 import type { ContentSet } from '@content/load'
 import type { Action as EffectAction, MovePattern } from '@content/schema'
-import { type BoundEffect, type EvalCtx, collectEffects, evalCondition, paintedSquares, pieceDefOf, resolveTarget } from './effects'
+import {
+  type BoundEffect,
+  type EvalCtx,
+  bindEffect,
+  collectEffects,
+  evalCondition,
+  paintedSquares,
+  pieceDefOf,
+  resolveTarget,
+} from './effects'
 import { pickDistinct, rngFor } from './rng'
 import {
   type ActiveGrant,
@@ -270,6 +279,13 @@ function cardResolves(state: GameState, content: ContentSet, cardId: string): bo
   const mover = state.sideToMove
 
   for (const effect of card.effects) {
+    // A quantified effect with nothing to quantify over resolves to nothing —
+    // "every one of your pawns may rush" is a whole turn spent on air when you
+    // have no pawns left. Same contract as the checks below, asked of the
+    // quantifier rather than of a destination.
+    const base: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: cardId }
+    if (bindEffect(state, mover, base).length === 0) return false
+
     for (const act of effect.actions) {
       if (act.kind === 'revive_piece') {
         const side = act.side === 'mover' ? mover : otherSide(mover)
@@ -421,13 +437,24 @@ function runEvent(
   focus: SquareId[] | null,
   subject: { square: SquareId; piece: PieceOnBoard } | null,
   mover: Side,
+  /** Where the ply's moving piece stands as this event runs; see `EvalCtx`. */
+  moverSquare: SquareId | null = null,
   chosen: readonly SquareId[] = [],
 ): { movedTo: SquareId | null } {
   let movedTo: SquareId | null = null
   const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
 
   for (const bound of collectEffects(working, content, trigger, focus)) {
-    const ctx: EvalCtx = { state: working, content, mover, subject, chosen }
+    // A quantified effect is ABOUT the piece the quantifier bound, not about the
+    // piece that happened to move this ply. Reading the ply-global subject here
+    // split the two halves of one effect apart: the condition asked where the
+    // MOVER stood while the action targeted the bound piece, so a rule card
+    // saying "your king in the centre wins" won for a rook in the centre with
+    // the king at home, and "promote a pawn one rank short" promoted a pawn two
+    // ranks away because a rook had landed one rank short. `generationModifiers`
+    // has always read `boundSubject`; this is the same rule for every other
+    // event, and the disagreement between the two was the whole defect.
+    const ctx: EvalCtx = { state: working, content, mover, subject: bound.boundSubject ?? subject, chosen, moverSquare }
     if (!evalCondition(bound.effect.condition, bound, ctx)) continue
     m.log.push(`${trigger}:${bound.layer}:${bound.sourceId}`)
     const moved = executeActions(bound.effect.actions, bound, ctx, m, mover, chosen, working, content, state.plyCount)
@@ -630,7 +657,7 @@ function cascadeEnter(
     // The cascade deliberately carries no `chosen` squares: the card's choices
     // were consumed by the card's own actions, and letting a square or piece
     // effect re-read them would silently retarget somebody else's picks.
-    const { movedTo } = runEvent(state, content, m, 'on_enter', [square], { square, piece: here }, mover)
+    const { movedTo } = runEvent(state, content, m, 'on_enter', [square], { square, piece: here }, mover, square)
     if (!movedTo || movedTo === square) break
     square = movedTo
   }
@@ -678,8 +705,8 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
   if (action.kind === 'move') {
     const piece = m.board.get(action.from)!
 
-    // E2 — origin vacated.
-    runEvent(state, content, m, 'on_leave', [action.from], { square: action.from, piece }, mover)
+    // E2 — origin vacated. The mover is still standing on `from`.
+    runEvent(state, content, m, 'on_leave', [action.from], { square: action.from, piece }, mover, action.from)
 
     // E3 — capture. A royal capture short-circuits the whole ply (ADR-012):
     // no later event or layer can resurrect the king, destroy the capturing
@@ -704,17 +731,23 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
           drafts: bumpTurns(state, content, mover),
         }
       }
-      runEvent(state, content, m, 'on_capture', [action.to], { square: action.to, piece: occupant }, mover)
+      // The subject stays the VICTIM — "when a knight is captured" has to remain
+      // sayable — and `mover` names the capturer, which is still on `from`.
+      runEvent(state, content, m, 'on_capture', [action.to], { square: action.to, piece: occupant }, mover, action.from)
     }
 
-    m.board.delete(action.from)
-    m.board.set(action.to, piece)
     movesMade = 1
-    subjectSquare = action.to
-
-    // E4 — destination entered, cascading through relocations.
     m.visited.add(action.from)
-    subjectSquare = cascadeEnter(state, content, m, action.to, mover)
+    // An `on_capture` effect may have destroyed the capturer, and `piece` was
+    // read before that event ran — so placing it unconditionally would have
+    // quietly undone the removal and left the card looking inert. The ply still
+    // happened; there is simply nothing left to put down.
+    if (m.board.has(action.from)) {
+      m.board.delete(action.from)
+      m.board.set(action.to, piece)
+      // E4 — destination entered, cascading through relocations.
+      subjectSquare = cascadeEnter(state, content, m, action.to, mover)
+    }
   } else {
     // A card play consumes the whole turn and makes no board move (AC-007) —
     // `movesMadeLastPly` stays 0 even when the card relocates a piece, because
@@ -722,16 +755,33 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
     const card = content.skillCards.get(action.cardId)!
     const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
     let relocatedTo: SquareId | null = null
+    // The first chosen square is what an unquantified card is "about" — the
+    // piece the player pointed at, which is what a condition like `piece_is`
+    // reads.
+    const first = action.targets[0]
+    const occupant = first ? m.board.get(first) : undefined
+    const played = first && occupant ? { square: first, piece: occupant } : null
     for (const effect of card.effects) {
-      const bound: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: card.id }
-      const first = action.targets[0]
-      const occupant = first ? m.board.get(first) : undefined
-      const subject = first && occupant ? { square: first, piece: occupant } : null
-      const ctx: EvalCtx = { state: working, content, mover, subject, chosen: action.targets }
-      if (!evalCondition(effect.condition, bound, ctx)) continue
-      m.log.push(`on_play:skill:${card.id}`)
-      const moved = executeActions(effect.actions, bound, ctx, m, mover, action.targets, working, content, state.plyCount)
-      if (moved) relocatedTo = moved
+      const base: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: card.id }
+      // Skill cards go through `bindEffect` like every other layer. This branch
+      // used to build its binding by hand, which dropped `forEach` for skill
+      // cards entirely — the quantifier validated, drew and played, and left
+      // `ownerSquare` null, so a `self` target resolved to no squares at all and
+      // the card was a silent no-op. `bindEffect` returns the single unbound
+      // effect when there is no quantifier, so the unquantified path is unchanged.
+      for (const bound of bindEffect(working, mover, base)) {
+        const ctx: EvalCtx = {
+          state: working,
+          content,
+          mover,
+          subject: bound.boundSubject ?? played,
+          chosen: action.targets,
+        }
+        if (!evalCondition(effect.condition, bound, ctx)) continue
+        m.log.push(`on_play:skill:${card.id}`)
+        const moved = executeActions(effect.actions, bound, ctx, m, mover, action.targets, working, content, state.plyCount)
+        if (moved) relocatedTo = moved
+      }
     }
     // A card that puts a piece on a square enters that square, with everything
     // entering a square entails. Skipping this made a warp the one way to walk
@@ -759,11 +809,11 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
       const target = def.promotion.onRank === 'last' ? state.height - 1 : def.promotion.onRank - 1
       if (fromMover === target) m.board.set(subjectSquare, { ...landed, pieceId: def.promotion.to })
     }
-    runEvent(state, content, m, 'on_promote', [subjectSquare], { square: subjectSquare, piece: m.board.get(subjectSquare)! }, mover)
+    runEvent(state, content, m, 'on_promote', [subjectSquare], { square: subjectSquare, piece: m.board.get(subjectSquare)! }, mover, subjectSquare)
   }
 
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
-  runEvent(state, content, m, 'on_remove', null, null, mover)
+  runEvent(state, content, m, 'on_remove', null, null, mover, subjectSquare)
 
   // The check tally is settled BEFORE E7 runs, so a rule card reading
   // `check_count_at_least` on the ply that delivers the third check sees three,
@@ -777,7 +827,7 @@ export function apply(state: GameState, action: Action, content: ContentSet): Ga
   // E7 — end of ply. Win actions resolve here; the ply cap is evaluated last and
   // therefore always loses to a `win` action on the same ply.
   const subject = subjectSquare && m.board.get(subjectSquare) ? { square: subjectSquare, piece: m.board.get(subjectSquare)! } : null
-  runEvent({ ...state, checkCount }, content, m, 'end_of_ply', null, subject, mover)
+  runEvent({ ...state, checkCount }, content, m, 'end_of_ply', null, subject, mover, subjectSquare)
 
   const plyCount = state.plyCount + 1
   let result = m.result

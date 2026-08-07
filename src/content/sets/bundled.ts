@@ -37,8 +37,18 @@ const KNIGHT: Array<[number, number]> = [
 ]
 /** The four squares every "hold the middle" card agrees on. */
 const CENTRE = ['c3', 'c4', 'd3', 'd4']
-/** One rank short of promotion, from each side's point of view. */
-const NEAR_PROMOTION = ['a5', 'b5', 'c5', 'd5', 'e5', 'f5', 'a2', 'b2', 'c2', 'd2', 'e2', 'f2']
+/**
+ * One rank short of promotion on a six-rank board, counted from the pawn's own
+ * side — so white reads it as rank 5 and black as rank 2.
+ *
+ * This used to be a flat `on_square` list holding BOTH of those ranks, which is
+ * wrong in the worst possible way: white's opening pawn line stands on rank 2,
+ * which the list contained, so with the quantifier working every white pawn
+ * promoted on move one. `on_square` has no way to know which side it is asking
+ * about, and no other condition knows absolute sides either, so the card needed
+ * a vocabulary entry rather than a better list.
+ */
+const NEAR_PROMOTION_RANK = 5
 
 export const BUNDLED_PRESET_ID = 'preset.default'
 export const BUNDLED_BOARD_ID = 'board.los-alamos'
@@ -294,7 +304,7 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'end_of_ply',
           forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'mover' },
-          condition: { kind: 'on_square', squares: NEAR_PROMOTION },
+          condition: { kind: 'on_own_rank', n: NEAR_PROMOTION_RANK },
           actions: [{ kind: 'promote_piece', target: { kind: 'self' }, to: 'piece.queen' }],
         },
       ],
@@ -355,7 +365,9 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'on_capture',
           condition: { kind: 'always' },
-          actions: [{ kind: 'destroy_piece', target: { kind: 'entering' } }],
+          // `mover`, not `entering`: at on_capture the subject is the VICTIM, and
+          // the piece this card is about is the one that took it.
+          actions: [{ kind: 'destroy_piece', target: { kind: 'mover' } }],
         },
       ],
     },

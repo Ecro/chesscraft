@@ -146,9 +146,7 @@ const PROBES: Probe[] = [
     card: 'rule.king-of-the-hill',
     probe: 'a ROOK steps onto the centre while the king sits at home',
     intended: 'inert',
-    current: 'live',
-    defect:
-      'wins the match for a rook on c3. `forEach` binds each king via boundSubject, but runEvent builds its EvalCtx from the ply-global subject (the piece that moved) and never reads boundSubject — only generationModifiers does. So the on_square test asks where the MOVER stands, not where the king stands.',
+    current: 'inert',
     run: ruleState('rule.king-of-the-hill', [K_W, rook('c2'), K_B], [['c2', 'c3']]),
   },
   {
@@ -176,19 +174,43 @@ const PROBES: Probe[] = [
     card: 'rule.fast-promotion',
     probe: 'the pawn already stands on rank 5 and a rook moves elsewhere',
     intended: 'live',
-    current: 'inert',
-    defect:
-      'the same boundSubject miss, read from the other side: the condition tests where the MOVER landed, so a pawn that is already one rank short never promotes unless it moved this ply.',
+    current: 'live',
     run: ruleState('rule.fast-promotion', [K_W, pawn('c5', 'white'), rook('e1'), K_B], [['e1', 'e3']]),
   },
   {
     card: 'rule.fast-promotion',
     probe: 'a ROOK lands on e2 while the only pawn sits on c3, nowhere near promotion',
     intended: 'inert',
-    current: 'live',
-    defect:
-      'promotes a pawn on c3 — two ranks from promotion — because the ROOK landed on e2, which is in the near-promotion list. Condition and action read different pieces: the test follows the mover, the promotion follows the quantified pawn. The pawn is deliberately NOT on rank 5 here, so this probe cannot be satisfied by a pawn that was legitimately due to promote.',
+    current: 'inert',
     run: ruleState('rule.fast-promotion', [K_W, pawn('c3', 'white'), rook('e1'), K_B], [['e1', 'e2']]),
+  },
+  {
+    card: 'rule.fast-promotion',
+    probe: 'white pawns stand on their OWN rank 2, where the opening array puts them',
+    intended: 'inert',
+    current: 'inert',
+    // The condition used to be a flat square list holding both sides' near-promotion
+    // ranks. White's whole pawn line starts on rank 2, which that list contained, so
+    // with the quantifier working every white pawn promoted on move one. This probe
+    // is the opening position, and it must stay inert.
+    run: ruleState('rule.fast-promotion', [K_W, pawn('b2', 'white'), pawn('c2', 'white'), rook('e1'), K_B], [['e1', 'e3']]),
+  },
+  {
+    card: 'rule.fast-promotion',
+    probe: 'a BLACK pawn on board rank 2, which is rank 5 counted from black',
+    intended: 'live',
+    current: 'live',
+    // The mirror of the probe above, and the pair is the point: board rank 2 is
+    // home for white and one-short for black, which is exactly what a flat square
+    // list cannot say. Black has to be the mover for its own pawns to be quantified.
+    run: ruleState(
+      'rule.fast-promotion',
+      [K_W, { square: 'b2', pieceId: 'piece.pawn', side: 'black' }, rook('e1'), K_B],
+      [
+        ['e1', 'e3'],
+        ['f6', 'f5'],
+      ],
+    ),
   },
   {
     card: 'rule.royal-bodyguard',
@@ -215,9 +237,7 @@ const PROBES: Probe[] = [
     card: 'rule.blood-toll',
     probe: 'a pawn captures a pawn',
     intended: 'live',
-    current: 'inert',
-    defect:
-      'the capturing pawn survives. At on_capture the victim is already removed and the capturer has not been placed, so the subject square is empty and both `entering` and `mover` resolve to it. No target kind in the vocabulary names the capturing piece at that moment.',
+    current: 'live',
     run: ruleState('rule.blood-toll', [K_W, pawn('b2', 'white'), pawn('c3', 'black'), K_B], [['b2', 'c3']]),
   },
   {
@@ -299,9 +319,7 @@ const PROBES: Probe[] = [
     card: 'skill.charge',
     probe: 'two of your pawns on the board',
     intended: 'live',
-    current: 'inert',
-    defect:
-      'grants nothing and offers exactly one play with no targets. The card-play branch of `apply` builds its BoundEffect by hand and never calls `bindEffect`, so `forEach` is dropped for skill cards entirely; ownerSquare stays null and the `self` target resolves to no squares.',
+    current: 'live',
     run: skill('skill.charge', [K_W, pawn('b2', 'white'), pawn('c2', 'white'), K_B]),
   },
   {
