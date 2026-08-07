@@ -44,8 +44,19 @@ export default defineConfig({
      * `e2e/ftue.spec.ts` clears the flag itself, which is the same shape as
      * `motion.spec.ts` opting back into animation: the suite-wide default must
      * never be the reason a path is untested.
+     *
+     * Built from `ORIGIN` rather than read from a committed JSON file, and that
+     * is not tidiness. `storageState` is keyed BY ORIGIN, so a file pinning
+     * `http://127.0.0.1:5173` silently applies to nothing the moment `E2E_PORT`
+     * moves the server — which is the whole reason that variable exists (two
+     * worktrees, two dev servers). The failure is maximally confusing: every
+     * spec lands on the onboarding screen and times out looking for a control
+     * one tap away, with nothing pointing at the port.
      */
-    storageState: './e2e/onboarded.json',
+    storageState: {
+      cookies: [],
+      origins: [{ origin: ORIGIN, localStorage: [{ name: 'strange-chess.coach.seen.v1', value: '1' }] }],
+    },
   },
   projects: [
     {

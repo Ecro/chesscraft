@@ -871,6 +871,27 @@ hr {
   overflow: hidden;
 }
 
+/*
+ * The wrapper the two full-screen overlays cover.
+ *
+ * `display: contents` so it changes nothing about the layout — `.play` is a flex
+ * column and its children must stay direct flex items. The element exists purely
+ * to carry one `hidden` / `inert` decision for everything underneath, rather
+ * than repeating it on six siblings where the seventh gets forgotten.
+ *
+ * `hidden` needs the explicit `display: none`: the UA rule is
+ * `[hidden] { display: none }` at author-origin-beating specificity 0, and the
+ * `display: contents` above would otherwise win. This is the same override the
+ * editor panels needed — see `.editor > div:not([hidden])`.
+ */
+.play-cover {
+  display: contents;
+}
+
+.play-cover[hidden] {
+  display: none;
+}
+
 .turn-bar {
   flex: none;
   display: flex;

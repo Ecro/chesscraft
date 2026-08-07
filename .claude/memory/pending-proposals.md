@@ -131,3 +131,33 @@ rendering technology, grep the stylesheet for the properties the old technology
 consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 `-webkit-text-stroke` are all silently inert on `<img>`, `<canvas>`, `<svg>` and
 `<iframe>`.
+
+## Proposal: mutate every new guard once before believing it (2026-08-07)
+**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 3)
+**Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
+**Rationale:** All three instances are a test whose assertion is satisfied by the
+state the code is already in, so no implementation could fail it. Reading the
+test cannot reliably catch this — the fourth instance was written by someone who
+had just read the failure entry and was deliberately avoiding it, and still
+shipped a two-stop fixture where every position was a boundary. What DOES catch
+it costs one command: break the thing the test guards, watch it go red, restore.
+The rule would be "a new guard is not done until you have seen it fail", with the
+mutant and its red output recorded in the PR body. Three of this session's
+guards were validated exactly this way and two of them were vacuous until the
+mutant proved it.
+
+## Proposal: check the comment against the code it justifies (2026-08-07)
+**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 3)
+**Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
+for the `code-reviewer` agent
+**Rationale:** Three instances, and the third landed *inside the fix for the
+second*. The shape is stable enough to look for: a comment states an invariant in
+the present tense ("identical hazard, identical guard", "a fork cannot be stale
+by construction") and the code beneath implements a subset or the opposite. The
+comment is the most reliable statement of intent in the file, which is exactly
+what makes it dangerous — a reviewer reads it and stops. The heuristic is
+mechanical: for every comment that asserts a property, name the line that
+enforces it. When the answer is "the comment", that is the finding. Worth adding
+to the reviewer's prompt because in all three cases the comment and the gap were
+within ten lines of each other and a human reviewer found it in seconds once
+looking for it.

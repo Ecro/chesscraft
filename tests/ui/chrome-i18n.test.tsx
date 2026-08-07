@@ -81,6 +81,16 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
       'EditorLibrary.tsx',
       'RoomDetail.tsx',
       'RecordForm.tsx',
+      // The five screens the Chess Craft redesign added. This list is
+      // hand-maintained, and their absence is not hypothetical: it is why a
+      // hard-coded `VS` shipped in `Lobby.tsx` and no test saw it. A guard whose
+      // coverage is a literal array grows a hole every time a screen is added,
+      // so the hole is worth closing loudly rather than quietly widening.
+      'Lobby.tsx',
+      'Boot.tsx',
+      'Result.tsx',
+      'TabBar.tsx',
+      'MiniBoard.tsx',
     ]
     // Backtick and `$` join the list because a template literal in ordinary TS
     // (`return `${a} — ${b}``) is not JSX and matched the capture as a false

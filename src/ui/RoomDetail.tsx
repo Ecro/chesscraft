@@ -157,6 +157,21 @@ export function RoomDetail({
   // stays mounted across an import, and its save would otherwise overwrite the
   // imported room of the same id with a draft from the previous document.
   const [openedSnapshot, setOpenedSnapshot] = useState<RecordSnapshot>(() => snapshotOf(source, 'preset', roomId))
+  /**
+   * The BOARD as it looked when this screen opened — the second half of the same
+   * guard.
+   *
+   * The comment above says "identical hazard, identical guard", and for one
+   * cycle it guarded one of this screen's two subjects. The redesign made the
+   * builder edit the board record directly (paint and place), so a board changed
+   * anywhere else — through the library, or by an import that left the preset
+   * byte-identical — was silently overwritten by this screen's older draft at
+   * save time, with nothing refusing and nothing said. A preset-only snapshot
+   * cannot see that: the preset did not change.
+   */
+  const [openedBoardSnapshot, setOpenedBoardSnapshot] = useState<RecordSnapshot>(() =>
+    snapshotOf(source, 'board', String((roomId ? openDraft(source, 'preset', roomId) : null)?.boardId ?? (source.boards[0] as { id?: unknown } | undefined)?.id ?? '') || null),
+  )
   const [nameText, setNameText] = useState(openedSnapshot.name)
   // Same rule as `RecordForm`: only a field the author typed in is written, and
   // clearing one means dropping the overlay entry rather than storing an empty
@@ -374,6 +389,7 @@ export function RoomDetail({
       setSaved(false)
       return null
     }
+    const openedBoardId = String(board.id ?? '')
 
     const next = structuredClone(draft)
     const id = String(next.id ?? '')
@@ -412,7 +428,31 @@ export function RoomDetail({
     // reference, and `commitDraft` runs the whole document through the loader.
     const boardToSave = forkBoard(base, board, id)
     const boardId = String(boardToSave.id ?? '')
-    const openedBoardId = String(board.id ?? '')
+
+    /*
+     * The board is a SECOND subject this save commits, so it needs the same
+     * stale check as the preset — but only when the save is actually going to
+     * REPLACE the record this screen opened.
+     *
+     * The check used to run before `forkBoard`, and that was a save-blocking
+     * regression on the most ordinary path there is. A new room seeds its board
+     * from `boards[0]`, which another room almost always already references, so
+     * the save forks into a brand-new record and never touches the original —
+     * yet an unrelated edit to that original refused the save anyway, with a
+     * message about staleness that did not apply to anything being written. The
+     * previous comment even claimed a fork "cannot be stale by construction"
+     * while the code checked it regardless.
+     *
+     * Refusing rather than remounting, for the reason `RecordForm` gives: a
+     * remount discards a half-painted board, which trades one silent loss for
+     * another.
+     */
+    if (boardId === openedBoardId && !sameSnapshot(snapshotOf(source, 'board', openedBoardId), openedBoardSnapshot)) {
+      setErrors([{ contentId: openedBoardId, path: '', message: t('ui.editor.form.stale') }])
+      setSaved(false)
+      return null
+    }
+
     const boardResult = commitDraft(base, 'board', boardToSave, openedBoardId === boardId ? openedBoardId : undefined)
     if (!boardResult.ok) {
       setErrors(boardResult.errors)
@@ -432,6 +472,7 @@ export function RoomDetail({
     setBoard(boardToSave)
     setOpenedId(id)
     setOpenedSnapshot(snapshotOf(result.source, 'preset', id))
+    setOpenedBoardSnapshot(snapshotOf(result.source, 'board', boardId))
     setNameTyped(false)
     setSaved(true)
     commit(result.source)

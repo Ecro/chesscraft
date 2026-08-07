@@ -430,6 +430,12 @@ export const ko: Record<string, string> = {
   'ui.lobby.intro': '폰 하나로 번갈아 둡니다. 이름을 정하고 시작하세요.',
   'ui.lobby.role.white': '파란 편 · 먼저 둠',
   'ui.lobby.role.black': '빨간 편 · 나중에 둠',
+  // Between the two player cards. Kept as the Latin 'VS' because that is what
+  // this audience reads on every phone game they already play — but it goes
+  // through the bundle like everything else, so a locale that wants '대'
+  // can have it without a source edit. It shipped as a literal and the chrome
+  // scan could not see it: `Lobby.tsx` was missing from that guard's file list.
+  'ui.lobby.versus': 'VS',
   'ui.lobby.room': '놀 방',
   'ui.lobby.change-room': '바꾸기',
   'ui.lobby.start': '시작!',

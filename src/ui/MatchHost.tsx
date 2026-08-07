@@ -13,6 +13,7 @@ import { Pix } from './art/Pix'
 import { type Settings, DEFAULT_SETTINGS } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
 import { Result } from './Result'
+import { Sheet } from './Sheet'
 
 /**
  * Hot-seat play plus the match lifecycle around it.
@@ -415,6 +416,24 @@ export function MatchHost({
   const ruleMark = iconMark(t, rule)
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
 
+  /**
+   * Whether a full-screen overlay currently owns the screen.
+   *
+   * `Result` and the curtain are `position: absolute; inset: 0` inside `.play`,
+   * and z-index changes paint order only — not tab order, not the accessibility
+   * tree, and not what a locator matches. So everything they cover stayed live:
+   * a keyboard or screen-reader user tabbed through five invisible controls at
+   * the result screen and could fire the new-match button from a screen that
+   * never shows it, and — worse — every board square stayed reachable behind
+   * the curtain, whose
+   * entire purpose is that the waiting player must not reach the position.
+   *
+   * The draft sheet is deliberately NOT in this set. It dims rather than owns:
+   * #43 put the tools row back within reach during a draft on purpose, and its
+   * scrim passes pointers through so a player is never trapped in one.
+   */
+  const overlayOwnsScreen = Boolean(state.result) || Boolean(curtain)
+
   const mover = state.sideToMove
   const waiter: Side = mover === 'white' ? 'black' : 'white'
   const hand = state.drafts[mover].held
@@ -432,6 +451,25 @@ export function MatchHost({
           used to be one grey chip among four, the same size and weight as the
           phase and the ply count — on a hot-seat game where the ONLY thing two
           players need from the chrome is which of them moves next. */}
+      {/*
+        Two different treatments, because the two overlays want different things
+        from what they cover.
+
+        The CURTAIN must hide it: the waiting player is about to be handed the
+        phone and the whole point is that they do not see the position, so
+        `hidden` — which removes it from the accessibility tree and from tab
+        order in every browser — is both the fix and the product intent.
+
+        `Result` must NOT hide it: the final position staying visible behind the
+        summary is why `Result` is an overlay rather than an early return, and
+        two children argue about that position. `inert` is the one mechanism that
+        makes a visible subtree unreachable. Where it is unsupported (a WebView
+        older than Chrome 102 / Safari 15.5) the degradation is tab-order noise
+        only — nothing behind the result screen can be ACTIVATED, because
+        `clickSquare` and `clickCard` both early-return once `phase !== 'play'`
+        and the tools row is unmounted above.
+      */}
+      <div className="play-cover" hidden={Boolean(curtain)} {...(state.result ? { inert: '' } : {})}>
       <div className="turn-bar" data-turn={mover}>
         {/* The machine value lives on the attribute and the words on screen are
             translated. That split is what lets the e2e suite keep asserting a
@@ -688,6 +726,14 @@ export function MatchHost({
         </div>
       </div>
 
+      </div>
+
+      {/* UNMOUNTED, not hidden, and the difference is the duplicate test id.
+          `Result` carries its own home button, so at the result screen `hidden`
+          would still leave two `go-home` nodes in the document — a strict-mode
+          locator matches both, visible or not. Nothing here is reachable behind
+          an opaque overlay anyway. */}
+      {!overlayOwnsScreen && (
       <div className="match-tools">
         <button data-testid="sound-toggle" data-on={live.sound} className={live.sound ? 'positive' : ''} onClick={() => toggle('sound')}>
           {t(live.sound ? 'ui.sound.on' : 'ui.sound.off')}
@@ -713,12 +759,13 @@ export function MatchHost({
           {t('ui.action.settings')}
         </button>
       </div>
+      )}
 
       {/* ADR-024's replay clause plus the settings that are not worth a slot in
           the row. Deliberately moved, NOT deleted: the seed is a reproducibility
           contract with an AC behind it, and removing it would settle a recorded
           decision by tidying. */}
-      {settingsOpen && (
+      {settingsOpen && !overlayOwnsScreen && (
         <div className="match-settings-panel">
           {hapticsSupported() && (
             <button data-testid="haptics-toggle" data-on={live.haptics} onClick={() => toggle('haptics')}>
@@ -891,25 +938,24 @@ function SlotDetail({
 function PeekSheet({ peek, onClose }: { peek: Peek; onClose: () => void }) {
   const t = useTranslate()
   return (
-    <div className="sheet-scrim" data-testid="peek-sheet">
-      {/* `aria-modal` is honest here in a way it is not on the draft sheet: this
-          scrim DOES swallow the tap, so the sheet really is the only thing
-          interactive while it is open. */}
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={peek.name}>
-        <div className="sheet-head">
-          <span className="sheet-icon" aria-hidden="true">
-            <MarkBody mark={peek.mark} />
-          </span>
-          <span>
-            <strong>{peek.name}</strong>
-            <span className="sheet-kind">{peek.kind}</span>
-          </span>
-        </div>
-        <p className="sheet-text">{peek.text}</p>
-        <button type="button" data-testid="peek-close" onClick={onClose}>
-          {t('ui.action.close')}
-        </button>
+    // `Sheet` is what makes the `aria-modal` on it a true statement — focus in,
+    // Tab trapped, Escape, focus restored. The previous version claimed
+    // modality on the strength of the scrim swallowing pointer events, which
+    // says nothing to a keyboard or a screen reader.
+    <Sheet label={peek.name} onClose={onClose} scrimTestId="peek-sheet">
+      <div className="sheet-head">
+        <span className="sheet-icon" aria-hidden="true">
+          <MarkBody mark={peek.mark} />
+        </span>
+        <span>
+          <strong>{peek.name}</strong>
+          <span className="sheet-kind">{peek.kind}</span>
+        </span>
       </div>
-    </div>
+      <p className="sheet-text">{peek.text}</p>
+      <button type="button" data-testid="peek-close" onClick={onClose}>
+        {t('ui.action.close')}
+      </button>
+    </Sheet>
   )
 }

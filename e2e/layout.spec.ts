@@ -292,9 +292,23 @@ test.describe('at desktop (1440x900)', () => {
     await openBoard(page)
 
     const gaps = await page.evaluate(() => {
-      const side = [...document.querySelectorAll('.play > *')].filter(
-        (el) => !el.classList.contains('board-frame') && !el.classList.contains('draft-scrim'),
-      )
+      /*
+       * `display: contents` wrappers are expanded rather than measured.
+       *
+       * The subject here is the RENDERED column beside the board; `.play > *`
+       * was a proxy for it, and the proxy broke when `.play-cover` was added —
+       * a wrapper that exists purely to carry one `hidden`/`inert` decision for
+       * the six siblings underneath, and which generates no box at all. Its
+       * `getBoundingClientRect()` is a zero rect, so measuring it as a column
+       * member produced gaps of 804 and -738 against a layout that was fine.
+       * A transparent wrapper has to be transparent to the measurement too, or
+       * this test reports on the DOM rather than on what a player sees.
+       */
+      const flatten = (el: Element): Element[] =>
+        getComputedStyle(el).display === 'contents' ? [...el.children].flatMap(flatten) : [el]
+      const side = [...document.querySelectorAll('.play > *')]
+        .flatMap(flatten)
+        .filter((el) => !el.classList.contains('board-frame') && !el.classList.contains('draft-scrim'))
       return side.slice(1).map((el, i) =>
         Math.round(el.getBoundingClientRect().top - side[i]!.getBoundingClientRect().bottom),
       )

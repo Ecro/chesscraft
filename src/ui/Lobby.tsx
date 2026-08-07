@@ -114,7 +114,7 @@ export function Lobby({
             onChange={(value) => onNamesChange({ ...names, white: value })}
           />
           <span className="versus" aria-hidden="true">
-            VS
+            {t('ui.lobby.versus')}
           </span>
           <PlayerCard
             side="black"

@@ -5,6 +5,7 @@ import { type Translate, useTranslate } from './i18n'
 import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
+import { Sheet } from './Sheet'
 
 /**
  * The dex: everything this content set contains, in the player's words.
@@ -137,23 +138,23 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
       </div>
 
       {open && (
-        <div className="sheet-scrim" data-testid="dex-sheet">
-          <div className="sheet" role="dialog" aria-modal="true" aria-label={t(open.entry.nameKey)}>
-            <div className="sheet-head">
-              <span className="sheet-icon" aria-hidden="true">
-                <MarkBody mark={markOf(t, open.entry, open.side)} />
-              </span>
-              <span>
-                <strong>{t(open.entry.nameKey)}</strong>
-                <span className="sheet-kind">{t(open.kindKey)}</span>
-              </span>
-            </div>
-            <p className="sheet-text">{t(open.entry.textKey)}</p>
-            <button type="button" data-testid="dex-close" onClick={() => setOpen(null)}>
-              {t('ui.action.close')}
-            </button>
+        // The same modal sheet the match screen uses — the `aria-modal` here was
+        // the second copy of a claim neither call site implemented.
+        <Sheet label={t(open.entry.nameKey)} onClose={() => setOpen(null)} scrimTestId="dex-sheet">
+          <div className="sheet-head">
+            <span className="sheet-icon" aria-hidden="true">
+              <MarkBody mark={markOf(t, open.entry, open.side)} />
+            </span>
+            <span>
+              <strong>{t(open.entry.nameKey)}</strong>
+              <span className="sheet-kind">{t(open.kindKey)}</span>
+            </span>
           </div>
-        </div>
+          <p className="sheet-text">{t(open.entry.textKey)}</p>
+          <button type="button" data-testid="dex-close" onClick={() => setOpen(null)}>
+            {t('ui.action.close')}
+          </button>
+        </Sheet>
       )}
     </section>
   )

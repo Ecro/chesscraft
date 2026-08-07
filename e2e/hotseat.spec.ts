@@ -1,6 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
-import { move } from './nav'
+import { liftCurtain, move } from './nav'
 
 /**
  * PLAN Phase 4 exit criterion — the hot-seat flow, end to end.
@@ -146,6 +146,12 @@ test('marks a spent card in the tray, for both players to see', async ({ page })
   // AC-017 — spent-ness is visible, and it is visible on the tray the opponent
   // is also looking at.
   await expect(tile).toHaveAttribute('data-used', 'true')
+  // Playing a card is a ply, so the phone has been handed over and the curtain
+  // is up — under which NOTHING is visible, deliberately: the opponent has not
+  // taken the phone yet. AC-017 is about the play screen never hiding one
+  // player's hand from the other, which is what is asserted once the curtain is
+  // lifted, exactly as a player lifts it.
+  await liftCurtain(page)
   await expect(page.getByTestId('hand-black')).toBeVisible()
 })
 
