@@ -469,6 +469,11 @@ export const ko: Record<string, string> = {
   // Names the way out as well as the way forward. A pending card used to have
   // no exit but completing it.
   'ui.hint.choose-target': '카드를 쓸 곳을 고르세요. 카드를 다시 누르면 취소돼요.',
+  // A card that quantifies over your own pieces, or that places one at your
+  // home rank, has no square to point at. Saying "고르세요" there sent the
+  // player hunting the board for a target the card never wanted.
+  'ui.hint.card-ready': '고를 곳이 없는 카드예요. 아래 버튼을 누르면 바로 써요.',
+  'ui.match.use-card': '이 카드 쓰기',
   'ui.hand.owner': '{name}의 카드',
   'ui.hand.no-cards': '스킬 카드를 뽑으면 여기에 들어와요.',
   'ui.dex.more': '도감 ▸',

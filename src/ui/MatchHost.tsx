@@ -359,6 +359,30 @@ export function MatchHost({
     for (const a of legal) if (a.kind === 'move' && a.from === selected) reachable.add(a.to)
   }
 
+  /*
+   * The armed card, complete as it stands.
+   *
+   * Not every card asks a question. One that quantifies over your own pieces,
+   * or that places one at your home rank, has nothing to point at — the engine
+   * offers it as a play with an EMPTY target list. The only code that committed
+   * a card lived inside `clickSquare`, so such a card armed, the board refused
+   * every square, and the player was told it cannot target those squares. It
+   * could not target any square, and did not need to.
+   *
+   * Committing on the arming tap instead would have been worse: arming is what
+   * makes `SlotDetail` explain the card, so a one-tap play spends the turn
+   * before a child has read what the card does.
+   */
+  const readyCard =
+    pendingCard &&
+    legal.find(
+      (a) =>
+        a.kind === 'play_card' &&
+        a.cardId === pendingCard.cardId &&
+        a.targets.length === pendingCard.targets.length &&
+        pendingCard.targets.every((target, i) => a.targets[i] === target),
+    )
+
   const clickSquare = (sq: SquareId) => {
     if (phase !== 'play') return
     setRejection(null)
@@ -708,8 +732,18 @@ export function MatchHost({
             only on an error reflows the board under the player's thumb at the
             exact moment they are being told they did something wrong. */}
         <p className="hint-bar" data-pending={Boolean(pendingCard)} {...(rejection ? { 'data-testid': 'rejection' } : {})} role="status">
-          {rejection ?? (pendingCard ? t('ui.hint.choose-target') : t('ui.hint.tap-piece'))}
+          {rejection ?? (pendingCard ? t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target') : t('ui.hint.tap-piece'))}
         </p>
+
+        {/* The commit for a card that asks nothing. It appears only while such a
+            card is armed, so it never competes with choosing a target, and the
+            card slot still disarms on a second tap — reading a card must stay
+            free. */}
+        {readyCard && (
+          <button type="button" className="primary use-card" data-testid="use-card" onClick={() => push(readyCard)}>
+            {t('ui.match.use-card')}
+          </button>
+        )}
 
         {/* AC-018's UI clause: every painted type on this board, with its ability
             text one tap away. A chip rather than a paragraph — see the header. */}

@@ -1431,6 +1431,14 @@ hr {
   color: var(--color-note-ink);
 }
 
+/* Sits directly under the hint that names it, and never grows the column: the
+   board must not reflow under a thumb when a card is armed. */
+.use-card {
+  flex: none;
+  margin-top: var(--space-2);
+  align-self: center;
+}
+
 .legend {
   flex: none;
   display: flex;

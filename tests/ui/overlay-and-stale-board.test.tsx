@@ -161,6 +161,62 @@ describe('a card the player cannot use is never a dead end', () => {
     return null
   }
 
+  /*
+   * Reported from play: "that card cannot target those squares" on a card whose
+   * whole text is "all my pawns" — where do I click?
+   *
+   * Nowhere, and that was the bug. `skill.charge` quantifies over your own
+   * pawns, so the engine offers it as a play with an EMPTY target list; the
+   * same is true of `skill.recruit` and `skill.revive`, which place at your home
+   * rank. The only code that committed a card lived inside the square handler,
+   * so those cards armed, highlighted nothing, and refused every square the
+   * player tried. The refusal message was accurate and useless.
+   *
+   * Seed 13 deals `skill.charge` as white's first offer, which `pastDraft`
+   * picks. Chosen rather than hunted for: a fixture that took whatever card the
+   * seed happened to give would test the one-target path most of the time and
+   * this one never.
+   */
+  it('gives a card that asks for no square a way to be used', () => {
+    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 13} />)
+    pastDraft(container)
+
+    const slot = container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.charge"]')
+    expect(slot, 'seed 13 should deal skill.charge to white').toBeTruthy()
+    fireEvent.click(slot!)
+
+    // Armed — the card IS playable — with nothing anywhere to tap. Both halves
+    // matter: an unplayable card is refused before arming, so reaching this
+    // state at all means the board simply has no question to ask.
+    expect(slot!.getAttribute('data-pending')).toBe('true')
+    expect(container.querySelectorAll('[data-legal="true"]').length).toBe(0)
+
+    fireEvent.click(screen.getByTestId('use-card'))
+
+    // The ply happened rather than the card quietly disarming.
+    expect(container.querySelector('.play')?.getAttribute('data-turn')).toBe('black')
+
+    // And it did what it said. Hand the turn back and a white pawn now offers a
+    // two-square advance, which is the grant the card exists to give — the UI
+    // fix is worth nothing if the card it unlocked is still inert.
+    let handedBack = false
+    for (const sq of container.querySelectorAll<HTMLElement>('[data-side="black"]')) {
+      fireEvent.click(sq)
+      const target = container.querySelector<HTMLElement>('[data-legal="true"]')
+      if (!target) continue
+      fireEvent.click(target)
+      handedBack = true
+      break
+    }
+    expect(handedBack, 'black had no legal move at all - the fixture is broken').toBe(true)
+
+    fireEvent.click(screen.getByTestId('sq-c2'))
+    const reach = [...container.querySelectorAll<HTMLElement>('[data-legal="true"]')].map((e) =>
+      e.getAttribute('data-testid'),
+    )
+    expect(reach, 'charge should let a pawn on c2 rush to c4').toContain('sq-c4')
+  })
+
   it('refuses a spent card instead of arming it', () => {
     /*
      * The reported sequence: use a card, play on, and on your next turn the
