@@ -86,6 +86,24 @@ export default defineConfig({
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: ORIGIN,
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    /*
+     * 60s locally, 180s in CI.
+     *
+     * The dev server starts in well under a second on a developer machine and did not
+     * become ready inside 60s on a GitHub runner — twice, on unrelated commits, with the
+     * suite reporting `Timed out waiting 60000ms from config.webServer` and Vite having
+     * printed its config banner but never its ready line.
+     *
+     * Two explanations fit that evidence: a cold start slower than the bound (two vCPUs,
+     * no optimizer cache, immediately after the unit suite has saturated the machine), or
+     * a server that IS listening somewhere Playwright is not polling. Raising only this
+     * number tells them apart — if CI goes green, it was the former and this is the fix;
+     * if it still times out at 180s, it is the latter and the binding is the thing to
+     * change. One variable, because fixing both at once would leave neither confirmed.
+     *
+     * The local bound stays at 60s: a dev server that takes a minute on a laptop is a
+     * problem worth being told about, and inheriting CI's patience would hide it.
+     */
+    timeout: process.env.CI ? 180_000 : 60_000,
   },
 })
