@@ -248,6 +248,7 @@ export const ko: Record<string, string> = {
   'ui.editor.loadout.grade': '세기 {cost}',
   'ui.editor.loadout.provisional': '세기 {cost}쯤 (예상)',
   'ui.editor.loadout.budget': '{spent} / {budget} 만큼 썼어요',
+  'ui.editor.loadout.no-cards': '이 방은 스킬 카드를 모두 함께 나눠 써요. 내 것으로 가져가려면 위에서 새 스킬 카드를 만들거나, 카드 하나를 함께 쓰는 목록에서 빼 주세요.',
   'ui.editor.loadout.no-budget': '이 방은 아직 한도를 안 정했어요.',
   'ui.editor.loadout.mismatch': '세기가 다른 기물끼리는 바꿔 넣을 수 없어요. 같은 세기끼리만 돼요.',
   'ui.editor.loadout.over-budget': '둘을 합치면 한도를 넘어요. 하나를 더 약한 걸로 바꿔 보세요.',

@@ -1203,6 +1203,23 @@ function LoadoutSection({
         ))}
       </select>
 
+      {ownable.length === 0 && (
+        /*
+         * The state a real room reaches and no test fixture did: this room deals
+         * EVERY card in the library, and a card the room deals cannot also be one
+         * side's own, so there is nothing left to choose. Found by opening the
+         * app — every test had quietly added a card of its own first, which made
+         * the empty case unreachable by construction.
+         *
+         * Named rather than left as a dropdown with one entry. A control that is
+         * technically present and cannot be completed is the worst of the three
+         * available answers; the other two are explaining it and offering the way
+         * out, and this does both.
+         */
+        <p className="hint" data-testid="loadout-no-cards">
+          {t('ui.editor.loadout.no-cards')}
+        </p>
+      )}
       <label htmlFor="loadout-skill">{t('ui.editor.loadout.skill')}</label>
       <select
         id="loadout-skill"

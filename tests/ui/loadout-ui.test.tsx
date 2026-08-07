@@ -304,3 +304,48 @@ describe('PLAN Phase 6 — opening a room does not re-measure what already shipp
     expect([...new Set(asked)].sort()).toEqual([OWN_CARD])
   })
 })
+
+describe('PLAN Phase 6 — the room that has no card left to own', () => {
+  /**
+   * The state every other test in this file made unreachable.
+   *
+   * Each of them adds a card of its own to the fixture first, so the shared pool
+   * always had something outside it. The SHIPPED room deals all fifteen cards,
+   * and a card the room deals cannot also be one side's own — so a child opening
+   * the default room found a picker they could not complete and nothing saying
+   * why. Found by running the app, not by the suite.
+   */
+  it('explains the empty list instead of offering a dropdown that cannot be completed', () => {
+    render(
+      React.createElement(RoomDetail, {
+        // The shipped document, unmodified — no probe card added.
+        source: bundledContentSource,
+        roomId: BUNDLED_PRESET_ID,
+        commit: () => {},
+        onBack: () => {},
+        onCreateRecord: () => {},
+        gradeCache: memoryCache(),
+      }),
+    )
+    fireEvent.click(screen.getByTestId('room-step-cards'))
+
+    const options = [...screen.getByTestId('loadout-skill').querySelectorAll('option')]
+    expect(options, 'the shipped room deals every card, so none is ownable').toHaveLength(1)
+    expect(screen.getByTestId('loadout-no-cards').textContent).toMatch(/새 스킬 카드를 만들거나/)
+  })
+
+  it('drops the explanation once a card is outside the shared pool', () => {
+    render(
+      React.createElement(RoomDetail, {
+        source: documentWithOwnCard(),
+        roomId: BUNDLED_PRESET_ID,
+        commit: () => {},
+        onBack: () => {},
+        onCreateRecord: () => {},
+        gradeCache: memoryCache(),
+      }),
+    )
+    fireEvent.click(screen.getByTestId('room-step-cards'))
+    expect(screen.queryByTestId('loadout-no-cards')).toBeNull()
+  })
+})
