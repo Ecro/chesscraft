@@ -30,8 +30,13 @@ function v6Document(): ContentSource {
 }
 
 describe('schema v7 artKey', () => {
-  it('declares version 7', () => {
-    expect(SCHEMA_VERSION).toBe(7)
+  it('is available — the axis landed in v7 and the build has not regressed below it', () => {
+    // A statement about the artKey axis, not about today's version number.
+    // Pinning the exact constant here made every schema bump edit this file for
+    // no reason artKey cares about; the literal-vs-constant drift check that
+    // pinning was standing in for lives, and is reasoned about, in
+    // `tests/content/bundled.test.ts`.
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(7)
   })
 
   it('loads a v6 document unchanged — artKey absent is the common case, not an edge', () => {

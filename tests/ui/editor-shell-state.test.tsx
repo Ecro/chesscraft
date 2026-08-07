@@ -131,7 +131,8 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
     fireEvent.change(screen.getByTestId('editor-id'), { target: { value: 'rule.first' } })
     fireEvent.change(screen.getByTestId('editor-name'), { target: { value: '첫 규칙' } })
     fireEvent.change(screen.getByTestId('editor-text'), { target: { value: '설명' } })
-    fireEvent.change(screen.getByTestId('editor-cost'), { target: { value: '1' } })
+    // No cost step: the control is gone as of schema v8 and the field is
+    // optional. It was only ever incidental scaffolding for a valid record here.
     fireEvent.click(screen.getByTestId('editor-add-effect'))
     fireEvent.click(screen.getByTestId('vocab-trigger-end_of_ply'))
     fireEvent.click(screen.getByTestId('vocab-action-win'))

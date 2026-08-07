@@ -75,6 +75,17 @@ export interface ContentSource {
   presets: unknown[]
 }
 
+/**
+ * Does any of these effects end the match by fiat?
+ *
+ * Walks the actions rather than pattern-matching a card id — `win` is ordinary
+ * vocabulary (ADR-012) and a record can carry it anywhere among its effects, so
+ * anything that named specific content here would miss the next card written.
+ */
+function hasWinAction(effects: ReadonlyArray<{ actions: ReadonlyArray<{ kind: string }> }>): boolean {
+  return effects.some((effect) => effect.actions.some((action) => action.kind === 'win'))
+}
+
 /** Best-effort id extraction so an error can name its record even when invalid. */
 function idOf(record: unknown, collection: string, index: number): string {
   if (record && typeof record === 'object' && 'id' in record) {
@@ -290,6 +301,83 @@ export function loadContentSet(source: unknown): LoadResult {
     preset.skillCardIds.forEach((refId, i) => {
       requireRef(skillCards.has(refId), id, `presets.${id}.skillCardIds.${i}`, 'skill card', refId)
     })
+
+    // --- v8 loadout ----------------------------------------------------
+    //
+    // Two kinds of rule live here and one kind deliberately does not. Reference
+    // checks and the STRUCTURAL duel-legal rules are decidable from the document
+    // alone, so they belong with every other fail-closed check. Band matching
+    // and the budget SUM need measured grades — 600 self-play matches per arm —
+    // and a synchronous validator cannot run twenty thousand matches, so those
+    // live in `@balance/legal` and run where the grade cache is (ADR-011).
+    const declaresLoadout = preset.loadout?.white !== undefined || preset.loadout?.black !== undefined
+    if (declaresLoadout && preset.loadoutBudget === undefined) {
+      // ADR-010, fail-closed. A room that declares a loadout without a budget is
+      // refused rather than defaulted or waved through: an optional field a gate
+      // activates on is this repo's most-recurring failure, and fail-open here
+      // means the room that forgot the number is the unconstrained one.
+      errors.push({
+        contentId: id,
+        path: `presets.${id}.loadoutBudget`,
+        message: 'a preset that declares a loadout must also declare loadoutBudget',
+      })
+    }
+
+    for (const side of ['white', 'black'] as const) {
+      const slot = preset.loadout?.[side]
+      if (!slot) continue
+      const at = `presets.${id}.loadout.${side}`
+      requireRef(pieces.has(slot.pieceId), id, `${at}.pieceId`, 'piece', slot.pieceId)
+      requireRef(pieces.has(slot.replaces), id, `${at}.replaces`, 'piece', slot.replaces)
+      requireRef(skillCards.has(slot.skillCardId), id, `${at}.skillCardId`, 'skill card', slot.skillCardId)
+
+      const brought = pieces.get(slot.pieceId)
+      const replaced = pieces.get(slot.replaces)
+      const card = skillCards.get(slot.skillCardId)
+
+      // ADR-003 — the ban attaches to the SLOT, not to where a record came from.
+      // `win` and `royal` stay perfectly legal in the library and in the shared
+      // draft pool; they simply cannot be what a side brings of its own. That is
+      // what makes a provenance flag unnecessary, and a provenance flag is a
+      // thing an imported document could forge.
+      if (brought && hasWinAction(brought.effects)) {
+        errors.push({ contentId: id, path: `${at}.pieceId`, message: `${slot.pieceId} wins the match outright, so it cannot be brought as a loadout` })
+      }
+      if (card && hasWinAction(card.effects)) {
+        errors.push({ contentId: id, path: `${at}.skillCardId`, message: `${slot.skillCardId} wins the match outright, so it cannot be brought as a loadout` })
+      }
+      if (brought?.royal) {
+        errors.push({ contentId: id, path: `${at}.pieceId`, message: `${slot.pieceId} is royal, so it cannot be brought as a loadout` })
+      }
+      // ADR-008 — replacing a royal piece would move the losing condition, which
+      // is a different game rather than a customised army.
+      if (replaced?.royal) {
+        errors.push({ contentId: id, path: `${at}.replaces`, message: `${slot.replaces} is royal and cannot be replaced` })
+      }
+
+      // A loadout card the room ALSO deals to everyone is not a loadout. Both
+      // sides draw from `skillCardIds`, so the overlap hands the other side the
+      // card this side brought as its own — silently, and only for some rooms,
+      // which is the worst version of the failure. Refused rather than papered
+      // over in `skillPoolFor`, because stripping a shared card from the OTHER
+      // side's pool would punish them for a choice they did not make.
+      if (preset.skillCardIds.includes(slot.skillCardId)) {
+        errors.push({
+          contentId: id,
+          path: `${at}.skillCardId`,
+          message: `${slot.skillCardId} is already in this room's shared pool, so it cannot also be ${side}'s own card`,
+        })
+      }
+
+      const board = boards.get(preset.boardId)
+      if (board && replaced && !board.placements.some((p) => p.side === side && p.pieceId === slot.replaces)) {
+        errors.push({
+          contentId: id,
+          path: `${at}.replaces`,
+          message: `${slot.replaces} does not stand on ${side}'s side of board ${preset.boardId}, so there is nothing to replace`,
+        })
+      }
+    }
   }
 
   // --- Fail closed --------------------------------------------------------

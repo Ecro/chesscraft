@@ -1,5 +1,6 @@
 import type { ContentSet } from '@content/load'
 import { DRAFT_OFFER_SIZE } from './engine'
+import { placementsFor, skillPoolFor } from './loadout'
 import { pickDistinct, rngFor } from './rng'
 import type { DraftState, GameState, PieceOnBoard, Side, SquareId } from './types'
 
@@ -53,10 +54,12 @@ export function createMatch({ content, presetId, seed }: CreateMatchOptions): Ma
       ? pickDistinct(rngFor(seed, 'rule-draw'), preset.ruleCardIds, 1)[0] ?? null
       : null
 
-  const offersFor = (side: Side) => pickDistinct(rngFor(seed, 'draft', side, 0), preset.skillCardIds, DRAFT_OFFER_SIZE)
+  // The pool is per side from here on (ADR-001) — the substream already was.
+  const offersFor = (side: Side) =>
+    pickDistinct(rngFor(seed, 'draft', side, 0), skillPoolFor(preset, side), DRAFT_OFFER_SIZE)
 
   const placed = new Map<SquareId, PieceOnBoard>()
-  for (const p of board.placements) placed.set(p.square, { pieceId: p.pieceId, side: p.side })
+  for (const p of placementsFor(board, preset)) placed.set(p.square, { pieceId: p.pieceId, side: p.side })
 
   const state: GameState = {
     width: board.width,

@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react(), serviceWorkerPlugin()],
   resolve: {
     alias: {
+      '@balance': fileURLToPath(new URL('./src/balance', import.meta.url)),
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
       '@content': fileURLToPath(new URL('./src/content', import.meta.url)),
       '@editor': fileURLToPath(new URL('./src/editor', import.meta.url)),

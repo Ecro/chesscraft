@@ -507,8 +507,10 @@ const FIELD_ROWS: readonly FieldRow[] = [
     authored: [{ kind: 'jump', vectors: [[2, 0]] }],
   },
   { host: 'squareType', what: 'paired', params: [{ testid: 'editor-paired' }], path: 'paired', authored: true },
-  { host: 'ruleCard', what: 'cost', params: [{ testid: 'editor-cost', value: '4' }], path: 'cost', authored: 4 },
-  { host: 'skillCard', what: 'cost', params: [{ testid: 'editor-cost', value: '3' }], path: 'cost', authored: 3 },
+  // `ruleCard.cost` and `skillCard.cost` used to be rows here. They were removed
+  // in schema v8 along with their control, and the removal is pinned by its own
+  // test at the bottom of this file rather than by silence — a field dropping out
+  // of this list is exactly how an uncontrolled field would sneak back in.
   { host: 'skillCard', what: 'uses', params: [{ testid: 'editor-uses', value: '2' }], path: 'uses', authored: 2 },
   {
     // ADR-010: a paired square type is meaningless without a partner, so the
@@ -703,5 +705,44 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       expect(committed.value, 'save produced no content').not.toBeNull()
       expect(openDraft(committed.value!, row.host, id)).toEqual(authored)
     })
+  })
+})
+
+/**
+ * The one field this gate deliberately does NOT require a control for.
+ *
+ * `cost` was an author-typed balance number that no code ever read — the
+ * textbook instance of this project's most recurring failure. Schema v8 makes it
+ * optional, deprecates it, and removes its control, because a record's strength
+ * is now measured rather than declared (ADR-002) and recomputed rather than
+ * stored (ADR-007).
+ *
+ * Pinned here rather than left implicit. Dropping a field out of the coverage
+ * table is indistinguishable from forgetting it; this test makes the removal a
+ * decision that a future change has to argue with.
+ */
+describe('schema v8 — `cost` is retired, not merely hidden', () => {
+  it.each(['ruleCard', 'skillCard'] as const)('offers no cost control on a %s', (host) => {
+    mount(sliceContentSource)
+    fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: host } })
+    // The form IS rendered — asserted through a control that must still be
+    // there, so a query returning null because nothing mounted cannot pass for
+    // a control that was deliberately removed.
+    expect(screen.getByTestId('editor-name')).toBeTruthy()
+    expect(screen.queryByTestId('editor-cost'), `${host} still offers a cost control`).toBeNull()
+  })
+
+  it('saves a card with no cost, and the saved record carries none', () => {
+    const committed = mount(sliceContentSource)
+    fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'skillCard' } })
+    clickAll(['editor-add-effect', 'vocab-trigger-on_play', 'vocab-action-destroy_piece'])
+    nameDraft('skill.probe-no-cost', 'skillCard')
+    fireEvent.click(screen.getByTestId('editor-save'))
+
+    expect(screen.queryByTestId('editor-errors')?.textContent ?? '', 'saving a costless card was rejected').toBe('')
+    expect(committed.value, 'save produced no content').not.toBeNull()
+    const saved = openDraft(committed.value!, 'skillCard', 'skill.probe-no-cost')
+    expect(saved).not.toBeNull()
+    expect(saved && 'cost' in saved, 'the form put a cost back on the record').toBe(false)
   })
 })

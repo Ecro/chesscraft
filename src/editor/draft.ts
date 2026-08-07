@@ -52,10 +52,14 @@ export function blankDraft(kind: DraftKind): Record<string, unknown> {
       return { ...common, movement: [{ kind: 'step', vectors: [[0, 1]] }] }
     case 'squareType':
       return { ...common, paired: false }
+    // No `cost`. It is optional and deprecated as of schema v8, the form no
+    // longer collects it, and nothing reads it — seeding one would put a field
+    // on every new card that the author can neither see nor change, which is the
+    // shape the deprecation exists to remove.
     case 'ruleCard':
-      return { ...common, cost: 0 }
+      return { ...common }
     case 'skillCard':
-      return { ...common, cost: 0, uses: 1 }
+      return { ...common, uses: 1 }
     case 'board':
       return { id: '', nameKey: '', width: 6, height: 6, placements: [], squares: [] }
     case 'preset':

@@ -1231,12 +1231,12 @@ export function RecordForm({
       {pieceGridView()}
       {recipeView()}
 
-      {(kind === 'ruleCard' || kind === 'skillCard') &&
-        numberField('editor-cost', 'ui.editor.field.cost', draft.cost, (n) =>
-          update((d) => {
-            d.cost = n ?? 0
-          }),
-        )}
+      {/* The `cost` control is gone as of schema v8. It let an author type their
+          own balance number, which nothing ever read — and a number the author
+          picks could never have been the objective index the grade needs to be.
+          A record's strength is now measured (ADR-002) and recomputed rather
+          than stored (ADR-007), so there is nothing here for a form to collect.
+          The field stays optional in the schema so older documents still load. */}
       {kind === 'skillCard' &&
         numberField('editor-uses', 'ui.editor.field.uses', draft.uses, (n) =>
           update((d) => {

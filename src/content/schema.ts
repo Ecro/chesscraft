@@ -60,8 +60,24 @@ import { z } from 'zod'
  * absent case is the common one for the whole life of the contract (nothing
  * bundled carries art until the art batch lands, and no authored record can
  * until the editor grows a picker), and every v6 document still loads unchanged.
+ *
+ * Bumped 7 -> 8 (PLAN-custom-piece-skill-balance ADR-001): `preset.loadout` and
+ * `preset.loadoutBudget`, so each SIDE can bring one piece and one skill card of
+ * its own into a match.
+ *
+ * The room carries it rather than the match, and that is the whole decision. A
+ * `createMatch` parameter would have left the loadout outside the document, so
+ * an exported room would arrive without the thing that makes it that room, and
+ * `(document, presetId, seed)` would stop reproducing a match — AC-004 and
+ * AC-015 both turn on the loadout being *content*.
+ *
+ * `cost` becomes optional in the same bump. It has been declared, editor-typed
+ * and read by nothing since v1; a grade measured from self-play replaces it
+ * (ADR-002), and a required field nobody reads is the shape this project's most
+ * recurring failure takes. Optional rather than deleted so every v1..v7 document
+ * that carries one still loads.
  */
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -378,8 +394,13 @@ export const ruleCardDef = z.strictObject({
   iconKey: i18nKey.optional(),
   /** Illustration for the rule badge, one asset, no side (v7). */
   artKey: artId.optional(),
-  /** Balance budget, in the Knightmare Chess sense. Unused by the MVP engine. */
-  cost: z.number().int().nonnegative(),
+  /**
+   * @deprecated since v8 — an author-typed balance number that nothing ever read.
+   * A record's strength is now the measured self-play delta (ADR-002), which is
+   * recomputed and never taken from the document (ADR-007). Kept optional so
+   * every v1..v7 document still loads; no reader is planned.
+   */
+  cost: z.number().int().nonnegative().optional(),
   effects: z.array(lifecycleEffect),
 })
 export type RuleCardDef = z.infer<typeof ruleCardDef>
@@ -392,7 +413,8 @@ export const skillCardDef = z.strictObject({
   iconKey: i18nKey.optional(),
   /** Illustration for the card face, one asset, no side (v7). */
   artKey: artId.optional(),
-  cost: z.number().int().nonnegative(),
+  /** @deprecated since v8 — see the note on `ruleCardDef.cost`. */
+  cost: z.number().int().nonnegative().optional(),
   uses: z.number().int().positive(),
   effects: z.array(skillEffect),
 })
@@ -445,6 +467,27 @@ export const boardDef = z
   })
 export type BoardDef = z.infer<typeof boardDef>
 
+/**
+ * What one side brings of its own (v8, ADR-001).
+ *
+ * All three ids are required together, because a slot missing any one of them is
+ * not a smaller loadout — it is a half-configured room whose behaviour every
+ * downstream reader would have to invent. A side that brings nothing omits its
+ * whole slot, and a room with no loadout omits the field; those are the two
+ * legal absences, and both are the common case.
+ *
+ * `replaces` names the bundled piece this one stands in for. The custom piece is
+ * a SUBSTITUTION rather than an addition (ADR-008): adding a piece changes the
+ * material balance the board was designed around, and letting a pawn be swapped
+ * for anything at all is the hole this whole feature exists to close.
+ */
+export const loadoutSlot = z.strictObject({
+  pieceId: contentId,
+  replaces: contentId,
+  skillCardId: contentId,
+})
+export type LoadoutSlot = z.infer<typeof loadoutSlot>
+
 export const presetDef = z.strictObject({
   id: contentId,
   nameKey: i18nKey,
@@ -452,6 +495,23 @@ export const presetDef = z.strictObject({
   pieceIds: z.array(contentId).min(1),
   ruleCardIds: z.array(contentId),
   skillCardIds: z.array(contentId),
+  /**
+   * Per-side custom entries (v8). Optional, and its absent case is every
+   * document written before v8 plus every room nobody has customised.
+   */
+  loadout: z.strictObject({ white: loadoutSlot.optional(), black: loadoutSlot.optional() }).optional(),
+  /**
+   * The grade budget a loadout must fit (v8, ADR-004).
+   *
+   * Optional in the SHAPE only. A room that declares a `loadout` without one is
+   * refused at load time (ADR-010) rather than defaulted or waved through: a
+   * gate that silently no-ops when its optional field is missing is this repo's
+   * most-recurring failure, and fail-open here means the room that forgot the
+   * number is exactly the unconstrained room the budget exists to prevent.
+   * Enforced in `load.ts`, not here, because the rule is about the RELATIONSHIP
+   * between two fields.
+   */
+  loadoutBudget: z.number().int().nonnegative().optional(),
 })
 export type PresetDef = z.infer<typeof presetDef>
 

@@ -33,11 +33,11 @@ describe('AC-010 — the bundled content set', () => {
     // plus their edits, and a v6 field inside a document that says v5 is the
     // lie `io.ts`'s version gate exists to catch.
     //
-    // Bumped to 7 with the `artKey` axis, and deliberately still a LITERAL
+    // Bumped to 8 with the `loadout` axis, and deliberately still a LITERAL
     // rather than `SCHEMA_VERSION`: comparing the constant to itself would pass
     // for any future bump that forgot to move the shipped document with it,
     // which is the exact drift this line exists to catch.
-    expect(result.set.schemaVersion).toBe(7)
+    expect(result.set.schemaVersion).toBe(8)
     // Absent, not empty-but-declared: the shipped set names everything through
     // the built-in bundle, which is what ADR-020's absent case must keep working.
     expect(result.set.strings).toEqual({})

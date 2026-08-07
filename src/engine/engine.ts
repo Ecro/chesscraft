@@ -10,6 +10,7 @@ import {
   pieceDefOf,
   resolveTarget,
 } from './effects'
+import { skillPoolFor } from './loadout'
 import { pickDistinct, rngFor } from './rng'
 import {
   type ActiveGrant,
@@ -892,7 +893,12 @@ function bumpTurns(state: GameState, content: ContentSet, mover: Side, usedCard:
   let everOffered = draft.everOffered
   if (completedTurns === SECOND_DRAFT_AFTER_TURNS && draft.draftIndex === 1 && offers === null) {
     const preset = content.presets.get(state.presetId)
-    const pool = (preset?.skillCardIds ?? []).filter((id) => !draft.everOffered.includes(id) && !draft.held.includes(id))
+    // Through `skillPoolFor`, never `preset.skillCardIds` — the opening offer in
+    // `match.ts` reads the same helper, and a second draft that skipped it would
+    // deal the shared pool while the first dealt the per-side one.
+    const pool = (preset ? skillPoolFor(preset, mover) : []).filter(
+      (id) => !draft.everOffered.includes(id) && !draft.held.includes(id),
+    )
     const drawn = pickDistinct(rngFor(state.seed, 'draft', mover, draft.draftIndex), pool, DRAFT_OFFER_SIZE)
     // AC-005 fixes an offer at three distinct cards, so a pool that cannot fill
     // one yields NO second offer. Not a short offer, and above all not an empty
