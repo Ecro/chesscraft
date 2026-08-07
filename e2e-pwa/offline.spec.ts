@@ -30,8 +30,13 @@ test('a second visit plays with the network switched off', async ({ page, contex
   // Not `expect(page).toHaveTitle(...)`: a cached shell with dead assets would
   // satisfy that while showing nothing. Reaching the board proves the bundle,
   // the stylesheet and the content set all came from the cache.
-  await page.getByTestId('coach-skip').click()
+  // Onboarding, which a browser that has never been here opens on. Reached and
+  // dismissed rather than skipped past with a storage seed: this spec's whole
+  // subject is a SECOND visit to a real browser, and seeding its storage would
+  // be describing a different visit.
+  await page.getByTestId('boot-skip').click()
   await page.getByTestId('start-match').click()
+  await page.getByTestId('lobby-start').click()
   await expect(page.getByTestId('board')).toBeVisible()
   await expect(page.locator('[data-testid^="sq-"]').first()).toBeVisible()
 
@@ -44,27 +49,39 @@ test('a second visit plays with the network switched off', async ({ page, contex
   expect(painted, 'squares have no background — the stylesheet did not come from cache').not.toBe('rgba(0, 0, 0, 0)')
 
   /*
-   * And the art decoded, offline, from the cache.
+   * And the font came with it.
    *
-   * `naturalWidth` and not `toBeVisible()`: a broken <img> is still a visible
-   * element with a layout box, so the visibility assertion passes on exactly
-   * the failure this line exists for. A non-zero natural width means the bytes
-   * arrived and the browser decoded them.
-   *
-   * Checked directly rather than inferred. `cache.addAll` is all-or-nothing, so
-   * a missing asset would fail the worker install and be caught above — but
-   * that reasoning only holds while the asset is IN the precache list, which is
-   * the thing that silently stops being true (see tests/build/precache.test.ts).
-   * Depending on the atomicity would make this suite's coverage of the art a
-   * side effect of a mechanism one commit could remove.
+   * Half a megabyte of Korean pixel font is now the one non-code asset the
+   * bundle carries, and it is the thing an offline app most visibly loses: the
+   * markup, the colours and the sprites all survive a missing font, and the app
+   * simply stops looking like itself. `document.fonts.check` answers from the
+   * font set the page actually loaded, so a cached-but-corrupt file fails here
+   * rather than passing a URL check.
    */
-  const art = page.locator('.square-mark img')
+  const hasFont = await page.evaluate(() => document.fonts.check('12px Galmuri11'))
+  expect(hasFont, 'Galmuri did not come from the cache — the offline app has no pixel font').toBe(true)
+
+  /*
+   * And the art is on the board, offline.
+   *
+   * This used to measure an `<img>`'s `naturalWidth`, because a broken image is
+   * still a visible element with a layout box and `toBeVisible()` passes on
+   * exactly the failure the line existed for. There is no image any more: every
+   * mark is a sprite the bundle draws, so the failure mode it guarded against —
+   * an asset that fell out of the precache list — cannot happen to the art. It
+   * can still happen to the font, which is why the check above replaced it.
+   *
+   * What is left worth asserting is that the marks reached the board at all. A
+   * sprite that fails to render leaves the square empty rather than broken, so
+   * this counts rects: an SVG with no children is the sprite equivalent of a
+   * broken image, and it is invisible to every other assertion in this file.
+   */
+  const rects = await page.locator('.square .piece svg.pix rect').count()
+  expect(rects, 'no sprite rects on the board — the marks did not render offline').toBeGreaterThan(0)
   // Unconditional, not `if (count > 0)`. The bundled board paints a marked
-  // square, so a count of zero means the art stopped rendering — which is a
-  // finding, not a reason to skip.
-  await expect(art.first()).toBeAttached()
-  const decoded = await art.first().evaluate((el) => (el as HTMLImageElement).naturalWidth)
-  expect(decoded, 'the art asset did not decode offline — it is missing from the precache').toBeGreaterThan(0)
+  // square, so a count of zero means the square marks stopped rendering —
+  // which is a finding, not a reason to skip.
+  await expect(page.locator('.square-mark svg.pix').first()).toBeAttached()
 })
 
 test('ships a manifest an installable app needs', async ({ page, request }) => {

@@ -11,22 +11,15 @@
  */
 export const ko: Record<string, string> = {
   // --- pieces ---
-  // Icons (schema v4, ADR-017). They live in the locale bundle with everything
-  // else the player sees, which is not pedantry: a locale that prefers a
-  // different set of piece symbols can override them without touching content.
-  'piece.king.icon': '♚',
-  'piece.queen.icon': '♛',
-  'piece.rook.icon': '♜',
-  'piece.knight.icon': '♞',
-  'piece.pawn.icon': '♟',
-  // NOT an emoji. '🏹' is default-emoji-presentation, so browsers draw it from a
-  // colour font that ignores `color` and `font-weight` — the two cues tokens.css
-  // commits to — and both sides' archers rendered identically. '♝' is in the same
-  // monochrome family as the rest, inherits both cues, and is the slot the archer
-  // occupies: Los Alamos has no bishops. It reads as "bishop" to a chess-literate
-  // adult, which is the accepted cost; the audience learns the piece from its name
-  // and its rules entry, not from the glyph's chess history.
-  'piece.archer.icon': '♝',
+  // The `.icon` entries are gone (Chess Craft redesign). Every bundled record
+  // now carries an `artKey` into the app's own 12x12 sprite sheet, and the note
+  // that used to sit on the archer is why: an emoji is drawn from a colour font
+  // that ignores `color` and `font-weight`, so it inherits neither of the two
+  // cues ADR-007 spends separating the armies, and both sides' archers rendered
+  // identically. A sprite takes whatever tint it is handed.
+  //
+  // The `iconKey` axis itself stays in the schema — an author can still reach
+  // for a glyph, and `resolveMark` still falls through to one.
   'piece.king.name': '왕',
   'piece.king.text': '어느 방향으로든 한 칸씩 움직인다. 왕이 잡히면 그 자리에서 게임이 끝난다.',
   'piece.queen.name': '여왕',
@@ -44,101 +37,70 @@ export const ko: Record<string, string> = {
   // --- special squares ---
   'square.bomb.name': '폭탄칸',
   'square.bomb.text': '이 칸에 들어온 기물은 편을 가리지 않고 그 자리에서 사라진다.',
-  'square.bomb.icon': '💣',
   'square.portal.name': '차원문',
   'square.portal.text': '이 칸에 들어온 기물은 짝이 되는 차원문으로 곧장 날아간다.',
-  'square.portal.icon': '🌀',
   'square.shrine.name': '신전',
   'square.shrine.text': '이 칸에 들어온 병사는 그 자리에서 여왕이 된다.',
-  'square.shrine.icon': '⛩️',
   'square.sanctuary.name': '성역',
   'square.sanctuary.text': '이 칸에 서 있는 기물은 상대가 잡을 수 없다.',
-  'square.sanctuary.icon': '🛡️',
   'square.mire.name': '수렁',
   'square.mire.text': '이 칸에 들어온 기물은 두 번의 차례 동안 발이 묶인다.',
-  'square.mire.icon': '⚓',
 
   // --- rule cards ---
   'rule.king-of-the-hill.name': '언덕의 왕',
   'rule.king-of-the-hill.text': '상대 기물이 여덟 이하로 줄어든 뒤, 내 왕이 가운데 네 칸 중 하나에 서 있는 채로 턴이 끝나면 그 즉시 이긴다.',
-  'rule.king-of-the-hill.icon': '🏔️',
   'rule.three-check.name': '삼세판 체크',
   'rule.three-check.text': '상대 왕을 세 번 체크하면 그 즉시 이긴다. 잡지 않아도 된다.',
-  'rule.three-check.icon': '3️⃣',
   'rule.sudden-death.name': '전멸전',
   'rule.sudden-death.text': '상대 기물이 두 개 이하로 줄어들면 그 즉시 이긴다.',
-  'rule.sudden-death.icon': '☠️',
   'rule.fast-promotion.name': '빠른 승격',
   'rule.fast-promotion.text': '내 병사가 끝줄 바로 앞까지만 가도 여왕이 된다.',
-  'rule.fast-promotion.icon': '⏫',
   'rule.royal-bodyguard.name': '왕의 호위',
   'rule.royal-bodyguard.text': '왕 바로 옆에 붙어 있는 기물은 잡히지 않는다. 양쪽 모두에게 적용된다.',
-  'rule.royal-bodyguard.icon': '🏰',
   'rule.last-stand.name': '최후의 저항',
   'rule.last-stand.text': '내 기물이 셋 이하로 줄어들면, 내 왕이 여왕처럼 쭉 움직일 수 있다.',
-  'rule.last-stand.icon': '🔥',
   'rule.conscription.name': '징집령',
   'rule.conscription.text': '내 기물이 셋 이하일 때 턴이 끝나면, 내 뒷줄 빈 칸에 병사가 한 명 나타난다.',
-  'rule.conscription.icon': '🪖',
   'rule.blood-toll.name': '피의 대가',
   'rule.blood-toll.text': '기물을 잡은 기물도 함께 사라진다. 함부로 잡을 수 없게 된다.',
-  'rule.blood-toll.icon': '🩸',
   'rule.blitz.name': '속결',
   'rule.blitz.text': '상대를 두 번 체크하면 그 즉시 이긴다.',
-  'rule.blitz.icon': '⚡',
   'rule.knights-honour.name': '기사의 명예',
   'rule.knights-honour.text': '모든 기사가 ㄱ자 대신 아무 방향으로 한 칸 움직일 수도 있다.',
-  'rule.knights-honour.icon': '🐴',
   'rule.duel.name': '결투',
   'rule.duel.text': '상대 기물이 여덟 이하로 줄면 그 즉시 이긴다.',
-  'rule.duel.icon': '⚔️',
 
   // --- skill cards ---
   'skill.teleport.name': '순간이동',
   'skill.teleport.text': '우리 편 기물 하나를 아무 빈 칸으로 옮긴다.',
-  'skill.teleport.icon': '💫',
   'skill.swap.name': '자리바꿈',
   'skill.swap.text': '우리 편 기물 둘의 자리를 서로 맞바꾼다.',
-  'skill.swap.icon': '🔄',
   'skill.revive.name': '부활',
   'skill.revive.text': '잃었던 내 기물 하나를 뒷줄 빈 칸에 되살린다. 왕과 여왕은 돌아오지 않는다.',
-  'skill.revive.icon': '🌱',
   'skill.freeze.name': '결박',
   'skill.freeze.text': '상대 기물 하나를 두 번의 차례 동안 꽁꽁 묶어 둔다.',
-  'skill.freeze.icon': '❄️',
   'skill.snare.name': '올가미',
   'skill.snare.text': '상대 기물 하나를 한 번의 차례 동안 묶어 둔다. 값이 싸다.',
-  'skill.snare.icon': '🪤',
   'skill.coronation.name': '대관식',
   'skill.coronation.text': '내 병사 하나를 그 자리에서 곧바로 여왕으로 만든다.',
-  'skill.coronation.icon': '👑',
   'skill.knight-leap.name': '기사의 도약',
   'skill.knight-leap.text': '우리 편 기물 하나가 잠시 기사처럼 ㄱ자로 뛸 수 있게 된다.',
-  'skill.knight-leap.icon': '🐎',
   'skill.charge.name': '돌진 나팔',
   'skill.charge.text': '내 병사 전부가 잠시 앞으로 두 칸까지 갈 수 있게 된다.',
-  'skill.charge.icon': '📯',
   'skill.bulwark.name': '방벽',
   'skill.bulwark.text': '우리 편 기물 하나가 잠시 아무에게도 잡히지 않는다.',
-  'skill.bulwark.icon': '🧱',
   'skill.shackle.name': '족쇄',
   'skill.shackle.text': '상대 기물 하나가 잠시 한 발짝도 움직이지 못한다.',
-  'skill.shackle.icon': '⛓️',
   'skill.recall.name': '귀환',
   'skill.recall.text': '우리 편 기물 하나를 내 뒷줄 빈 칸으로 불러들인다.',
-  'skill.recall.icon': '🏠',
   'skill.shove.name': '밀치기',
   'skill.shove.text': '상대 기물 하나를 자기 진영 쪽으로 한 칸 밀어낸다.',
-  'skill.shove.icon': '👊',
   'skill.recruit.name': '징집',
   'skill.recruit.text': '내 뒷줄 빈 칸에 새 병사를 한 명 세운다.',
-  'skill.recruit.icon': '➕',
   'skill.volley.name': '일제사격',
   'skill.volley.text': '상대 기물 하나를 그 자리에서 없앤다.',
-  'skill.volley.icon': '🏹',
   'skill.sacrifice.name': '희생',
   'skill.sacrifice.text': '내 기물 하나를 버리는 대신, 상대 기물 하나를 없앤다.',
-  'skill.sacrifice.icon': '🗡️',
 
   // --- boards and presets ---
   'board.los-alamos.name': '로스앨러모스 6x6',
@@ -211,9 +173,6 @@ export const ko: Record<string, string> = {
   'ui.sound.off': '소리: 꺼짐',
   'ui.haptics.on': '진동: 켜짐',
   'ui.haptics.off': '진동: 꺼짐',
-  'ui.theme.system': '화면: 자동',
-  'ui.theme.light': '화면: 밝게',
-  'ui.theme.dark': '화면: 어둡게',
   'ui.action.flip': '보드 돌리기',
   'ui.board.label': '체스판',
   'ui.board.empty': '빈 칸',
@@ -238,15 +197,6 @@ export const ko: Record<string, string> = {
   'ui.rules.ruleCards': '규칙 카드',
   'ui.rules.skillCards': '스킬 카드',
   'ui.rules.empty': '아직 없어요',
-  'ui.action.rules': '무엇이 있나 보기',
-  // --- first-visit coach marks (Phase 3) ---
-  // '여기' pointed at nothing — the coach is a card beside the button, not a
-  // spotlight on it — so the button is named by the label a child can read.
-  'ui.coach.start': '놀이를 고른 다음 「놀러 가기」를 누르면 시작해요.',
-  'ui.coach.rules': '기물이나 카드가 뭐 하는 건지 모르겠으면 언제든 여기서 볼 수 있어요.',
-  'ui.coach.next': '다음',
-  'ui.coach.skip': '건너뛰기',
-  'ui.coach.done': '알겠어요',
   'ui.result.win': '승리',
   'ui.result.draw': '무승부',
 
@@ -433,4 +383,154 @@ export const ko: Record<string, string> = {
   'ui.editor.vocab.movement.step': '한 칸씩',
   'ui.editor.vocab.movement.jump': '뛰어넘기',
   'ui.editor.vocab.forEach.piece': '기물마다',
+
+  // ============================================================================
+  // Chess Craft redesign
+  //
+  // Placeholders are `{name}` / `{n}` and are filled by `String.replace` at the
+  // call site rather than by a formatting library. Korean word order puts the
+  // verb last, so a sentence assembled from fragments in English order reads
+  // wrong — the whole sentence has to live here, with the holes in it.
+  // ============================================================================
+
+  // --- shell ---
+  'ui.app.wordmark': 'CHESS\nCRAFT',
+  'ui.tab.dex': '도감',
+  'ui.tab.label': '갈 곳',
+  'ui.action.back': '뒤로',
+  'ui.action.close': '닫기',
+
+  // --- onboarding ---
+  // Three cards, and each says something a child cannot find out by looking at
+  // the board: that they can change it, that the rules move, and that this is
+  // for two people on one phone.
+  'ui.boot.label': '처음 오셨네요',
+  'ui.boot.build.title': '블록으로 체스를 짓자',
+  'ui.boot.build.body': '판을 칠하고 기물을 만들고 카드를 끼우면\n나만의 체스가 됩니다.',
+  'ui.boot.rules.title': '판마다 규칙이 달라져요',
+  'ui.boot.rules.body': '시작할 때 규칙 카드가 한 장 뽑혀요.\n같은 방도 매번 다르게 흘러갑니다.',
+  'ui.boot.hotseat.title': '폰 하나로 둘이',
+  'ui.boot.hotseat.body': '친구와 번갈아 두세요.\n내 방을 통째로 보내 줄 수도 있어요.',
+  'ui.boot.next': '다음',
+  'ui.boot.skip': '건너뛰기',
+  'ui.boot.done': '시작하기',
+
+  // --- title screen ---
+  'ui.home.prev-room': '이전 방',
+  'ui.home.next-room': '다음 방',
+  'ui.home.edit-room': '이 방 고치기',
+  'ui.home.new-room': '새 방 만들기',
+  'ui.home.no-rooms': '아직 방이 하나도 없어요. 하나 만들면 여기에 나와요.',
+  'ui.home.tag.pieces': '기물',
+  'ui.home.tag.cards': '카드',
+  'ui.home.tag.painted': '특별한 칸',
+
+  // --- lobby ---
+  'ui.lobby.title': '친구와 놀기',
+  'ui.lobby.intro': '폰 하나로 번갈아 둡니다. 이름을 정하고 시작하세요.',
+  'ui.lobby.role.white': '파란 편 · 먼저 둠',
+  'ui.lobby.role.black': '빨간 편 · 나중에 둠',
+  'ui.lobby.room': '놀 방',
+  'ui.lobby.change-room': '바꾸기',
+  'ui.lobby.start': '시작!',
+  // The share control hands over the whole room as text. It is long, and saying
+  // so up front is better than a child pasting half of it — see the note in
+  // `Lobby.tsx` on why this is not a short code.
+  // Says "everything I made", not "this room". What travels is the whole
+  // document — every room, piece and card in it — because a room points at
+  // pieces and cards that would be missing on the friend's phone otherwise.
+  // Promising one room and sending all of them is the kind of small lie a child
+  // finds out about by being confused.
+  'ui.lobby.share.title': '내가 만든 것 주고받기',
+  'ui.lobby.share.hint': '내가 만든 방과 기물, 카드가 통째로 넘어가요. 복사한 글자를 전부 보내세요 — 길어요, 잘라 보내면 안 열려요.',
+  'ui.lobby.share.copy': '통째로 복사',
+  'ui.lobby.share.copied': '복사했어요',
+  'ui.lobby.share.copy-failed': '복사할 수 없어요',
+  'ui.lobby.share.paste-label': '받은 글자 붙여넣기',
+  'ui.lobby.share.warning': '넣으면 지금 내가 만든 것이 친구 것으로 바뀌어요.',
+  'ui.lobby.share.paste': '넣기',
+  'ui.lobby.share.accepted': '친구가 만든 것을 받았어요.',
+  'ui.lobby.share.rejected': '이 글자로는 못 열었어요. 통째로 붙여넣었는지 봐 주세요.',
+
+  // --- the board ---
+  'ui.status.whose-turn': '{name} 차례',
+  'ui.status.waiting': '{name} (기다리는 중)',
+  'ui.status.taken': '잡은 기물 {n}개',
+  'ui.rule.this-match': '이 판의 규칙',
+  'ui.draft.hint': '가져간 카드는 대국 중 아무 때나 쓸 수 있어요.',
+  'ui.hint.tap-piece': '기물을 눌러 움직이세요',
+  'ui.hint.choose-target': '카드를 쓸 곳을 고르세요',
+  'ui.hand.owner': '{name}의 카드',
+  'ui.hand.no-cards': '스킬 카드를 뽑으면 여기에 들어와요.',
+  'ui.dex.more': '도감 ▸',
+  // Handing the phone over. '넘겨 주세요' rather than '넘기세요' — the person
+  // reading it is the one who just finished, and this is a request to them.
+  'ui.curtain.pass': '폰을 넘겨 주세요',
+  'ui.curtain.your-turn': '차례예요',
+  'ui.curtain.tap': '눌러서 시작',
+
+  // --- result ---
+  'ui.result.winner': '{name} 승리!',
+  'ui.result.stat.plies': '둔 수',
+  'ui.result.stat.took': '{name} 잡음',
+
+  // --- 도감 ---
+  'ui.dex.kind.piece': '기물',
+  'ui.dex.kind.square': '특별한 칸',
+  'ui.dex.kind.rule': '규칙 카드',
+  'ui.dex.kind.skill': '스킬 카드',
+
+  // --- the room builder's five steps ---
+  'ui.editor.step.board': '판 칠하기',
+  'ui.editor.step.pieces': '기물',
+  'ui.editor.step.place': '배치',
+  'ui.editor.step.cards': '카드',
+  'ui.editor.step.name': '이름',
+  'ui.editor.step.board-hint': '아래에서 블록을 고른 다음 판을 눌러 칠하세요. 같은 칸을 다시 누르면 지워져요.',
+  'ui.editor.step.pieces-hint': '이 방에 넣을 기물을 고르세요. 최소 하나는 있어야 해요.',
+  'ui.editor.step.place-hint': '편과 기물을 고른 다음 판을 눌러 세우세요. 세운 자리를 다시 누르면 치워져요.',
+  'ui.editor.step.rules-hint': '판이 시작될 때 여기서 한 장이 뽑혀 그 판의 규칙이 돼요.',
+  'ui.editor.step.skills-hint': '대국 시작 전에 두 사람이 여기서 한 장씩 골라 가져요.',
+  'ui.editor.paint.palette': '블록 고르기',
+  'ui.editor.paint.erase': '지우개',
+  'ui.editor.paint.erase-hint': '칠한 블록을 지웁니다.',
+  // Paired types need a symmetric partner or the board will not load, so the
+  // tool paints them in two taps rather than saving something invalid.
+  'ui.editor.paint.paired-hint': '이 블록은 둘씩 짝을 지어요. 두 칸을 차례로 누르세요.',
+  'ui.editor.paint.pair-pending': '짝이 될 칸을 하나 더 누르세요. 같은 칸을 다시 누르면 그만둬요.',
+  'ui.editor.place.count': '파란 편 {white} · 빨간 편 {black}',
+  'ui.editor.place.clear': '전부 치우기',
+  'ui.editor.room.summary': '기물 {pieces} · 규칙 카드 {rules} · 스킬 카드 {skills}',
+  'ui.editor.room.play': '바로 해보기',
+
+  // --- the piece maker ---
+  'ui.editor.field.art': '그림',
+  'ui.editor.piece.how': '어떻게 움직이나요',
+  'ui.editor.piece.how-hint': '칸을 누를 때마다 이동 → 잡기 → 둘 다 → 없음 순으로 바뀝니다. 가운데가 이 기물이에요.',
+  'ui.editor.piece.summary.step': '갈 수 있는 칸 {moves}곳, 잡을 수 있는 칸 {takes}곳으로 한 칸씩 움직인다.',
+  'ui.editor.piece.summary.slide': '갈 수 있는 방향 {moves}갈래, 잡을 수 있는 방향 {takes}갈래로 원하는 만큼 쭉 간다.',
+  'ui.editor.piece.summary.jump': '갈 수 있는 칸 {moves}곳, 잡을 수 있는 칸 {takes}곳으로 뛴다. 사이에 기물이 있어도 넘어간다.',
+  'ui.editor.piece.dex-preview': '도감에는 이렇게 적혀요',
+  'ui.editor.piece.use-summary': '이 설명 쓰기',
+  'ui.editor.piece.no-moves': '갈 수 있는 칸이 하나도 없어요. 이동 칸을 적어도 하나 골라 주세요.',
+  // Omitting `attack` means captures fall back to the movement — so "moves but
+  // never captures" is not something the schema can say, and pretending
+  // otherwise would ship a piece that takes when the child said it would not.
+  'ui.editor.piece.no-takes': '잡기 칸을 따로 고르지 않으면, 갈 수 있는 칸에서 그대로 잡아요.',
+  'ui.editor.piece.complex': '이 기물은 자세히 설정으로 만들어졌어요',
+  'ui.editor.piece.complex-hint': '움직임이 여러 가지라 격자 하나로는 못 그려요. 아래 자세한 칸에서 고쳐 주세요.',
+
+  // --- the card maker ---
+  'ui.editor.card.recipe': '이 카드가 하는 일',
+  'ui.editor.card.recipe-hint': '빈 자리를 골라 블록을 끼우세요. 끼운 대로 카드가 만들어집니다.',
+  'ui.editor.card.slot.when': '언제',
+  'ui.editor.card.slot.cond': '이럴 때만',
+  'ui.editor.card.slot.then': '그러면',
+  'ui.editor.card.slot.who': '누구에게',
+  'ui.editor.card.slot.none': '고를 것 없음',
+  'ui.editor.card.reads-as': '이렇게 됩니다',
+  'ui.editor.card.sentence.skill': '카드를 내면, {cond}일 때 {who}에게 「{then}」을 한다.',
+  'ui.editor.card.sentence.rule': '{when}에, {cond}일 때 {who}에게 「{then}」을 한다.',
+  'ui.editor.card.complex': '이 카드는 자세히 설정으로 만들어졌어요',
+  'ui.editor.card.complex-hint': '하는 일이 여러 가지라 블록 네 개로는 못 담아요. 아래 자세한 칸에서 고쳐 주세요.',
 }

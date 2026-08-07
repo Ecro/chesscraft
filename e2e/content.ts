@@ -1,5 +1,6 @@
 import { type Page, expect } from '@playwright/test'
 import { sliceContentSource } from '../src/content/sets/slice'
+import { chooseRoom, startMatch } from './nav'
 
 /**
  * Loads the Phase 3 slice into a running app.
@@ -24,8 +25,12 @@ export async function useSliceContent(page: Page) {
   // Fail here rather than in whatever assertion happens to come first.
   await expect(page.getByTestId('editor-errors')).toHaveCount(0)
   await page.getByTestId('tab-play').click()
-  await expect(page.getByTestId('preset-select')).toHaveValue('preset.slice')
+  // The room picker is a carousel rather than a `<select>` since the redesign,
+  // so choosing one means stepping to it. Asserted by stepping: `chooseRoom`
+  // throws naming the room if it is not in the document, which is the same
+  // failure the old `toHaveValue` gave.
+  await chooseRoom(page, 'preset.slice')
   // Phase 2 put a home screen in front of the board; the specs that used this
   // helper expected to be mid-match when it returned, so it starts one.
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
 }

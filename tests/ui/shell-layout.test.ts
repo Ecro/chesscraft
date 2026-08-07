@@ -56,3 +56,44 @@ describe('the app shell keeps its content out from under the notch (#32)', () =>
     }
   })
 })
+
+/**
+ * Two rules the editor's scrolling turned out to depend on, both found by
+ * scrolling the editor and finding that it would not.
+ */
+describe('the phone shell bounds its content', () => {
+  it('gives `main` a height, not only a minimum', () => {
+    // `.phone` is `flex: 1 1 auto`, and a flex item only SHRINKS against a
+    // parent that has a height. With `min-height` alone the shell grew to fit
+    // the editor's 4,700px of forms, its `overflow: hidden` clipped nothing,
+    // and every inner scroller had an unbounded parent to grow inside instead.
+    const body = ruleBody(CSS(), 'main')
+    expect(body).toMatch(/(^|\s|;)height:\s*100dvh/)
+  })
+
+  it('lets each screen decide whether it scrolls', () => {
+    // `.phone > section { overflow: hidden }` outranks a bare `.editor` or
+    // `.home`, so one declaration silently won over every screen that had asked
+    // to scroll. The match screen clips itself; nothing above it may do so on
+    // its behalf.
+    expect(ruleBody(CSS(), '.phone > section')).not.toMatch(/overflow/)
+  })
+
+  it('never overrides `display` on a panel the editor has hidden', () => {
+    /*
+     * `Edit` keeps both panels mounted and marks the inactive one `hidden` —
+     * that is what lets a half-assembled room survive a trip to the library, and
+     * what the ADR-006 vocabulary gate relies on to drive controls the child has
+     * not opened. A `display` on the panel selector outranks the UA's
+     * `[hidden] { display: none }` and undoes all of it silently: the library
+     * renders underneath the rooms panel and the editor doubles in height.
+     */
+    const css = CSS().replace(/\/\*[\s\S]*?\*\//g, '')
+    const selectors = [...css.matchAll(/(^|\})([^{}]*\.editor\s*>\s*div[^{}]*)\{([^}]*)\}/g)]
+    expect(selectors.length, 'no rule targets the editor panels — has the selector moved?').toBeGreaterThan(0)
+    for (const [, , selector, block] of selectors) {
+      if (!/display\s*:/.test(block ?? '')) continue
+      expect(selector, `${selector!.trim()} sets display without excluding [hidden]`).toMatch(/:not\(\[hidden\]\)/)
+    }
+  })
+})

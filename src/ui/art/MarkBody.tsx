@@ -1,4 +1,5 @@
 import type { Mark } from './resolve'
+import { Pix } from './Pix'
 
 /**
  * The mark's body, inside whichever wrapper the call site already had.
@@ -23,6 +24,10 @@ import type { Mark } from './resolve'
  */
 export function MarkBody({ mark }: { mark: Mark }) {
   if (mark.kind === 'none') return null
+  // Sized in `em` by `Pix` itself, for the same reason the `<img>` below is:
+  // the wrapper's font-size is what already positions the mark correctly on
+  // five different surfaces.
+  if (mark.kind === 'pixel') return <Pix sprite={mark.sprite} tint={mark.tint} />
   if (mark.kind === 'art') {
     // `alt=""`, not a name: every wrapper is already `aria-hidden`, and the
     // square's own `aria-label` names the type in words.

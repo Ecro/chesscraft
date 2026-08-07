@@ -1,5 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { chooseRoom, goEditor, startMatch } from './nav'
 
 /**
  * PLAN Phase 5 exit criterion — the content editor, end to end.
@@ -20,7 +21,7 @@ import { useSliceContent } from './content'
  */
 async function openEditor(page: Page, kind: string) {
   await useSliceContent(page)
-  await page.getByTestId('tab-edit').click()
+  await goEditor(page)
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption(kind)
 }
@@ -49,8 +50,8 @@ async function play(page: Page, presetId?: string) {
   // tab-play lands on the home screen since Phase 2, and the preset picker
   // moved there with it — choosing what to play is a before-the-match decision.
   await page.getByTestId('tab-play').click()
-  if (presetId) await page.getByTestId('preset-select').selectOption(presetId)
-  await page.getByTestId('start-match').click()
+  if (presetId) await chooseRoom(page, presetId)
+  await startMatch(page)
 }
 
 /**
@@ -177,7 +178,16 @@ test.describe('special-square axis', () => {
     await save(page)
 
     await play(page)
-    await expect(page.getByTestId('square-legend')).toContainText('square.beacon.revised')
+    // Past the draft first: the sheet is opaque and sits over the bottom of the
+    // play area, which is where the legend lives.
+    await resolveOpeningDrafts(page)
+    // The legend is a row of chips now — a name and its mark — with the ability
+    // text one tap away in the same sheet the dex uses. AC-018 asks for the text
+    // to be reachable during the match, not for it to be on the board at all
+    // times, and a paragraph per painted type does not fit a screen that no
+    // longer scrolls.
+    await page.getByTestId('square-legend').getByRole('button').first().click()
+    await expect(page.getByTestId('peek-sheet')).toContainText('square.beacon.revised')
   })
 })
 
@@ -210,7 +220,12 @@ test.describe('rule-card axis', () => {
     await save(page)
 
     await play(page)
-    await expect(page.getByTestId('rule-card')).toContainText('rule.beacon-rush.revised')
+    // The rule's NAME is always up; its prose is behind the bar's own
+    // disclosure, because the board needs the room and the name is what a
+    // player checks mid-match. AC-004's display clause is about the card staying
+    // on screen for the whole match, which it does.
+    await page.getByTestId('rule-card').click()
+    await expect(page.locator('.rule-text')).toContainText('rule.beacon-rush.revised')
   })
 })
 
@@ -265,8 +280,12 @@ test.describe('skill-card axis', () => {
     await expect(page.getByTestId('offer-skill.warp')).toContainText('skill.warp.renamed')
 
     // Held cards carry the edit too, which is the clause the test name makes.
+    // The hotbar slot is a mark, so the name lives in its accessible name and in
+    // the detail line under it — both read from the same record, and the
+    // accessible name is the one a condensed hand must never lose.
     await page.getByTestId('offer-skill.warp').click()
-    await expect(page.getByTestId('hand-white-skill.warp')).toContainText('skill.warp.renamed')
+    await expect(page.getByTestId('hand-white-skill.warp')).toHaveAttribute('aria-label', 'skill.warp.renamed')
+    await expect(page.getByTestId('slot-detail')).toContainText('skill.warp.renamed')
   })
 })
 
@@ -358,7 +377,7 @@ test.describe('validation and transfer', () => {
     expect(exported).toContain('skill.mirror')
 
     await page.reload()
-    await page.getByTestId('tab-edit').click()
+    await goEditor(page)
     await page.getByTestId('editor-json').fill(exported)
     await page.getByTestId('editor-import').click()
     await expect(page.getByTestId('editor-errors')).toHaveCount(0)
@@ -371,7 +390,7 @@ test.describe('validation and transfer', () => {
 
   test('refuses an import that is not valid content and says why', async ({ page }) => {
     await useSliceContent(page)
-    await page.getByTestId('tab-edit').click()
+    await goEditor(page)
     await page.getByTestId('editor-json').fill('{"schemaVersion": 3, "pieces": "not a list"}')
     await page.getByTestId('editor-import').click()
     await expect(page.getByTestId('editor-errors')).toBeVisible()
@@ -396,7 +415,7 @@ test.describe('validation and transfer', () => {
     await expect(page.getByTestId('editor-storage-status')).not.toBeEmpty()
 
     await page.reload()
-    await page.getByTestId('tab-edit').click()
+    await goEditor(page)
     await page.getByTestId('editor-tab-library').click()
     await page.getByTestId('editor-kind').selectOption('skillCard')
     await expect(page.getByTestId('library-open-skill.keepsake')).toBeVisible()

@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { startMatch } from './nav'
 
 /**
  * PLAN Phase 6 — the checks that need a real layout.
@@ -17,22 +18,31 @@ import { type Page, expect, test } from '@playwright/test'
 
 const NON_EDITOR = '#root :is(nav, .home, .coach, .rules, .play) :is(button, select, [role="button"])'
 
-async function reach(page: Page, where: 'home' | 'match' | 'rules' | 'coach') {
+async function reach(page: Page, where: 'home' | 'match' | 'rules' | 'lobby' | 'onboarding') {
   await page.goto('/')
-  // 'coach' stops BEFORE dismissing. The first version skipped unconditionally,
-  // so `.coach` in the selector below matched nothing at assertion time and the
-  // coach's three buttons shipped unmeasured behind a green "every interactive
-  // element" test.
-  if (where === 'coach') return
-  await page.getByTestId('coach-skip').click()
-  if (where === 'match') await page.getByTestId('start-match').click()
-  if (where === 'rules') await page.getByTestId('open-rules').click()
+  // 'onboarding' clears the suite-wide "already seen" flag rather than skipping
+  // past the screen. The first version of this helper dismissed the coach marks
+  // unconditionally, so their buttons shipped unmeasured behind a green "every
+  // interactive element" test — the same hole would open if this reached the
+  // title screen and called it onboarding.
+  if (where === 'onboarding') {
+    await page.evaluate(() => window.localStorage.clear())
+    await page.reload()
+    return
+  }
+  if (where === 'lobby') await page.getByTestId('start-match').click()
+  if (where === 'match') await startMatch(page)
+  // From the tab bar, which is where it lives now — reachable from every screen
+  // rather than from one button on the home screen.
+  if (where === 'rules') await page.getByTestId('tab-dex').click()
 }
 
 /** WCAG 2.5.5 / Apple HIG. 24px is the AA floor; this audience is children. */
 const MIN_TARGET = 44
 
-for (const where of ['coach', 'home', 'match', 'rules'] as const) {
+// The lobby joined the list because it is a whole screen the redesign added,
+// and an unmeasured screen is exactly how a 30px control ships.
+for (const where of ['onboarding', 'home', 'lobby', 'match', 'rules'] as const) {
   test(`every interactive element on the ${where} screen is at least ${MIN_TARGET}px (#27)`, async ({ page }) => {
     await reach(page, where)
 
@@ -174,38 +184,38 @@ test('an illegal tap does not move the board (#15)', async ({ page }) => {
   expect(after).toEqual(before)
 })
 
-test('an explicit theme beats the OS preference in both directions', async ({ page }) => {
-  // The half that has been missing since Phase 1: the CSS honoured `data-theme`
-  // and nothing ever set it, so only the OS layer was reachable by a person.
+test('declares one colour scheme, and the browser paints its chrome to match', async ({ page }) => {
+  /*
+   * This used to assert that an explicit `data-theme` beat the OS preference in
+   * BOTH directions — the half that had been missing since Phase 1, when the CSS
+   * honoured the attribute and nothing ever set it.
+   *
+   * Chess Craft is single-theme (see the header of `tokens.css`): the bevels are
+   * what give every control its shape and there is no light-theme value for "the
+   * lit edge of a raised block". The toggle is gone and so is the attribute, so
+   * the old assertion would pin a control no one can reach.
+   *
+   * What replaces it is the failure that IS still reachable in a single-theme
+   * app, and the one a half-migration leaves behind: an OS in light mode
+   * repainting the scrollbar, the overscroll gutter and every native control
+   * white around a dark app. `color-scheme: dark` is what prevents that, and
+   * asserting the token file contains the line would not — the question is
+   * whether it reaches the document.
+   */
   await reach(page, 'match')
 
-  await page.getByTestId('theme-toggle').click()
-  const first = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
-  expect(first).toBeTruthy()
+  const scheme = () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
+  const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
 
-  await page.reload()
-  const afterReload = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
-  expect(afterReload, 'the choice must survive a reload').toBe(first)
+  await page.emulateMedia({ colorScheme: 'light' })
+  expect(await scheme(), 'the app must declare its scheme, whatever the OS prefers').toBe('dark')
+  const inLight = await background()
 
-  await page.getByTestId('theme-toggle').click()
-  const second = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
-  expect(second).not.toBe(first)
-
-  // The half the title promised and the first version never checked: put the OS
-  // in each scheme and assert the OPPOSITE explicit choice still wins. Honouring
-  // only `data-theme="dark"` leaves a user on a dark OS unable to pick light —
-  // the half-implementation tokens.css names as the one to avoid.
-  for (const [os, choice] of [
-    ['dark', 'light'],
-    ['light', 'dark'],
-  ] as const) {
-    await page.emulateMedia({ colorScheme: os })
-    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), choice)
-    const chosen = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), os)
-    const matching = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
-    expect(chosen, `data-theme=${choice} must beat an OS preferring ${os}`).not.toBe(matching)
-  }
+  await page.emulateMedia({ colorScheme: 'dark' })
+  expect(await scheme()).toBe('dark')
+  // The palette is one palette. An OS preference that changed the app's own
+  // colours would mean a second theme had crept back in unmaintained.
+  expect(await background(), 'the palette must not follow the OS').toBe(inLight)
 })
 
 test('the board flips without renaming its squares (#13)', async ({ page }) => {
@@ -214,11 +224,12 @@ test('the board flips without renaming its squares (#13)', async ({ page }) => {
   const order = () =>
     page.locator('[data-testid^="sq-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')))
   const before = await order()
-  // Board orientation is a SETTING now — it moved into the match settings
-  // drawer when the tools row was cut from five wrapping controls to two
-  // actions. ADR-018 still requires the control to exist and to be the
-  // players' to reach; it never required it to occupy the tools row.
-  await page.getByTestId('match-settings').click()
+  // Back out in the tools row, where the redesign put it: flipping the board is
+  // something two children reach for constantly on a shared phone, and it spent
+  // one cycle behind a settings drawer because the row could not hold five
+  // wrapping controls. It can hold five now that they are 11px labels in a fixed
+  // strip. ADR-018 only ever required the control to exist and to be the
+  // players' to reach.
   await page.getByTestId('flip-board').click()
   const after = await order()
 

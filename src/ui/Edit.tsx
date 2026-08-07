@@ -37,7 +37,19 @@ import { useTranslate } from './i18n'
  * twice would put two nodes with the same test id on the page, which is a
  * broken selector rather than a design choice.
  */
-export function Edit({ source, onCommit }: { source: ContentSource; onCommit: (next: ContentSource) => void }) {
+export function Edit({
+  source,
+  onCommit,
+  onPlay,
+  initialRoom,
+}: {
+  source: ContentSource
+  onCommit: (next: ContentSource) => void
+  /** Take the child from a room they just saved straight into a match in it. */
+  onPlay?: ((roomId: string) => void) | undefined
+  /** A room to open straight away, threaded from the title screen's two buttons. */
+  initialRoom?: { id: string | null } | undefined
+}) {
   const t = useTranslate()
   const [tab, setTab] = useState<'rooms' | 'library'>('rooms')
   const [library, setLibrary] = useState<LibraryOpen>({ kind: 'piece', id: null, seq: 0 })
@@ -159,7 +171,13 @@ export function Edit({ source, onCommit }: { source: ContentSource; onCommit: (n
       </nav>
 
       <div hidden={tab !== 'rooms'}>
-        <EditorRooms source={source} commit={commit} onCreateRecord={createFromRoom} />
+        <EditorRooms
+          source={source}
+          commit={commit}
+          onCreateRecord={createFromRoom}
+          onPlay={onPlay}
+          initialOpen={initialRoom}
+        />
       </div>
 
       <div hidden={tab !== 'library'}>

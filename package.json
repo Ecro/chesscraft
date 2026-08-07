@@ -16,6 +16,7 @@
     "verify": "npm run typecheck && npm run build && npm run test && npm run test:build && npm run e2e && npm run e2e:pwa"
   },
   "dependencies": {
+    "galmuri": "^2.40.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"

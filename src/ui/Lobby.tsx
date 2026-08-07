@@ -1,0 +1,232 @@
+import { useState } from 'react'
+import type { ContentSet, ContentSource } from '@content/load'
+import { exportContent, importContent } from '@editor/io'
+import type { Side } from '@engine/types'
+import { PIXEL_SPRITES } from './art/pixels'
+import { Pix } from './art/Pix'
+import { MiniBoard } from './MiniBoard'
+import { MAX_NAME_LENGTH } from './settings'
+import { useTranslate } from './i18n'
+import { recordLabel } from './recordLabel'
+
+/**
+ * Who is playing, in which room, and how to give that room away.
+ *
+ * The screen that did not exist. Two children shared one phone and the app never
+ * asked their names, so the turn bar named a colour and the hand-off between turns
+ * said nothing at all — ADR-018 chose one shared board over an automatic
+ * rotation precisely because the two players are looking at the same thing, and
+ * that decision only pays off if the board can say WHO is looking.
+ *
+ * ## The share control is not a nine-character code
+ *
+ * The design shows `CRAFT-7K2M9`. A short code is a handle into a server that
+ * holds the room, and this app has no server and is built not to need one — it
+ * is installable, precached, and works with the network gone. So what travels is
+ * the room ITSELF: the document, as text, which is long.
+ *
+ * That is a real downgrade from the mock and it is the honest version. Faking
+ * the short code would mean either inventing a backend or generating a code that
+ * decodes to nothing on the friend's phone, and the second is worse than a long
+ * string because it fails after the child has already sent it.
+ *
+ * It reuses `editor/io.ts` rather than serialising here. A second encoder would
+ * be a second thing to keep in step with the schema, and the failure mode is a
+ * room that exports from the lobby and refuses to import in the editor.
+ */
+export function Lobby({
+  content,
+  source,
+  presetId,
+  names,
+  onNamesChange,
+  onImport,
+  onStart,
+  onBack,
+}: {
+  content: ContentSet
+  source: ContentSource
+  presetId: string
+  names: Record<Side, string>
+  onNamesChange: (names: Record<Side, string>) => void
+  onImport: (next: ContentSource) => void
+  onStart: () => void
+  onBack: () => void
+}) {
+  const t = useTranslate()
+  const preset = content.presets.get(presetId)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [incoming, setIncoming] = useState('')
+  // One channel for both outcomes of a paste. Two would mean an old success
+  // message sitting under a new failure.
+  const [importNote, setImportNote] = useState('')
+
+  const share = () => {
+    const text = exportContent(source)
+    // Reporting success unconditionally is worse than not offering the button:
+    // on an insecure context or an older mobile browser `clipboard` is
+    // undefined, and a child taps it, reads the success label and shares nothing.
+    const write = navigator.clipboard?.writeText(text)
+    if (!write) return setCopyState('failed')
+    write.then(
+      () => setCopyState('copied'),
+      () => setCopyState('failed'),
+    )
+  }
+
+  const receive = () => {
+    // An import REPLACES the document, so a child who taps this loses every room
+    // they made. `window.confirm` is what this app already uses for its other
+    // destructive moves — leaving a match, discarding a draft — and a third,
+    // different-looking confirmation would teach them that some of them mean
+    // less than others.
+    if (!window.confirm(t('ui.lobby.share.warning'))) return
+    const result = importContent(incoming)
+    if (!result.ok) {
+      // The child pasted something. Naming the first field at fault is more than
+      // they can act on, so this says the one thing they can: it did not work,
+      // check what you pasted. The editor's transfer panel is where the field
+      // list lives, for whoever wants it.
+      setImportNote(t('ui.lobby.share.rejected'))
+      return
+    }
+    setImportNote(t('ui.lobby.share.accepted'))
+    setIncoming('')
+    onImport(result.source)
+  }
+
+  return (
+    <section className="lobby" data-testid="lobby">
+      <header className="screen-head">
+        <button type="button" className="back" data-testid="lobby-back" aria-label={t('ui.action.back')} onClick={onBack}>
+          ‹
+        </button>
+        <h2>{t('ui.lobby.title')}</h2>
+      </header>
+
+      <div className="screen-body">
+        <p className="hint">{t('ui.lobby.intro')}</p>
+
+        <div className="player-cards">
+          <PlayerCard
+            side="white"
+            name={names.white}
+            onChange={(value) => onNamesChange({ ...names, white: value })}
+          />
+          <span className="versus" aria-hidden="true">
+            VS
+          </span>
+          <PlayerCard
+            side="black"
+            name={names.black}
+            onChange={(value) => onNamesChange({ ...names, black: value })}
+          />
+        </div>
+
+        {preset && (
+          <div className="lobby-room" data-testid="lobby-room" data-room={presetId}>
+            <MiniBoard content={content} boardId={preset.boardId} />
+            <span className="lobby-room-meta">
+              <span className="label">{t('ui.lobby.room')}</span>
+              <strong>{recordLabel(t, presetId, preset.nameKey)}</strong>
+            </span>
+            <button type="button" data-testid="lobby-change-room" onClick={onBack}>
+              {t('ui.lobby.change-room')}
+            </button>
+          </div>
+        )}
+
+        <button className="primary xl" data-testid="lobby-start" onClick={onStart}>
+          {t('ui.lobby.start')}
+        </button>
+
+        <hr />
+
+        <h3>{t('ui.lobby.share.title')}</h3>
+        <p className="hint">{t('ui.lobby.share.hint')}</p>
+
+        <div className="share-row">
+          <button className="positive" data-testid="lobby-share" data-copy-state={copyState} onClick={share}>
+            {t(
+              copyState === 'copied'
+                ? 'ui.lobby.share.copied'
+                : copyState === 'failed'
+                  ? 'ui.lobby.share.copy-failed'
+                  : 'ui.lobby.share.copy',
+            )}
+          </button>
+        </div>
+
+        <p className="hint">{t('ui.lobby.share.warning')}</p>
+
+        <div className="share-row">
+          <label className="sr-only" htmlFor="lobby-receive">
+            {t('ui.lobby.share.paste-label')}
+          </label>
+          <textarea
+            id="lobby-receive"
+            data-testid="lobby-receive"
+            rows={3}
+            placeholder={t('ui.lobby.share.paste-label')}
+            value={incoming}
+            onChange={(e) => {
+              setIncoming(e.target.value)
+              setImportNote('')
+            }}
+          />
+          <button data-testid="lobby-receive-apply" disabled={incoming.trim() === ''} onClick={receive}>
+            {t('ui.lobby.share.paste')}
+          </button>
+        </div>
+
+        {/* `role="status"`, because both outcomes replace text in a node that was
+            already there — a screen reader announces nothing for that otherwise,
+            and "did my paste work" is the entire question this screen leaves a
+            player with. */}
+        {importNote && (
+          <p className="share-note" data-testid="lobby-share-note" role="status">
+            {importNote}
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * One player: their crest, and the name they answer to.
+ *
+ * The placeholder is the side's own name from the locale bundle, which is also
+ * what every other screen falls back to when the field is left empty — so a
+ * child who skips this sees the side's own word in the turn bar, so the placeholder was not
+ * a promise the rest of the app broke.
+ */
+function PlayerCard({ side, name, onChange }: { side: Side; name: string; onChange: (value: string) => void }) {
+  const t = useTranslate()
+  const fallback = t(`ui.side.${side}`)
+  const id = `player-${side}`
+  return (
+    <div className="player-card" data-side={side}>
+      <span className="crest" aria-hidden="true">
+        <Pix sprite={PIXEL_SPRITES.king} tint={`var(--color-side-${side}-ink)`} />
+      </span>
+      <span className="player-fields">
+        <label className="player-role" htmlFor={id}>
+          {t(`ui.lobby.role.${side}`)}
+        </label>
+        <input
+          id={id}
+          data-testid={`player-name-${side}`}
+          value={name}
+          maxLength={MAX_NAME_LENGTH}
+          placeholder={fallback}
+          // `enterKeyHint`, and the reason is the audience: this is a phone
+          // keyboard, and the default 'go' on a bare input in a form-less screen
+          // does nothing visible when pressed.
+          enterKeyHint="done"
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </span>
+    </div>
+  )
+}

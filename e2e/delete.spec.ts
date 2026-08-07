@@ -1,5 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { buildStep, chooseRoom, fillRoom, goEditor, roomCount, startMatch } from './nav'
 
 /**
  * PLAN Phase 9b exit criterion — deleting, and being refused, from the screens.
@@ -13,7 +14,7 @@ import { useSliceContent } from './content'
 
 async function openEditor(page: Page) {
   await useSliceContent(page)
-  await page.getByTestId('tab-edit').click()
+  await goEditor(page)
 }
 
 test('a deleted room leaves the picker, and the rooms that remain still play', async ({ page }) => {
@@ -22,17 +23,14 @@ test('a deleted room leaves the picker, and the rooms that remain still play', a
   // A second room, because the shipped slice has exactly one and the last room
   // cannot be deleted — that refusal is its own case below.
   await page.getByTestId('room-new').click()
-  await page.getByTestId('room-name').fill('버릴 방')
-  await page.getByTestId('room-board').selectOption('board.slice')
-  await page.getByTestId('room-piece-piece.king').check()
-  await page.getByTestId('room-save').click()
-  await expect(page.getByTestId('room-errors')).toHaveCount(0)
+  await fillRoom(page, { name: '버릴 방', pieces: ['piece.king'] })
   await page.getByTestId('room-back').click()
 
   await page.getByTestId('tab-play').click()
-  await expect(page.getByTestId('preset-select').locator('option')).toHaveCount(2)
+  // Counted off the carousel's dots — one per room — since the `<select>` went.
+  expect(await roomCount(page)).toBe(2)
 
-  await page.getByTestId('tab-edit').click()
+  await goEditor(page)
   page.once('dialog', (d) => void d.accept())
   await page.getByTestId('room-delete-preset.room-1').click()
   await expect(page.getByTestId('room-open-preset.room-1')).toHaveCount(0)
@@ -40,12 +38,12 @@ test('a deleted room leaves the picker, and the rooms that remain still play', a
   // Gone from the one control the whole product funnels through — asserting it
   // left the editor's own list would not have shown that.
   await page.getByTestId('tab-play').click()
-  await expect(page.getByTestId('preset-select').locator('option')).toHaveCount(1)
-  await expect(page.getByTestId('preset-select')).toHaveValue('preset.slice')
+  expect(await roomCount(page)).toBe(1)
+  await expect(page.getByTestId('room-card')).toHaveAttribute('data-room', 'preset.slice')
 
   // And what survived is still playable, which is the claim a delete most
   // plausibly breaks: the document has to come back through the loader intact.
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
   await expect(page.getByTestId('sq-d1')).toHaveAttribute('data-piece', 'piece.king')
 })
 
@@ -64,8 +62,8 @@ test('the last room cannot be deleted', async ({ page }) => {
   // above and leave the child with nothing to play — which is the entire reason
   // this guard exists.
   await page.getByTestId('tab-play').click()
-  await expect(page.getByTestId('preset-select').locator('option')).toHaveCount(1)
-  await page.getByTestId('start-match').click()
+  expect(await roomCount(page)).toBe(1)
+  await startMatch(page)
   await expect(page.getByTestId('sq-d1')).toHaveAttribute('data-piece', 'piece.king')
 })
 
@@ -86,10 +84,7 @@ test('deleting a piece a room uses is refused by naming that room, and works onc
   // Give the room a Korean name, so the refusal has a name to say back.
   await page.getByTestId('editor-tab-rooms').click()
   await page.getByTestId('room-open-preset.slice').click()
-  await page.getByTestId('room-name').fill('토끼네 방')
-  await page.getByTestId('room-piece-piece.rabbit').check()
-  await page.getByTestId('room-save').click()
-  await expect(page.getByTestId('room-errors')).toHaveCount(0)
+  await fillRoom(page, { name: '토끼네 방', pieces: ['piece.rabbit'] })
   await page.getByTestId('room-back').click()
 
   await page.getByTestId('editor-tab-library').click()
@@ -103,7 +98,9 @@ test('deleting a piece a room uses is refused by naming that room, and works onc
   // Free it where the refusal said it was held, and the same delete goes through.
   await page.getByTestId('editor-tab-rooms').click()
   await page.getByTestId('room-open-preset.slice').click()
-  await page.getByTestId('room-piece-piece.rabbit').uncheck()
+  await buildStep(page, 'pieces')
+  // A toggle button since the rebuild, so a plain click rather than `uncheck`.
+  await page.getByTestId('room-piece-piece.rabbit').click()
   await page.getByTestId('room-save').click()
   await expect(page.getByTestId('room-errors')).toHaveCount(0)
 
@@ -116,6 +113,6 @@ test('deleting a piece a room uses is refused by naming that room, and works onc
   // The room still plays afterwards — a delete that leaves a document the loader
   // refuses would take the whole app down, not one record.
   await page.getByTestId('tab-play').click()
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
   await expect(page.getByTestId('sq-d1')).toHaveAttribute('data-piece', 'piece.king')
 })

@@ -1,223 +1,297 @@
 /*
- * Design tokens (ADR-021).
+ * Design tokens (ADR-021), re-skinned for Chess Craft.
  *
- * The rule this file exists to enforce is negative: no other stylesheet may
- * name a colour. Once that holds, dark mode and any later re-skin are data
- * changes rather than a sweep through component CSS — which is why the ADR
- * chose custom properties over pulling in a component library for an app whose
- * entire stylesheet is smaller than most libraries' reset.
+ * The rule this file exists to enforce is negative and unchanged: no other
+ * stylesheet may name a colour. That rule is what made this re-skin a data
+ * change rather than a sweep through component CSS, which is the whole reason
+ * ADR-021 chose custom properties over pulling in a component library.
  *
- * Direction: a warm neutral board rather than the usual cold grey, because the
- * audience is 초·중학생 on a phone held at arm's length in a room that is
- * rarely colour-calibrated. The two sides are separated by hue, by lightness AND
- * by font weight — roughly one in twelve boys reads red/green poorly, and a
- * chess board is the worst possible place to learn that about yourself. The
- * weight half lives in styles.css on `.square[data-side] .piece`; review round 2
- * found this comment claiming it before it existed, which is how a stated
- * safeguard becomes fiction.
+ * ## What changed, and what it cost
  *
- * Theming resolves in three layers, deliberately in this order:
- *   1. :root                       — light, the default
- *   2. @media (prefers-color-scheme: dark) — follow the OS
- *   3. :root[data-theme="…"]       — an explicit choice, which must be able to
- *                                    win in BOTH directions. Honouring only
- *                                    data-theme="dark" would leave a user on a
- *                                    dark OS unable to pick light, which is the
- *                                    common half-implementation of this pattern.
+ * **One theme, not three cascade layers.** The old file resolved light -> OS
+ * preference -> explicit `data-theme`, and the third layer existed so an
+ * explicit choice could win in BOTH directions. Chess Craft is a single dark
+ * pixel-block palette: the bevels are drawn with hard `inset` shadows whose
+ * highlight and shadow tones ARE the shape of every control, and there is no
+ * light-theme value for "the lit edge of a raised block" that is not just a
+ * different design. Shipping a light variant would mean maintaining two
+ * pixel-art palettes, and the sprite sheet is tuned against this one.
+ *
+ * The honest cost, recorded rather than glossed: a player who prefers a light UI
+ * no longer has one, and `theme-toggle` is gone from the nav. `color-scheme` is
+ * declared `dark` so the browser paints form controls, scrollbars and the
+ * overscroll gutter to match instead of flashing white around a dark app.
+ *
+ * **Contrast is now carried by the outline, everywhere.** Every block in this
+ * design sits inside a 3px `--color-outline` border with a lighter inset edge on
+ * the top-left and a darker one on the bottom-right. That is the same trick the
+ * old board used on glyphs — the eye reads the EDGE, so the fill is free to
+ * carry hue — applied to the whole UI rather than to pieces alone.
+ *
+ * **The two sides separate by hue, position and shape, no longer by weight.**
+ * Weight was the third cue when a piece was a text glyph. A piece is now a
+ * sprite, and a sprite has no weight to vary, so the third cue moved to
+ * geometry: `.square .side-tag` puts a hard-edged marker in the bottom-left
+ * corner for one side and the top-right for the other. Roughly one boy in twelve
+ * reads red/green poorly and a chess board is the worst place to learn that
+ * about yourself; a cue you can locate without resolving its colour is stronger
+ * than one you have to.
  */
 
+/*
+ * Galmuri, bundled rather than fetched from a CDN.
+ *
+ * The design prototype loads it from jsdelivr, which is exactly the thing
+ * ADR-009 rules out for art and for the same reason: this app is installable and
+ * has to work with the network gone. An `@font-face` pointing at a bare package
+ * path is resolved by the bundler, emitted with a content hash INTO the bundle,
+ * and therefore precached by the generated worker for free — no hand-maintained
+ * entry in `vite-plugin-sw.ts`, which its own comment records going stale once.
+ *
+ * Regular only. The bold face is another 163 KB of Korean glyphs for an emphasis
+ * this design expresses with `text-shadow` instead, and nothing separates by
+ * weight any more (see the note above on the third side cue).
+ *
+ * `swap`, not `block`: half a megabyte of pixel font over a household phone's
+ * connection is a real wait, and a child should meet a readable screen in the
+ * system face rather than a blank one. The layout does not reflow enough to
+ * matter — every box in this design is sized by its border and padding.
+ */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('galmuri/dist/Galmuri11.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  /* surfaces */
-  --color-bg: #faf9f7;
-  --color-surface: #ffffff;
-  --color-surface-sunken: #f5f5f4;
-  --color-surface-accent: #fffbeb;
-  --color-surface-positive: #dcfce7;
-  --color-surface-negative: #fee2e2;
+  color-scheme: dark;
 
-  /* board — Phase 6a resolved the trade Phase 4 recorded as unsolvable.
-     Outlining the glyph decouples piece legibility from the board's own
-     contrast: the eye reads the glyph's EDGE against the square, so the fill is
-     free to carry hue while the outline carries contrast. Measured, light theme:
-     checker 3.30:1, painted vs plain 3.99:1, outline on either square ≥5.6:1,
-     and the two sides 2.75:1 against EACH OTHER — which was 1.04:1 before, i.e.
-     hue alone, the exact thing the header below says must not happen. */
-  --color-board-light: #f2efe9;
-  --color-board-dark: #8f8266;
-  /* Violet, not the green this shipped as. Two independent reasons, both found
-     by review: green is ~1.4:1 against `--color-legal`, so the ONE cue that says
-     "you may move here" all but vanished on exactly the squares where the
-     decision is hardest; and green conventionally means go/safe, which is the
-     opposite of what a 폭탄칸 does. Violet reads as "something happens here"
-     and collides with no other cue on the board. */
-  --color-board-painted-a: #6d4d9c;
-  --color-board-painted-b: #5b3f85;
+  /* --- type ------------------------------------------------------------- */
+  --font-pixel: 'Galmuri11', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
 
-  /* Cue sandwich — deliberately NOT themed.
-     A move dot has to be visible on five different fills (two checker tones,
-     two painted stripes, a last-move ring) in two themes. No single colour
-     clears 3:1 against all of them, so the dot carries its own black-on-white
-     ring: whatever the square is, one of the two tones separates from it. */
+  /* --- structure -------------------------------------------------------- */
+  /* The border every block in this design wears. Not a variable width by
+     accident: at 2px the bevel below has no room and the whole thing reads as a
+     flat rectangle with a dark line round it. */
+  --border-w: 3px;
+  --border-w-thin: 2px;
+  --bevel: 3px;
+  --bevel-lg: 4px;
+  /* The match screen's bottom tool row. A token because the draft sheet has to
+     stop above it — the sheet is `position: absolute` and would otherwise cover
+     the row, which is the defect #43 was filed for and which came back the day
+     the layout stopped scrolling. Both the row's own height and the sheet's
+     clearance read this, so they cannot drift. */
+  --tools-height: 54px;
+
+  /* --- surfaces --------------------------------------------------------- */
+  /* Behind the phone shell, visible only on a desktop-width window. */
+  --color-bg: #0b0c10;
+  --color-shell: #171a21;
+  --color-shell-frame: #23262f;
+  --color-shell-edge: #000000;
+
+  /* A raised panel: the default block. */
+  --color-surface: #2f343d;
+  --color-surface-hi: #454c58;
+  --color-surface-lo: #1b1f26;
+
+  /* A recessed slot — the bevel runs the other way, which is the entire
+     difference between "press me" and "something goes in here". */
+  --color-sunken: #242830;
+  --color-sunken-hi: #1b1f26;
+  --color-sunken-lo: #3d434e;
+
+  /* Deeper still: the waiting player's strip, and anything meant to read as
+     switched off. */
+  --color-deep: #20242b;
+  --color-deep-hi: #171a20;
+  --color-deep-lo: #333944;
+
+  /* The line around everything. */
+  --color-outline: #0e0f14;
+
+  /* --- controls --------------------------------------------------------- */
+  /* Primary: the one obvious action on a screen. Amber, and nothing else in the
+     palette is amber except the selected-square outline — which is deliberate,
+     they mean the same thing ("this is what you are acting on"). */
+  --color-primary: #ffb23a;
+  --color-primary-hi: #ffd98a;
+  --color-primary-lo: #b9781a;
+  --color-primary-ink: #3b2607;
+
+  /* Secondary: navigation, toggles, anything that is not the point of the
+     screen. */
+  --color-control: #59606d;
+  --color-control-hi: #767e8d;
+  --color-control-lo: #383e49;
+  --color-control-ink: #e9e4d8;
+
+  /* Positive: creating and saving. Green reads as "make one" to this audience
+     and is never used for a move cue, so it collides with nothing on the board. */
+  --color-positive: #5b8f3e;
+  --color-positive-hi: #86bd63;
+  --color-positive-lo: #375e22;
+  --color-positive-ink: #f2ffe6;
+
+  /* Negative: deleting. Rust rather than the board's red, so "this removes
+     something" cannot be confused with "this is the red army". */
+  --color-negative: #7d2f22;
+  --color-negative-hi: #a8503f;
+  --color-negative-lo: #4d1a12;
+  --color-negative-ink: #ffd9d0;
+
+  /* Note: the rule in play, a banner, an explanation of what a control does.
+     Wood brown — it is the one family that is neither a side nor an action. */
+  /* Lighter than the design mock's #7d5a33, and measured. Every sprite is drawn
+     against `--color-outline`, so a card mark on this surface separates by
+     3.08:1 at the mock's tone — under the 3.30:1 floor `art-contrast.test.ts`
+     inherited from the pre-redesign palette. 3.48:1 here, and the note's own
+     text stays over 4.5:1 on it. */
+  --color-note: #866238;
+  --color-note-hi: #a97f45;
+  --color-note-lo: #4e3720;
+  --color-note-deep: #5f4526;
+  --color-note-ink: #ffeccd;
+  --color-note-muted: #e0c191;
+
+  /* --- text ------------------------------------------------------------- */
+  --color-text: #e9e4d8;
+  --color-text-dim: #bdb6a5;
+  --color-text-muted: #a49c8c;
+  --color-text-subtle: #8d8878;
+  --color-text-faint: #6f6a5c;
+  /* Headings. The shadow is a hard offset, not a blur — a blurred shadow under a
+     pixel font is the one thing that makes it stop looking like one. */
+  --color-heading: #ffd98a;
+  --color-heading-shadow: #a35a12;
+  --color-text-negative: #ffd9d0;
+
+  /* --- board ------------------------------------------------------------ */
+  --color-board-light: #e3d3a8;
+  --color-board-light-hi: #f2e7c8;
+  --color-board-light-lo: #bfae83;
+  /* Darker than the design mock's #9a7d55, and measured rather than eyeballed.
+     The mock's pair gives a 2.60:1 checker; `e2e/contrast.spec.ts` holds the
+     board to WCAG 1.4.11's 3:1 for a graphical object, which the palette this
+     replaced cleared at 3.30:1. Losing that to a re-skin would be a real
+     regression for the audience this app is for — a phone held at arm's length
+     in a room nobody colour-calibrated. 3.10:1. */
+  --color-board-dark: #8b714d;
+  --color-board-dark-hi: #ae8d60;
+  --color-board-dark-lo: #645137;
+  /* The board's own frame — the wooden edge the squares are set into. */
+  --color-board-frame: #3a3026;
+  --color-board-frame-hi: #57452f;
+  --color-board-frame-lo: #241d15;
+  /* A painted square. Violet, and the reason is inherited from the old file
+     rather than re-decided: green is nearly invisible against the legal-move
+     cue, and green conventionally means go/safe, which is the opposite of what
+     a 폭탄칸 does. Violet reads as "something happens here" and collides with no
+     other cue on the board. */
+  --color-board-painted: #7b52c9;
+  --color-board-painted-hi: #a97ff0;
+  --color-board-painted-lo: #4d2f88;
+
+  /* --- cues ------------------------------------------------------------- */
+  /* Deliberately NOT re-themed per surface. A move cue has to be visible on six
+     different fills (two checker tones and their two bevels, a painted stripe, a
+     last-move ring), so it carries its own black-against-white sandwich:
+     whatever the square is, one of the two tones separates from it. */
   --color-cue-hi: #ffffff;
-  --color-cue-lo: #16130f;
-  --color-scrim: #16130fcc;
-  --color-shadow: #16130f40;
+  --color-cue-lo: #0e0f14;
+  --color-legal: rgba(255, 255, 255, 0.55);
+  --color-legal-capture: #ff5a3d;
+  --color-selected: #ffb23a;
+  --color-last: rgba(255, 178, 58, 0.9);
+  /* Cyan, and it must stay something no other cue uses. The old dark theme once
+     drew the turn outline, the selected square and the focus ring in one blue —
+     three states the board argues must stay separable. */
+  --color-focus-ring: #7fe3ff;
+  --color-scrim: rgba(8, 9, 13, 0.82);
+  --color-shadow: rgba(0, 0, 0, 0.35);
+  --color-shadow-deep: rgba(0, 0, 0, 0.65);
 
-  /* text */
-  --color-text: #1c1917;
-  --color-text-muted: #57534e;
-  --color-text-subtle: #6b6560;
-  --color-text-negative: #991b1b;
+  /* --- sides ------------------------------------------------------------ */
+  /* Hue AND position AND shape (see the header). The `-ink` values are what sits
+     ON the side colour, and they are near-black rather than white because the
+     two side fills are both light enough that white text on them fails. */
+  --color-side-white: #4f86e8;
+  --color-side-white-hi: #8ab4ff;
+  --color-side-white-lo: #2a4fa8;
+  --color-side-white-deep: #2a4fa8;
+  --color-side-white-ink: #0e1a33;
+  --color-side-white-text: #8ab4ff;
 
-  /* lines */
-  --color-border: #d6d3d1;
-  --color-border-strong: #a8a29e;
-  --color-border-accent: #d97706;
+  --color-side-black: #ef5a3d;
+  --color-side-black-hi: #ff9b86;
+  --color-side-black-lo: #a72a1c;
+  --color-side-black-deep: #a72a1c;
+  --color-side-black-ink: #3d0d05;
+  --color-side-black-text: #ff9b86;
 
-  /* Glyph outline. Near-black in light, near-white in dark: this is what a
-     piece actually presents to the eye, and what lets the board be a board. */
-  --color-glyph-outline: #1a1613;
-  --color-focus-ring: #1d4ed8;
+  /* --- sprite tints ------------------------------------------------------ */
+  /* What a `$` cell in the sprite sheet becomes. These are read from TypeScript
+     as `var(--pix-tint-white)` rather than as hex literals, which is how art
+     drawn in code stays inside this file's rule. Brighter than the side fills:
+     a sprite is 12 pixels across and sits on a mid-tone square, so it needs to
+     out-light the panel version of the same hue. */
+  --pix-tint: #8cc0ff;
+  --pix-tint-white: #8cc0ff;
+  /* Deeper than the mock's #ff6a4d, and for the reason the old token file gave
+     when it caught the same thing: that pair is 1.02:1 against each other, which
+     is hue and nothing else — exactly what ADR-007 forbids and what
+     `contrast.spec.ts` measures as `sideVsSide`. The two armies now differ in
+     lightness as well, by 3.20:1 — over the 2.75:1 `art-contrast.test.ts` gates
+     sided art at, which is the figure the pre-redesign palette achieved and
+     which this had no business regressing. The red stays 3.16:1 against the
+     sprite's own outline so it reads as a piece rather than a silhouette. */
+  --pix-tint-black: #b03a1c;
 
-  /* meaning — sides are hue + weight + lightness, never hue alone */
-  --color-side-white: #1e3a8a;
-  --color-side-black: #ef4444;
-  --color-legal: #16a34a;
-  --color-selected: #2563eb;
-
-  /* scale */
+  /* --- scale ------------------------------------------------------------- */
   --space-1: 3px;
-  --space-2: 6px;
+  --space-2: 5px;
   --space-3: 8px;
-  --space-4: 10px;
-  --space-5: 12px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --font-size-sm: 12px;
-  --font-size-base: 14px;
-  --font-size-lg: 18px;
+  --space-4: 11px;
+  --space-5: 14px;
+  --space-6: 18px;
+  --space-7: 24px;
+
   --font-size-xs: 9px;
-  --font-size-coord: 13px;
+  --font-size-sm: 11px;
+  --font-size-base: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-title: 40px;
+  --font-size-coord: 10px;
 
-  /* Motion. One duration for every timed rule, so the reduced-motion override
-     is a single redefinition rather than a sweep that a future transition can
-     be added outside of. */
-  --motion-move-duration: 140ms;
-  --motion-fade-duration: 90ms;
-  /* The draft deal. Longer than a move on purpose — this is the one moment the
-     game asks a player to choose rather than react, and the cards arriving is
-     what marks it as an event instead of a list appearing. */
-  --motion-card-duration: 280ms;
-  --motion-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
-}
+  /* --- motion ------------------------------------------------------------ */
+  /* Everything is stepped. A pixel sprite easing smoothly between two positions
+     renders at sub-pixel offsets, which antialiases the very edges
+     `shape-rendering: crispEdges` exists to keep hard — so the motion is
+     quantised for the same reason the art is.
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #16150f;
-    --color-surface: #23211c;
-    --color-surface-sunken: #1c1a15;
-    --color-surface-accent: #2c2415;
-    --color-surface-positive: #14301d;
-    --color-surface-negative: #3a1a1a;
-
-    --color-board-light: #3a352c;
-    --color-board-dark: #8d8269;
-    --color-board-painted-a: #b98ce8;
-    --color-board-painted-b: #a679d6;
-
-    --color-scrim: #0b0a07d9;
-    --color-shadow: #00000066;
-
-    --color-text: #f5f2ec;
-    --color-text-muted: #c2bbb0;
-    --color-text-subtle: #b8b0a4;
-    --color-text-negative: #fca5a5;
-
-    --color-border: #46413a;
-    --color-border-strong: #6b645a;
-    --color-border-accent: #d9a441;
-
-    --color-glyph-outline: #f7f4ee;
-    --color-focus-ring: #93c5fd;
-    --color-side-white: #93c5fd;
-    --color-side-black: #f87171;
-    --color-legal: #4ade80;
-    /* NOT #93c5fd. That is `--color-side-white` AND `--color-focus-ring`, so in
-       the dark theme the board's turn outline, a selected square and a focused
-       square all drew the same blue — three cues the rule set two files over
-       argues must stay separable. Amber keeps selection distinct from both. */
-    --color-selected: #fbbf24;
-  }
-}
-
-/* An explicit choice outranks the OS — in both directions. */
-:root[data-theme='light'] {
-  --color-bg: #faf9f7;
-  --color-surface: #ffffff;
-  --color-surface-sunken: #f5f5f4;
-  --color-surface-accent: #fffbeb;
-  --color-surface-positive: #dcfce7;
-  --color-surface-negative: #fee2e2;
-
-  --color-board-light: #f2efe9;
-  --color-board-dark: #8f8266;
-  --color-board-painted-a: #6d4d9c;
-  --color-board-painted-b: #5b3f85;
-
-  --color-text: #1c1917;
-  --color-text-muted: #57534e;
-  --color-text-subtle: #6b6560;
-  --color-text-negative: #991b1b;
-
-  --color-border: #d6d3d1;
-  --color-border-strong: #a8a29e;
-  --color-border-accent: #d97706;
-
-  /* These two were missing here, and their absence was the half-implementation
-     this file's header warns about pointed the other way: a user on a dark OS
-     who picks light kept the DARK glyph outline — a near-white ring around every
-     piece on a near-white board. An explicit choice has to carry every token the
-     OS branch sets, not most of them. */
-  --color-glyph-outline: #1a1613;
-  --color-focus-ring: #1d4ed8;
-  --color-scrim: #16130fcc;
-  --color-shadow: #16130f40;
-
-  --color-side-white: #1e3a8a;
-  --color-side-black: #ef4444;
-  --color-legal: #16a34a;
-  --color-selected: #2563eb;
-}
-
-:root[data-theme='dark'] {
-  --color-bg: #16150f;
-  --color-surface: #23211c;
-  --color-surface-sunken: #1c1a15;
-  --color-surface-accent: #2c2415;
-  --color-surface-positive: #14301d;
-  --color-surface-negative: #3a1a1a;
-
-  --color-board-light: #3a352c;
-  --color-board-dark: #8d8269;
-  --color-board-painted-a: #b98ce8;
-  --color-board-painted-b: #a679d6;
-
-  --color-scrim: #0b0a07d9;
-  --color-shadow: #00000066;
-
-  --color-text: #f5f2ec;
-  --color-text-muted: #c2bbb0;
-  --color-text-subtle: #b8b0a4;
-  --color-text-negative: #fca5a5;
-
-  --color-border: #46413a;
-  --color-border-strong: #6b645a;
-  --color-border-accent: #d9a441;
-
-  --color-glyph-outline: #f7f4ee;
-  --color-focus-ring: #93c5fd;
-  --color-side-white: #93c5fd;
-  --color-side-black: #f87171;
-  --color-legal: #4ade80;
-  --color-selected: #fbbf24;
+     One duration per timed rule, so the reduced-motion override in styles.css is
+     a single redefinition rather than a sweep a future transition can be added
+     outside of. */
+  --motion-move-duration: 170ms;
+  --motion-move-steps: steps(5);
+  --motion-fade-duration: 120ms;
+  --motion-fade-steps: steps(3);
+  /* The draft deal and the hand-off sheet. Longer than a move on purpose — this
+     is the one moment the game asks a player to choose rather than react. */
+  --motion-card-duration: 300ms;
+  --motion-card-steps: steps(5);
+  --motion-sheet-duration: 220ms;
+  --motion-sheet-steps: steps(4);
+  /* The idle bob under a crest, and the pulse on a card that is ready to play.
+     Both loop, so both are the first thing reduced-motion switches off. */
+  --motion-idle-duration: 2200ms;
+  /* The pulse on a card that can be played right now. Its own token rather than
+     reusing the idle bob's: they are the same length today and mean different
+     things, and the reduced-motion block zeroes each by name. */
+  --motion-ready-duration: 1600ms;
 }

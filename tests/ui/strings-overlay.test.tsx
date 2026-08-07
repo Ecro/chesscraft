@@ -9,6 +9,7 @@ import { App } from '@ui/App'
 import { MatchHost } from '@ui/MatchHost'
 import { TranslateContext, makeTranslate } from '@ui/i18n'
 import { COACH_SEEN_KEY } from '@ui/coach'
+import { skipOnboarding } from '../helpers/onboarding'
 
 /**
  * PLAN Phase 8 exit criterion — the whole path, end to end.
@@ -61,6 +62,10 @@ function boardWith(source: ContentSource) {
   return container
 }
 
+// The app opens on onboarding for a browser that has never been here.
+// Every test below is about a screen behind it.
+beforeEach(skipOnboarding)
+
 describe('authored text survives export, import, and reaches the board', () => {
   it('round-trips the overlay through the document and renders it', () => {
     const exported = exportContent(authoredSource())
@@ -90,6 +95,25 @@ describe('authored text survives export, import, and reaches the board', () => {
   })
 })
 
+
+/**
+ * Steps the title screen's carousel to a given room.
+ *
+ * The home screen used to hold a `<select>` and these tests drove it directly.
+ * A room is now one card at a time with prev/next arrows — see the note in
+ * `Home.tsx` on why a dropdown was the wrong control for a thing a child made —
+ * so selecting one means pressing next until it is the one on screen. Bounded by
+ * the number of rooms, so a room that is not in the document fails the loop
+ * rather than spinning.
+ */
+function chooseRoom(roomId: string) {
+  for (let i = 0; i < 20; i++) {
+    if (screen.getByTestId('room-card').getAttribute('data-room') === roomId) return
+    fireEvent.click(screen.getByTestId('room-next'))
+  }
+  throw new Error(`no room ${roomId} in the carousel`)
+}
+
 describe('the app hands the overlay to the screens', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -102,8 +126,11 @@ describe('the app hands the overlay to the screens', () => {
     localStorage.setItem(COACH_SEEN_KEY, '1')
 
     const { container } = render(<App />)
-    fireEvent.change(screen.getByTestId('preset-select'), { target: { value: SLICE_PRESET_ID } })
+    chooseRoom(SLICE_PRESET_ID)
     fireEvent.click(screen.getByTestId('start-match'))
+    // The lobby sits between the title screen and the board now: two children
+    // name themselves before the first move.
+    fireEvent.click(screen.getByTestId('lobby-start'))
 
     expect(labels(container).some((l) => l.includes(AUTHORED_NAME))).toBe(true)
   })
@@ -113,9 +140,7 @@ describe('the app hands the overlay to the screens', () => {
     localStorage.setItem(COACH_SEEN_KEY, '1')
 
     render(<App />)
-    const option = [...screen.getByTestId('preset-select').querySelectorAll('option')].find(
-      (o) => o.value === SLICE_PRESET_ID,
-    )
-    expect(option?.textContent).toBe('토끼 놀이')
+    chooseRoom(SLICE_PRESET_ID)
+    expect(screen.getByTestId('room-card').textContent).toContain('토끼 놀이')
   })
 })

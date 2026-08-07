@@ -30,13 +30,23 @@ function precache(): string[] {
 }
 
 describe('service worker precache', () => {
-  it('contains the hashed art asset, so the installed app can draw it offline', () => {
+  it('contains the hashed font, so the installed app reads right offline', () => {
+    /*
+     * This used to name the one raster art asset. The Chess Craft redesign draws
+     * every mark from a sprite sheet in TypeScript, so there is no picture file
+     * left to precache — but the claim these two tests exist to make is not
+     * about pictures. It is that a non-code asset reaches the offline cache by
+     * going through the BUNDLER rather than through `public/`, whose contents
+     * `vite-plugin-sw.ts` has to enumerate by hand and has already gone stale on
+     * once. The half-megabyte Korean pixel font is now the asset that claim is
+     * about, and it fails far more visibly: without it an installed app reads in
+     * the system face and stops looking like itself.
+     */
     const listed = precache()
-
     // Hashed, so matched by shape rather than by name — asserting a literal
     // filename would be asserting the hash, which changes every build.
-    const art = listed.filter((p) => /\/assets\/.*square-bomb.*\.webp$/.test(p))
-    expect(art, `no art asset in PRECACHE:\n${listed.join('\n')}`).toHaveLength(1)
+    const font = listed.filter((p) => /\/assets\/.*\.woff2$/.test(p))
+    expect(font, `no font in PRECACHE:\n${listed.join('\n')}`).toHaveLength(1)
   })
 
   it('lists an asset that actually exists on disk', () => {
@@ -50,14 +60,14 @@ describe('service worker precache', () => {
     }
   })
 
-  it('emitted the art through the bundler, not through public/', () => {
+  it('emitted the font through the bundler, not through public/', () => {
     // The positive check above would also pass if someone hand-added a
     // `public/` path to the plugin's list. This is the structural half: the
     // asset must carry a content hash, which only the bundler adds.
-    const emitted = readdirSync(join(DIST, 'assets')).filter((f) => f.includes('square-bomb'))
-    expect(emitted, 'no bundler-emitted art in dist/assets').toHaveLength(1)
-    expect(emitted[0], 'art filename carries no content hash — it was copied, not bundled').toMatch(
-      /square-bomb-[A-Za-z0-9_-]{8,}\.webp$/,
+    const emitted = readdirSync(join(DIST, 'assets')).filter((f) => f.endsWith('.woff2'))
+    expect(emitted, 'no bundler-emitted font in dist/assets').toHaveLength(1)
+    expect(emitted[0], 'font filename carries no content hash — it was copied, not bundled').toMatch(
+      /-[A-Za-z0-9_-]{8,}\.woff2$/,
     )
   })
 })

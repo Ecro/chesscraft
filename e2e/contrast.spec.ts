@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { startMatch } from './nav'
 
 /**
  * PLAN Phase 6 — the three-way contrast constraint, measured on screen.
@@ -45,15 +46,23 @@ async function contrastProbe(page: import('@playwright/test').Page) {
 
     const light = token('--color-board-light')
     const dark = token('--color-board-dark')
-    const painted = token('--color-board-painted-a')
+    const painted = token('--color-board-painted')
 
-    // The glyph's effective contrast includes whatever outline it carries: a
-    // text-shadow ring means the eye never sees the fill against the square
-    // alone. Measured against the outline colour when one exists.
-    const piece = document.querySelector('.square[data-piece]:not([data-piece=""]) .piece')
-    const pieceStyle = piece ? getComputedStyle(piece) : null
-    const shadow = pieceStyle?.textShadow ?? 'none'
-    const outlineColour = shadow !== 'none' ? (shadow.match(/rgba?\([^)]+\)/)?.[0] ?? '') : ''
+    /*
+     * The outline is DRAWN INTO the art now, not applied as a text-shadow.
+     *
+     * A piece used to be a text glyph wearing a `text-shadow` ring, and this
+     * probe read the ring out of the computed style. A piece is a sprite, and
+     * every sprite in the sheet is drawn against `o` — the palette's outline
+     * tone — so the ring is a set of `<rect>`s inside the SVG. Read from the
+     * DOM rather than from the token, because "the token exists" and "the mark
+     * on this square actually carries it" are different claims and only the
+     * second one is what the eye gets.
+     */
+    const piece = document.querySelector('.square[data-piece]:not([data-piece=""]) .piece svg.pix')
+    const fills = piece ? [...piece.querySelectorAll('rect')].map((r) => getComputedStyle(r).fill) : []
+    const outlineToken = token('--color-outline')
+    const outlineColour = fills.some((f) => ratio(f, outlineToken) < 1.05) ? outlineToken : ''
 
     /**
      * What the eye actually gets from a glyph on a square.
@@ -73,26 +82,33 @@ async function contrastProbe(page: import('@playwright/test').Page) {
       checker: ratio(light, dark),
       paintedVsLight: ratio(painted, light),
       paintedVsDark: ratio(painted, dark),
-      pieceOnLight: effective(token('--color-side-white'), light),
-      pieceOnDark: effective(token('--color-side-white'), dark),
-      blackOnLight: effective(token('--color-side-black'), light),
-      blackOnDark: effective(token('--color-side-black'), dark),
+      // The SPRITE tints, not the chrome's side colours. Those are what a piece
+      // is actually painted in; the `--color-side-*` family dresses the turn bar
+      // and the player cards, which are text on a panel rather than a graphical
+      // object on a board.
+      pieceOnLight: effective(token('--pix-tint-white'), light),
+      pieceOnDark: effective(token('--pix-tint-white'), dark),
+      blackOnLight: effective(token('--pix-tint-black'), light),
+      blackOnDark: effective(token('--pix-tint-black'), dark),
       // The sides must still be distinguishable FROM EACH OTHER, or an outline
       // that rescues both ratios has quietly made every piece look the same.
-      sideVsSide: ratio(token('--color-side-white'), token('--color-side-black')),
-      hasOutline: shadow !== 'none' && shadow !== '',
+      // The design mock's pair was 1.02:1 — hue alone, the exact thing ADR-007
+      // forbids — and this is the assertion that caught it.
+      sideVsSide: ratio(token('--pix-tint-white'), token('--pix-tint-black')),
+      hasOutline: outlineColour !== '',
     }
   })
 }
 
-for (const theme of ['light', 'dark'] as const) {
-  test(`the board, its painted squares and its pieces all clear ${AA_NON_TEXT}:1 in the ${theme} theme`, async ({
-    page,
-  }) => {
+/*
+ * One theme, so one test. It used to run twice, once per `data-theme`; Chess
+ * Craft is single-theme (see the header of `tokens.css`) and looping over two
+ * values of an attribute nothing reads would have measured the same palette
+ * twice and reported it as double the coverage.
+ */
+test(`the board, its painted squares and its pieces all clear ${AA_NON_TEXT}:1`, async ({ page }) => {
     await page.goto('/')
-    await page.getByTestId('coach-skip').click()
-    await page.getByTestId('start-match').click()
-    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
+    await startMatch(page)
 
     const m = await contrastProbe(page)
 
@@ -116,5 +132,4 @@ for (const theme of ['light', 'dark'] as const) {
     ] as const) {
       expect(value, `${name} (${value.toFixed(2)}:1)`).toBeGreaterThanOrEqual(AA_NON_TEXT)
     }
-  })
-}
+})

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { bundledContentSource } from '../../src/content/sets/bundled'
 import { STORAGE_KEY } from '../../src/editor/storage'
 import { App } from '../../src/ui/App'
+import { skipOnboarding } from '../helpers/onboarding'
 
 /**
  * PLAN Phase 6b — the designed-state half of the exit criterion (#18).
@@ -26,7 +27,15 @@ import { App } from '../../src/ui/App'
 function seedStorage(value: string) {
   window.localStorage.clear()
   window.localStorage.setItem(STORAGE_KEY, value)
+  // The clear above takes the onboarding flag with it, and the app opens on
+  // onboarding for a browser that has never been here — so re-setting it is
+  // part of seeding, not a separate concern of each test.
+  skipOnboarding()
 }
+
+// The app opens on onboarding for a browser that has never been here.
+// Every test below is about a screen behind it.
+beforeEach(skipOnboarding)
 
 describe('content that would not load is explained, not swallowed (#18)', () => {
   beforeEach(() => window.localStorage.clear())

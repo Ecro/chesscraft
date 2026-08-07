@@ -1,5 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { buildStep, chooseRoom, fillRoom, goEditor, startMatch } from './nav'
 
 /**
  * PLAN Phase 9a exit criterion — the editor is a place a child assembles a
@@ -13,7 +14,7 @@ import { useSliceContent } from './content'
 
 async function openEditor(page: Page) {
   await useSliceContent(page)
-  await page.getByTestId('tab-edit').click()
+  await goEditor(page)
 }
 
 async function openLibrary(page: Page, kind: string) {
@@ -25,29 +26,27 @@ test('a child builds a room, names it in Korean, and plays it from home', async 
   await openEditor(page)
 
   await page.getByTestId('room-new').click()
-  await page.getByTestId('room-name').fill('토끼네 방')
-  await page.getByTestId('room-board').selectOption('board.slice')
-
-  for (const id of ['piece.king', 'piece.archer']) {
-    await page.getByTestId(`room-piece-${id}`).check()
-  }
-  await page.getByTestId('room-rule-rule.beacon-rush').check()
-  // Exactly three skill cards, because an opening offer IS three distinct cards
-  // (AC-005). A pool of three therefore forces the offer, with no seed to go
-  // stale — and it makes the assertion below about THIS ROOM'S pool rather than
-  // about the shipped one, which a room that saved but never reached the match
-  // would still satisfy.
-  for (const id of ['skill.warp', 'skill.hold', 'skill.rally']) {
-    await page.getByTestId(`room-skill-${id}`).check()
-  }
-  await page.getByTestId('room-save').click()
-  await expect(page.getByTestId('room-errors')).toHaveCount(0)
+  // No board picker any more: a new room starts on a copy of the document's
+  // first board — the slice's, here — and is painted in place. The child's own
+  // board is what the paint and place steps edit.
+  await fillRoom(page, {
+    name: '토끼네 방',
+    pieces: ['piece.king', 'piece.archer'],
+    rules: ['rule.beacon-rush'],
+    // Exactly three skill cards, because an opening offer IS three distinct
+    // cards (AC-005). A pool of three therefore forces the offer, with no seed
+    // to go stale — and it makes the assertion below about THIS ROOM'S pool
+    // rather than about the shipped one, which a room that saved but never
+    // reached the match would still satisfy.
+    skills: ['skill.warp', 'skill.hold', 'skill.rally'],
+  })
 
   await page.getByTestId('tab-play').click()
-  // Chosen by the Korean name the child typed, not by an id — that the name
-  // reached the picker at all is half of what ADR-020 bought.
-  await page.getByTestId('preset-select').selectOption({ label: '토끼네 방' })
-  await page.getByTestId('start-match').click()
+  await chooseRoom(page, 'preset.room-1')
+  // The Korean name the child typed reached the one control the whole product
+  // funnels through — half of what ADR-020 bought.
+  await expect(page.getByTestId('room-card')).toContainText('토끼네 방')
+  await startMatch(page)
 
   await expect(page.getByTestId('sq-d1')).toHaveAttribute('data-piece', 'piece.king')
   await expect(page.getByTestId('sq-b1')).toHaveAttribute('data-piece', 'piece.archer')
@@ -66,13 +65,14 @@ test('a room refuses to give up its last piece', async ({ page }) => {
   // validator message about `pieceIds` is not something a child can act on.
   await openEditor(page)
   await page.getByTestId('room-open-preset.slice').click()
+  await buildStep(page, 'pieces')
 
-  await page.getByTestId('room-piece-piece.archer').uncheck()
-  // `.click()` rather than `.uncheck()`: Playwright's `uncheck` FAILS when the
-  // state does not change, and the state not changing is the whole assertion.
+  // Toggle buttons rather than checkboxes since the rebuild, so the state is
+  // `aria-pressed` and both of these are plain clicks.
+  await page.getByTestId('room-piece-piece.archer').click()
   await page.getByTestId('room-piece-piece.king').click()
 
-  await expect(page.getByTestId('room-piece-piece.king')).toBeChecked()
+  await expect(page.getByTestId('room-piece-piece.king')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('room-last-piece-notice')).toBeVisible()
 })
 
@@ -128,8 +128,49 @@ test('renaming a record through the form leaves one record, with its text', asyn
   // A `rekeyStrings` unit test cannot see this half: the overlay keys move, and
   // the record's own `nameKey` has to be re-derived to match, or the piece
   // renders a dotted key everywhere it appears.
-  await page.getByTestId('tab-play').click()
-  await page.getByTestId('open-rules').click()
+  await page.getByTestId('tab-dex').click()
   await expect(page.getByTestId('rules')).toContainText('토끼')
   await expect(page.getByTestId('rules')).not.toContainText('piece.bunny.name')
+})
+
+test('the editor scrolls, and the room builder keeps its header while it does', async ({ page }) => {
+  /*
+   * Two defects, one screen, both invisible to every other assertion here.
+   *
+   * The shell had `min-height` and no `height`, so it grew to fit 4,700px of
+   * forms instead of clipping them — the editor's own `overflow-y: auto` had an
+   * unbounded parent and simply never engaged. And `.editor > div` set a
+   * `display`, which outranks the UA's `[hidden] { display: none }`, so the
+   * library panel `Edit` believed it had hidden was rendering underneath the
+   * rooms panel the whole time.
+   *
+   * Driven rather than measured in CSS (`shell-layout.test.ts` has that half):
+   * whether a box scrolls is a question about a real layout, and the two rules
+   * that broke it are two files apart.
+   */
+  await openEditor(page)
+
+  const hiddenPanels = await page.locator('.editor > div[hidden]').evaluateAll((els) =>
+    els.map((el) => getComputedStyle(el).display),
+  )
+  expect(hiddenPanels.length, 'the editor no longer keeps both panels mounted').toBeGreaterThan(0)
+  for (const display of hiddenPanels) expect(display, 'a hidden editor panel is still rendering').toBe('none')
+
+  await page.getByTestId('room-open-preset.slice').click()
+  await buildStep(page, 'cards')
+
+  const editor = page.getByTestId('editor')
+  const overflowing = await editor.evaluate((el) => el.scrollHeight > el.clientHeight + 1)
+  expect(overflowing, 'the cards step fits on screen — pick a longer step for this test').toBe(true)
+
+  await editor.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  expect(await editor.evaluate((el) => el.scrollTop), 'the editor did not scroll').toBeGreaterThan(0)
+
+  // And the save button came with it. The builder scrolls inside the editor
+  // rather than owning the viewport, so its header and step tabs are sticky —
+  // without that, reaching the card pool takes both off the top of the screen.
+  await expect(page.getByTestId('room-save')).toBeInViewport()
+  await expect(page.getByTestId('room-step-board')).toBeInViewport()
 })

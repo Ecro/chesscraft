@@ -2,10 +2,11 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
 import { ko } from '../../src/i18n/ko'
 import { App } from '../../src/ui/App'
 import { makeTranslate } from '../../src/ui/i18n'
+import { skipOnboarding } from '../helpers/onboarding'
 
 /** The chrome is bundle text — `ui.*` keys never live in a content overlay. */
 const translate = makeTranslate()
@@ -31,6 +32,10 @@ function uiSources(): Array<[string, string]> {
     .filter((f) => f.endsWith('.tsx'))
     .map((f) => [f, readFileSync(join(UI_DIR, f), 'utf8')])
 }
+
+// The app opens on onboarding for a browser that has never been here.
+// Every test below is about a screen behind it.
+beforeEach(skipOnboarding)
 
 describe('UI chrome carries no hardcoded player-facing text', () => {
   it('has no Hangul literal anywhere under src/ui/*.tsx', () => {
@@ -83,7 +88,9 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // `:` joins the list because a multi-line TypeScript signature puts
     // `, after:` between a `}` and a `{`, which is the same shape as a JSX text
     // node to this scanner.
-    const CODE_FRAGMENT = /[()=";`$:]/
+    // `|` joins it for the same reason one level up: a union type broken across
+    // lines puts `| undefined,` between a closing and an opening brace.
+    const CODE_FRAGMENT = /[()=";`$:|]/
     // Third instance of the same blind spot, after the template literal and the
     // multi-line signature: a `return {` that follows a closing brace is `}`,
     // text, `{` to this regex. A bare JS keyword is never a JSX text node, so
@@ -98,10 +105,27 @@ describe('UI chrome carries no hardcoded player-facing text', () => {
     // `{` — e.g. `} \n interface TextSlot {`. Matched TIGHTLY, as exactly a
     // declaration keyword plus one PascalCase identifier, so ordinary prose
     // containing the word "type" or "class" is still caught.
-    const DECLARATION_HEAD = /^(interface|type|class|enum|function|declare)\s+[A-Z]\w*$/
+    // Stripping the comments (below) removed the noise that was HIDING two more
+    // instances of this same shape, so the pattern is widened rather than
+    // extended a fifth time: an optional `export`, and a destructuring
+    // declaration (`const [` before a `useState<{`). Still anchored to a
+    // keyword at the start, so ordinary prose containing "type" or "class" is
+    // caught exactly as before.
+    const DECLARATION_HEAD =
+      /^(export\s+)?(interface|type|class|enum|function|declare)\s+[A-Z]\w*$|^(const|let|var)\s+\[?$/
 
     const offenders = PHASE_1_CHROME.flatMap((file) => {
-      const src = readFileSync(join(UI_DIR, file), 'utf8').replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')
+      const src = readFileSync(join(UI_DIR, file), 'utf8')
+        .replace(/^import[\s\S]*?from\s+'[^']+'$/gm, '')
+        // Comments come out FIRST, and this is the general form of the three
+        // exceptions above rather than a fourth one. A prose comment sitting
+        // between a closing and an opening brace is `}`, English, `{` to the
+        // capture below, so every long explanation in these files was one
+        // unlucky line break away from failing a test about JSX text nodes.
+        // Stripping them cannot hide a real offender: a JSX text node is never
+        // inside a comment.
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/^\s*\/\/.*$/gm, ' ')
       return [...src.matchAll(/[>}]([^<>{}]+)[<{]/g)]
         .map((m) => m[1]!.replace(/\s+/g, ' ').trim())
         .filter((text) => /[A-Za-z]/.test(text))

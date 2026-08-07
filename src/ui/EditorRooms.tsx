@@ -22,16 +22,34 @@ export function EditorRooms({
   source,
   commit,
   onCreateRecord,
+  onPlay,
+  initialOpen,
 }: {
   source: ContentSource
   commit: (next: ContentSource) => void
   /** Hands the child off to the library's form to author a new record. */
   onCreateRecord: (kind: DraftKind) => void
+  /**
+   * Save this room and go play it. Passed straight through to `RoomDetail`,
+   * which owns the save — a "try it now" that played an unsaved room would show
+   * the child something they could not get back to.
+   */
+  onPlay?: ((roomId: string) => void) | undefined
+  /**
+   * A room to open on mount, or `{ id: null }` to open a blank one.
+   *
+   * The title screen has two buttons — fix THIS room, and make a new one — and
+   * before this they both landed on the list, which made them the same button
+   * with different words on it.
+   */
+  initialOpen?: { id: string | null } | undefined
 }) {
   const t = useTranslate()
   // `'new'` rather than a boolean beside an id: the two states are exclusive and
   // a boolean would let both be true.
-  const [open, setOpen] = useState<{ id: string | null; seq: number } | null>(null)
+  const [open, setOpen] = useState<{ id: string | null; seq: number } | null>(
+    initialOpen ? { id: initialOpen.id, seq: 0 } : null,
+  )
   // The SUBJECT of the refusal, not the sentence — re-derived every render, so
   // it disappears the moment it stops being true. Same reason as the library's.
   const [refusedId, setRefusedId] = useState<string | null>(null)
@@ -73,6 +91,7 @@ export function EditorRooms({
         commit={commit}
         onBack={() => setOpen(null)}
         onCreateRecord={onCreateRecord}
+        {...(onPlay ? { onPlay: () => onPlay(open.id ?? '') } : {})}
       />
     )
   }

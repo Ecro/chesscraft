@@ -37,31 +37,30 @@ const slice = load(sliceContentSource)
 const squares = (c: HTMLElement) => [...c.querySelectorAll('[data-testid^="sq-"]')]
 const occupied = (c: HTMLElement) => squares(c).filter((s) => (s.getAttribute('data-piece') ?? '') !== '')
 
-describe('a piece renders as a glyph, never as a blank square', () => {
-  it('renders the resolved icon, not the piece name', () => {
+describe('a piece renders as a mark, never as a blank square', () => {
+  it('renders the sprite the record points at, and no text at all', () => {
     // "Not blank" was the first version of this assertion, and it could never
     // fail: the board already rendered the full translated name, so a square
-    // occupied by a piece was non-empty before Phase 4 existed. What is new is
-    // WHICH text appears, so that is what is asserted.
+    // occupied by a piece was non-empty before Phase 4 existed. What is asserted
+    // is WHICH mark appears — and since the redesign that mark is a sprite, so
+    // the square must now carry no text whatsoever. A monogram here would mean
+    // the art failed to resolve and the fallback chain quietly caught it.
     const { container } = render(<MatchHost content={bundled} presetId={BUNDLED_PRESET_ID} newSeed={() => 7} />)
     const seen = occupied(container).map((s) => {
       const def = bundled.pieces.get(s.getAttribute('data-piece') ?? '')
       return {
         square: s.getAttribute('data-testid'),
         text: (s.textContent ?? '').trim(),
-        icon: def?.iconKey ? translate(def.iconKey) : null,
+        sprites: s.querySelectorAll('svg.pix').length,
+        artKey: def?.artKey ?? null,
         name: def ? translate(def.nameKey) : '',
       }
     })
     expect(seen.length).toBeGreaterThan(0)
-    for (const { square, text, icon, name } of seen) {
-      expect(icon, `${square} — the bundled set must carry an icon`).toBeTruthy()
-      // `translate` returns the KEY when it cannot resolve one, and the expected
-      // value above is computed the same way — so a typo'd iconKey made both
-      // sides equal and the comparison passed while the board painted
-      // `piece.foo.icon` across a square.
-      expect(icon, `${square} — iconKey did not resolve`).not.toMatch(/^piece\./)
-      expect(text, square ?? '').toBe(icon)
+    for (const { square, text, sprites, artKey, name } of seen) {
+      expect(artKey, `${square} — the bundled set must carry art`).toBeTruthy()
+      expect(sprites, `${square} — no sprite drawn`).toBeGreaterThan(0)
+      expect(text, `${square} still shows text`).toBe('')
       expect(text, `${square} still shows the name`).not.toBe(name)
     }
   })
@@ -133,28 +132,45 @@ describe('the board reads as a board (#41)', () => {
   })
 })
 
-describe('schema v4 carries the icon', () => {
+describe('the mark axis the bundled set actually uses', () => {
   it('bumped the version the editor gates imports on', () => {
     // `src/editor/io.ts` refuses any document declaring a version above this
-    // constant, so a v4 export that the app cannot re-import is the failure.
+    // constant, so an export the app cannot re-import is the failure.
     expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(4)
     expect(bundledContentSource.schemaVersion).toBe(SCHEMA_VERSION)
   })
 
-  it('ships icon data on the bundled set', () => {
+  it('ships art data on the bundled set', () => {
     // A content-authoring claim, kept separate from the schema claim below: if
     // the field lands and the bundle is never authored, exactly one of these
-    // two tests should go red, and it should be this one.
-    const withIcon = bundledContentSource.pieces.filter((p) => (p as { iconKey?: string }).iconKey)
-    expect(withIcon.length).toBe(bundledContentSource.pieces.length)
+    // two tests should go red, and it should be this one. It used to read
+    // `iconKey`; the redesign retired the emoji, so the axis the bundle is
+    // authored against is `artKey` and this has to follow or it pins nothing.
+    const withArt = bundledContentSource.pieces.filter((p) => (p as { artKey?: string }).artKey)
+    expect(withArt.length).toBe(bundledContentSource.pieces.length)
   })
 
-  it('treats iconKey as optional — a piece without one still loads', () => {
-    // Independent of whether anyone authored icons: strip it and the document
+  it('carries no emoji glyph behind the art', () => {
+    // Not tidiness. An emoji is drawn from a colour font that ignores `color`
+    // and `font-weight`, which is two of the three cues ADR-007 spends
+    // separating the armies — a glyph left behind here would come back the
+    // moment an art id was typo'd, and look like a rendering bug rather than a
+    // regression to a mark that cannot tell the two sides apart.
+    const src = bundledContentSource as unknown as Record<string, { iconKey?: string }[]>
+    for (const collection of ['pieces', 'squareTypes', 'ruleCards', 'skillCards']) {
+      for (const record of src[collection] ?? []) expect(record.iconKey).toBeUndefined()
+    }
+  })
+
+  it('treats both mark axes as optional — a record without either still loads', () => {
+    // Independent of whether anyone authored marks: strip them and the document
     // must still validate, because every pre-v4 document in this repo is that
-    // document.
+    // document and so is every record an author creates before picking a mark.
     const src = structuredClone(bundledContentSource)
-    for (const p of src.pieces) delete (p as { iconKey?: string }).iconKey
+    for (const p of src.pieces) {
+      delete (p as { iconKey?: string }).iconKey
+      delete (p as { artKey?: string }).artKey
+    }
     const r = loadContentSet(src)
     expect(r.ok, r.ok ? '' : JSON.stringify(r.errors)).toBe(true)
   })

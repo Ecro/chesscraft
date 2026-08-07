@@ -179,10 +179,10 @@ describe('sound is a pure mapping until it reaches the speakers', () => {
     const calls: SoundEvent[] = []
     const backend = { tone: (e: SoundEvent) => void calls.push(e) }
 
-    for (const event of SOUND_EVENTS) realPlay(event, { sound: false, haptics: false, theme: 'system' }, backend)
+    for (const event of SOUND_EVENTS) realPlay(event, { sound: false, haptics: false, names: { white: '', black: '' } }, backend)
     expect(calls, 'muted').toEqual([])
 
-    for (const event of SOUND_EVENTS) realPlay(event, { sound: true, haptics: false, theme: 'system' }, backend)
+    for (const event of SOUND_EVENTS) realPlay(event, { sound: true, haptics: false, names: { white: '', black: '' } }, backend)
     expect([...calls].sort()).toEqual([...SOUND_EVENTS].sort())
   })
 })
@@ -253,14 +253,17 @@ describe('the sound and haptics toggle', () => {
     const s = loadSettings(storage)
     expect(s.sound).toBe(false)
     expect(s.haptics).toBe(true)
-    // 'system' is the absence of a choice — the OS layer decides until someone
-    // picks, which is what makes the explicit override meaningful.
-    expect(s.theme).toBe('system')
+    // Nobody named, and that is the absence of a choice rather than a default
+    // person: every screen falls back to the side's own word from the locale
+    // bundle, so an unnamed player is still describable. `theme` used to be the
+    // third field here; Chess Craft is single-theme and it went with the toggle.
+    expect(s.names).toEqual({ white: '', black: '' })
   })
 
   it('round-trips through storage', () => {
-    saveSettings(storage, { sound: true, haptics: false, theme: 'system' })
-    expect(loadSettings(storage)).toEqual({ sound: true, haptics: false, theme: 'system' })
+    const names = { white: '준서', black: '하윤' }
+    saveSettings(storage, { sound: true, haptics: false, names })
+    expect(loadSettings(storage)).toEqual({ sound: true, haptics: false, names })
     expect(storage.getItem(SETTINGS_KEY)).not.toBeNull()
   })
 
@@ -274,7 +277,7 @@ describe('the sound and haptics toggle', () => {
       },
     } as unknown as Storage
     expect(() => loadSettings(hostile)).not.toThrow()
-    expect(() => saveSettings(hostile, { sound: true, haptics: true, theme: 'system' })).not.toThrow()
+    expect(() => saveSettings(hostile, { sound: true, haptics: true, names: { white: '', black: '' } })).not.toThrow()
   })
 
   it('reports haptics support from the platform, not from intent (ADR-023)', () => {

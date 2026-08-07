@@ -6,6 +6,17 @@ import { bundledContentSource } from '../../src/content/sets/bundled'
 import { App } from '../../src/ui/App'
 import { COACH_SEEN_KEY, hasSeenCoach, markCoachSeen } from '../../src/ui/coach'
 import { Rules } from '../../src/ui/Rules'
+import { skipOnboarding } from '../helpers/onboarding'
+
+/**
+ * The dex is four tabs over one grid now, so a "list everything" assertion has
+ * to visit each tab. `rules-<kind>` survived the rebuild as the tab's own test
+ * id — the groups still exist, they are just not all on screen at once.
+ */
+function openGroup(group: string) {
+  fireEvent.click(screen.getByTestId(`rules-${group}`))
+  return document.querySelectorAll('.dex-grid [data-entry]')
+}
 
 /**
  * PLAN Phase 3 — the first-time experience.
@@ -45,15 +56,14 @@ function memoryStorage(): Storage {
 
 describe('the rules screen is generated from the content set, not written down', () => {
   it('lists every piece, square type, rule card and skill card the set holds', () => {
-    const { container } = render(<Rules content={content} onClose={() => {}} />)
+    render(<Rules content={content} onClose={() => {}} />)
     for (const [group, expected] of [
       ['piece', content.pieces.size],
       ['square', content.squareTypes.size],
       ['rule', content.ruleCards.size],
       ['skill', content.skillCards.size],
     ] as const) {
-      const rows = container.querySelectorAll(`[data-testid="rules-${group}"] [data-entry]`)
-      expect(rows.length, `${group} rows`).toBe(expected)
+      expect(openGroup(group).length, `${group} rows`).toBe(expected)
     }
     // A guard against the counts all being zero together, which would satisfy
     // every equality above while listing nothing.
@@ -79,9 +89,8 @@ describe('the rules screen is generated from the content set, not written down',
     })
     const loaded = loadContentSet(authored)
     if (!loaded.ok) throw new Error(`authored set must load: ${JSON.stringify(loaded.errors)}`)
-    const { container } = render(<Rules content={loaded.set} onClose={() => {}} />)
-    const rows = container.querySelectorAll('[data-testid="rules-piece"] [data-entry]')
-    expect(rows.length).toBe(content.pieces.size + 1)
+    render(<Rules content={loaded.set} onClose={() => {}} />)
+    expect(openGroup('piece').length).toBe(content.pieces.size + 1)
   })
 })
 
@@ -133,22 +142,45 @@ describe('the coach marks introduce one thing at a time', () => {
   })
 })
 
-describe('a detour does not restart the introduction', () => {
-  it('resumes the coach at the step it was on after visiting the rules screen', () => {
-    // The coach used to hold its own step index, and the rules route unmounts
-    // it — so a child who read a card, tapped through to see what it meant, and
-    // came back was shown the sequence again from the top.
+describe('onboarding shows one card at a time and happens once', () => {
+  /*
+   * This used to assert that a DETOUR — reading a coach card, tapping through to
+   * the rules screen, coming back — did not restart the sequence, because the
+   * coach was an overlay on the home screen and the rules route unmounted it.
+   * Onboarding is its own route now with nowhere to detour to, so that hazard is
+   * gone by construction and the test would pin nothing. What is still worth
+   * pinning is what the old file's header said the coach assertions were about:
+   * exactly one card on screen at a time, and a second visit that is silent.
+   */
+  it('advances one card at a time and lands on the title screen', () => {
     window.localStorage.clear()
     render(<App />)
-    fireEvent.click(screen.getByTestId('coach-next'))
-    const midway = screen.getByTestId('coach-done')
-    expect(midway).toBeTruthy()
+    // The guard is structural in `Boot` — it can only render `STEPS[step]` —
+    // and this is the observable half of it.
+    expect(document.querySelectorAll('[data-testid^="boot-step-"]')).toHaveLength(1)
+    fireEvent.click(screen.getByTestId('boot-next'))
+    expect(document.querySelectorAll('[data-testid^="boot-step-"]')).toHaveLength(1)
+    fireEvent.click(screen.getByTestId('boot-next'))
+    // Last card: skip is gone, because it would do exactly what the other button
+    // does and a child cannot tell what "skip" skips when nothing is left.
+    expect(screen.queryByTestId('boot-skip')).toBeNull()
+    fireEvent.click(screen.getByTestId('boot-done'))
+    expect(screen.getByTestId('home')).toBeTruthy()
+  })
 
-    fireEvent.click(screen.getByTestId('open-rules'))
-    fireEvent.click(screen.getByTestId('rules-close'))
+  it('is silent on a second visit', () => {
+    skipOnboarding()
+    render(<App />)
+    expect(screen.queryByTestId('boot-step-build')).toBeNull()
+    expect(screen.getByTestId('home')).toBeTruthy()
+  })
 
-    // Still on the last card, not back on the first.
-    expect(screen.queryByTestId('coach-done')).not.toBeNull()
+  it('can be skipped, and skipping still counts as having seen it', () => {
+    window.localStorage.clear()
+    render(<App />)
+    fireEvent.click(screen.getByTestId('boot-skip'))
+    expect(screen.getByTestId('home')).toBeTruthy()
+    expect(hasSeenCoach(window.localStorage)).toBe(true)
   })
 })
 
@@ -160,12 +192,18 @@ describe('the rules screen can be left', () => {
     expect(closed).toBe(true)
   })
 
-  it('groups entries under headings a reader can scan', () => {
-    const { container } = render(<Rules content={content} onClose={() => {}} />)
+  it('names every group in words a reader can scan', () => {
+    // The four groups are tabs rather than headings since the rebuild, so what
+    // is asserted moved from `role="heading"` to the tab's own label — the claim
+    // is unchanged: each of the four kinds is named, in Korean, on screen.
+    render(<Rules content={content} onClose={() => {}} />)
     for (const group of ['piece', 'square', 'rule', 'skill']) {
-      const section = container.querySelector(`[data-testid="rules-${group}"]`)
-      expect(section, group).not.toBeNull()
-      expect(within(section as HTMLElement).getByRole('heading').textContent).toMatch(/[가-힣]/)
+      const tab = screen.getByTestId(`rules-${group}`)
+      expect(tab.textContent, group).toMatch(/[가-힣]/)
     }
+    // And the grid below actually follows the tab, rather than four tabs all
+    // showing the pieces.
+    expect(openGroup('skill').length).toBe(content.skillCards.size)
+    expect(openGroup('square').length).toBe(content.squareTypes.size)
   })
 })

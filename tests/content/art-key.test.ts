@@ -4,6 +4,7 @@ import { type ContentSource, loadContentSet } from '@content/load'
 import { sliceContentSource } from '@content/sets/slice'
 import { bundledContentSource } from '@content/sets/bundled'
 import { artRegistry } from '@ui/art/registry'
+import { isSpriteName } from '@ui/art/pixels'
 import { exportContent, importContent } from '@editor/io'
 import { artKeysOf, textKeysOf } from '@ui/i18n'
 
@@ -160,28 +161,37 @@ describe('the art catalogue and the content that points at it', () => {
     }
   })
 
-  it('points each record at art whose filename matches the surface that record renders on', () => {
+  it('points each record at art meant for the surface that record renders on', () => {
     /*
-     * `e2e/art-contrast.spec.ts` decides which surfaces to gate an asset
-     * against from its filename prefix. Nothing otherwise stops a rule card
-     * from pointing at a `square-` asset: it would render on a card face while
-     * being contrast-tested only against painted board squares, and pass while
-     * being unreadable where it actually appears.
+     * Nothing else stops a rule card from pointing at a square's art: it would
+     * render perfectly on a card face while being legibility-checked only
+     * against painted board squares, and pass while being unreadable where it
+     * actually appears. A raster entry carries the surface in its filename
+     * prefix, which is what `e2e/art-contrast.spec.ts` reads; a pixel entry
+     * declares it outright, because a sprite has no filename to read.
      */
-    const expected: Record<string, string> = {
-      pieces: 'piece-',
-      squareTypes: 'square-',
-      ruleCards: 'card-',
-      skillCards: 'card-',
+    const expected: Record<string, { prefix: string; surface: 'piece' | 'square' | 'card' }> = {
+      pieces: { prefix: 'piece-', surface: 'piece' },
+      squareTypes: { prefix: 'square-', surface: 'square' },
+      // Rule cards and skill cards render on the same surfaces — a badge, a
+      // sheet, a dex tile — so they share one value.
+      ruleCards: { prefix: 'card-', surface: 'card' },
+      skillCards: { prefix: 'card-', surface: 'card' },
     }
     const src = bundledContentSource as unknown as Record<string, { id: string; artKey?: string }[]>
 
     const offences: string[] = []
-    for (const [collection, prefix] of Object.entries(expected)) {
+    for (const [collection, { prefix, surface }] of Object.entries(expected)) {
       for (const record of src[collection] ?? []) {
         if (!record.artKey) continue
         const entry = artRegistry.get(record.artKey)
         if (!entry) continue // the unregistered case is the test above
+        if (entry.kind === 'pixel') {
+          if (entry.surface !== surface) {
+            offences.push(`${record.id} (${collection}) points at ${entry.sprite}, drawn for a ${entry.surface}`)
+          }
+          continue
+        }
         const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
         for (const url of urls) {
           const name = url.split('/').pop() ?? ''
@@ -194,8 +204,17 @@ describe('the art catalogue and the content that points at it', () => {
     expect(offences, offences.join('\n')).toEqual([])
   })
 
-  it('gives every registered entry a usable asset url', () => {
+  it('gives every registered entry something that will actually draw', () => {
+    // The two kinds fail differently and both fail silently. A raster entry
+    // whose asset import was removed keeps an empty string, and `<img src="">`
+    // re-fetches the document; a pixel entry naming a sprite the sheet does not
+    // have falls through to the glyph, which looks like "the art just did not
+    // show up".
     for (const [id, entry] of artRegistry) {
+      if (entry.kind === 'pixel') {
+        expect(isSpriteName(entry.sprite), `${id} names a sprite the sheet does not have`).toBe(true)
+        continue
+      }
       const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
       for (const url of urls) {
         expect(url, `${id} has an empty asset url`).toBeTruthy()

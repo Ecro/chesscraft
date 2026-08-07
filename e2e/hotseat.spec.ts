@@ -1,5 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { move } from './nav'
 
 /**
  * PLAN Phase 4 exit criterion — the hot-seat flow, end to end.
@@ -19,11 +20,6 @@ const CARD_TARGETS: Record<string, string[]> = {
   'skill.snare': ['c6'],
   'skill.rally': ['c4'],
   'skill.ascend': ['b1'],
-}
-
-async function move(page: Page, from: string, to: string) {
-  await page.getByTestId(`sq-${from}`).click()
-  await page.getByTestId(`sq-${to}`).click()
 }
 
 async function pickFirstOffer(page: Page) {

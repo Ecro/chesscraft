@@ -114,6 +114,9 @@ describe('deleting the record a form is holding', () => {
     mount(twoRooms())
     // Open a room in the Rooms tab, then delete it from the library's kind picker.
     fireEvent.click(screen.getByTestId('room-open-preset.spare'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
     fireEvent.click(screen.getByTestId('editor-tab-library'))
     fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'preset' } })
     fireEvent.click(screen.getByTestId('library-delete-preset.spare'))
@@ -144,6 +147,9 @@ describe('an unsaved room draft holding a record that was deleted', () => {
     // Tick it into a room WITHOUT saving the room.
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
     fireEvent.click(screen.getByTestId('room-piece-piece.rabbit'))
 
     // Delete it from the library. No committed room references it, so this is allowed.
@@ -154,7 +160,11 @@ describe('an unsaved room draft holding a record that was deleted', () => {
     // Back in the room, the row survives purely so it can be unticked.
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     const ghost = screen.getByTestId('room-piece-piece.rabbit')
-    expect(ghost).toHaveProperty('checked', true)
+    // A pressed toggle rather than a checkbox since the builder was rebuilt.
+    // Asserted through `aria-pressed`, which is what the state IS now — reading
+    // `.checked` off a `<button>` yields undefined, and `toHaveProperty` would
+    // happily have passed against `undefined` if this had been written loosely.
+    expect(ghost.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(ghost)
     fireEvent.click(screen.getByTestId('room-save'))
     expect(screen.queryByTestId('room-errors')).toBeNull()
@@ -178,6 +188,9 @@ describe('a refusal that has stopped being true', () => {
 
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
     fireEvent.click(screen.getByTestId('room-piece-piece.rabbit'))
     fireEvent.click(screen.getByTestId('room-save'))
 

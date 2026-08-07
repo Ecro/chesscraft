@@ -65,7 +65,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.king',
       nameKey: 'piece.king.name',
       textKey: 'piece.king.text',
-      iconKey: 'piece.king.icon',
+      artKey: 'art.king',
       movement: [{ kind: 'step', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       royal: true,
       effects: [],
@@ -74,7 +74,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.queen',
       nameKey: 'piece.queen.name',
       textKey: 'piece.queen.text',
-      iconKey: 'piece.queen.icon',
+      artKey: 'art.queen',
       movement: [{ kind: 'slide', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       effects: [],
     },
@@ -82,7 +82,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.rook',
       nameKey: 'piece.rook.name',
       textKey: 'piece.rook.text',
-      iconKey: 'piece.rook.icon',
+      artKey: 'art.rook',
       movement: [{ kind: 'slide', vectors: ORTHOGONAL }],
       effects: [],
     },
@@ -90,7 +90,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.knight',
       nameKey: 'piece.knight.name',
       textKey: 'piece.knight.text',
-      iconKey: 'piece.knight.icon',
+      artKey: 'art.knight',
       movement: [{ kind: 'jump', vectors: KNIGHT }],
       effects: [],
     },
@@ -98,7 +98,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.pawn',
       nameKey: 'piece.pawn.name',
       textKey: 'piece.pawn.text',
-      iconKey: 'piece.pawn.icon',
+      artKey: 'art.pawn',
       movement: [{ kind: 'step', vectors: [[0, 1]], forward: true }],
       attack: [
         {
@@ -117,7 +117,7 @@ export const bundledContentSource: ContentSource = {
       id: 'piece.archer',
       nameKey: 'piece.archer.name',
       textKey: 'piece.archer.text',
-      iconKey: 'piece.archer.icon',
+      artKey: 'art.archer',
       movement: [{ kind: 'step', vectors: [...ORTHOGONAL, ...DIAGONAL] }],
       attack: [
         {
@@ -145,21 +145,21 @@ export const bundledContentSource: ContentSource = {
       id: 'square.bomb',
       nameKey: 'square.bomb.name',
       textKey: 'square.bomb.text',
-      iconKey: 'square.bomb.icon',
       /**
-       * The one record carrying art in this cycle (ADR-010).
+       * Art on every record, and no `iconKey` behind it (Chess Craft redesign).
        *
-       * It is here to prove the pipeline — bundler import, hashed emit, service
-       * worker precache, render, both themes — because that chain's failure
-       * mode is invisible without a real asset in a real build, and a contract
-       * whose only exercised path is the ABSENT one is the black hole the
-       * absent-case rule warns about. A square type rather than a piece: the
-       * square mark is already its own layer, so one illustrated mark among
-       * emoji does not make the board incoherent the way one illustrated king
-       * would, and it needs one asset rather than ADR-007's two.
+       * `iconKey` used to stay as the fallback for a build whose asset failed to
+       * load. A pixel sprite has no such build: it is 12 rows of characters in
+       * `pixels.ts`, so there is nothing for the bundler to emit, the service
+       * worker to precache or the network to lose. What the emoji actually cost
+       * is recorded in `ko.ts`'s archer note — an emoji is drawn from a colour
+       * font that ignores `color` and `font-weight`, which are two of the three
+       * cues ADR-007 spends separating the two armies, so both sides' archers
+       * rendered identically.
        *
-       * `iconKey` stays. It is what every build without the asset falls back
-       * to, and removing it would make this record depend on the catalogue.
+       * The chain is not gone, only shortened: an art id the catalogue does not
+       * know still falls through, now to the monogram, which inherits both cues
+       * the emoji threw away.
        */
       artKey: 'art.bomb',
       paired: false,
@@ -175,7 +175,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.portal',
       nameKey: 'square.portal.name',
       textKey: 'square.portal.text',
-      iconKey: 'square.portal.icon',
+      artKey: 'art.portal',
       paired: true,
       effects: [
         {
@@ -189,7 +189,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.shrine',
       nameKey: 'square.shrine.name',
       textKey: 'square.shrine.text',
-      iconKey: 'square.shrine.icon',
+      artKey: 'art.shrine',
       paired: false,
       effects: [
         {
@@ -203,7 +203,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.sanctuary',
       nameKey: 'square.sanctuary.name',
       textKey: 'square.sanctuary.text',
-      iconKey: 'square.sanctuary.icon',
+      artKey: 'art.sanctuary',
       paired: false,
       effects: [
         {
@@ -217,7 +217,7 @@ export const bundledContentSource: ContentSource = {
       id: 'square.mire',
       nameKey: 'square.mire.name',
       textKey: 'square.mire.text',
-      iconKey: 'square.mire.icon',
+      artKey: 'art.mire',
       paired: false,
       effects: [
         {
@@ -234,7 +234,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.king-of-the-hill',
       nameKey: 'rule.king-of-the-hill.name',
       textKey: 'rule.king-of-the-hill.text',
-      iconKey: 'rule.king-of-the-hill.icon',
+      artKey: 'art.hill',
       cost: 4,
       effects: [
         {
@@ -260,7 +260,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.three-check',
       nameKey: 'rule.three-check.name',
       textKey: 'rule.three-check.text',
-      iconKey: 'rule.three-check.icon',
+      artKey: 'art.three',
       cost: 5,
       effects: [
         {
@@ -274,7 +274,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.sudden-death',
       nameKey: 'rule.sudden-death.name',
       textKey: 'rule.sudden-death.text',
-      iconKey: 'rule.sudden-death.icon',
+      artKey: 'art.skull',
       cost: 5,
       effects: [
         {
@@ -288,7 +288,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.fast-promotion',
       nameKey: 'rule.fast-promotion.name',
       textKey: 'rule.fast-promotion.text',
-      iconKey: 'rule.fast-promotion.icon',
+      artKey: 'art.upgrade',
       cost: 3,
       effects: [
         {
@@ -303,7 +303,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.royal-bodyguard',
       nameKey: 'rule.royal-bodyguard.name',
       textKey: 'rule.royal-bodyguard.text',
-      iconKey: 'rule.royal-bodyguard.icon',
+      artKey: 'art.crest',
       cost: 4,
       effects: [
         {
@@ -318,7 +318,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.last-stand',
       nameKey: 'rule.last-stand.name',
       textKey: 'rule.last-stand.text',
-      iconKey: 'rule.last-stand.icon',
+      artKey: 'art.flame',
       cost: 3,
       effects: [
         {
@@ -335,7 +335,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.conscription',
       nameKey: 'rule.conscription.name',
       textKey: 'rule.conscription.text',
-      iconKey: 'rule.conscription.icon',
+      artKey: 'art.ranks',
       cost: 3,
       effects: [
         {
@@ -349,7 +349,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.blood-toll',
       nameKey: 'rule.blood-toll.name',
       textKey: 'rule.blood-toll.text',
-      iconKey: 'rule.blood-toll.icon',
+      artKey: 'art.blood',
       cost: 4,
       effects: [
         {
@@ -367,7 +367,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.blitz',
       nameKey: 'rule.blitz.name',
       textKey: 'rule.blitz.text',
-      iconKey: 'rule.blitz.icon',
+      artKey: 'art.bolt',
       cost: 4,
       effects: [
         {
@@ -381,7 +381,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.knights-honour',
       nameKey: 'rule.knights-honour.name',
       textKey: 'rule.knights-honour.text',
-      iconKey: 'rule.knights-honour.icon',
+      artKey: 'art.horse',
       cost: 3,
       effects: [
         {
@@ -400,7 +400,7 @@ export const bundledContentSource: ContentSource = {
       id: 'rule.duel',
       nameKey: 'rule.duel.name',
       textKey: 'rule.duel.text',
-      iconKey: 'rule.duel.icon',
+      artKey: 'art.swords',
       cost: 5,
       effects: [
         {
@@ -417,7 +417,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.teleport',
       nameKey: 'skill.teleport.name',
       textKey: 'skill.teleport.text',
-      iconKey: 'skill.teleport.icon',
+      artKey: 'art.warp',
       cost: 4,
       uses: 1,
       effects: [
@@ -432,7 +432,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.swap',
       nameKey: 'skill.swap.name',
       textKey: 'skill.swap.text',
-      iconKey: 'skill.swap.icon',
+      artKey: 'art.arrows',
       cost: 4,
       uses: 1,
       effects: [
@@ -447,7 +447,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.revive',
       nameKey: 'skill.revive.name',
       textKey: 'skill.revive.text',
-      iconKey: 'skill.revive.icon',
+      artKey: 'art.sprout',
       cost: 6,
       uses: 1,
       effects: [
@@ -464,7 +464,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.freeze',
       nameKey: 'skill.freeze.name',
       textKey: 'skill.freeze.text',
-      iconKey: 'skill.freeze.icon',
+      artKey: 'art.ice',
       cost: 4,
       uses: 1,
       effects: [
@@ -479,7 +479,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.snare',
       nameKey: 'skill.snare.name',
       textKey: 'skill.snare.text',
-      iconKey: 'skill.snare.icon',
+      artKey: 'art.trap',
       cost: 2,
       uses: 1,
       effects: [
@@ -494,7 +494,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.coronation',
       nameKey: 'skill.coronation.name',
       textKey: 'skill.coronation.text',
-      iconKey: 'skill.coronation.icon',
+      artKey: 'art.crown',
       cost: 5,
       uses: 1,
       effects: [
@@ -509,7 +509,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.knight-leap',
       nameKey: 'skill.knight-leap.name',
       textKey: 'skill.knight-leap.text',
-      iconKey: 'skill.knight-leap.icon',
+      artKey: 'art.horse-leap',
       cost: 3,
       uses: 1,
       effects: [
@@ -526,7 +526,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.charge',
       nameKey: 'skill.charge.name',
       textKey: 'skill.charge.text',
-      iconKey: 'skill.charge.icon',
+      artKey: 'art.horn',
       cost: 4,
       uses: 1,
       effects: [
@@ -549,7 +549,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.bulwark',
       nameKey: 'skill.bulwark.name',
       textKey: 'skill.bulwark.text',
-      iconKey: 'skill.bulwark.icon',
+      artKey: 'art.wall',
       cost: 3,
       uses: 1,
       effects: [
@@ -564,7 +564,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.shackle',
       nameKey: 'skill.shackle.name',
       textKey: 'skill.shackle.text',
-      iconKey: 'skill.shackle.icon',
+      artKey: 'art.chain',
       cost: 4,
       uses: 1,
       effects: [
@@ -579,7 +579,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.recall',
       nameKey: 'skill.recall.name',
       textKey: 'skill.recall.text',
-      iconKey: 'skill.recall.icon',
+      artKey: 'art.homeward',
       cost: 3,
       uses: 1,
       effects: [
@@ -594,7 +594,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.shove',
       nameKey: 'skill.shove.name',
       textKey: 'skill.shove.text',
-      iconKey: 'skill.shove.icon',
+      artKey: 'art.fist',
       cost: 3,
       uses: 1,
       effects: [
@@ -611,7 +611,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.recruit',
       nameKey: 'skill.recruit.name',
       textKey: 'skill.recruit.text',
-      iconKey: 'skill.recruit.icon',
+      artKey: 'art.plus',
       cost: 4,
       uses: 1,
       effects: [
@@ -626,7 +626,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.volley',
       nameKey: 'skill.volley.name',
       textKey: 'skill.volley.text',
-      iconKey: 'skill.volley.icon',
+      artKey: 'art.arrow',
       cost: 6,
       uses: 1,
       effects: [
@@ -641,7 +641,7 @@ export const bundledContentSource: ContentSource = {
       id: 'skill.sacrifice',
       nameKey: 'skill.sacrifice.name',
       textKey: 'skill.sacrifice.text',
-      iconKey: 'skill.sacrifice.icon',
+      artKey: 'art.dagger',
       cost: 5,
       uses: 1,
       effects: [

@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { startMatch } from './nav'
 
 /**
  * PLAN Phase 6b — layout, measured at viewports the default project never uses.
@@ -23,11 +24,10 @@ const VIEWPORTS = {
   landscape: { width: 915, height: 412 },
 } as const
 
-async function startMatch(page: Page) {
+/** Onboarding is dismissed suite-wide by the config's `storageState`. */
+async function openBoard(page: Page) {
   await page.goto('/')
-  await page.getByTestId('coach-skip').click()
-  await page.getByTestId('start-match').click()
-  await expect(page.getByTestId('board')).toBeVisible()
+  await startMatch(page)
 }
 
 /** Document-relative, so a scrolled-into-view element is not read as a shift. */
@@ -48,7 +48,7 @@ for (const [label, viewport] of Object.entries(VIEWPORTS)) {
     test.use({ viewport })
 
     test('the board stays square and the page never scrolls sideways (#33)', async ({ page }) => {
-      await startMatch(page)
+      await openBoard(page)
 
       const box = await boardBox(page)
       // Two CSS pixels of slack. The columns are `1fr` tracks and each row's
@@ -83,7 +83,7 @@ for (const [label, viewport] of Object.entries(VIEWPORTS)) {
      * this does not require that one — it requires the outcome.
      */
     test('the whole board is on screen without scrolling (#33)', async ({ page }) => {
-      await startMatch(page)
+      await openBoard(page)
       const fit = await page.evaluate(() => {
         const r = document.querySelector('[data-testid="board"]')!.getBoundingClientRect()
         return {
@@ -100,24 +100,35 @@ for (const [label, viewport] of Object.entries(VIEWPORTS)) {
   })
 }
 
-test('collapsing a tray does not move the board (#16)', async ({ page }) => {
-  await startMatch(page)
-
+test('nothing below the board can reflow it (#16)', async ({ page }) => {
+  /*
+   * There is no tray toggle to click any more, and its absence is the fix
+   * rather than a regression: the per-tray collapse is what made this property
+   * fragile in the first place, and a player could shut their OWN tray and then
+   * be unable to play a card. Both hands are now always condensed to marks and
+   * always present.
+   *
+   * The property this test exists for survives and is worth more without the
+   * toggle: a control that reshuffles the position under a player's thumb is
+   * worse than the space it saves. So what is driven is the two things below
+   * the board that DO change size — a rejection appearing, and the settings
+   * drawer opening.
+   */
+  await openBoard(page)
   const before = await boardBox(page)
-  const toggle = page.getByTestId('tray-toggle-white')
-  await expect(toggle).toBeVisible()
 
-  await toggle.click()
-  await expect(page.getByTestId('hand-white')).toHaveAttribute('data-open', 'false')
-  // The trays sit BELOW the board, so collapsing one must not reflow it. This is
-  // the same property the rejection toast was fixed for in 6a: a control that
-  // reshuffles the position under a player's thumb is worse than the space it
-  // saves.
-  expect(await boardBox(page)).toEqual(before)
+  // A rejection: the hint line is always in the DOM precisely so that filling it
+  // cannot push the board.
+  const foeCard = page.locator('[data-testid^="hand-black-"]').first()
+  if (await foeCard.count()) {
+    await foeCard.click()
+    await expect(page.getByTestId('rejection')).toBeVisible()
+    expect(await boardBox(page), 'a rejection moved the board').toEqual(before)
+  }
 
-  await toggle.click()
-  await expect(page.getByTestId('hand-white')).toHaveAttribute('data-open', 'true')
-  expect(await boardBox(page)).toEqual(before)
+  await page.getByTestId('match-settings').click()
+  await expect(page.getByTestId('haptics-toggle').or(page.getByTestId('match-seed')).first()).toBeVisible()
+  expect(await boardBox(page), 'the settings drawer moved the board').toEqual(before)
 })
 
 /**
@@ -139,7 +150,7 @@ test.describe('landscape, with a match actually under way', () => {
    * (measured at -293px before the fix) even though it "fit" on load.
    */
   test('the board stays on screen even scrolled to the bottom (#33)', async ({ page }) => {
-    await startMatch(page)
+    await openBoard(page)
     for (let i = 0; i < 6; i += 1) {
       const offer = page.locator('[data-testid^="offer-"]').first()
       if (await offer.count()) await offer.click()
@@ -158,7 +169,7 @@ test.describe('landscape, with a match actually under way', () => {
 })
 
 test('a collapsed tray still shows the cards it holds (ADR-018)', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
   // Drain the draft rather than clicking a fixed number of times. The seed is
   // random (`MatchHost` defaults to `Math.random()`), so a fixed count left the
   // outcome to chance — and the `test.skip` that guarded it would have reported
@@ -173,16 +184,16 @@ test('a collapsed tray still shows the cards it holds (ADR-018)', async ({ page 
   const held = await cards.count()
   expect(held, 'draining the draft left white with no cards — the fixture is broken, not skippable').toBeGreaterThan(0)
 
-  await page.getByTestId('tray-toggle-white').click()
-  await expect(page.getByTestId('hand-white')).toHaveAttribute('data-open', 'false')
-  expect(await cards.count(), 'collapsing removed the cards from the DOM').toBe(held)
-  await expect(cards.first(), 'a collapsed tray hid a card the opponent must see').toBeVisible()
-  // Condensing costs the prose, never the identity. `.card-body` goes
-  // `display: none` when collapsed, which takes it out of the accessibility
-  // tree — and the icon beside it is aria-hidden, so without a label on the
-  // button itself a collapsed tray announced "button" and nothing else.
+  // Condensed by DEFAULT now rather than behind a toggle — see the note on the
+  // test above. What ADR-018 protects is unchanged and is what is asserted: the
+  // cards are in the DOM, on screen, and each still says what it is.
+  expect(await cards.count(), 'a condensed hand dropped its cards from the DOM').toBe(held)
+  await expect(cards.first(), 'a condensed hand hid a card the opponent must see').toBeVisible()
+  // Condensing costs the prose, never the identity. The mark inside is
+  // aria-hidden, so without a label on the button itself a condensed hand
+  // announces "button" and nothing else.
   const name = await cards.first().getAttribute('aria-label')
-  expect(name?.trim(), 'a collapsed card has no accessible name').toBeTruthy()
+  expect(name?.trim(), 'a condensed card has no accessible name').toBeTruthy()
 })
 
 /**
@@ -200,14 +211,14 @@ test.describe('at the narrowest supported phone', () => {
   test.use({ viewport: VIEWPORTS['small phone'] })
 
   test('every match control is fully on screen, and the toggles are grouped', async ({ page }) => {
-    await startMatch(page)
+    await openBoard(page)
 
     const bounds = await page.evaluate(() => {
       const main = document.querySelector('main')
       if (!main) return null
       const box = main.getBoundingClientRect()
       const escapees: Array<{ label: string; right: number }> = []
-      for (const el of document.querySelectorAll('.match-tools button, .status button')) {
+      for (const el of document.querySelectorAll('.match-tools button, .turn-bar button')) {
         const r = el.getBoundingClientRect()
         if (r.right > box.right + 0.5 || r.left < box.left - 0.5) {
           escapees.push({ label: (el.textContent ?? '').trim().slice(0, 12), right: Math.round(r.right) })
@@ -218,14 +229,21 @@ test.describe('at the narrowest supported phone', () => {
     expect(bounds).not.toBeNull()
     expect(bounds?.escapees, `controls past main's edge (${bounds?.right}px)`).toEqual([])
 
-    // The grouping itself: the two settings toggles are behind one affordance
-    // rather than sitting in the row as two more buttons.
+    /*
+     * The grouping, one rank lighter than it was.
+     *
+     * Sound came back OUT of the drawer: it is the control two children reach
+     * for most on a shared phone, and burying the thing everyone touches to tidy
+     * a row is the wrong trade. What stays behind the affordance is what a
+     * player reaches for between matches at most — the seed (ADR-024's
+     * reproducibility contract, moved and never deleted) and haptics.
+     */
     const settings = page.getByTestId('match-settings')
     await expect(settings).toBeVisible()
-    await expect(page.getByTestId('sound-toggle')).toBeHidden()
-    await settings.click()
     await expect(page.getByTestId('sound-toggle')).toBeVisible()
-    await expect(page.getByTestId('haptics-toggle')).toBeVisible()
+    await expect(page.getByTestId('match-seed')).toBeHidden()
+    await settings.click()
+    await expect(page.getByTestId('match-seed')).toBeVisible()
   })
 })
 
@@ -249,7 +267,7 @@ test.describe('at desktop (1440x900)', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('uses the width instead of leaving a phone column in the middle', async ({ page }) => {
-    await startMatch(page)
+    await openBoard(page)
 
     const { mainWidth, boardWidth, horizontal } = await page.evaluate(() => ({
       mainWidth: Math.round(document.querySelector('main')!.getBoundingClientRect().width),
@@ -265,13 +283,13 @@ test.describe('at desktop (1440x900)', () => {
   })
 
   test('the board stays square', async ({ page }) => {
-    await startMatch(page)
+    await openBoard(page)
     const box = await boardBox(page)
     expect(Math.abs(box.w - box.h), `board is ${box.w}x${box.h}`).toBeLessThanOrEqual(2)
   })
 
   test('leaves no hole in the side column beside a taller board', async ({ page }) => {
-    await startMatch(page)
+    await openBoard(page)
 
     const gaps = await page.evaluate(() => {
       const side = [...document.querySelectorAll('.play > *')].filter(

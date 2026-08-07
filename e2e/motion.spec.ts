@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { liftCurtain, startMatch } from './nav'
 
 /**
  * PLAN Phase 5 — the spec that runs with motion ON.
@@ -20,10 +21,10 @@ import { expect, test } from '@playwright/test'
 // spelled the way the types accept — the effect is the same.
 test.use({ contextOptions: { reducedMotion: 'no-preference' } })
 
-async function startMatch(page: import('@playwright/test').Page) {
+/** Onboarding is dismissed suite-wide by the config's `storageState`. */
+async function openBoard(page: import('@playwright/test').Page) {
   await page.goto('/')
-  await page.getByTestId('coach-skip').click()
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
   for (let i = 0; i < 4; i++) {
     const offer = page.locator('[data-testid^="offer-"]').first()
     if ((await offer.count()) === 0) break
@@ -31,16 +32,30 @@ async function startMatch(page: import('@playwright/test').Page) {
   }
 }
 
-test('a transition is actually declared once motion is allowed', async ({ page }) => {
-  await startMatch(page)
-  const duration = await page.getByTestId('sq-d2').evaluate((el) => getComputedStyle(el).transitionDuration)
+test('motion is actually declared once it is allowed', async ({ page }) => {
+  /*
+   * This used to read `transitionDuration` off a square. The redesign animates
+   * the PIECE — a stepped slide from where it came from, because a sprite eased
+   * smoothly renders at sub-pixel offsets and antialiases the very edges
+   * `crispEdges` exists to keep hard — so the duration to probe moved with it.
+   *
+   * Probed on the element that carries the animation rather than on the token,
+   * because `--motion-move-duration: 0ms` under `reduce` and a rule that forgot
+   * to reference the token look identical from the token's side.
+   */
+  await openBoard(page)
+  await page.getByTestId('sq-d2').click()
+  await page.getByTestId('sq-d3').click()
+  const duration = await page
+    .locator('[data-last="to"] .piece')
+    .evaluate((el) => getComputedStyle(el).animationDuration)
   // Under `reduce` this resolves to 0s; here it must not.
   expect(duration).not.toBe('0s')
   expect(duration).not.toBe('')
 })
 
 test('the board settles after a move and the highlight lands on the right two squares', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
   await page.getByTestId('sq-d2').click()
   await page.getByTestId('sq-d3').click()
 
@@ -56,18 +71,22 @@ test('a move can still be made by tap while motion is on', async ({ page }) => {
   // the board by clicking. If motion made tap unreliable the whole suite would
   // go flaky at once, so it is asserted here deliberately rather than inferred
   // from the other specs passing under `reduce`.
-  await startMatch(page)
+  await openBoard(page)
   await page.getByTestId('sq-d2').click()
   await page.getByTestId('sq-d3').click()
   await expect(page.getByTestId('sq-d3')).not.toHaveAttribute('data-piece', '')
 
+  // The hand-off curtain is up — a completed ply passes the phone — and undo is
+  // behind it. Lifting it is what a player does, and what the other specs that
+  // play a line do through `move`.
+  await liftCurtain(page)
   const undone = page.getByTestId('undo')
   await undone.click()
   await expect(page.locator('[data-last]')).toHaveCount(0)
 })
 
 test('a piece can be dragged to its destination (#12)', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
 
   // Driven with pointer-producing mouse primitives, NOT `dragTo`. The first
   // implementation used HTML5 drag-and-drop and `dragTo` passed against it —

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { goEditor, move } from './nav'
 
 /**
  * PLAN Phase 3 exit criterion (b), through the UI — a match is playable end to
@@ -28,8 +29,7 @@ test('a match plays to a result using only slice content', async ({ page }) => {
   // ahead of the archer's volley, and the rule card ends the match — the Phase 3
   // four-layer line, driven through the UI.
   const step = async (from: string, to: string) => {
-    await page.getByTestId(`sq-${from}`).click()
-    await page.getByTestId(`sq-${to}`).click()
+    await move(page, from, to)
   }
   await step('c1', 'c2')
   await step('d6', 'd5')
@@ -42,7 +42,7 @@ test('a match plays to a result using only slice content', async ({ page }) => {
 
 test('the editor refuses to save content that fails validation', async ({ page }) => {
   await useSliceContent(page)
-  await page.getByTestId('tab-edit').click()
+  await goEditor(page)
 
   // Phase 9a moved the record forms behind the library tab, and the raw key
   // slot behind 고급 설정 — a literal name is now something the editor makes an

@@ -32,6 +32,20 @@ export default defineConfig({
     // `[fail:test] test-setup-hides-the-failure-path`, already recorded here
     // after a clipboard spec granted the permission whose absence was the risk.
     contextOptions: { reducedMotion: 'reduce' },
+    /*
+     * Every context starts as a browser that has already been onboarded.
+     *
+     * The app opens on its onboarding screen for anyone whose storage has no
+     * record of a previous visit, so without this every spec in the suite would
+     * begin one tap away from the screen it is about — and each would have to
+     * remember to dismiss it, which is the kind of setup that is forgotten in
+     * exactly one spec and then debugged for an hour.
+     *
+     * `e2e/ftue.spec.ts` clears the flag itself, which is the same shape as
+     * `motion.spec.ts` opting back into animation: the suite-wide default must
+     * never be the reason a path is untested.
+     */
+    storageState: './e2e/onboarded.json',
   },
   projects: [
     {

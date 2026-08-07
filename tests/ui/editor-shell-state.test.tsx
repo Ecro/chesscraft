@@ -63,6 +63,9 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
 
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
     fireEvent.click(screen.getByTestId('room-new-piece'))
 
     expect(confirm).toHaveBeenCalledOnce()
@@ -82,6 +85,9 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
 
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
     fireEvent.click(screen.getByTestId('room-new-piece'))
 
     expect(screen.getByTestId('editor-tab-library').getAttribute('data-selected')).toBe('true')
@@ -102,6 +108,11 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
 
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
+    // The rule and skill pools live behind the cards step.
+    fireEvent.click(screen.getByTestId('room-step-cards'))
     fireEvent.click(screen.getByTestId('room-new-rule'))
 
     expect(confirm).not.toHaveBeenCalled()
@@ -129,6 +140,11 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
 
     fireEvent.click(screen.getByTestId('editor-tab-rooms'))
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
+    // The rule and skill pools live behind the cards step.
+    fireEvent.click(screen.getByTestId('room-step-cards'))
     fireEvent.click(screen.getByTestId('room-new-rule'))
 
     // Blank, not the record just saved.
@@ -165,6 +181,11 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     mount()
     fireEvent.click(screen.getByTestId('room-open-preset.slice'))
+    // The room builder opens on the paint step now; the pieces this room
+    // uses live behind the second one.
+    fireEvent.click(screen.getByTestId('room-step-pieces'))
+    // The rule and skill pools live behind the cards step.
+    fireEvent.click(screen.getByTestId('room-step-cards'))
     fireEvent.click(screen.getByTestId('room-new-rule'))
 
     // Nothing was at stake, so nothing was asked. A guard that prompts on every

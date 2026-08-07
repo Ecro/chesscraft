@@ -5,6 +5,13 @@ import { type DraftKind, blankDraft, commitDraft, editorContext, openDraft } fro
 import { type VocabularyControl, controlsFor } from '@editor/controls'
 import { type StringField, clearString, deriveKey, readString, rekeyStrings, writeString } from '@editor/strings'
 import { DEFAULT_LOCALE, makeTranslate, useTranslate } from './i18n'
+import { resolveMark } from './art/resolve'
+import { artRegistry } from './art/registry'
+import { MarkBody } from './art/MarkBody'
+import { PIXEL_SPRITES, isSpriteName } from './art/pixels'
+import { Pix } from './art/Pix'
+import { Cell, GRID_RANGE, type PieceGrid, cycle, describeGrid, readGrid, writeGrid } from './PieceMoves'
+import { type SlotId, optionsFor, readRecipe, recipeSentence, takesTarget, writeRecipe } from './CardRecipe'
 
 /**
  * One content record, open for editing (PLAN Phase 9a).
@@ -929,6 +936,241 @@ export function RecordForm({
     </label>
   )
 
+
+  // --- the simple views (Chess Craft redesign) -------------------------------
+
+  /**
+   * Which surface this record renders on, and therefore which art it may point
+   * at. A rule card offered a square's picture would render fine and be
+   * legibility-checked against the wrong background — see `art-key.test.ts`.
+   */
+  const ART_SURFACE: Partial<Record<DraftKind, 'piece' | 'square' | 'card'>> = {
+    piece: 'piece',
+    squareType: 'square',
+    ruleCard: 'card',
+    skillCard: 'card',
+  }
+
+  /**
+   * The mark this record shows, picked from the app's sprite sheet.
+   *
+   * Not a text field for the art id. The id is `art.homeward` and the picture is
+   * a house — a child cannot map one to the other by reading, and there is no
+   * reason to make them: the whole catalogue fits on one screen at 12 pixels a
+   * side.
+   */
+  function artPicker() {
+    const surface = ART_SURFACE[kind]
+    if (!surface) return null
+    const options = [...artRegistry.entries()].filter(([, entry]) => entry.kind === 'pixel' && entry.surface === surface)
+    if (options.length === 0) return null
+    const chosen = typeof draft.artKey === 'string' ? draft.artKey : ''
+    return (
+      <fieldset className="art-picker">
+        <legend>{t('ui.editor.field.art')}</legend>
+        <div className="palette wrap">
+          {options.map(([artId, entry]) => {
+            const sprite = entry.kind === 'pixel' && isSpriteName(entry.sprite) ? PIXEL_SPRITES[entry.sprite] : null
+            return (
+              <button
+                key={artId}
+                type="button"
+                data-testid={`editor-art-${artId}`}
+                data-selected={chosen === artId}
+                aria-pressed={chosen === artId}
+                aria-label={artId}
+                onClick={() =>
+                  update((d) => {
+                    // Tapping the chosen one clears it: `artKey` is optional, and
+                    // a picker with no way back to "no picture" makes the absent
+                    // case unreachable the moment it is used once.
+                    if (d.artKey === artId) delete d.artKey
+                    else d.artKey = artId
+                  })
+                }
+              >
+                {sprite && <Pix sprite={sprite} tint={surface === 'piece' ? 'var(--pix-tint-white)' : undefined} />}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
+    )
+  }
+
+  /** How this piece moves, as one grid. See `PieceMoves.tsx` for the mapping. */
+  function pieceGridView() {
+    if (kind !== 'piece') return null
+    const grid = readGrid(draft)
+    if (!grid) {
+      // Refusing to open beats flattening — see the header of `PieceMoves.tsx`.
+      return (
+        <div className="note-box" data-testid="editor-moves-complex">
+          <strong>{t('ui.editor.piece.complex')}</strong>
+          <p>{t('ui.editor.piece.complex-hint')}</p>
+        </div>
+      )
+    }
+
+    const commit = (next: PieceGrid) => {
+      const written = writeGrid(next)
+      update((d) => {
+        if (!written.ok) {
+          // A grid with no move squares is a document that will not load
+          // (`movement` carries `.min(1)`). The draft keeps the last valid
+          // movement and the note below says what is missing, rather than the
+          // save failing later against a field name the child has never seen.
+          return
+        }
+        d.movement = written.movement
+        if (written.attack === undefined) delete d.attack
+        else d.attack = written.attack
+      })
+    }
+
+    const noMoves = Object.values(grid.cells).every((v) => v !== Cell.Move && v !== Cell.Both)
+    const noTakes = Object.values(grid.cells).every((v) => v !== Cell.Capture && v !== Cell.Both)
+
+    return (
+      <fieldset className="piece-moves" data-testid="editor-moves">
+        <legend>{t('ui.editor.piece.how')}</legend>
+        <p className="hint">{t('ui.editor.piece.how-hint')}</p>
+        <div className="move-grid">
+          {GRID_RANGE.map((dr) =>
+            GRID_RANGE.map((df) => {
+              const centre = df === 0 && dr === 0
+              const value = grid.cells[`${df},${dr}`] ?? Cell.None
+              if (centre) {
+                return (
+                  <span key={`${df},${dr}`} className="move-cell" data-centre="true" aria-hidden="true">
+                    <MarkBody mark={resolveMark(t, draft as { artKey?: string; iconKey?: string }, { registry: artRegistry, side: 'white', fallback: 'none' })} />
+                  </span>
+                )
+              }
+              return (
+                <button
+                  key={`${df},${dr}`}
+                  type="button"
+                  className="move-cell"
+                  data-testid={`piece-cell-${df},${dr}`}
+                  data-value={value}
+                  aria-label={`${df},${dr}`}
+                  aria-pressed={value !== Cell.None}
+                  onClick={() => {
+                    const cells = { ...grid.cells }
+                    const next = cycle(value)
+                    if (next === Cell.None) delete cells[`${df},${dr}`]
+                    else cells[`${df},${dr}`] = next
+                    commit({ ...grid, cells })
+                  }}
+                />
+              )
+            }),
+          )}
+        </div>
+
+        <div className="travel-picker">
+          {(['step', 'slide', 'jump'] as const).map((travel) => (
+            <button
+              key={travel}
+              type="button"
+              data-testid={`piece-travel-${travel}`}
+              data-selected={grid.travel === travel}
+              aria-pressed={grid.travel === travel}
+              onClick={() => commit({ ...grid, travel })}
+            >
+              {t(`ui.editor.vocab.movement.${travel}`)}
+            </button>
+          ))}
+        </div>
+
+        <div className="note-box">
+          <span className="kicker">{t('ui.editor.piece.dex-preview')}</span>
+          <p data-testid="piece-summary">{describeGrid(t, grid)}</p>
+          {HAS_TEXT.includes(kind) && (
+            <button
+              type="button"
+              data-testid="piece-use-summary"
+              onClick={() => {
+                setBodyText(describeGrid(t, grid))
+                setTextTyped(true)
+                setSaved(null)
+                onDirtyChange?.(true)
+              }}
+            >
+              {t('ui.editor.piece.use-summary')}
+            </button>
+          )}
+        </div>
+
+        {noMoves && (
+          <p className="refusal" data-testid="piece-no-moves">
+            {t('ui.editor.piece.no-moves')}
+          </p>
+        )}
+        {noTakes && !noMoves && <p className="hint">{t('ui.editor.piece.no-takes')}</p>}
+      </fieldset>
+    )
+  }
+
+  /** What this card does, as four blocks. See `CardRecipe.tsx`. */
+  function recipeView() {
+    if (kind !== 'ruleCard' && kind !== 'skillCard') return null
+    const recipe = readRecipe(draft)
+    if (!recipe) {
+      return (
+        <div className="note-box" data-testid="editor-recipe-complex">
+          <strong>{t('ui.editor.card.complex')}</strong>
+          <p>{t('ui.editor.card.complex-hint')}</p>
+        </div>
+      )
+    }
+    const hasTarget = takesTarget(recipe.then, ctx)
+    const slots: Array<{ id: SlotId; axis: string; value: string; disabled: boolean }> = [
+      // A skill card resolves only on its own play, so its trigger slot has one
+      // option. Shown inert rather than hidden: the sentence reads wrong without
+      // it, and "why does a rule card have four blocks and mine three" is a
+      // worse question than a greyed one.
+      { id: 'when', axis: 'trigger', value: recipe.when, disabled: kind === 'skillCard' },
+      { id: 'cond', axis: 'condition', value: recipe.cond, disabled: false },
+      { id: 'then', axis: 'action', value: recipe.then, disabled: false },
+      { id: 'who', axis: 'target', value: recipe.who, disabled: !hasTarget },
+    ]
+
+    return (
+      <fieldset className="card-recipe" data-testid="editor-recipe">
+        <legend>{t('ui.editor.card.recipe')}</legend>
+        <p className="hint">{t('ui.editor.card.recipe-hint')}</p>
+        {slots.map((slot) => (
+          <label key={slot.id} className="recipe-slot" data-slot={slot.id}>
+            <span className="recipe-label">{t(`ui.editor.card.slot.${slot.id}`)}</span>
+            <select
+              data-testid={`recipe-${slot.id}`}
+              value={slot.value}
+              disabled={slot.disabled}
+              onChange={(e) =>
+                update((d) => {
+                  d.effects = writeRecipe(d, slot.id, e.target.value, ctx)
+                })
+              }
+            >
+              {slot.disabled && slot.value === '' && <option value="">{t('ui.editor.card.slot.none')}</option>}
+              {optionsFor(slot.id, kind).map((option) => (
+                <option key={option} value={option}>
+                  {t(`ui.editor.vocab.${slot.axis}.${option}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+        <div className="note-box">
+          <span className="kicker">{t('ui.editor.card.reads-as')}</span>
+          <p data-testid="recipe-sentence">{recipeSentence(t, recipe, kind)}</p>
+        </div>
+      </fieldset>
+    )
+  }
+
   return (
     <section className="record-form" data-testid="record-form">
       <label>
@@ -977,6 +1219,17 @@ export function RecordForm({
         {textField('nameKey', 'editor-nameKey', 'ui.editor.field.name-slot', false)}
         {HAS_TEXT.includes(kind) && textField('textKey', 'editor-textKey', 'ui.editor.field.text-slot', false)}
       </details>
+
+      {/* The simple views come FIRST, and the schema-shaped fieldsets below stay
+          exactly where they were. Two editors over one draft is deliberate: they
+          read the same state, so the grid always shows whatever `movement`
+          holds, and neither can drift from the other. Folding the detailed
+          controls into a closed `<details>` was the tempting tidy-up and would
+          have broken the ADR-006 vocabulary-coverage gate, which drives them by
+          test id and cannot click into collapsed content. */}
+      {artPicker()}
+      {pieceGridView()}
+      {recipeView()}
 
       {(kind === 'ruleCard' || kind === 'skillCard') &&
         numberField('editor-cost', 'ui.editor.field.cost', draft.cost, (n) =>

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { bundledContentSource } from '../src/content/sets/bundled'
 import { makeTranslate } from '../src/ui/i18n'
+import { startMatch } from './nav'
 
 /** Bundle-only: this spec drives the shipped content, which declares no overlay. */
 const translate = makeTranslate()
@@ -17,14 +18,14 @@ const translate = makeTranslate()
  * a blank square" and "no coordinate text in squares" exist to catch.
  */
 
-async function startMatch(page: import('@playwright/test').Page) {
+/** Onboarding is dismissed suite-wide by the config's `storageState`. */
+async function openBoard(page: import('@playwright/test').Page) {
   await page.goto('/')
-  await page.getByTestId('coach-skip').click()
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
 }
 
 test('every occupied square shows exactly one grapheme after layout', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
 
   const occupied = page.locator('[data-testid^="sq-"]:not([data-piece=""])')
   const count = await occupied.count()
@@ -37,26 +38,31 @@ test('every occupied square shows exactly one grapheme after layout', async ({ p
   // behind a green test. The adjacent unit test had already learned this against
   // the slice fixture; the lesson did not get carried across, which is the whole
   // reason it is written down here.
-  const expectedFor = (pieceId: string) => {
-    const def = (bundledContentSource.pieces as Array<{ id: string; iconKey?: string; nameKey: string }>).find(
-      (p) => p.id === pieceId,
-    )
+  //
+  // Since the redesign a piece is a SPRITE, so the claim inverts: the square
+  // must carry a drawing and no text at all. A grapheme here would mean the art
+  // failed to resolve and the monogram fallback quietly caught it — which is
+  // exactly the silent degradation `art-key.test.ts` exists to make loud.
+  const declaresArt = (pieceId: string) => {
+    const def = (bundledContentSource.pieces as Array<{ id: string; artKey?: string }>).find((p) => p.id === pieceId)
     if (!def) throw new Error(`no such piece in the bundle: ${pieceId}`)
-    return def.iconKey ? translate(def.iconKey) : [...translate(def.nameKey)][0]
+    return Boolean(def.artKey)
   }
 
   for (let i = 0; i < count; i++) {
     const sq = occupied.nth(i)
     const id = await sq.getAttribute('data-testid')
     const pieceId = (await sq.getAttribute('data-piece')) ?? ''
-    // innerText is post-layout, so this also fails for a glyph that renders but
-    // is not displayed — the half a jsdom textContent read cannot see.
-    expect((await sq.innerText()).trim(), `${id} (${pieceId})`).toBe(expectedFor(pieceId))
+    expect(declaresArt(pieceId), `${pieceId} declares no art`).toBe(true)
+    // Post-layout, so this also fails for a sprite that is in the DOM and not
+    // displayed — the half a textContent read cannot see.
+    expect((await sq.innerText()).trim(), `${id} (${pieceId}) still renders text`).toBe('')
+    expect(await sq.locator('.piece svg.pix').count(), `${id} (${pieceId}) draws no sprite`).toBe(1)
   }
 })
 
 test('a piece stays legible on the checker\'s DARK square (#41)', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
 
   // The first version compared `color` to `backgroundColor` for inequality on
   // `.first()`. That could not fail — the side tokens never equalled the board
@@ -105,7 +111,7 @@ test('a piece stays legible on the checker\'s DARK square (#41)', async ({ page 
 })
 
 test('no square carries its coordinate, including through CSS content', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
 
   const leaks = await page.locator('[data-testid^="sq-"]').evaluateAll((els) =>
     els
@@ -123,7 +129,7 @@ test('no square carries its coordinate, including through CSS content', async ({
 })
 
 test('the two square colours actually differ on screen (#41)', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
   const colours = await page.locator('[data-testid^="sq-"]').evaluateAll((els) => {
     const byParity: Record<string, string> = {}
     for (const el of els) {
@@ -157,7 +163,7 @@ test('the two square colours actually differ on screen (#41)', async ({ page }) 
 })
 
 test('the edge rails label the board the squares no longer do', async ({ page }) => {
-  await startMatch(page)
+  await openBoard(page)
   // `ContentSource.boards` is the raw pre-validation shape, so the dimensions
   // are read through a narrow cast rather than assumed on an unknown.
   const board = bundledContentSource.boards[0] as { width: number; height: number } | undefined

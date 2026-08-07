@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '../../src/content/sets/bundled'
 import { loadContentSet } from '../../src/content/load'
 import { App } from '../../src/ui/App'
-import { MatchHost, resultLabel } from '../../src/ui/MatchHost'
+import { MatchHost } from '../../src/ui/MatchHost'
+import { resultLabel } from '../../src/ui/Result'
 import { makeTranslate } from '../../src/ui/i18n'
+import { skipOnboarding } from '../helpers/onboarding'
 
 /**
  * PLAN Phase 2 — the match lifecycle, and the two defects that made the
@@ -44,6 +46,10 @@ function offersOf(container: HTMLElement): string[] {
   return [...container.querySelectorAll('[data-testid^="offer-"]')].map((e) => e.getAttribute('data-card') ?? '')
 }
 
+// The app opens on onboarding for a browser that has never been here.
+// Every test below is about a screen behind it.
+beforeEach(skipOnboarding)
+
 describe('a fixed seed still reproduces a match exactly (AC-004, through the product path)', () => {
   it('draws the same rule card and the same first offers on two independent mounts', () => {
     const a = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 4242} />)
@@ -60,7 +66,19 @@ describe('a fixed seed still reproduces a match exactly (AC-004, through the pro
 })
 
 describe('a new match is actually new (RESEARCH #2)', () => {
-  it('draws different rule cards across a sample of seeds', () => {
+  /*
+   * Both loops below get a longer budget than vitest's 5s default, and the
+   * reason is a real cost rather than a slow machine: a board is 36 squares and
+   * every occupied one now draws a sprite as ~40 SVG rects, so one mount is
+   * roughly 1,400 elements where it used to be 36 text nodes. Twelve mounts of
+   * that in jsdom, under the whole suite running in parallel, sits right on the
+   * default and flaked at about one run in three.
+   *
+   * Raised rather than sampled down: the sample size is what makes "one distinct
+   * value across eight seeds" a meaningful floor, and trading it for speed would
+   * quietly weaken the assertion this phase exists for.
+   */
+  it('draws different rule cards across a sample of seeds', { timeout: 20_000 }, () => {
     const seen = new Set<string>()
     for (const seed of [1, 2, 3, 5, 8, 13, 21, 34]) {
       const { container, unmount } = render(
@@ -74,7 +92,7 @@ describe('a new match is actually new (RESEARCH #2)', () => {
     expect(seen.size).toBeGreaterThan(1)
   })
 
-  it('defaults to a varying seed when the host is given no generator', () => {
+  it('defaults to a varying seed when the host is given no generator', { timeout: 20_000 }, () => {
     // The regression is a component that only varies when a test hands it a
     // generator — the product path must vary on its own.
     const seen = new Set<string>()
@@ -192,11 +210,20 @@ describe('nothing machine-readable reaches the player as text', () => {
     expect(label).toMatch(/[가-힣]/)
   })
 
-  it('names presets by their translated name, not their id (#17)', () => {
+  it('names rooms by their translated name, not their id (#17)', () => {
+    // Every room, not just the first: the carousel shows one at a time, so a
+    // single-card assertion would pass on a document whose second room still
+    // rendered `preset.slice`.
     render(<App />)
-    const select = screen.getByTestId('preset-select')
-    const labels = [...within(select).getAllByRole('option')].map((o) => o.textContent ?? '')
-    expect(labels.length).toBeGreaterThan(0)
-    for (const label of labels) expect(label).not.toMatch(/^preset\./)
+    const seen = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      const card = screen.getByTestId('room-card')
+      const id = card.getAttribute('data-room') ?? ''
+      if (seen.has(id)) break
+      seen.add(id)
+      expect(card.textContent ?? '').not.toMatch(/preset\./)
+      fireEvent.click(screen.getByTestId('room-next'))
+    }
+    expect(seen.size).toBeGreaterThan(0)
   })
 })

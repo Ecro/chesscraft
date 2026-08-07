@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '../src/content/sets/bundled'
+import { startMatch } from './nav'
 
 /**
  * AC-010's product clause — the half the counting tests cannot see.
@@ -23,12 +24,14 @@ const ids = (records: unknown[]) => records.map((r) => (r as { id: string }).id)
 test.describe('the app ships the bundled content set (AC-010)', () => {
   test('serves the bundled preset to a first visitor, with no content imported', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByTestId('preset-select')).toHaveValue(BUNDLED_PRESET_ID)
+    // The room the app opens on, read off the carousel's own card rather than a
+    // `<select>`'s value — same claim, new control.
+    await expect(page.getByTestId('room-card')).toHaveAttribute('data-room', BUNDLED_PRESET_ID)
   })
 
   test('opens on the Los Alamos array — 24 pieces, both queens on the board', async ({ page }) => {
     await page.goto('/')
-    await page.getByTestId('start-match').click()
+    await startMatch(page)
     const occupied = await page
       .locator('[data-testid^="sq-"]')
       .evaluateAll((els) => els.filter((e) => (e.getAttribute('data-piece') ?? '') !== '').length)
@@ -43,7 +46,7 @@ test.describe('the app ships the bundled content set (AC-010)', () => {
 
   test('paints all five bundled square types, including the ADR-010 portal pair', async ({ page }) => {
     await page.goto('/')
-    await page.getByTestId('start-match').click()
+    await startMatch(page)
     for (const [square, typeId] of [
       ['a3', 'square.bomb'],
       ['f3', 'square.shrine'],
@@ -70,7 +73,7 @@ test.describe('the app ships the bundled content set (AC-010)', () => {
 
   test('draws its rule card and skill offers from the bundled pools, not the slice', async ({ page }) => {
     await page.goto('/')
-    await page.getByTestId('start-match').click()
+    await startMatch(page)
 
     const ruleId = await page.getByTestId('rule-card').getAttribute('data-rule')
     expect(ids(bundledContentSource.ruleCards)).toContain(ruleId)
@@ -86,7 +89,7 @@ test.describe('the app ships the bundled content set (AC-010)', () => {
     // AC-016 in the product: a key that reached the screen means the ko bundle
     // is missing an entry for content the player can actually see.
     await page.goto('/')
-    await page.getByTestId('start-match').click()
+    await startMatch(page)
     const ruleText = await page.getByTestId('rule-card').textContent()
     expect(ruleText).not.toMatch(/rule\.[a-z-]+\.(name|text)/)
 

@@ -56,18 +56,42 @@ describe('colour lives in tokens.css and nowhere else', () => {
   })
 })
 
-describe('dark mode is reachable both ways', () => {
+describe('the palette is single-theme, and says so to the browser', () => {
   const css = () => readFileSync(join(UI_DIR, TOKENS), 'utf8')
 
-  it('follows the OS preference', () => {
-    expect(css()).toMatch(/@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)/)
+  /*
+   * This used to assert the opposite — three cascade layers, with an explicit
+   * `data-theme` able to beat the OS in both directions. Chess Craft is one dark
+   * pixel palette: the bevels ARE the shape of every control and there is no
+   * light-theme value for "the lit edge of a raised block". The tests that
+   * guarded the old structure are replaced rather than deleted, because the
+   * failure they were really protecting against — a half-declared theme — is
+   * still reachable, just in the other direction.
+   */
+
+  it('declares the scheme, so the browser does not paint chrome light', () => {
+    // Without this the scrollbar, the overscroll gutter and every native form
+    // control render light around a dark app. It is one line and it is the whole
+    // reason a single-theme app does not look broken at the edges.
+    expect(css()).toMatch(/color-scheme:\s*dark/)
   })
 
-  it('lets an explicit data-theme override the OS in BOTH directions', () => {
-    // Only honouring data-theme="dark" leaves a user on a dark OS unable to
-    // choose light — the override has to work against the preference, not only
-    // alongside it.
-    expect(css()).toMatch(/:root\[data-theme=['"]?dark['"]?\]/)
-    expect(css()).toMatch(/:root\[data-theme=['"]?light['"]?\]/)
+  it('declares no second theme, in either direction', () => {
+    // A half-migrated re-skin leaves one `@media (prefers-color-scheme)` block
+    // or one stray `[data-theme]` behind, and it wins over `:root` for whoever
+    // happens to match it — so a subset of players get a palette nobody
+    // maintains. Either the app is single-theme or it is not.
+    expect(css()).not.toMatch(/prefers-color-scheme/)
+    expect(css()).not.toMatch(/\[data-theme/)
+  })
+
+  it('bundles its font instead of fetching one', () => {
+    // The design prototype loads Galmuri from a CDN. This app is installable and
+    // has to work with the network gone; an `@font-face` on an external origin
+    // is precached by nothing and fails silently offline, leaving a pixel-block
+    // UI rendered in the system face.
+    expect(css()).toMatch(/@font-face/)
+    const external = [...css().matchAll(/url\(([^)]*)\)/g)].map((m) => m[1] ?? '')
+    expect(external.filter((u) => /^['"]?https?:/.test(u))).toEqual([])
   })
 })

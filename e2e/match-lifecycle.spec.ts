@@ -1,5 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
+import { move, startMatch } from './nav'
 
 /**
  * PLAN Phase 2's exit criterion, played rather than simulated.
@@ -11,11 +12,6 @@ import { useSliceContent } from './content'
  * into a match, a click dispatched after the match has genuinely reached
  * `result` through play, and a clipboard.
  */
-
-async function move(page: Page, from: string, to: string) {
-  await page.getByTestId(`sq-${from}`).click()
-  await page.getByTestId(`sq-${to}`).click()
-}
 
 async function sideToMove(page: Page): Promise<string> {
   return (await page.getByTestId('side-to-move').getAttribute('data-side')) ?? ''
@@ -36,7 +32,7 @@ async function pickFirstOffer(page: Page) {
 
 test('a first visitor starts from home and lands in a playable match', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
   await expect(page.getByTestId('board')).toBeVisible()
   await expect(page.getByTestId('rule-card')).toHaveAttribute('data-rule', /.+/)
 })
@@ -44,7 +40,7 @@ test('a first visitor starts from home and lands in a playable match', async ({ 
 test('the seed in play is reachable and copyable (ADR-024)', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/')
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
 
   // Behind the settings drawer rather than on the tools row: a ten-digit
   // number is developer output and this app's players are children. ADR-024
@@ -69,7 +65,7 @@ test('the seed in play is reachable and copyable (ADR-024)', async ({ page, cont
 
 test('starting a new match re-draws the rule card', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('start-match').click()
+  await startMatch(page)
 
   const seen = new Set<string>()
   for (let i = 0; i < 10; i++) {
