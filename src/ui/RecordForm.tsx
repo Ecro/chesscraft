@@ -653,7 +653,7 @@ export function RecordForm({
         ),
       )
     }
-    if (k === 'check_count_at_least' || k === 'piece_count_at_most') {
+    if (k === 'check_count_at_least' || k === 'piece_count_at_most' || k === 'on_own_rank') {
       out.push(
         numberField('param-cond-n', 'ui.editor.param.n', currentCondition.n, (n) =>
           setInCondition((c) => {

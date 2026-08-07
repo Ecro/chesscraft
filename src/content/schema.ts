@@ -186,6 +186,16 @@ export type Condition =
   | { kind: 'piece_is'; pieceId: string }
   | { kind: 'piece_side'; side: 'mover' | 'opponent' }
   | { kind: 'on_square'; squares: string[] }
+  /**
+   * The subject stands on rank `n`, counted from ITS OWN side's home rank —
+   * so `n: 5` on a six-rank board means white's rank 5 and black's rank 2.
+   *
+   * `on_square` cannot express this and no other condition knows absolute
+   * sides, which made "one rank short of promotion" unauthorable: the card
+   * that wanted it listed both sides' ranks in one flat set, so white's whole
+   * opening pawn line sat on a square the set contained.
+   */
+  | { kind: 'on_own_rank'; n: number }
   | { kind: 'check_count_at_least'; n: number }
   | { kind: 'piece_count_at_most'; side: 'mover' | 'opponent'; n: number }
   | { kind: 'not'; of: Condition }
@@ -198,6 +208,7 @@ export const condition: z.ZodType<Condition> = z.lazy(() =>
     z.strictObject({ kind: z.literal('piece_is'), pieceId: contentId }),
     z.strictObject({ kind: z.literal('piece_side'), side: z.enum(['mover', 'opponent']) }),
     z.strictObject({ kind: z.literal('on_square'), squares: z.array(squareRef).min(1) }),
+    z.strictObject({ kind: z.literal('on_own_rank'), n: z.number().int().positive() }),
     z.strictObject({ kind: z.literal('check_count_at_least'), n: z.number().int().positive() }),
     z.strictObject({
       kind: z.literal('piece_count_at_most'),

@@ -136,6 +136,15 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
       return ctx.subject?.piece.side === (cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover))
     case 'on_square':
       return ctx.subject !== null && cond.squares.includes(ctx.subject.square)
+    case 'on_own_rank': {
+      // Counted from the subject's OWN home rank, 1-based, so the same `n`
+      // means mirrored ranks for the two sides. Same arithmetic the engine
+      // already uses to decide a promotion rank.
+      if (!ctx.subject) return false
+      const { rank } = coords(ctx.subject.square)
+      const fromOwnSide = ctx.subject.piece.side === 'white' ? rank + 1 : ctx.state.height - rank
+      return fromOwnSide === cond.n
+    }
     case 'piece_count_at_most': {
       const side = cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover)
       let count = 0

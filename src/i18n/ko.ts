@@ -363,6 +363,7 @@ export const ko: Record<string, string> = {
   'ui.editor.vocab.condition.piece_is': '이 기물이면',
   'ui.editor.vocab.condition.piece_side': '이 편이면',
   'ui.editor.vocab.condition.on_square': '이 칸에 있으면',
+  'ui.editor.vocab.condition.on_own_rank': '자기 진영에서 몇 번째 줄에 있으면',
   'ui.editor.vocab.condition.check_count_at_least': '왕이 몇 번 넘게 위험했으면',
   'ui.editor.vocab.condition.piece_count_at_most': '기물이 몇 개 아래면',
   'ui.editor.vocab.condition.not': '반대면',

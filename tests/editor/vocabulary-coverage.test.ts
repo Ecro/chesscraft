@@ -250,6 +250,15 @@ const ROWS: readonly Row[] = [
   },
   {
     axis: 'condition',
+    kind: 'on_own_rank',
+    host: 'ruleCard',
+    requires: EFFECT,
+    params: [{ testid: 'param-cond-n', value: '5' }],
+    path: 'effects.0.condition',
+    authored: { kind: 'on_own_rank', n: 5 },
+  },
+  {
+    axis: 'condition',
     kind: 'check_count_at_least',
     host: 'ruleCard',
     requires: EFFECT,

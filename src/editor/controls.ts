@@ -70,6 +70,7 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   // Empty until the author paints a square: a condition that matches nowhere
   // must fail validation, not quietly match everywhere.
   'condition:on_square': () => ({ kind: 'on_square', squares: [] }),
+  'condition:on_own_rank': () => ({ kind: 'on_own_rank', n: 1 }),
   'condition:check_count_at_least': () => ({ kind: 'check_count_at_least', n: 1 }),
   'condition:piece_count_at_most': () => ({ kind: 'piece_count_at_most', side: 'mover', n: 1 }),
   'condition:not': (_ctx, current) => ({ kind: 'not', of: current ?? { kind: 'always' } }),
