@@ -36,9 +36,19 @@ export default defineConfig({
     // `--strictPort` so a stale server on 4173 fails loudly instead of silently
     // serving a build from a previous run — which is the exact confusion a
     // stale-cache test cannot afford.
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    //
+    // `--host 127.0.0.1` because `url` below is an IPv4 literal and `preview`'s default
+    // host is the NAME `localhost`. On a resolver that answers `::1` first the server
+    // binds to IPv6 only and this poll never connects — which looks exactly like a server
+    // that is still starting, and cost two CI runs to tell apart from one before the same
+    // fix landed in `playwright.config.ts`. Same mismatch, same remedy; the two configs
+    // are separate files and the first fix could not reach this one.
+    command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: false,
+    // Includes a full production build before the server starts, so the bound covers more
+    // than a server boot. 120s is comfortable locally and was never the failing term in
+    // CI — the address was.
     timeout: 120_000,
   },
 })
