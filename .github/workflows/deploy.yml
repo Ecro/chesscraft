@@ -18,6 +18,15 @@ on:
   # skipped outside `master` by the `if` below.
   pull_request:
     branches: [master]
+  # Re-deploy what is already on master, without inventing a commit to do it.
+  #
+  # This DOES reach the deploy job — see the `if` below — and that is the point. A
+  # dispatch that only ran `verify` would be the more cautious-looking choice and would
+  # test strictly less: the deploy job is where the Cloudflare credentials are used, so a
+  # button that skips it can be green with a wrong or absent token. The cases this exists
+  # for are re-running a deploy after rotating a secret, and re-publishing after a
+  # Cloudflare-side failure — neither of which involves a code change.
+  workflow_dispatch:
 
 # A second push while the first is still deploying would race two `wrangler deploy` calls
 # at the same Worker. Newer wins; the older is cancelled before it can publish.
@@ -71,8 +80,11 @@ jobs:
 
   deploy:
     needs: verify
-    # Pull requests run the gate and stop here. Only `master` publishes.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # Pull requests run the gate and stop here. Only `master` publishes — whether it got
+    # here from a push or from the manual button, both of which can only be on `master`
+    # anyway (the `push` trigger is branch-filtered, and a dispatch runs on the branch it
+    # was launched from, so the ref check is what keeps a dispatch from another branch out).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
