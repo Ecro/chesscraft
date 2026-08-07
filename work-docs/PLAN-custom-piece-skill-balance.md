@@ -613,10 +613,11 @@ meter and the grade badges say something a child can act on.
 ## ✅ Success Criteria
 
 - [x] A v7 content document loads unchanged under schema v8.
-- [ ] A room can carry a per-side loadout that survives export → import → match with the same seed.
-      **PARTIAL** — the loadout loads, plays and is offered by the room screen, and a v7 document
-      still round-trips byte-identically, but no test drives a loadout through
-      export → import → same-seed match. The claim stays untested, so the box stays open.
+- [x] A room can carry a per-side loadout that survives export → import → match with the same seed.
+      `tests/content/loadout-roundtrip.test.ts` plays 25 seeds to completion on both sides of the
+      round trip and compares the final board, result and length — plus a guard that the loadout
+      really did change the match, without which the whole file would pass on an engine that
+      ignored it.
 - [x] Every bundled piece and skill card has a measured grade, reproducible across runs.
 - [x] Band boundaries and the default budget are derived from the measured distribution, with band
       width ≥ 2× standard error. The bundled room now carries `loadoutBudget: 18` and a `grading`
@@ -634,15 +635,17 @@ meter and the grade badges say something a child can act on.
       four named records are RULE cards, which this feature does not grade at all. Rewriting the
       criterion was the plan-time fix; ticking it at wrapup would not have been.
 - [x] A grade is never read from a content document; editing a record invalidates its cached grade.
-- [ ] Saving a record shows a provisional grade instantly and a confirmed grade within seconds,
-      visually distinguished.
-      **CHANGED, and the change is honest rather than a workaround.** The measured grade is wired
-      end to end — the room screen reads the cache, starts a worker for anything unmeasured, shows
-      "세는 중…" while it runs and the cost when it lands, and the worker is emitted as its own
-      bundle chunk. What is NOT built is the *provisional* half: the predictor would have supplied
-      it, and Phase 3 measured that the published piece formula does not order this game's pieces
-      (R-4). Shipping a provisional number from a predictor known to be wrong about the strongest
-      piece would be worse than the wait.
+- [x] Saving a record shows a provisional grade instantly and a confirmed grade within seconds,
+      visually distinguished — **built and gated; currently dormant because the data says so.**
+      The confirmed half is wired end to end. The provisional half is built, marked as an estimate
+      in the UI, and never charged to the budget — and it is shown only when the fit beats the
+      trivial predictor on data it did not see. It does not. Measured three ways: one feature at 5
+      samples, four features at 5, and four features plus nearest-neighbour at 15 (ten synthetic
+      pieces spanning the space). Leave-one-out agreement was 0.40, 0.40 and 0.33 against a 0.40
+      baseline. The features themselves did improve — splitting mobility, reach and ranged capture
+      fixed the ordering that had put the strongest piece near the bottom — but in-sample ordering
+      is not evidence. `tests/balance/predictor-gate.test.ts` pins the verdict and goes red the day
+      a feature set earns it, at which point the badge lights up with no further code change.
 - [x] The UI states plainly that grades measure structural strength under random play
       (`loadout-caveat`, pinned by a test).
 

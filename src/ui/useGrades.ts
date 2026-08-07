@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { type GradeCache, type GradeContext, gradeMapFor, keyForRecord, localStorageCache } from '@balance/cache'
 import { type BandScale, bandOf, bandValue } from '@balance/bands'
 import { GRADE_SEEDS, type Candidate } from '@balance/measure'
+import { type Calibration, calibrate, pieceFeatures, predict } from '@balance/predict'
 import { createGradeClient, type GradeClient, measureIntoCache } from '@balance/grade-client'
 import { type ContentSet, type ContentSource, loadContentSet } from '@content/load'
 import type { PresetDef } from '@content/schema'
@@ -35,6 +36,8 @@ export const DISPLAY_SCALE: BandScale = { width: 6 }
 
 export type GradeState =
   | { status: 'graded'; delta: number; band: number; cost: number }
+  /** A fitted estimate, shown only when the fit has earned it (see `calibrationOf`). */
+  | { status: 'provisional'; delta: number; band: number; cost: number }
   | { status: 'measuring' }
   | { status: 'unmeasurable'; reason: string }
 
@@ -42,6 +45,38 @@ export interface Grades {
   of(contentId: string): GradeState
   /** True while any record in the room's scope is still being measured. */
   pending: boolean
+  /** How well the predictor scored on data it did not see, or null with too little data. */
+  calibration: Calibration | null
+}
+
+/**
+ * Fits a predictor from the grades already measured, and scores it honestly.
+ *
+ * The circularity is real and is resolved by accumulation: a predictor needs
+ * measured grades to fit, and the only grades that exist are the ones already
+ * measured. So a fresh install predicts nothing and a well-used one predicts from
+ * everything it has learned.
+ *
+ * `usable` is decided by leave-one-out against the trivial predictor, and as of
+ * the bundled content it comes out FALSE — measured three ways (one feature, four
+ * features, and nearest-neighbour, at 5 and at 15 samples), the fit never beat
+ * "always answer zero". So no provisional grade is shown today. That is the
+ * design working, not a gap: a provisional number that is no better than a guess
+ * is the exact thing the measured grade exists to replace, and this gate is what
+ * stops a future feature set from shipping one without proving itself first.
+ */
+export function calibrationOf(
+  content: ContentSet,
+  known: ReadonlyMap<string, number>,
+  boardId: string | undefined,
+): Calibration | null {
+  const board = boardId === undefined ? undefined : content.boards.get(boardId)
+  if (!board) return null
+  const samples = [...known.entries()]
+    .filter(([id]) => content.pieces.has(id))
+    .map(([id, delta]) => ({ id, features: pieceFeatures(content.pieces.get(id)!, board), delta }))
+  if (samples.length < 3) return null
+  return calibrate(samples, (d) => bandOf(d, DISPLAY_SCALE))
 }
 
 function candidateFor(content: ContentSet, contentId: string, referencePieceId: string): Candidate | null {
@@ -71,6 +106,8 @@ export interface UseGradesOptions {
   /** Injected by tests; production creates a real Web Worker client. */
   client?: GradeClient
   cache?: GradeCache
+  /** Injected by tests, so the display path can be proven while the real fit is dormant. */
+  calibration?: Calibration | null
   /**
    * Which records to grade. Defaults to everything the room's loadout picker can
    * offer — correct for the editor, wrong for a screen that only needs the three
@@ -80,7 +117,7 @@ export interface UseGradesOptions {
   ids?: readonly string[]
 }
 
-export function useGrades({ source, content, preset, client, cache, ids }: UseGradesOptions): Grades {
+export function useGrades({ source, content, preset, client, cache, ids, calibration }: UseGradesOptions): Grades {
   const store = useMemo(() => cache ?? localStorageCache(), [cache])
   const [version, setVersion] = useState(0)
   const [failed, setFailed] = useState<ReadonlyMap<string, string>>(new Map())
@@ -134,6 +171,8 @@ export function useGrades({ source, content, preset, client, cache, ids }: UseGr
     }
   }, [source, content, preset, context, known, failed, store, client, ids])
 
+  const fit = calibration !== undefined ? calibration : calibrationOf(content, known, preset?.boardId)
+
   return {
     of(contentId) {
       const delta = known.get(contentId)
@@ -141,9 +180,26 @@ export function useGrades({ source, content, preset, client, cache, ids }: UseGr
         return { status: 'graded', delta, band: bandOf(delta, DISPLAY_SCALE), cost: bandValue(delta, DISPLAY_SCALE) }
       }
       const reason = failed.get(contentId)
-      return reason === undefined ? { status: 'measuring' } : { status: 'unmeasurable', reason }
+      if (reason !== undefined) return { status: 'unmeasurable', reason }
+
+      // A provisional grade is offered ONLY by a fit that beat the trivial
+      // predictor on data it never saw. Below that bar the honest display is the
+      // wait, because a wrong number is a promise and a spinner is not.
+      const piece = fit?.usable === true ? content.pieces.get(contentId) : undefined
+      const board = preset?.boardId === undefined ? undefined : content.boards.get(preset.boardId)
+      if (piece && board && fit) {
+        const estimate = predict(fit.predictor, pieceFeatures(piece, board))
+        return {
+          status: 'provisional',
+          delta: estimate,
+          band: bandOf(estimate, DISPLAY_SCALE),
+          cost: bandValue(estimate, DISPLAY_SCALE),
+        }
+      }
+      return { status: 'measuring' }
     },
     pending: inFlight.current.size > 0,
+    calibration: fit,
   }
 }
 

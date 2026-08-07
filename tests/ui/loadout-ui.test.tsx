@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it } from 'vitest'
 import React from 'react'
 import { type CachedGrade, type GradeCache, keyForRecord, memoryCache } from '@balance/cache'
+import type { Calibration } from '@balance/predict'
 import { GRADE_SEEDS } from '@balance/measure'
 import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
@@ -186,5 +187,58 @@ describe('PLAN Phase 6 — the room screen offers a loadout and prices it', () =
       const options = [...screen.getByTestId(testid).querySelectorAll('option')].map((o) => o.getAttribute('value'))
       expect(options, testid).not.toContain('piece.king')
     }
+  })
+})
+
+describe('PLAN Phase 6 — the provisional grade, and the gate in front of it', () => {
+  function mountRoom(source: ContentSource, cache: GradeCache, calibration?: Calibration | null) {
+    render(
+      React.createElement(RoomDetail, {
+        source,
+        roomId: BUNDLED_PRESET_ID,
+        commit: () => {},
+        onBack: () => {},
+        onCreateRecord: () => {},
+        gradeCache: cache,
+        ...(calibration === undefined ? {} : { gradeCalibration: calibration }),
+      }),
+    )
+    fireEvent.click(screen.getByTestId('room-step-cards'))
+  }
+
+  /** A fit that HAS earned its display, so the path can be exercised. */
+  const usableFit: Calibration = {
+    // Predicts straight from the mobility feature, which is enough for a display test.
+    predictor: { coefficients: [0, 0.05, 0, 0], actionKinds: [], samples: 12 },
+    accuracy: 0.75,
+    baseline: 0.4,
+    usable: true,
+  }
+
+  it('shows an estimate, marked as one, when the fit has earned it', () => {
+    mountRoom(documentWithOwnCard(), memoryCache(), usableFit)
+    const options = screen.getByTestId('loadout-piece').textContent ?? ''
+    expect(options).toContain('예상')
+    expect(options).not.toContain('세는 중')
+  })
+
+  it('shows the wait instead when the fit has not earned it', () => {
+    // The production case as of today: the fit does not beat "always answer
+    // zero" out of sample, so no estimate is offered at all.
+    mountRoom(documentWithOwnCard(), memoryCache(), { ...usableFit, usable: false })
+    const options = screen.getByTestId('loadout-piece').textContent ?? ''
+    expect(options).toContain('세는 중')
+    expect(options).not.toContain('예상')
+  })
+
+  it('never charges the budget for an estimate', () => {
+    // An estimate may inform a choice; it may not be spent. The budget reads `?`
+    // until both halves are really measured, because `checkLoadoutGrades` will
+    // refuse an ungraded record however confident the picker looked.
+    mountRoom(documentWithOwnCard(), memoryCache(), usableFit)
+    fireEvent.change(screen.getByTestId('loadout-piece'), { target: { value: 'piece.knight' } })
+    fireEvent.change(screen.getByTestId('loadout-replaces'), { target: { value: 'piece.knight' } })
+    fireEvent.change(screen.getByTestId('loadout-skill'), { target: { value: OWN_CARD } })
+    expect(screen.getByTestId('loadout-budget').textContent).toContain('?')
   })
 })

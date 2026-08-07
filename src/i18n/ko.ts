@@ -246,6 +246,7 @@ export const ko: Record<string, string> = {
   'ui.editor.loadout.measuring': '세는 중…',
   'ui.editor.loadout.unmeasurable': '셀 수 없었어요',
   'ui.editor.loadout.grade': '세기 {cost}',
+  'ui.editor.loadout.provisional': '세기 {cost}쯤 (예상)',
   'ui.editor.loadout.budget': '{spent} / {budget} 만큼 썼어요',
   'ui.editor.loadout.no-budget': '이 방은 아직 한도를 안 정했어요.',
   'ui.editor.loadout.mismatch': '세기가 다른 기물끼리는 바꿔 넣을 수 없어요. 같은 세기끼리만 돼요.',

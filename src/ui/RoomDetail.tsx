@@ -14,6 +14,7 @@ import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i
 import { DISPLAY_SCALE, type Grades, contentOf, useGrades } from './useGrades'
 import type { GradeClient } from '@balance/grade-client'
 import type { GradeCache } from '@balance/cache'
+import type { Calibration } from '@balance/predict'
 import { bandValue } from '@balance/bands'
 
 /**
@@ -142,6 +143,7 @@ export function RoomDetail({
   onPlay,
   gradeClient,
   gradeCache,
+  gradeCalibration,
 }: {
   source: ContentSource
   /** The room being edited, or null to create one. */
@@ -155,6 +157,8 @@ export function RoomDetail({
   /** Injected by tests so a measurement can be driven without a real Worker. */
   gradeClient?: GradeClient
   gradeCache?: GradeCache
+  /** Injected by tests so the provisional-grade display can be exercised. */
+  gradeCalibration?: Calibration | null
 }) {
   const t = useTranslate()
 
@@ -258,6 +262,7 @@ export function RoomDetail({
     preset: savedPreset,
     ...(gradeClient ? { client: gradeClient } : {}),
     ...(gradeCache ? { cache: gradeCache } : {}),
+    ...(gradeCalibration === undefined ? {} : { calibration: gradeCalibration }),
   })
   const squareTypes = useMemo(() => namedRecords(source.squareTypes), [source])
 
@@ -1101,6 +1106,9 @@ function LoadoutSection({
     const g = grades.of(id)
     if (g.status === 'measuring') return t('ui.editor.loadout.measuring')
     if (g.status === 'unmeasurable') return t('ui.editor.loadout.unmeasurable')
+    // A provisional grade is marked as one. The budget below still reads `?`
+    // for it — an estimate may inform a choice, but it may not be charged.
+    if (g.status === 'provisional') return t('ui.editor.loadout.provisional').replace('{cost}', String(g.cost))
     return t('ui.editor.loadout.grade').replace('{cost}', String(g.cost))
   }
 

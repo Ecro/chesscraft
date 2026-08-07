@@ -106,16 +106,8 @@ function squaresReachable(pattern: MovePattern, file: number, rank: number, widt
   return count
 }
 
-/**
- * Squares this piece attacks, averaged over every square of an EMPTY board.
- *
- * Empty rather than the starting position: a piece's value should not depend on
- * which of its own pieces happen to be in the way at setup, and averaging over
- * the whole board is what makes the number a property of the definition. Both
- * sides' mirroring cancels in the average, so `forward` needs no special case.
- */
-export function attackedSquares(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): number {
-  const patterns = piece.attack ?? piece.movement
+/** Squares reachable by a pattern set, averaged over every square of an empty board. */
+function averageReach(patterns: readonly MovePattern[], board: Pick<BoardDef, 'width' | 'height'>): number {
   let total = 0
   for (let file = 0; file < board.width; file += 1) {
     for (let rank = 0; rank < board.height; rank += 1) {
@@ -125,10 +117,49 @@ export function attackedSquares(piece: PieceDef, board: Pick<BoardDef, 'width' |
   return total / (board.width * board.height)
 }
 
-/** `[intercept, 33N + 0.69N²]` — the prior-art shape, left for the fit to price. */
+/**
+ * Squares this piece attacks, averaged over an EMPTY board.
+ *
+ * Empty rather than the starting position: a piece's value should not depend on
+ * which of its own pieces happen to be in the way at setup. Both sides' mirroring
+ * cancels in the average, so `forward` needs no special case.
+ */
+export function attackedSquares(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): number {
+  return averageReach(piece.attack ?? piece.movement, board)
+}
+
+/** Squares this piece can MOVE to, which is a different question from what it attacks. */
+export function movableSquares(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): number {
+  return averageReach(piece.movement, board)
+}
+
+/**
+ * Whether this piece takes without stepping onto the square it took.
+ *
+ * The feature the first version was missing, and the reason its fit was wrong
+ * about the strongest piece in the game. `attackedSquares` reads
+ * `attack ?? movement`, so for a piece with a separate attack it returned the
+ * attack alone — for the archer, four jump vectors, N = 2.67 — and threw away
+ * that the same piece also moves in all eight directions. Half its strength was
+ * invisible, and the other half is qualitative rather than a count: a piece that
+ * captures at range never stands where it struck, so it is not exposed to the
+ * recapture every other piece pays for.
+ */
+export function capturesAtRange(piece: PieceDef): boolean {
+  return piece.attack !== undefined
+}
+
+/**
+ * `[intercept, mobility term, reach term, ranged flag]`.
+ *
+ * The published jumper shape `33N + 0.69N²` is kept for both count features — it
+ * is prior art about how value grows with squares, and the fit decides what it is
+ * worth on this board at this ply cap. What the fit CANNOT recover is a term that
+ * was never offered, which is what made the single-feature version wrong.
+ */
 export function pieceFeatures(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): number[] {
-  const n = attackedSquares(piece, board)
-  return [1, 33 * n + 0.69 * n * n]
+  const shape = (n: number) => 33 * n + 0.69 * n * n
+  return [1, shape(movableSquares(piece, board)), shape(attackedSquares(piece, board)), capturesAtRange(piece) ? 1 : 0]
 }
 
 /** Every action kind a card's effects use, so the feature vector has a stable width. */
@@ -138,4 +169,59 @@ export function skillFeatures(card: SkillCardDef, actionKinds: readonly string[]
     for (const action of effect.actions) counts.set(action.kind, (counts.get(action.kind) ?? 0) + 1)
   }
   return [1, ...actionKinds.map((kind) => counts.get(kind) ?? 0)]
+}
+
+// ---------------------------------------------------------------------------
+// Earning the right to be shown
+// ---------------------------------------------------------------------------
+
+export interface Calibration {
+  predictor: Predictor
+  /** Leave-one-out band agreement, 0..1. */
+  accuracy: number
+  /** What always predicting zero would have scored on the same data. */
+  baseline: number
+  /** True when the fit beat the trivial predictor on data it did not see. */
+  usable: boolean
+}
+
+export interface LabelledSample extends FitSample {
+  id: string
+}
+
+/**
+ * Fits a predictor and measures whether it is worth showing.
+ *
+ * A provisional grade is a promise, and a wrong one is worse than a wait — the
+ * first version of this module fitted a single feature that put the strongest
+ * piece in the game near the bottom, and nothing in the system could tell. So the
+ * fit is scored by LEAVE-ONE-OUT: each sample is predicted by a model that never
+ * saw it, which is the only score a handful of points can honestly produce.
+ *
+ * The bar is the trivial predictor — always answer zero. Beating it is a low bar
+ * and deliberately so: below it the fit is actively misleading, and the caller's
+ * correct response is to show nothing at all. `usable` is that decision, made
+ * from data rather than from confidence.
+ */
+export function calibrate(samples: LabelledSample[], bandOf: (delta: number) => number, lambda = 1e-3): Calibration {
+  const coefficients = fitLeastSquares(samples, lambda)
+  const predictor: Predictor = { coefficients, actionKinds: [], samples: samples.length }
+
+  // Fewer than three points cannot leave one out and still fit anything; the
+  // honest answer there is "not usable yet", not a score computed from nothing.
+  if (samples.length < 3) return { predictor, accuracy: 0, baseline: 0, usable: false }
+
+  let hits = 0
+  let baselineHits = 0
+  for (let i = 0; i < samples.length; i += 1) {
+    const held = samples[i]!
+    const rest = samples.filter((_, j) => j !== i)
+    const fold = { coefficients: fitLeastSquares(rest, lambda), actionKinds: [], samples: rest.length }
+    if (bandOf(predict(fold, held.features)) === bandOf(held.delta)) hits += 1
+    if (bandOf(0) === bandOf(held.delta)) baselineHits += 1
+  }
+
+  const accuracy = hits / samples.length
+  const baseline = baselineHits / samples.length
+  return { predictor, accuracy, baseline, usable: accuracy > baseline }
 }
