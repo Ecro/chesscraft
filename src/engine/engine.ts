@@ -274,6 +274,69 @@ function candidatesFor(state: GameState, slot: 'friendly' | 'enemy' | 'empty'): 
 }
 
 /**
+ * The first choice slot's candidates, narrowed to the ones the card's own
+ * condition would let it fire on.
+ *
+ * `candidatesFor` answers "what could this target kind point at" — every
+ * friendly piece for a friendly-choice target. That was the whole answer, and
+ * the effect's `condition` was consulted later, at execution, against whichever
+ * piece the player had by then already picked. So a card gated on the KIND of
+ * piece it wants was offered for every other kind too, and choosing one spent
+ * the card and changed nothing. Two shipped cards carry that shape, one of them
+ * since the original set — which is why the repair belongs here rather than in
+ * the content.
+ *
+ * (Neither card is named above on purpose. This file may not contain a content
+ * id, and `no-content-in-engine.test.ts` substring-scans the whole file, prose
+ * included. The first draft of this comment named all three and turned that scan
+ * red — the rule is real, and a comment is not exempt from it.)
+ *
+ * This is `cardResolves`'s contract one level down — "a card that resolves to
+ * nothing must not be offered", asked of the CHOICE rather than of the card.
+ *
+ * **Only the first slot, and only for an unquantified card.** Both restrictions
+ * mirror what execution actually does (see `apply`'s card branch): the subject a
+ * condition reads is the piece on the FIRST chosen square, and a `forEach`
+ * effect binds its own subject instead — so the player's pick does not decide
+ * whether a quantified condition holds, and filtering on it would drop legal
+ * plays. A card mixing quantified and unquantified effects is left alone
+ * entirely rather than half-filtered, because the quantified half can make the
+ * play real on its own.
+ *
+ * The narrowing can empty the list, and that is the point: the card is then not
+ * offered at all, instead of being offered as a turn the player spends to
+ * discover it does nothing.
+ */
+function firstChoiceCandidates(
+  state: GameState,
+  content: ContentSet,
+  cardId: string,
+  slot: 'friendly' | 'enemy' | 'empty',
+): SquareId[] {
+  const options = candidatesFor(state, slot)
+  const card = content.skillCards.get(cardId)
+  if (!card || slot === 'empty') return options
+  if (card.effects.some((effect) => effect.forEach)) return options
+  // The common case, kept free: with nothing to narrow by, the answer is the
+  // answer `candidatesFor` already gave.
+  if (card.effects.every((effect) => effect.condition.kind === 'always')) return options
+
+  const mover = state.sideToMove
+  return options.filter((square) => {
+    const piece = state.board.get(square)
+    // An empty square carries no subject for a condition to read; leaving it in
+    // keeps this a narrowing of piece choices only.
+    if (!piece) return true
+    const subject = { square, piece }
+    return card.effects.some((effect) => {
+      const bound: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: cardId }
+      const ctx: EvalCtx = { state, content, mover, subject, chosen: [square] }
+      return evalCondition(effect.condition, bound, ctx)
+    })
+  })
+}
+
+/**
  * Whether a card can actually do something from this position.
  *
  * A card that resolves to nothing must not be offered. Spending your whole turn
@@ -335,8 +398,8 @@ function cardPlays(state: GameState, content: ContentSet): Action[] {
 
     const slots = choiceSlots(content, cardId)
     let combos: SquareId[][] = [[]]
-    for (const slot of slots) {
-      const options = candidatesFor(state, slot)
+    for (const [index, slot] of slots.entries()) {
+      const options = index === 0 ? firstChoiceCandidates(state, content, cardId, slot) : candidatesFor(state, slot)
       combos = combos.flatMap((prefix) => options.filter((o) => !prefix.includes(o)).map((o) => [...prefix, o]))
       if (combos.length === 0) break
     }
