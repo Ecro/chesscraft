@@ -52,10 +52,22 @@ jobs:
 
       # Both Playwright suites are part of `verify`, and neither can run without a
       # browser. `--with-deps` because the runner image does not carry the shared
-      # libraries Chromium needs. Chromium only: both configs declare a single
-      # `mobile-portrait` project on `devices['Pixel 7']`, so installing the other two
-      # engines is minutes of download for browsers nothing launches.
-      - run: npx playwright install --with-deps chromium
+      # libraries these engines need.
+      #
+      # **This list is coupled to the `projects` in playwright.config.ts and must be
+      # updated with them.** It said "chromium only" and justified itself with "both
+      # configs declare a single `mobile-portrait` project" — true when it was written,
+      # and false the moment a `mobile-webkit` project on `devices['iPhone 13']` was
+      # added without touching this line. Every webkit test then failed with
+      # `browserType.launch: Executable doesn't exist`, which reads as 60-odd broken
+      # tests rather than as one missing download.
+      #
+      # Nothing enforces the coupling: a Playwright project names a device, the device
+      # implies an engine, and no check compares that against this argument. So the
+      # engines are listed explicitly rather than derived, and the config is where you
+      # look when a launch fails here. `playwright.pwa.config.ts` still declares only
+      # `mobile-portrait` (chromium) and needs nothing of its own.
+      - run: npx playwright install --with-deps chromium webkit
 
       # The authoritative gate, unchanged and unsplit. If this script grows a step, CI
       # gets it for free; if CI listed the steps itself the two would drift, and the one
