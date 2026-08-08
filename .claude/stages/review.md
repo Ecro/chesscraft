@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.49.0
+harness_maker_version: 0.50.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/review.md.j2
 provenance: official
-content_hash: 0610ce003d6cec8cb7176fcc0868c2052f87c12b810db832668987ecd14c7391
+content_hash: 1f25a474a5b6bb595f7aa647a98677a2ffc328159c63e07cfd5dc641a1da111a
 ---
 # Stage: review
 
@@ -51,8 +51,8 @@ them to recognize known-good patterns and repeated failure modes:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<changed area or task slug>' --type failure
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<changed area or task slug>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<changed area or task slug>' --type failure
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<changed area or task slug>' --type preference
 ```
 
 
@@ -82,7 +82,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -91,7 +91,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -209,7 +209,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 4. Merge the two passes via the harness CLI:
    
    ```bash
-   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm two_pass_review merge
+   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm two_pass_review merge
    ```
    
    Pass 2 is authoritative — Pass 1 findings absent from Pass 2 are
@@ -221,7 +221,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 `Write` the merged findings to a temp path (never argv — skill §1), then:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm codex_adapter stamp-ids < <the literal temp path>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm codex_adapter stamp-ids < <the literal temp path>
 ```
 
 **Then persist the round's finding payload (ADR-006 part 2).** Run this **exactly once per
@@ -244,7 +244,7 @@ round**, against the merged temp file you already wrote, with the literal review
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
 ```
 
 
@@ -280,7 +280,7 @@ never a rising bar.
   note `HEAD` (the post-execute diff is staged, so a bare `git diff` would see nothing) and
   `--numstat` for the added-line count that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm high_diff classify --added-lines "$added"
   ```
   Invoke when `is_high` (or `boundary` and your judgment, reusing the When-to-Run
   criteria, says high). Otherwise skip all models this round (no extra voters).
@@ -322,7 +322,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -622,7 +622,7 @@ leakage — see `test_telemetry_no_leak`).
 
 
 ```bash
-echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm review_telemetry emit
+echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm review_telemetry emit
 ```
 
 
@@ -647,7 +647,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm iter_receipts write \
        --iter "$ITER" --stage review --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -691,7 +691,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage review --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps gate-blocked --root . --stage review --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -701,7 +701,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

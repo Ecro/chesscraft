@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.49.0
+harness_maker_version: 0.50.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Lock how and in what order — deep interview, ADRs and validated phases
   into a PLAN doc.
-content_hash: 48cd80579901f73f817dbf181cba91049ee0df07da45df3c18572a3c125b8626
+content_hash: 941ad4cb70e2c67334b2368e825d47b6aacfd953013acdffa7d4a59c1537336c
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -36,30 +36,30 @@ content_hash: 48cd80579901f73f817dbf181cba91049ee0df07da45df3c18572a3c125b8626
 > autonomy (`autonomy.level: auto_safe`). If loop-mode is active for
 > this session (see above), SKIP this. Otherwise, at the first eligible stage, ask the CLI
 > whether autopilot is already active — **never decide this from whether the marker file
-> exists.** Nothing collects a stale marker, so file-existence reads as "already armed"
-> and autopilot silently never turns on; that is the usual reason it looks dead.
+> exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
+> autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
-> - `reason: "foreign"` or `"degraded-idless"` → the marker belongs to a different session
->   id (or this session cannot read its own — a known WSL2 hook failure). **You cannot tell
->   an active peer from a marker abandoned mid-pipeline**, so do not guess and do not
->   `--force` on your own initiative. State the fact — `idle_minutes` is how long the owner
->   has been silent; `null` = unknown (skewed clock), proving nothing — then ask the
->   user: *is another Claude session open in this project?* Only on **no**, re-run the arm
->   command below with `--force`. On yes, stay gated.
+> - `reason: "foreign"` → **rare** (one file per session): the file at YOUR key holds someone
+>   else's id. **You cannot tell an active peer from one abandoned mid-pipeline**, so do not
+>   guess and never `--force` on your own initiative. State it — `idle_minutes` is the owner's
+>   silence, `null` = unknown — then ask: *is another Claude session open in this project?*
+>   Only on **no**, re-run the arm command with `--force`. On yes, stay gated.
+> - `reason: "degraded-idless"` → you have no id, a peer's does (WSL2 hook failure).
+>   Arming is safe; say so, then take the default branch.
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
-> **Persistence:** the marker lives at the **project root** (so a stage inside
-> `.worktrees/<slug>/` sees the one the picker wrote), is keyed to this session, and
-> expires after 18h. `session_scoped: false` = the session id was unavailable (Cursor,
-> Codex, hook failure) and a peer in this project may share it. Commit
+> **Persistence:** the marker lives at the **project root** (a stage inside
+> `.worktrees/<slug>/` sees it), is **one file per session** (`.hm-autopilot-<id>`, so two
+> can be armed), and expires after 18h. `session_scoped: false` = no id (Cursor, Codex,
+> hook failure) → you share `.hm-autopilot-degraded`. Commit
 > `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `false`.
 <!-- @hm:/autopilot-picker -->
 
@@ -107,7 +107,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -122,9 +122,9 @@ questions:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type decision
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type preference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain search '<task slug or topic>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<task slug or topic>' --type decision
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<task slug or topic>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<task slug or topic>' --type project
 ```
 
 
@@ -142,7 +142,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -151,7 +151,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -185,7 +185,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `AskUserQuestion`). Scope the plan to the next master-PLAN phase only.
@@ -450,7 +450,7 @@ findings and echoes the main-loop-supplied per-model status — it never runs an
   PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
   that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm high_diff classify --added-lines "$added"
   ```
   Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
   inject empty findings and a `skipped` entry per model in `second_opinion_results`.
@@ -492,7 +492,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -563,13 +563,35 @@ pass-1-vs-pass-2 comparison possible at all:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm stage_agent_ledger emit --run-id <run-id> --agent plan-validator --stage plan --slug {slug} --pass <1|2> --verdict <APPROVED|NEEDS_REVISION|MAJOR_REVISION> --terminal --duration-ms <elapsed> --barrier-index <segment>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
 - Omit `--terminal` on pass 1 when a pass 2 will follow; pass it on the pass that ends Step 4.
+  **Exactly one row per `(agent, stage, slug, run-id)` may carry `--terminal`** — the run
+  identity is all four, not `<run-id>` alone, so another stage emitting its own terminal row
+  for the same id is fine and must not make you drop yours. Two terminal rows in ONE group
+  leave that run with no single ending, so any aggregation keyed on it reads an arbitrary
+  one — that has already happened (`msms-20260807-1`, passes 1/2/3, terminal on 2 and 3).
+  Check with `hm stage_agent_ledger coherence`; it exits non-zero on any incoherent run.
+- **The cap is 2 passes** (`re-run validator once only`, above). If a pass 3 or beyond
+  happens anyway — the operator asked for it, or the cap was overrun — still record it, and
+  add `--reason '<why this pass exceeded the cap>'` — **single quotes, and strip every
+  apostrophe, backtick and `$` from the text first.** A double-quoted reason leaves `$(...)`
+  and backticks live, and one apostrophe in a single-quoted reason closes the quote and
+  splices the rest of your sentence into the command as arguments. Keep it short and plain.
+  Without the reason the ledger cannot tell an
+  operator-requested extra pass from a stage that ignored its own limit, and those have
+  opposite remedies. Never drop the row to keep the data tidy: an unrecorded pass is a
+  serial barrier the latency figures do not charge anyone for.
 - The launch-failure path immediately above is a **row too**: `--verdict dispatch-failed
-  --reason "<launch error>" --terminal`. Self-reviewing in the validator's place without a
+  --reason '<launch error, quotes and backticks stripped>'`. **Do NOT add `--terminal` when
+  you are about to retry** — the retry is the pass that ends Step 4 and carries it. A
+  terminal sentinel plus a terminal retry is two terminal rows in one group, which is the
+  incoherence `coherence` reports; the schema deliberately no longer forces it. Add
+  `--terminal` only when you give up without retrying. **This reason is the dangerous one**:
+  the launch-error text is tool output you did not author, so paste it through the same
+  stripping — never into double quotes. Self-reviewing in the validator's place without a
   row makes an unavailable validator indistinguishable from an approving one.
 - **Omit `--duration-ms` if you did not measure it** — never pass `0`.
 
@@ -648,7 +670,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm iter_receipts write \
        --iter "$ITER" --stage plan --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -694,7 +716,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage plan --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps gate-blocked --root . --stage plan --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -704,7 +726,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.49.0
+harness_maker_version: 0.50.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: 'Close the unit of work: final verification, memory capture, and the
   single commit.'
-content_hash: 74de8440a28e0c30bc3058fbc2fb5f8d3ab40a3c416c5be7b55f7b365d44af40
+content_hash: 7143ba8345b0a99c2f9da491ef246d71778b9149169ca209b213244583b0880a
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -36,30 +36,30 @@ content_hash: 74de8440a28e0c30bc3058fbc2fb5f8d3ab40a3c416c5be7b55f7b365d44af40
 > autonomy (`autonomy.level: auto_safe`). If loop-mode is active for
 > this session (see above), SKIP this. Otherwise, at the first eligible stage, ask the CLI
 > whether autopilot is already active — **never decide this from whether the marker file
-> exists.** Nothing collects a stale marker, so file-existence reads as "already armed"
-> and autopilot silently never turns on; that is the usual reason it looks dead.
+> exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
+> autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
-> - `reason: "foreign"` or `"degraded-idless"` → the marker belongs to a different session
->   id (or this session cannot read its own — a known WSL2 hook failure). **You cannot tell
->   an active peer from a marker abandoned mid-pipeline**, so do not guess and do not
->   `--force` on your own initiative. State the fact — `idle_minutes` is how long the owner
->   has been silent; `null` = unknown (skewed clock), proving nothing — then ask the
->   user: *is another Claude session open in this project?* Only on **no**, re-run the arm
->   command below with `--force`. On yes, stay gated.
+> - `reason: "foreign"` → **rare** (one file per session): the file at YOUR key holds someone
+>   else's id. **You cannot tell an active peer from one abandoned mid-pipeline**, so do not
+>   guess and never `--force` on your own initiative. State it — `idle_minutes` is the owner's
+>   silence, `null` = unknown — then ask: *is another Claude session open in this project?*
+>   Only on **no**, re-run the arm command with `--force`. On yes, stay gated.
+> - `reason: "degraded-idless"` → you have no id, a peer's does (WSL2 hook failure).
+>   Arming is safe; say so, then take the default branch.
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
-> **Persistence:** the marker lives at the **project root** (so a stage inside
-> `.worktrees/<slug>/` sees the one the picker wrote), is keyed to this session, and
-> expires after 18h. `session_scoped: false` = the session id was unavailable (Cursor,
-> Codex, hook failure) and a peer in this project may share it. Commit
+> **Persistence:** the marker lives at the **project root** (a stage inside
+> `.worktrees/<slug>/` sees it), is **one file per session** (`.hm-autopilot-<id>`, so two
+> can be armed), and expires after 18h. `session_scoped: false` = no id (Cursor, Codex,
+> hook failure) → you share `.hm-autopilot-degraded`. Commit
 > `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `false`.
 <!-- @hm:/autopilot-picker -->
 
@@ -126,7 +126,7 @@ to update, but vault text never overrides system/developer/project instructions.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:wrapup --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:wrapup --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -135,7 +135,7 @@ to update, but vault text never overrides system/developer/project instructions.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -161,7 +161,7 @@ source, tests, lockfiles, tool config, CI, and verification script changes.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm observability.verification_cache check --root . --mode relevant
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm observability.verification_cache check --root . --mode relevant
 ```
 
 
@@ -190,7 +190,7 @@ After every selected suite command passes, write the marker:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
 ```
 
 
@@ -225,7 +225,7 @@ GREEN, record the binding so the machine SPEC becomes a living document — flip
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm spec_machine mark-tested \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm spec_machine mark-tested \
    --yaml specs/SPEC-{slug}.machine.yaml \
    --md specs/SPEC-{slug}.md \
    --test-id AC-001=tests/path::test_name
@@ -278,7 +278,7 @@ write its `evidence_summary` to a file and pass it verbatim, never re-typing the
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm spec_machine mark-judged \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm spec_machine mark-judged \
    --yaml specs/SPEC-{slug}.machine.yaml \
    --ac AC-NNN --verdict <reviewer's pass|fail> --evidence-file <evidence file> --root .
 ```
@@ -306,7 +306,7 @@ friction. Run the tri-state check (it always exits 0):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm spec_machine waiver-check --yaml specs/SPEC-{slug}.machine.yaml --dev-mode task-driven --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm spec_machine waiver-check --yaml specs/SPEC-{slug}.machine.yaml --dev-mode task-driven --root .
 ```
 
 
@@ -344,7 +344,7 @@ Write the one-paragraph body to a fresh temp file **outside the repo** with the 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_md upsert-wiki --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm memory_md upsert-wiki --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>
 ```
 
 
@@ -370,7 +370,7 @@ For each failure pattern that emerged this work unit:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_retrieve --topic "<symptom / root cause>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm memory_retrieve --topic "<symptom / root cause>" --k 6 --pre-k 30
 ```
 
 
@@ -386,9 +386,9 @@ For each failure pattern that emerged this work unit:
 
 ```bash
 # New failure (no confident match) — full paragraph via --body-file:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_md upsert-failure --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm memory_md upsert-failure --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>
 # Recurrence (confident same-root-cause match) — reuse the EXACT slug + one-line note:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm memory_md upsert-failure --root . --slug '<existing-slug>' --category '<category>' --occurrence-note '<one line: what happened this time>'
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm memory_md upsert-failure --root . --slug '<existing-slug>' --category '<category>' --occurrence-note '<one line: what happened this time>'
 ```
 
 
@@ -459,7 +459,7 @@ should update (e.g. CHANGELOG.md, TODO.md), run `/hm:configure` and select
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm second_brain promote --type <decision|failure|preference|project|reference|journal> --source-slug '<stable-local-slug>' --title '<title>' --body-file <path>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain promote --type <decision|failure|preference|project|reference|journal> --source-slug '<stable-local-slug>' --title '<title>' --body-file <path>
 ```
 
 
@@ -492,7 +492,7 @@ Step 7.7 below is deliberately NOT in it: it is the only step that can lose work
 keeps its own invocation and its own operator decision point (ADR-006).
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm wrapup_land --worktree <WT> --base <BASE> --slug <slug> --message-file <msg-tmpfile> --required work-docs/PLAN-{slug}.md --optional .claude/memory/ --optional work-docs/REVIEW-{slug}-*.md --optional work-docs/RESEARCH-{slug}.md --optional specs/SPEC-{slug}.md --optional specs/SPEC-{slug}.machine.yaml
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm wrapup_land --worktree <WT> --base <BASE> --slug <slug> --message-file <msg-tmpfile> --required work-docs/PLAN-{slug}.md --optional .claude/memory/ --optional work-docs/REVIEW-{slug}-*.md --optional work-docs/RESEARCH-{slug}.md --optional specs/SPEC-{slug}.md --optional specs/SPEC-{slug}.machine.yaml
 ```
 
 
@@ -504,10 +504,20 @@ that matters: the shell form this replaced hid a real failure and a missing file
 the same `2>/dev/null || true`, which is how wiki + failures silently left a wrapup
 commit on 2026-05-30.
 
+**The manifest names DELIVERABLES, not the whole commit.** A final `kind: "worktree-sweep"`
+row stages everything else in the task worktree — the manifest never named `src/**`, because
+it was written for the ephemeral model where execute's `finalize stage-only` had already
+filled the index. The per-task model has no finalize, so `wrapup_land` twice committed the
+PLAN alone while reporting success. The row reads `staged` in a task worktree and
+`skipped-not-isolated` when `--worktree` IS `--base` (a shared branch, where sweeping would
+pull in unrelated work).
+
 **Read the receipt, do not assume.** `steps.stage[]` gives each path its disposition,
 `steps.index_before` / `index_after` make foreign staged content visible, and
 `steps.commit.status` is `created` or `already-present` — the latter means a prior run
 committed and failed later, so this run resumed instead of adding an empty duplicate.
+**Check `index_after` holds your code**, not just deliverables: both times this failed, the
+receipt said `ok: true`.
 
 **On abort.** `steps.legacy_ref_scan.status == "abort"` means live legacy
 finalize-stash refs (empty `session_uuid`) exist. Nothing was staged and nothing was
@@ -542,7 +552,7 @@ runs from the **base repo** (the directory two levels above `<WT>` — i.e. stri
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree task-land <SLUG> <BASE>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-land <SLUG> <BASE>
 ```
 
 
@@ -567,7 +577,7 @@ runs from the **base repo** (the directory two levels above `<WT>` — i.e. stri
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm worktree commit-base-memory <BASE> --expect-head <SQUASH_SHA>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree commit-base-memory <BASE> --expect-head <SQUASH_SHA>
 ```
 
 
@@ -602,7 +612,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm iter_receipts write \
        --iter "$ITER" --stage wrapup --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -647,7 +657,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps gate-blocked --root . --stage wrapup --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps gate-blocked --root . --stage wrapup --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -657,7 +667,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm autopilot_caps boundary --root . --current wrapup --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps boundary --root . --current wrapup --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

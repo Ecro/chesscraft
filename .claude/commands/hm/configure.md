@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.49.0
+harness_maker_version: 0.50.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/configure.md.j2
 provenance: official
 description: Change one harness dimension without re-running the full interview.
-content_hash: c98d0ef161a8c38e2864d953a8ecd7d3121c182e4b9efa6c0e306cff0dfa7ec1
+content_hash: b2d53511570eb69995acfb97aa5148f08975534c5b6f9f9c138c59a9d60a5e96
 ---
 # /hm:configure
 
@@ -80,7 +80,7 @@ Options (multi-select):
   the list. A missing or unauthenticated CLI warns and skips.
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli detect-tools --json
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm cli detect-tools --json
 ```
 
 - **Autopilot** — `autonomy.level`: `gated` (off) / `auto_safe` / `full`, and whether it
@@ -123,7 +123,7 @@ For **Second Brain**: first inspect current state via the CLI subcommand
 time — they MUST delegate state inspection to the CLI per CLAUDE.md §4):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm cli \
   configure-second-brain "$(pwd)" --check
 ```
 
@@ -145,7 +145,7 @@ which prompts to surface:
    non-skip answer, dispatch the folder add through the CLI:
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm cli \
      configure-second-brain "$(pwd)" --add-folder "$SB_FOLDER"
    ```
 
@@ -169,7 +169,7 @@ which prompts to surface:
 Run the CLI with only the changed flags:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.49.0 hm cli make "$(pwd)" \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm cli make "$(pwd)" \
   --grade-threshold "$GRADE" --domains "$DOMAINS" --mechanical-checks "$CHECKS" \
   --default-model "$MODEL" --focus "$FOCUS" --wrapup-docs "$WRAPUP_DOCS" \
   --ref-folders "$REF_FOLDERS" --sibling-repos "$SIBLING_REPOS" \
