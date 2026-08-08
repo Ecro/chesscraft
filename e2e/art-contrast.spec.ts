@@ -7,13 +7,20 @@ import { startMatch } from './nav'
  * This file used to decode every WebP in `src/ui/art` in a browser and measure
  * its luminance profile against each surface it could land on, because the
  * browser is the only thing in this repo that decodes WebP. Every mark is a
- * sprite now — twelve rows of characters and a palette — so the pixels are
+ * sprite now — twelve rows of characters and a palette — so the pixels were
  * already numbers and that whole gate moved to `tests/ui/art-contrast.test.ts`,
  * where it cannot be flaky, names the sprite and the surface in its failure, and
- * runs on every `vitest` rather than only when a dev server is up. It is
- * stricter than it was, not weaker: it is what caught the design mock's two
- * side tints being 1.02:1 apart, its brick wall being invisible in a card slot,
- * and its note surface being 3.08:1 against every mark drawn on it.
+ * runs on every `vitest` rather than only when a dev server is up. It caught the
+ * design mock's two side tints being 1.02:1 apart, its brick wall being
+ * invisible in a card slot, and its note surface being 3.08:1 against every mark
+ * drawn on it.
+ *
+ * **"The pixels are already numbers" stopped being true in PLAN Phase 7.** Marks are rounded
+ * outline paths now, antialiased deliberately, so a rendered pixel is a blend the character grid
+ * never contained. The unit gate still measures the characters — it cannot fail on a render
+ * change — so it no longer measures what ships on its own. `e2e/art-rendered-contrast.spec.ts`
+ * is the half that came back: rasterised at the board's real size, composited over the real
+ * square, percentile separation. The two together are the gate; neither is on its own.
  *
  * What CANNOT move is the claim below, because it is about a CSS rule matching
  * in a real cascade rather than about a colour.

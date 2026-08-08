@@ -55,7 +55,59 @@ Both remaining options alter the silhouette, and both are larger than a phase:
 spare-pool census untouched, and it is the only option that changes what the author objected to
 without regenerating the catalogue.
 
-## Phase 7's home
+## B — built (PLAN Phase 7)
 
-Before/after screenshots at all three shipped sizes (board square ≈28px, editor 26px, detail
-sheet's large mark) belong in this file when Phase 7 lands, per its exit criterion.
+`src/ui/art/smooth.ts` traces each colour's cells into closed loops and rounds every corner with
+a quadratic whose control point IS the corner, so the curve hugs the shape it replaces. `Pix.tsx`
+draws one path per colour instead of ~40 rects, with `shape-rendering` back at its default
+because antialiasing is now the point.
+
+Per colour, not per sprite: a sprite is characters indexing a 25-entry palette, so there is no
+single silhouette — there are up to 25 regions that happen to tile. `pixels.ts` is untouched, so
+the 125 committed sprites, the spare-pool census and every constant in `gates.ts` still describe
+exactly the data they were derived from.
+
+**Radius 0.3 of a cell, and the number is measured rather than chosen by eye.** See the gate
+section below: at 0.3 the worst rendered mark clears the contrast floor by 0.86; at 0.49 a new
+worse case appears at 3.55:1, leaving 0.25. The visible softening between those two is small and
+the margin difference is not.
+
+## The gate this change broke, and the one that replaced it
+
+`tests/ui/art-contrast.test.ts` measures a sprite's CHARACTERS. That was a complete measurement
+while the renderer drew axis-aligned rects with `crispEdges` — `e2e/art-contrast.spec.ts` says so
+in its own header, that the browser gate could move into a unit test "because the pixels are
+already numbers". Rounded, antialiased outlines make that false: a rendered pixel is now a blend
+the character grid never contained, thinner at every corner than the tone the unit gate credits.
+The unit gate still passes, because a render change cannot make it fail — which is
+`[fail:test] measured-the-artifact-not-the-rendering` exactly.
+
+So `e2e/art-rendered-contrast.spec.ts` was written to measure the real thing, following that
+failure's four rules: at the rendered CSS size, composited over the backdrop read from the DOM,
+every visible pixel including partial alpha, and percentiles rather than the mean, passing when
+either end separates.
+
+Measured on the opening board at 34px, against a 3.30:1 floor:
+
+| corner radius | worst rendered mark | margin |
+|---------------|---------------------|--------|
+| 0.3 (shipped) | **4.16:1** | +0.86 |
+| 0.49 (max before clamping) | **3.55:1** | +0.25 |
+
+Both figures come from the probe itself, by temporarily raising its floor to an unreachable value
+and reading what it reported — the same method used to confirm it can fail at all.
+
+## What the change also broke, and what that says
+
+Two tests asserted on `rect` elements rather than on the property they were about, and both went
+red: `e2e/contrast.spec.ts` looked for the outline tone among `querySelectorAll('rect')` and
+concluded the glyph had no outline, and `e2e-pwa/offline.spec.ts` counted rects and reported "the
+marks did not render offline". Neither was a contrast or an offline regression; both were a query
+naming an element instead of a shape. Both now match `rect, path`. The first grep for this missed
+the second one because it did not include `e2e-pwa/` in its search path.
+
+## Still open
+
+`work-docs/ART-SPIKE-smoothing.md` records that C (raising the grid to 16×16 or 24×24) remains
+unbuilt and is a re-plan trigger under ADR-006. B changes the silhouette; C would change the
+detail budget, which is a different request from the one that was made.

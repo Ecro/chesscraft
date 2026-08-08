@@ -73,11 +73,19 @@ test('a second visit plays with the network switched off', async ({ page, contex
    *
    * What is left worth asserting is that the marks reached the board at all. A
    * sprite that fails to render leaves the square empty rather than broken, so
-   * this counts rects: an SVG with no children is the sprite equivalent of a
-   * broken image, and it is invisible to every other assertion in this file.
+   * this counts the SVG's drawn children: an SVG with none is the sprite
+   * equivalent of a broken image, and it is invisible to every other assertion
+   * in this file.
+   *
+   * `rect, path` rather than `rect`. The renderer drew one rect per horizontal run until PLAN
+   * Phase 7 replaced it with one rounded outline path per colour, and this counted zero and
+   * reported "the marks did not render offline" — a true-sounding failure about the wrong thing,
+   * on the one suite where a false alarm is most expensive to diagnose. What is being asserted is
+   * that the SVG has ink in it, so match the shapes, not the element name the renderer happens
+   * to use this month.
    */
-  const rects = await page.locator('.square .piece svg.pix rect').count()
-  expect(rects, 'no sprite rects on the board — the marks did not render offline').toBeGreaterThan(0)
+  const shapes = await page.locator('.square .piece svg.pix rect, .square .piece svg.pix path').count()
+  expect(shapes, 'the sprite SVGs are empty — the marks did not render offline').toBeGreaterThan(0)
   // Unconditional, not `if (count > 0)`. The bundled board paints a marked
   // square, so a count of zero means the square marks stopped rendering —
   // which is a finding, not a reason to skip.

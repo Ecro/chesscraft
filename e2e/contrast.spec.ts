@@ -60,7 +60,15 @@ async function contrastProbe(page: import('@playwright/test').Page) {
      * second one is what the eye gets.
      */
     const piece = document.querySelector('.square[data-piece]:not([data-piece=""]) .piece svg.pix')
-    const fills = piece ? [...piece.querySelectorAll('rect')].map((r) => getComputedStyle(r).fill) : []
+    /*
+     * `rect, path` — the SHAPE, not one element name. The renderer drew a rect per horizontal run
+     * until PLAN Phase 7 made it one rounded outline path per colour, and this query silently
+     * returned nothing: `fills` went empty, `outlineColour` went `''`, and the assertion that the
+     * glyph carries its own outline failed. That was the query going stale, not the outline
+     * disappearing — the outline tone is still drawn, in a different element. Matching both keeps
+     * the claim about the ART rather than about the DOM shape that happens to express it.
+     */
+    const fills = piece ? [...piece.querySelectorAll('rect, path')].map((r) => getComputedStyle(r).fill) : []
     const outlineToken = token('--color-outline')
     const outlineColour = fills.some((f) => ratio(f, outlineToken) < 1.05) ? outlineToken : ''
 

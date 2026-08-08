@@ -1863,8 +1863,16 @@ export function isSpriteName(name: string): name is SpriteName {
  * one `box-shadow` list per repaint, which is the kind of thing that is fine on
  * a laptop and visibly stutters on the household Android this app is for.
  * Merging each row into runs roughly halves it — 40 rects for the average
- * sprite, 57 for the worst — and `shape-rendering: crispEdges` keeps the
+ * sprite, 57 for the worst — and `shape-rendering: crispEdges` kept the
  * result pixel-identical to the box-shadow version.
+ *
+ * **`Pix.tsx` no longer draws these runs (PLAN Phase 7).** It draws one rounded outline path per
+ * colour from `smooth.ts`, because the marks read as pixel art and the blockiness was the
+ * geometry rather than the rasterisation. `runsOf` stays, and stays load-bearing: `gates.ts`
+ * counts its output for the rect cap and the sheet-wide compression floor, which are properties
+ * of the sprite DATA and are unaffected by how it is drawn. That is also why nothing in this file
+ * changed for Phase 7 — the 125 committed sprites and every gate constant derived from them still
+ * describe exactly what they described.
  */
 export interface PixelRun {
   readonly x: number

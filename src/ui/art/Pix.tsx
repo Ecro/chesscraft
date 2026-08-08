@@ -1,4 +1,5 @@
-import { type PixelSprite, DEFAULT_TINT, runsOf } from './pixels'
+import { type PixelSprite, DEFAULT_TINT } from './pixels'
+import { layersOf } from './smooth'
 
 /**
  * One pixel sprite, drawn as SVG.
@@ -10,9 +11,16 @@ import { type PixelSprite, DEFAULT_TINT, runsOf } from './pixels'
  * step. A sprite with an intrinsic pixel size would burst the fixed-aspect
  * square the moment the board got narrower.
  *
- * `shape-rendering="crispEdges"` is what makes this a pixel sprite rather than
- * a blurry one: the default renderer antialiases rect edges, and at 12 pixels
- * across a half-pixel of grey on every boundary is most of the drawing.
+ * **Rounded outlines, not rects (PLAN Phase 7).** Each colour's cells are traced into one
+ * closed path per region and its corners are rounded (`smooth.ts`), so the mark keeps its
+ * shape and loses the staircase. `shape-rendering` is left at its default because
+ * antialiasing is now the point — `crispEdges` was correct for the rect renderer it replaced,
+ * where it stopped a half-pixel of grey appearing on every one of ~60 axis-aligned boundaries.
+ *
+ * Approach A for this report was to drop `crispEdges` and keep the rects. It was built,
+ * photographed at 26px and eliminated: the rects are axis-aligned and a 12x12 cell lands on
+ * very nearly whole device pixels, so there was almost nothing to antialias. The blockiness
+ * was the geometry.
  *
  * `aria-hidden` unconditionally, with no escape hatch. Every wrapper in this app
  * either sits inside an `aria-hidden` span already or has its identity named in
@@ -29,7 +37,6 @@ export function Pix({ sprite, tint }: { sprite: PixelSprite; tint?: string | und
       viewBox="0 0 12 12"
       width="1em"
       height="1em"
-      shapeRendering="crispEdges"
       aria-hidden="true"
       focusable="false"
       // `color`, not a fill on each rect: a `$` cell renders `currentColor`, so
@@ -37,15 +44,11 @@ export function Pix({ sprite, tint }: { sprite: PixelSprite; tint?: string | und
       // without this component knowing the surfaces exist.
       style={{ color: tint ?? DEFAULT_TINT }}
     >
-      {runsOf(sprite).map((run) => (
-        <rect
-          key={`${run.x},${run.y}`}
-          x={run.x}
-          y={run.y}
-          width={run.w}
-          height={1}
-          fill={run.fill ?? 'currentColor'}
-        />
+      {layersOf(sprite).map((layer, i) => (
+        // `fillRule="evenodd"` is what makes a hole a hole: `loopsOf` winds an outer boundary
+        // and an enclosed one in opposite directions, so a ring draws as a ring without this
+        // component knowing which of its paths is which.
+        <path key={`${layer.fill ?? 'tint'}-${i}`} d={layer.d} fill={layer.fill ?? 'currentColor'} fillRule="evenodd" />
       ))}
     </svg>
   )

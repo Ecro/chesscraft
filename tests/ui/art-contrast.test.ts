@@ -29,6 +29,16 @@ import { artRegistry } from '@ui/art/registry'
  * this file refuses. Reading `tokens.css` stays here — the gate module never
  * touches the filesystem, and ADR-021 keeps `tokens.css` the only place a colour
  * is named.
+ *
+ * **What this file does NOT measure, since PLAN Phase 7.** It reads the sprite's CHARACTERS: the
+ * set of palette tones present in twelve rows of text. That was the whole measurement while the
+ * renderer drew axis-aligned rects with `crispEdges`, because then a rendered pixel WAS one of
+ * those tones. Marks are rounded outline paths now, antialiased on purpose, so a rendered pixel
+ * can be a blend that appears nowhere in the grid — thinner at every corner than the tone credited
+ * here. A render change cannot make this file fail, which is the point and also the trap:
+ * `e2e/art-rendered-contrast.spec.ts` measures the rasterised, composited result at the board's
+ * real size, and the two files together are the gate. Do not delete that one on the grounds that
+ * this one covers contrast.
  */
 
 const TOKENS = readFileSync(join(__dirname, '../../src/ui/tokens.css'), 'utf8')
