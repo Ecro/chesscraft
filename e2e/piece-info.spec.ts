@@ -230,32 +230,16 @@ test('inspecting while a card is armed preserves the arming', async ({ page }) =
   expect(await hintBar.innerText()).toBe(hintBefore)
 })
 
-test('hover tooltip is dismissible, hoverable and persistent; focus plus i opens the sheet', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'hover and physical keys exist on the desktop project only')
+test('focus plus i opens the same sheet the pointer route opens', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'physical keys exist on the desktop project only')
 
+  // This used to also cover a hover tooltip that named the piece under the
+  // pointer. The tooltip was removed as noise — it fired on every square the
+  // pointer crossed, which on a 6x6 board is most of them — and the paths that
+  // remain are the ones a player asks for: a long press, and this key. See
+  // AC-007 in the SPEC, amended rather than left claiming a feature that is
+  // gone.
   const square = page.getByTestId(OWN_PAWN)
-  await square.hover()
-  const tip = page.getByTestId('square-tip')
-  await expect(tip).toBeVisible()
-
-  // PERSISTENT — nothing times it out. If a timer were added this would flake,
-  // which is the point of waiting rather than asserting immediately.
-  await page.waitForTimeout(1_200)
-  await expect(tip).toBeVisible()
-
-  // HOVERABLE — the pointer moves onto the tooltip itself and it survives.
-  // It is a DOM child of the square, so `mouseleave` never fires; a tooltip
-  // rendered as a sibling would disappear exactly here.
-  const tipBox = await tip.boundingBox()
-  if (tipBox) await page.mouse.move(tipBox.x + tipBox.width / 2, tipBox.y + tipBox.height / 2)
-  await expect(tip).toBeVisible()
-
-  // DISMISSIBLE — Escape, without moving the pointer.
-  await page.keyboard.press('Escape')
-  await expect(tip).toHaveCount(0)
-
-  // The keyboard route reaches the SAME sheet the pointer route opens, which
-  // is what makes this a comparison rather than a restatement.
   await square.focus()
   await page.keyboard.press('i')
   await expect(page.getByTestId('peek-sheet')).toBeVisible()

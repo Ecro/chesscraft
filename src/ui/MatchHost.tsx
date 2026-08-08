@@ -289,46 +289,6 @@ export function MatchHost({
   const aiRef = useRef<AiClient | null>(null)
   const [peek, setPeek] = useState<Peek | null>(null)
   /**
-   * The hover tooltip's square and label (AC-007), on pointer devices only.
-   *
-   * Held as ONE piece of state rather than one flag per square: only one can be
-   * hovered, and 36 booleans is 36 chances for two to be true.
-   */
-  const [tip, setTip] = useState<{ sq: SquareId; name: string } | null>(null)
-  /**
-   * Escape has dismissed the tooltips; none may open until the pointer leaves
-   * the board.
-   *
-   * The first version of this suppressed only the square that was dismissed,
-   * and it did not work — not subtly, either. The tooltip is a CHILD of its
-   * square and is drawn ABOVE it, so a pointer resting on the tooltip is
-   * geometrically over the NEIGHBOURING square. Unmounting it therefore
-   * delivered `mouseenter` to that neighbour and a second tooltip appeared
-   * under the same motionless pointer: Escape looked like it did nothing.
-   *
-   * WCAG 1.4.13 asks for dismissal WITHOUT moving the pointer, so the
-   * suppression has to be board-wide and has to outlive the hover that was
-   * interrupted. It clears when the pointer leaves the board — a deliberate
-   * choice over clearing on the next mousemove, which would re-open the
-   * tooltip on the first jitter and put us back where we started.
-   */
-  const tipsSuppressed = useRef(false)
-
-  // The "dismissible" half of WCAG 1.4.13. Bound to the window rather than to
-  // the square, because the criterion is explicit that the pointer must not
-  // have to move — and a keydown on a square the mouse is merely hovering
-  // never reaches that square, which has no focus.
-  useEffect(() => {
-    if (!tip) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      tipsSuppressed.current = true
-      setTip(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [tip])
-  /**
    * Whose turn a hand-off is announcing, or null when nothing is being said.
    *
    * Set by `push` when a ply passes the phone, and only then — an undo is a
@@ -849,15 +809,6 @@ export function MatchHost({
   /** The selected piece's own entry, for the strip and for its opener. */
   const selectedInfo = selected ? inspectPeek(selected) : null
 
-  /**
-   * Whether this device has a pointer that can hover at all.
-   *
-   * Checked in JS as well as in CSS, and the redundancy is deliberate: a touch
-   * screen synthesises `mouseenter` after a tap, so a CSS-only gate would leave
-   * the tooltip mounted-but-hidden on a phone — present to a screen reader and
-   * to every locator, absent to the eye. The state simply never opens there.
-   */
-  const canHover = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches === true
 
   /**
    * Whether a full-screen overlay currently owns the screen.
@@ -1021,12 +972,6 @@ export function MatchHost({
             data-testid="board"
             role="grid"
             aria-label={t('ui.board.label')}
-            // Where an Escape-dismissal is released: leaving the board is a
-            // deliberate act, so a tooltip that comes back afterwards is one
-            // the player asked for again.
-            onMouseLeave={() => {
-              tipsSuppressed.current = false
-            }}
             style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
           >
             {/* `role="grid"` owns `row`, which owns `gridcell` — the middle level
@@ -1071,17 +1016,6 @@ export function MatchHost({
                         press.onPointerDown(sq, e)
                       }}
                       onPointerMove={press.onPointerMove}
-                      onMouseEnter={() => {
-                        if (!canHover || tipsSuppressed.current) return
-                        const found = inspectPeek(sq)
-                        // Name only (ADR-004). The strip and the sheet stay the
-                        // canonical place for what a piece DOES; a third copy of
-                        // that paragraph is a third place for it to go stale.
-                        if (found) setTip({ sq, name: found.name })
-                      }}
-                      onMouseLeave={() => {
-                        setTip((current) => (current?.sq === sq ? null : current))
-                      }}
                       onPointerUp={(e) => press.onPointerUp(sq, e)}
                       onPointerCancel={press.onPointerCancel}
                       // The keyboard's route to the same sheet the press opens
@@ -1147,19 +1081,6 @@ export function MatchHost({
                           }}
                         >
                           {badge.remaining}
-                        </span>
-                      )}
-                      {/* Rendered INSIDE the square, which is what makes it
-                          hoverable per WCAG 1.4.13 without any pointer
-                          bookkeeping: moving onto the tooltip never leaves the
-                          element that owns the hover, so `mouseleave` does not
-                          fire and the tooltip does not vanish from under the
-                          pointer. `aria-hidden` because the square's own
-                          `aria-label` already names the piece — a screen reader
-                          would otherwise hear it twice. */}
-                      {tip?.sq === sq && (
-                        <span className="square-tip" data-testid="square-tip" aria-hidden="true">
-                          {tip.name}
                         </span>
                       )}
                     </button>

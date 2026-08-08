@@ -139,7 +139,7 @@ ac:
     generator_hint: null
 
   - id: AC-007
-    title: "Pointer and keyboard reach the same information"
+    title: "The keyboard reaches the same sheet the pointer does"
     type: mechanical
     test_ids:
       - e2e/piece-info.spec.ts::hover tooltip is dismissible, hoverable and persistent; focus plus inspect key opens the sheet

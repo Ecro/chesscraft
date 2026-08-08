@@ -94,15 +94,24 @@ with an explicit line saying this piece cannot be drawn as a grid
 **Then** the card is still armed with the same targets
 **And** the hint bar still shows the card's targeting prompt.
 
-### AC-007: Pointer and keyboard reach the same information
+### AC-007: The keyboard reaches the same sheet the pointer does
 
-**Given** the app is running on a device with a hover-capable pointer
-**When** the player hovers a square holding a piece
-**Then** a tooltip naming the piece appears, and that tooltip is dismissible
-with Escape without moving the pointer, remains visible while the pointer moves
-onto the tooltip itself, and persists until dismissed or un-hovered
-**And when** a square has keyboard focus and the player presses the inspect key
+**Given** a square has keyboard focus
+**When** the player presses the inspect key
 **Then** the same detail sheet opens as a long press would.
+
+> **Amended 2026-08-08 — the hover tooltip is removed.** This criterion also
+> asked for a tooltip naming the piece under a hover-capable pointer, dismissible
+> per WCAG 1.4.13. It was built and it shipped; it was then removed at the
+> owner's request as noise — on a 6x6 board the pointer crosses most squares on
+> the way to anywhere, so the tooltip fired constantly while answering a question
+> nobody had asked. The information it carried is not lost: the strip names the
+> selected piece and the long press opens the full sheet, and neither is
+> ambient. The criterion is narrowed rather than deleted so the keyboard route,
+> which is the accessibility-relevant half, keeps its owner.
+>
+> WCAG 1.4.13 governs content that *appears on hover*; with none appearing, the
+> criterion no longer applies here rather than being violated.
 
 ### AC-008: The operating system does not eat the press
 
@@ -169,7 +178,7 @@ piece opens its full description.
 | AC-004 | e2e | `e2e/piece-info.spec.ts::own piece, enemy piece and painted square each open; bare square does not` |
 | AC-005 | unit | `tests/ui/piece-detail.test.tsx::every bundled piece renders either a grid or the undrawable notice` |
 | AC-006 | e2e | `e2e/piece-info.spec.ts::inspecting while a card is armed preserves the arming` |
-| AC-007 | e2e | `e2e/piece-info.spec.ts::hover tooltip is dismissible, hoverable and persistent; focus plus inspect key opens the sheet` |
+| AC-007 | e2e | `e2e/piece-info.spec.ts::focus plus i opens the same sheet the pointer route opens` |
 | AC-008 | e2e + unit | `e2e/piece-info.spec.ts::a long press raises no system menu and leaves scrolling intact` (engine-evaluated half) and `tests/ui/touch-hardening.test.ts::suppresses the iOS callout and the selection handles together` (source half — the iOS-only property is not implemented in Playwright WebKit) |
 | AC-009 | unit + e2e | `tests/ui/art-contrast.test.ts::piece-info surfaces clear their floors` and `e2e/piece-info.spec.ts::square hover changes bevel only` |
 | AC-010 | e2e | `e2e/piece-info.spec.ts::the strip names the press-and-hold gesture` |
