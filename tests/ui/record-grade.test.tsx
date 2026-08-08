@@ -2,7 +2,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import React from 'react'
-import { memoryCache } from '@balance/cache'
 import type { ContentSource } from '@content/load'
 import { bundledContentSource } from '@content/sets/bundled'
 import { Edit } from '../../src/ui/Edit'
@@ -26,7 +25,7 @@ function openLibrary() {
 }
 
 describe('the record form names what the record is worth', () => {
-  it('shows a bundled piece its shipped grade, with no wait', () => {
+  it('shows a bundled piece its grade, with no wait', () => {
     mount(bundledContentSource)
     openLibrary()
     fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
@@ -34,7 +33,9 @@ describe('the record form names what the record is worth', () => {
 
     const badge = screen.getByTestId('record-grade')
     expect(badge.getAttribute('data-status')).toBe('graded')
-    expect(badge.textContent).toMatch(/세기 \d/)
+    // Positive, always: a record that costs nothing would make the budget a
+    // formality, which is the state the analytic price exists to rule out.
+    expect(Number(/세기 (\d+)/.exec(badge.textContent ?? '')![1])).toBeGreaterThan(0)
   })
 
   it('states the limit of what the number means', () => {

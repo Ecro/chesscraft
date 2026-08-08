@@ -78,19 +78,21 @@ import { z } from 'zod'
  * that carries one still loads.
  */
 /**
- * Bumped 8 -> 9: `preset.grading`, the two records a room measures its loadout
- * against.
+ * Bumped 8 -> 9: `preset.grading`, the two records a room measured its loadout
+ * against — REMOVED again in v10, see below.
  *
- * A grade is a delta versus a baseline, so something has to name that baseline —
- * and it cannot be a constant in the app's source, because no source file outside
- * the content set is allowed to name a piece (AC-009). The room names it, which
- * also makes the scale inspectable and exportable with the room that uses it.
+ * Bumped 9 -> 10 (ADR-012): `preset.grading` is gone. A grade is no longer a
+ * measured delta against a baseline; it is computed from the record's own
+ * declaration (`src/balance/cost.ts`), so there is no baseline to name. The
+ * field is removed rather than left in place unread — a declaration nothing
+ * reads is this project's most-recurring failure, and `cost` spent eight schema
+ * versions proving it.
  *
- * Optional in shape, required when `loadout` is declared, exactly like
- * `loadoutBudget` and for the same reason (ADR-010): a scale nobody declared is
- * not a lenient scale, it is an absent one.
+ * A v9 document carrying `grading` is refused by `strictObject`, which is the
+ * honest outcome: it declares a scale this build no longer has, and silently
+ * ignoring it would let an author believe their room still sets one.
  */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -513,15 +515,6 @@ export const presetDef = z.strictObject({
    * document written before v8 plus every room nobody has customised.
    */
   loadout: z.strictObject({ white: loadoutSlot.optional(), black: loadoutSlot.optional() }).optional(),
-  /**
-   * The records this room measures a loadout against (v9).
-   *
-   * `referencePieceId` is what every graded piece is measured as a replacement
-   * FOR, and `referenceSkillCardId` is what every graded card is measured as an
-   * alternative TO. Both measure exactly 0 against themselves, which is the
-   * origin of the room's scale.
-   */
-  grading: z.strictObject({ referencePieceId: contentId, referenceSkillCardId: contentId }).optional(),
   /**
    * The grade budget a loadout must fit (v8, ADR-004).
    *

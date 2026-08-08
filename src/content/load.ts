@@ -311,20 +311,6 @@ export function loadContentSet(source: unknown): LoadResult {
     // and a synchronous validator cannot run twenty thousand matches, so those
     // live in `@balance/legal` and run where the grade cache is (ADR-011).
     const declaresLoadout = preset.loadout?.white !== undefined || preset.loadout?.black !== undefined
-    if (declaresLoadout && preset.grading === undefined) {
-      // Same fail-closed rule as the budget, for the same reason: a room whose
-      // scale nobody declared cannot grade anything, and defaulting the scale
-      // would silently measure against records the author never chose.
-      errors.push({
-        contentId: id,
-        path: `presets.${id}.grading`,
-        message: 'a preset that declares a loadout must also declare grading',
-      })
-    }
-    if (preset.grading) {
-      requireRef(pieces.has(preset.grading.referencePieceId), id, `presets.${id}.grading.referencePieceId`, 'piece', preset.grading.referencePieceId)
-      requireRef(skillCards.has(preset.grading.referenceSkillCardId), id, `presets.${id}.grading.referenceSkillCardId`, 'skill card', preset.grading.referenceSkillCardId)
-    }
     if (declaresLoadout && preset.loadoutBudget === undefined) {
       // ADR-010, fail-closed. A room that declares a loadout without a budget is
       // refused rather than defaulted or waved through: an optional field a gate

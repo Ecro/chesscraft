@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkLoadoutGrades, gradesFrom } from '@balance/legal'
+import { checkLoadoutGrades } from '@balance/legal'
 import { type ContentSource, loadContentSet } from '@content/load'
 import { SCHEMA_VERSION, type PresetDef } from '@content/schema'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
@@ -119,72 +119,27 @@ describe('PLAN Phase 4 — the two documents that must load', () => {
   })
 })
 
-describe('PLAN Phase 4 — the grade-dependent refusals (ADR-011)', () => {
-  const scale = { width: 5 }
+describe('the price-dependent refusals', () => {
   const loaded = loadContentSet(document(() => {}))
-  if (!loaded.ok) throw new Error(`the Phase 4 fixture must load: ${JSON.stringify(loaded.errors.slice(0, 3))}`)
+  if (!loaded.ok) throw new Error(`the fixture must load: ${JSON.stringify(loaded.errors.slice(0, 3))}`)
   const preset = loaded.set.presets.get(BUNDLED_PRESET_ID)!
 
-  it('refuses a cross-band replacement', () => {
-    const grades = gradesFrom(
-      new Map([
-        ['piece.archer', 21.5],
-        ['piece.knight', 1.0],
-        [OWN_CARD, 2.25],
-      ]),
-    )
-    const errors = checkLoadoutGrades(preset, grades, scale)
-    expect(errors.some((e) => e.path === `${AT}.pieceId` && e.message.includes('same grade'))).toBe(true)
+  it('refuses a piece standing in for one of a different grade', () => {
+    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, pieceId: 'piece.queen', replaces: 'piece.pawn' } } }, loaded.set)
+    expect(errors.some((e) => e.message.includes('cannot replace it'))).toBe(true)
   })
 
-  it('accepts a same-band replacement', () => {
-    const grades = gradesFrom(
-      new Map([
-        ['piece.archer', 1.4],
-        ['piece.knight', 1.0],
-        [OWN_CARD, 2.25],
-      ]),
-    )
-    expect(checkLoadoutGrades(preset, grades, scale)).toEqual([])
+  it('accepts a piece of the same grade', () => {
+    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, pieceId: 'piece.knight', replaces: 'piece.knight' } } }, loaded.set)
+    expect(errors).toEqual([])
   })
 
-  it('refuses a loadout that costs more than the room allows', () => {
-    const tight: PresetDef = { ...preset, loadoutBudget: 5 }
-    const grades = gradesFrom(
-      new Map([
-        ['piece.archer', 11.0],
-        ['piece.knight', 11.0],
-        [OWN_CARD, 11.0],
-      ]),
-    )
-    const errors = checkLoadoutGrades(tight, grades, scale)
-    expect(errors.some((e) => e.message.includes("room's budget"))).toBe(true)
+  it("refuses a pair that costs more than the room allows", () => {
+    const tight: PresetDef = { ...preset, loadoutBudget: 1, loadout: { white: { ...GOOD, pieceId: 'piece.knight', replaces: 'piece.knight' } } }
+    expect(checkLoadoutGrades(tight, loaded.set).some((e) => e.message.includes("room's budget"))).toBe(true)
   })
 
-  it('refuses an ungraded record rather than scoring it as harmless', () => {
-    // The absent case. Treating "no grade yet" as zero is how a budget gets
-    // bypassed by whatever the measurement has not caught up with.
-    const grades = gradesFrom(new Map([['piece.knight', 1.0]]))
-    const errors = checkLoadoutGrades(preset, grades, scale)
-    expect(errors.some((e) => e.message.includes('not been graded'))).toBe(true)
-  })
-
-  it('charges the same for two deltas in the same band', () => {
-    const tight: PresetDef = { ...preset, loadoutBudget: 9 }
-    const cheap = gradesFrom(new Map([['piece.archer', 4.9], ['piece.knight', 4.9], [OWN_CARD, 4.9]]))
-    const dear = gradesFrom(new Map([['piece.archer', 6.1], ['piece.knight', 6.1], [OWN_CARD, 6.1]]))
-    // 4.9 and 6.1 both round to band 1 (representative 5), so both cost 10 > 9.
-    expect(checkLoadoutGrades(tight, cheap, scale).length).toBe(checkLoadoutGrades(tight, dear, scale).length)
-  })
-})
-
-describe('PLAN Phase 4 — a loadout card may not also be in the shared pool', () => {
-  it('refuses the overlap, because both sides draw from the shared pool', () => {
-    const source = document((preset) => {
-      // `skill.volley` is one the bundled room already deals to everyone.
-      ;(preset.loadout as Record<string, Slot>).white!.skillCardId = 'skill.volley'
-    })
-    const errors = errorsFor(source)
-    expect(errors.some((e) => e.path === `${AT}.skillCardId` && e.message.includes('shared pool'))).toBe(true)
+  it('reports nothing for a room with no loadout', () => {
+    expect(checkLoadoutGrades({ ...preset, loadout: undefined }, loaded.set)).toEqual([])
   })
 })

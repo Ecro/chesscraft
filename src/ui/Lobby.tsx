@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react'
-import { gradeMapFor, localStorageCache } from '@balance/cache'
-import { withShippedGrades } from '@balance/shipped-grades'
-import { checkLoadoutGrades, gradesFrom } from '@balance/legal'
-import { GRADE_SEEDS } from '@balance/measure'
+import { checkLoadoutGrades } from '@balance/legal'
 import { withinEnvelope } from '@engine/ai/complexity'
 import { DIFFICULTIES, type Difficulty } from '@engine/ai/difficulty'
 import type { ContentSet, ContentSource } from '@content/load'
@@ -14,13 +11,6 @@ import { MiniBoard } from './MiniBoard'
 import { MAX_NAME_LENGTH } from './settings'
 import { useTranslate } from './i18n'
 import { recordLabel } from './recordLabel'
-import { DISPLAY_SCALE, useGrades } from './useGrades'
-
-/** One process-wide cache, so a grade measured on one screen is a hit on the next. */
-const gradeCacheFor = (() => {
-  const shared = withShippedGrades(localStorageCache())
-  return () => shared
-})()
 
 /**
  * Who is playing, in which room, and how to give that room away.
@@ -107,46 +97,32 @@ export function Lobby({
    * that accepts the tap and then refuses is a worse version of the message.
    * A room with no loadout is trivially fine and is the common case.
    */
-  const loadoutIds = useMemo(() => {
-    const named = new Set<string>()
-    for (const side of ['white', 'black'] as const) {
-      const slot = preset?.loadout?.[side]
-      if (slot) for (const id of [slot.pieceId, slot.replaces, slot.skillCardId]) named.add(id)
-    }
-    return [...named]
-  }, [preset])
-
-  // Scoped to the ids the loadout actually names. Grading everything the room
-  // could offer belongs to the editor, where the author is choosing; here it
-  // would measure every card in the game to open a lobby for a room with none.
-  const grades = useGrades({ source, content, preset, ids: loadoutIds, cache: gradeCacheFor() })
-  const loadoutGate = useMemo(() => {
-    if (loadoutIds.length === 0) return { ok: true as const }
-    if (!preset?.grading) return { ok: false as const, reason: t('ui.lobby.loadout-unscaled') }
-    const context = {
-      presetId,
-      referencePieceId: preset.grading.referencePieceId,
-      referenceSkillCardId: preset.grading.referenceSkillCardId,
-      seeds: GRADE_SEEDS,
-    }
-    const known = gradeMapFor(content, gradeCacheFor(), loadoutIds, context)
-    const errors = checkLoadoutGrades(preset, gradesFrom(known), DISPLAY_SCALE)
-    if (errors.length === 0) return { ok: true as const }
-    const ungraded = errors.some((e) => e.message.includes('not been graded'))
-    return { ok: false as const, reason: ungraded ? t('ui.lobby.loadout-measuring') : t('ui.lobby.loadout-refused') }
-  }, [content, preset, presetId, t, grades, loadoutIds])
-
+  /**
+   * Whether this room's loadout is legal at the prices the picker showed.
+   *
+   * Computed before the choice for the same reason `envelope` is: a start button
+   * that accepts the tap and then refuses is a worse version of the message. A
+   * room with no loadout is trivially fine and is the common case.
+   *
+   * `load.ts` already refused everything decidable without a price — no `win`,
+   * no `royal`, a declared budget, a replaceable target. This is the other half:
+   * same-grade replacement and the budget sum.
+   */
   /**
    * The mode that will actually be used, as opposed to the one last tapped.
    *
-   * Disabling the radio is not enough. A player can choose the computer, then
-   * import a room that the envelope refuses — the import is right there on this
-   * screen — and `mode` still reads `'ai'` while the control that set it has
-   * gone quiet. Guarding the start handler alone would fix that one path and
-   * leave the next one; deriving the answer removes the stale state entirely,
-   * so there is no path to miss.
+   * Disabling the radio is not enough: a player can choose the computer, then
+   * import a room the envelope refuses — the import is on this screen — and
+   * `mode` still reads `'ai'` while the control that set it has gone quiet.
+   * Deriving the answer removes the stale state, so there is no path to miss.
    */
   const effectiveMode = envelope.ok ? mode : 'human'
+
+  const loadoutGate = useMemo(() => {
+    if (!preset?.loadout?.white && !preset?.loadout?.black) return { ok: true as const }
+    const errors = checkLoadoutGrades(preset, content)
+    return errors.length === 0 ? { ok: true as const } : { ok: false as const, reason: t('ui.lobby.loadout-refused') }
+  }, [content, preset, t])
 
   const share = () => {
     const text = exportContent(source)

@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
-import type { GradeCache } from '@balance/cache'
-import type { Calibration } from '@balance/predict'
 import type { ContentSource } from '@content/load'
 import { useTranslate } from './i18n'
-import { contentOf, useGrades } from './useGrades'
+import { contentOf, useCosts } from './useGrades'
 
 /**
  * What a record is worth, on the screen where it was made (ADR-005).
@@ -24,40 +22,25 @@ export function RecordGrade({
   source,
   kind,
   recordId,
-  cache,
-  calibration,
 }: {
   source: ContentSource
   kind: string
   /** The SAVED id this form is responsible for, or null before the first save. */
   recordId: string | null
-  cache?: GradeCache
-  calibration?: Calibration | null
 }) {
   const t = useTranslate()
   const content = useMemo(() => contentOf(source), [source])
 
   /**
-   * The room the grade is measured in.
+   * The room whose board the cost is read against.
    *
-   * The first room that declares a scale, rather than a room named here: no
-   * source file outside the content set may name a preset any more than it may
-   * name a piece (AC-009), and the scale is a property of a room.
+   * The first room in the document rather than one named here: no source file
+   * outside the content set may name a preset any more than it may name a piece
+   * (AC-009). The board only decides how far an unbounded slide travels, so any
+   * room of the right size gives the same answer.
    */
-  const preset = useMemo(
-    () => (content ? [...content.presets.values()].find((p) => p.grading !== undefined) : undefined),
-    [content],
-  )
-
-  const ids = useMemo(() => (recordId === null ? [] : [recordId]), [recordId])
-  const grades = useGrades({
-    source,
-    content: content ?? EMPTY,
-    preset,
-    ids,
-    ...(cache ? { cache } : {}),
-    ...(calibration === undefined ? {} : { calibration }),
-  })
+  const preset = useMemo(() => (content ? [...content.presets.values()][0] : undefined), [content])
+  const costs = useCosts(content, preset)
 
   // Grades exist for pieces and skill cards only. A rule card or a square type
   // is not something a side brings of its own, so it has no band to sit in and
@@ -65,19 +48,12 @@ export function RecordGrade({
   if (recordId === null || (kind !== 'piece' && kind !== 'skillCard')) return null
   if (!content || !preset) return null
 
-  const state = grades.of(recordId)
-  const text =
-    state.status === 'graded'
-      ? t('ui.editor.loadout.grade').replace('{cost}', String(state.cost))
-      : state.status === 'provisional'
-        ? t('ui.editor.loadout.provisional').replace('{cost}', String(state.cost))
-        : state.status === 'unmeasurable'
-          ? t('ui.editor.loadout.unmeasurable')
-          : t('ui.editor.loadout.measuring')
+  const grade = costs.of(recordId)
+  if (grade === null) return null
 
   return (
-    <p className="record-grade" data-testid="record-grade" data-status={state.status}>
-      <strong>{text}</strong>
+    <p className="record-grade" data-testid="record-grade" data-status="graded">
+      <strong>{t('ui.editor.loadout.grade').replace('{cost}', String(grade))}</strong>
       <span className="hint">{t('ui.editor.loadout.caveat')}</span>
     </p>
   )
