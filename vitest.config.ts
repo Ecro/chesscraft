@@ -14,6 +14,14 @@ export default mergeConfig(
       // the URL the next one starts on — and `App` now reads it. See the file's header.
       setupFiles: ['tests/helpers/fresh-url.ts'],
       include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+      // The jsdom screen tests render the whole record form, and the content set
+      // roughly doubled with PLAN-preset-content-expansion — 12 pieces, 24 skill
+      // cards and 121 catalogue entries where there were 26 and 37. Four of them
+      // then failed the DEFAULT 5s under a full parallel run while passing in
+      // isolation, which reads as "the screen broke" and is really scheduling.
+      // Raised rather than hidden: a test that exceeds this is slow for a reason
+      // worth finding, not for load.
+      testTimeout: 20_000,
       // e2e/ belongs to Playwright, not Vitest.
       //
       // `tests/build/` asserts over `dist/`, which does not exist on a fresh

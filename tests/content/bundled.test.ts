@@ -50,21 +50,72 @@ describe('AC-010 — the bundled content set', () => {
     expect(set.squareTypes.size).toBeGreaterThanOrEqual(4)
   })
 
-  it('offers every bundled card through the default preset', () => {
+  it('offers every bundled card through SOME preset', () => {
     // A card that validates but is in no preset is not shipped — it is dead
-    // content that AC-010's count would still happily include.
+    // content that a record count would still happily include.
+    //
+    // Set-wide rather than per-preset since the expansion: with four rooms, a
+    // room that had to list every card would have no character, and the point of
+    // a room IS which cards it draws from. What must not exist is a card no room
+    // offers at all.
     const set = loadBundledContent()
-    const preset = set.presets.get(BUNDLED_PRESET_ID)
-    expect(preset).toBeDefined()
-    expect(new Set(preset!.ruleCardIds)).toEqual(new Set(set.ruleCards.keys()))
-    expect(new Set(preset!.skillCardIds)).toEqual(new Set(set.skillCards.keys()))
+    const presets = [...set.presets.values()]
+    expect(presets.length).toBeGreaterThan(0)
+    expect(new Set(presets.flatMap((p) => p.ruleCardIds))).toEqual(new Set(set.ruleCards.keys()))
+    expect(new Set(presets.flatMap((p) => p.skillCardIds))).toEqual(new Set(set.skillCards.keys()))
   })
 
-  it('paints every bundled square type onto the default board', () => {
+  it('paints every bundled square type onto SOME board', () => {
     const set = loadBundledContent()
-    const board = set.boards.get(set.presets.get(BUNDLED_PRESET_ID)!.boardId)!
-    const painted = new Set(board.squares.map((s) => s.typeId))
+    const painted = new Set([...set.boards.values()].flatMap((b) => b.squares.map((s) => s.typeId)))
     expect(painted).toEqual(new Set(set.squareTypes.keys()))
+  })
+
+  it('gives every preset a board that is 6x6 and a skill pool both drafts can open', () => {
+    // AC-004. G-8 of the vocabulary gaps: fewer than six skill cards and the
+    // sixth-turn draft can never open, which is a deadlock rather than a
+    // shortage. The board size is ADR-001's boundary — the AI's cost at other
+    // sizes is unmeasured, so no room may quietly introduce one.
+    const set = loadBundledContent()
+    for (const preset of set.presets.values()) {
+      const board = set.boards.get(preset.boardId)
+      expect(board, `${preset.id} points at a board that does not exist`).toBeDefined()
+      expect([board!.width, board!.height], `${preset.id} is not on a 6x6 board`).toEqual([6, 6])
+      expect(preset.skillCardIds.length, `${preset.id} cannot open both drafts`).toBeGreaterThanOrEqual(6)
+    }
+  })
+
+  it('gives every room a skill pool of its own', () => {
+    // AC-005. Four rooms that draw the same cards are one room with four names.
+    const set = loadBundledContent()
+    const lists = [...set.presets.values()].map((p) => [...p.skillCardIds].sort().join(','))
+    expect(new Set(lists).size, 'two presets ship the same skill list').toBe(lists.length)
+  })
+
+  it('paints only ranks that are empty at setup', () => {
+    // ADR-003. The property the shipped board already had and nothing enforced:
+    // a painted square under a starting piece is neither reachable nor visible,
+    // so it reads to a player as art that does nothing.
+    const set = loadBundledContent()
+    for (const board of set.boards.values()) {
+      const occupied = new Set(board.placements.map((p) => p.square))
+      for (const painted of board.squares) {
+        expect(occupied.has(painted.square), `${board.id} paints ${painted.square}, which starts occupied`).toBe(false)
+      }
+    }
+  })
+
+  it('counts the records this expansion committed to', () => {
+    // AC-006, as a census rather than a floor: a count that only grows would
+    // pass on a half-finished set.
+    const set = loadBundledContent()
+    expect({
+      pieces: set.pieces.size,
+      squareTypes: set.squareTypes.size,
+      ruleCards: set.ruleCards.size,
+      skillCards: set.skillCards.size,
+      presets: set.presets.size,
+    }).toEqual({ pieces: 12, squareTypes: 8, ruleCards: 17, skillCards: 24, presets: 4 })
   })
 
   it('starts a match from the bundled preset', () => {

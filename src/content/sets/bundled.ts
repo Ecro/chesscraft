@@ -56,16 +56,49 @@ export const BUNDLED_BOARD_ID = 'board.los-alamos'
 const backRank = ['piece.rook', 'piece.knight', 'piece.queen', 'piece.king', 'piece.archer', 'piece.rook']
 const files = ['a', 'b', 'c', 'd', 'e', 'f']
 
-function losAlamosPlacements() {
+/**
+ * A mirrored 6x6 opening from one back rank.
+ *
+ * Every room this set ships is the same shape — two full pawn ranks and a back
+ * rank each — so what makes a room is which SIX pieces stand behind the pawns,
+ * not a different geometry. Ranks 3 and 4 are left empty by construction, which
+ * is the property every painted square in this file depends on (ADR-003): a
+ * square under a piece at setup is neither reachable nor visible.
+ */
+function openingFor(rank: readonly string[], pawnId = 'piece.pawn') {
   const placements: Array<{ square: string; pieceId: string; side: 'white' | 'black' }> = []
   for (const [i, file] of files.entries()) {
-    placements.push({ square: `${file}1`, pieceId: backRank[i]!, side: 'white' })
-    placements.push({ square: `${file}2`, pieceId: 'piece.pawn', side: 'white' })
-    placements.push({ square: `${file}5`, pieceId: 'piece.pawn', side: 'black' })
-    placements.push({ square: `${file}6`, pieceId: backRank[i]!, side: 'black' })
+    placements.push({ square: `${file}1`, pieceId: rank[i]!, side: 'white' })
+    placements.push({ square: `${file}2`, pieceId: pawnId, side: 'white' })
+    placements.push({ square: `${file}5`, pieceId: pawnId, side: 'black' })
+    placements.push({ square: `${file}6`, pieceId: rank[i]!, side: 'black' })
   }
   return placements
 }
+
+const bastionRank = ['piece.rook', 'piece.warden', 'piece.queen', 'piece.king', 'piece.warden', 'piece.rook']
+const cavalryRank = ['piece.charger', 'piece.knight', 'piece.queen', 'piece.king', 'piece.knight', 'piece.charger']
+const covenantRank = ['piece.acolyte', 'piece.marksman', 'piece.queen', 'piece.king', 'piece.shade', 'piece.lancer']
+
+/** The two-square diagonal leap the marksman shoots along, and the dart grants. */
+const DIAGONAL_TWO: Array<[number, number]> = [
+  [2, 2],
+  [2, -2],
+  [-2, 2],
+  [-2, -2],
+]
+
+/** A camel's leap — the same idea as a knight's, one square longer, so it lands on the other colour. */
+const CAMEL: Array<[number, number]> = [
+  [1, 3],
+  [3, 1],
+  [3, -1],
+  [1, -3],
+  [-1, -3],
+  [-3, -1],
+  [-3, 1],
+  [-1, 3],
+]
 
 export const bundledContentSource: ContentSource = {
   schemaVersion: 10,
@@ -147,6 +180,91 @@ export const bundledContentSource: ContentSource = {
           actions: [{ kind: 'block_capture', target: { kind: 'adjacent_friendly' } }],
         },
       ],
+    },
+    {
+      /**
+       * A short-range diagonal slider. Deliberately NOT a bishop: capping the
+       * slide at two keeps it on the same colour without letting it cross the
+       * whole board on move one, which on six ranks a full bishop does.
+       */
+      id: 'piece.lancer',
+      nameKey: 'piece.lancer.name',
+      textKey: 'piece.lancer.text',
+      artKey: 'art.lance',
+      movement: [{ kind: 'slide', vectors: DIAGONAL, maxDistance: 2 }],
+      effects: [],
+    },
+    {
+      /**
+       * The archer's opposite number: it steps orthogonally and shoots on the
+       * diagonal, so the two cover disjoint squares and a room holding both is
+       * genuinely harder to walk into than a room holding two archers.
+       */
+      id: 'piece.marksman',
+      nameKey: 'piece.marksman.name',
+      textKey: 'piece.marksman.text',
+      artKey: 'art.crossbow',
+      movement: [{ kind: 'step', vectors: ORTHOGONAL }],
+      attack: [{ kind: 'jump', vectors: DIAGONAL_TWO }],
+      effects: [],
+    },
+    {
+      /** Runs forward and takes to the side — a piece that cannot retreat. */
+      id: 'piece.charger',
+      nameKey: 'piece.charger.name',
+      textKey: 'piece.charger.text',
+      artKey: 'art.warhorse',
+      movement: [{ kind: 'slide', vectors: [[0, 1]], maxDistance: 3, forward: true }],
+      attack: [
+        {
+          kind: 'step',
+          vectors: [
+            [1, 1],
+            [-1, 1],
+          ],
+          forward: true,
+        },
+      ],
+      effects: [],
+    },
+    {
+      /**
+       * The archer's guard shape at half the reach. Same proven effect — a
+       * `generate_moves` block on adjacent friends — because a defensive piece
+       * whose defence silently does nothing is the exact failure this set has
+       * hit five times.
+       */
+      id: 'piece.warden',
+      nameKey: 'piece.warden.name',
+      textKey: 'piece.warden.text',
+      artKey: 'art.watchtower',
+      movement: [{ kind: 'slide', vectors: ORTHOGONAL, maxDistance: 2 }],
+      effects: [
+        {
+          trigger: 'generate_moves',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'adjacent_friendly' } }],
+        },
+      ],
+    },
+    {
+      /** A diagonal footman that grows into a rook rather than a queen. */
+      id: 'piece.acolyte',
+      nameKey: 'piece.acolyte.name',
+      textKey: 'piece.acolyte.text',
+      artKey: 'art.censer',
+      movement: [{ kind: 'step', vectors: DIAGONAL }],
+      promotion: { onRank: 'last', to: 'piece.rook' },
+      effects: [],
+    },
+    {
+      /** A leaper one square longer than a knight, so it changes square colour. */
+      id: 'piece.shade',
+      nameKey: 'piece.shade.name',
+      textKey: 'piece.shade.text',
+      artKey: 'art.cloak',
+      movement: [{ kind: 'jump', vectors: CAMEL }],
+      effects: [],
     },
   ],
 
@@ -234,6 +352,72 @@ export const bundledContentSource: ContentSource = {
           trigger: 'on_enter',
           condition: { kind: 'always' },
           actions: [{ kind: 'freeze_piece', target: { kind: 'entering' }, plies: 2 }],
+        },
+      ],
+    },
+    {
+      /**
+       * Throws whatever steps on it back to its own home rank — WHEN that rank
+       * has room.
+       *
+       * The caveat is in the player-facing text on purpose. `own_back_rank`
+       * resolves through `homeRankVacancy`, which returns null on a full rank and
+       * lets execution continue, so at the opening — when every home rank is
+       * full — the effect fires and changes nothing: driving a pawn onto b3 of
+       * `board.cavalry` logs `on_enter:square:square.geyser` and leaves the pawn
+       * standing there. That is the declared-but-inert shape this repo has hit
+       * five times, and the rule it taught is that a safe-looking default is what
+       * makes the failure invisible. A square effect has no `cardResolves` to
+       * gate it, so the remedy available to CONTENT is to stop the behaviour
+       * being a surprise: the card text now states the condition, and
+       * `square-liveness.test.ts` pins both branches.
+       */
+      id: 'square.geyser',
+      nameKey: 'square.geyser.name',
+      textKey: 'square.geyser.text',
+      artKey: 'art.geyser',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'teleport_piece', target: { kind: 'entering' }, to: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
+    {
+      /**
+       * Lethal to footmen and harmless to everything else.
+       *
+       * The bomb kills whatever arrives, which makes it a square nobody ever
+       * walks onto. Killing only pawns makes it a square you walk onto with the
+       * RIGHT piece, which is a decision rather than a wall.
+       */
+      id: 'square.thorns',
+      nameKey: 'square.thorns.name',
+      textKey: 'square.thorns.text',
+      artKey: 'art.thorns',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'piece_is', pieceId: 'piece.pawn' },
+          actions: [{ kind: 'destroy_piece', target: { kind: 'entering' } }],
+        },
+      ],
+    },
+    {
+      /** Cover you carry with you: whatever steps in cannot be taken for a while. */
+      id: 'square.mist',
+      nameKey: 'square.mist.name',
+      textKey: 'square.mist.text',
+      artKey: 'art.mist',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'entering' }, duration: 3 }],
         },
       ],
     },
@@ -419,6 +603,99 @@ export const bundledContentSource: ContentSource = {
           trigger: 'end_of_ply',
           condition: { kind: 'piece_count_at_most', side: 'opponent', n: 8 },
           actions: [{ kind: 'win', side: 'mover' }],
+        },
+      ],
+    },
+    {
+      /**
+       * Cross the board with the king. `on_own_rank` counts from the king's own
+       * home rank, so rank 6 is the opponent's back rank for either side — the
+       * one thing a flat square list cannot say.
+       */
+      id: 'rule.beacon',
+      nameKey: 'rule.beacon.name',
+      textKey: 'rule.beacon.text',
+      artKey: 'art.beacon',
+      effects: [
+        {
+          trigger: 'end_of_ply',
+          forEach: { kind: 'piece', pieceId: 'piece.king', side: 'mover' },
+          condition: { kind: 'on_own_rank', n: 6 },
+          actions: [{ kind: 'win', side: 'mover' }],
+        },
+      ],
+    },
+    {
+      /** Every capture is paid for with a fresh footman on the home rank. */
+      id: 'rule.tribute',
+      nameKey: 'rule.tribute.name',
+      textKey: 'rule.tribute.text',
+      artKey: 'art.tribute',
+      effects: [
+        {
+          trigger: 'on_capture',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
+    {
+      /** Both queens are pinned where they stand. */
+      id: 'rule.eclipse',
+      nameKey: 'rule.eclipse.name',
+      textKey: 'rule.eclipse.text',
+      artKey: 'art.eclipse',
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.queen', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'forbid_movement', target: { kind: 'self' } }],
+        },
+      ],
+    },
+    {
+      /** Footmen on both sides cannot be taken — the board fills up and stays full. */
+      id: 'rule.oath',
+      nameKey: 'rule.oath.name',
+      textKey: 'rule.oath.text',
+      artKey: 'art.oath',
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'self' } }],
+        },
+      ],
+    },
+    {
+      /** Rooks besiege on the diagonal too. */
+      id: 'rule.siege',
+      nameKey: 'rule.siege.name',
+      textKey: 'rule.siege.text',
+      artKey: 'art.siege',
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.rook', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'self' }, pattern: { kind: 'slide', vectors: DIAGONAL } }],
+        },
+      ],
+    },
+    {
+      /** A footman that reaches the middle is promoted on the spot. */
+      id: 'rule.harvest',
+      nameKey: 'rule.harvest.name',
+      textKey: 'rule.harvest.text',
+      artKey: 'art.harvest',
+      effects: [
+        {
+          trigger: 'end_of_ply',
+          forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'mover' },
+          condition: { kind: 'on_square', squares: CENTRE },
+          actions: [{ kind: 'promote_piece', target: { kind: 'self' }, to: 'piece.knight' }],
         },
       ],
     },
@@ -667,6 +944,187 @@ export const bundledContentSource: ContentSource = {
         },
       ],
     },
+    {
+      /** Pinned, not frozen: it may still be taken, it simply cannot leave. */
+      id: 'skill.leash',
+      nameKey: 'skill.leash.name',
+      textKey: 'skill.leash.text',
+      artKey: 'art.leash',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'forbid_movement', target: { kind: 'chosen_enemy' }, duration: 3 }],
+        },
+      ],
+    },
+    {
+      /**
+       * A two-square leap in a straight line, granted rather than performed.
+       *
+       * It was authored as `teleport_piece` to an `offset` destination and that
+       * is a trap the engine does not close: `cardResolves` validates
+       * `own_back_rank` destinations and nothing else, so the card is offered for
+       * EVERY friendly piece — including one on the far rank, whose destination is
+       * off the board. Playing it there consumes the card and moves nothing.
+       * Verified by driving it: a rook on c5 is offered the play, the rook stays
+       * on c5, and `drafts.white.used` records the card as spent.
+       *
+       * `skill.shove` has shipped with the same shape since the original set, so
+       * this is not a new engine defect — but it is a new INSTANCE of one, and a
+       * grant always resolves. Same idea (reach two squares in a straight line,
+       * over whatever is between), no silent no-op.
+       */
+      id: 'skill.blink',
+      nameKey: 'skill.blink.name',
+      textKey: 'skill.blink.text',
+      artKey: 'art.blink',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'chosen_friendly' },
+              pattern: {
+                kind: 'jump',
+                vectors: [
+                  [0, 2],
+                  [0, -2],
+                  [2, 0],
+                  [-2, 0],
+                ],
+              },
+              duration: 3,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** A cheaper revival than `skill.revive`: no rook comes back either. */
+      id: 'skill.mend',
+      nameKey: 'skill.mend.name',
+      textKey: 'skill.mend.text',
+      artKey: 'art.mend',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'revive_piece',
+              side: 'mover',
+              at: { kind: 'own_back_rank' },
+              except: ['piece.king', 'piece.queen', 'piece.rook'],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Throws an enemy anywhere empty — no capture, just a piece out of position. */
+      id: 'skill.quake',
+      nameKey: 'skill.quake.name',
+      textKey: 'skill.quake.text',
+      artKey: 'art.quake',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'teleport_piece', target: { kind: 'chosen_enemy' }, to: { kind: 'chosen_empty' } }],
+        },
+      ],
+    },
+    {
+      /** Three plies of cover for one piece. */
+      id: 'skill.veil',
+      nameKey: 'skill.veil.name',
+      textKey: 'skill.veil.text',
+      artKey: 'art.veil',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'chosen_friendly' }, duration: 3 }],
+        },
+      ],
+    },
+    {
+      /** Lends the marksman's diagonal shot to anything for three plies. */
+      id: 'skill.dart',
+      nameKey: 'skill.dart.name',
+      textKey: 'skill.dart.text',
+      artKey: 'art.dart',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            { kind: 'grant_movement', target: { kind: 'chosen_friendly' }, pattern: { kind: 'jump', vectors: DIAGONAL_TWO }, duration: 3 },
+          ],
+        },
+      ],
+    },
+    {
+      /** Two squares of orthogonal reach, which a footman has never had. */
+      id: 'skill.tide',
+      nameKey: 'skill.tide.name',
+      textKey: 'skill.tide.text',
+      artKey: 'art.tide',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'chosen_friendly' },
+              pattern: { kind: 'slide', vectors: ORTHOGONAL, maxDistance: 2 },
+              duration: 3,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** The one card that turns a footman into something this expansion added. */
+      id: 'skill.brand',
+      nameKey: 'skill.brand.name',
+      textKey: 'skill.brand.text',
+      artKey: 'art.brand',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'piece_is', pieceId: 'piece.pawn' },
+          actions: [{ kind: 'promote_piece', target: { kind: 'chosen_friendly' }, to: 'piece.lancer' }],
+        },
+      ],
+    },
+    {
+      /** One more footman on the home rank, no condition attached. */
+      id: 'skill.echo',
+      nameKey: 'skill.echo.name',
+      textKey: 'skill.echo.text',
+      artKey: 'art.echo',
+      uses: 1,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
   ],
 
   boards: [
@@ -675,7 +1133,7 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.los-alamos.name',
       width: 6,
       height: 6,
-      placements: losAlamosPlacements(),
+      placements: openingFor(backRank),
       // Ranks 3 and 4 are the only empty ones at the start, so every painted
       // square is reachable and none sits under a piece at setup. The portal
       // pair deliberately avoids the four centre squares the hill cards use.
@@ -686,6 +1144,53 @@ export const bundledContentSource: ContentSource = {
         { square: 'f4', typeId: 'square.mire' },
         { square: 'b3', typeId: 'square.portal', pairedWith: 'e4' },
         { square: 'e4', typeId: 'square.portal', pairedWith: 'b3' },
+      ],
+    },
+    {
+      id: 'board.bastion',
+      nameKey: 'board.bastion.name',
+      width: 6,
+      height: 6,
+      placements: openingFor(bastionRank),
+      // Ranks 3 and 4 only — the rule every board in this file follows, so no
+      // painted square starts under a piece and all six are reachable (ADR-003).
+      squares: [
+        { square: 'a3', typeId: 'square.mist' },
+        { square: 'f3', typeId: 'square.mist' },
+        { square: 'a4', typeId: 'square.sanctuary' },
+        { square: 'f4', typeId: 'square.sanctuary' },
+        { square: 'c3', typeId: 'square.thorns' },
+        { square: 'd4', typeId: 'square.thorns' },
+      ],
+    },
+    {
+      id: 'board.cavalry',
+      nameKey: 'board.cavalry.name',
+      width: 6,
+      height: 6,
+      placements: openingFor(cavalryRank),
+      squares: [
+        { square: 'b3', typeId: 'square.geyser' },
+        { square: 'e4', typeId: 'square.geyser' },
+        { square: 'a4', typeId: 'square.portal', pairedWith: 'f3' },
+        { square: 'f3', typeId: 'square.portal', pairedWith: 'a4' },
+        { square: 'c4', typeId: 'square.mire' },
+        { square: 'd3', typeId: 'square.mire' },
+      ],
+    },
+    {
+      id: 'board.covenant',
+      nameKey: 'board.covenant.name',
+      width: 6,
+      height: 6,
+      placements: openingFor(covenantRank),
+      squares: [
+        { square: 'a3', typeId: 'square.shrine' },
+        { square: 'f4', typeId: 'square.shrine' },
+        { square: 'c4', typeId: 'square.bomb' },
+        { square: 'd3', typeId: 'square.bomb' },
+        { square: 'b4', typeId: 'square.mist' },
+        { square: 'e3', typeId: 'square.mist' },
       ],
     },
   ],
@@ -735,6 +1240,43 @@ export const bundledContentSource: ContentSource = {
         'skill.volley',
         'skill.sacrifice',
       ],
+    },
+    {
+      /**
+       * Constraint play. The lowest budget in the set, so a loadout is one dear
+       * thing or two cheap ones and never both — and the board answers with
+       * cover rather than with threats.
+       */
+      id: 'preset.bastion',
+      nameKey: 'preset.bastion.name',
+      boardId: 'board.bastion',
+      pieceIds: ['piece.king', 'piece.queen', 'piece.rook', 'piece.warden', 'piece.pawn', 'piece.marksman'],
+      ruleCardIds: ['rule.oath', 'rule.royal-bodyguard', 'rule.duel', 'rule.eclipse', 'rule.last-stand', 'rule.siege'],
+      loadoutBudget: 4,
+      skillCardIds: ['skill.veil', 'skill.bulwark', 'skill.mend', 'skill.leash', 'skill.snare', 'skill.recall'],
+    },
+    {
+      /**
+       * The opposite lever. Twice the bastion's budget, so the dearest piece
+       * travels beside a dear card — the pairing the default room refuses.
+       */
+      id: 'preset.cavalry',
+      nameKey: 'preset.cavalry.name',
+      boardId: 'board.cavalry',
+      pieceIds: ['piece.king', 'piece.queen', 'piece.charger', 'piece.knight', 'piece.pawn', 'piece.shade'],
+      ruleCardIds: ['rule.knights-honour', 'rule.blitz', 'rule.beacon', 'rule.harvest', 'rule.fast-promotion', 'rule.three-check'],
+      loadoutBudget: 8,
+      skillCardIds: ['skill.blink', 'skill.charge', 'skill.knight-leap', 'skill.dart', 'skill.tide', 'skill.shove', 'skill.teleport'],
+    },
+    {
+      /** The default budget, spent on a board that keeps replacing what it kills. */
+      id: 'preset.covenant',
+      nameKey: 'preset.covenant.name',
+      boardId: 'board.covenant',
+      pieceIds: ['piece.king', 'piece.queen', 'piece.lancer', 'piece.acolyte', 'piece.pawn', 'piece.shade'],
+      ruleCardIds: ['rule.tribute', 'rule.conscription', 'rule.blood-toll', 'rule.sudden-death', 'rule.king-of-the-hill', 'rule.harvest'],
+      loadoutBudget: 6,
+      skillCardIds: ['skill.echo', 'skill.brand', 'skill.quake', 'skill.revive', 'skill.sacrifice', 'skill.coronation', 'skill.swap'],
     },
   ],
 }

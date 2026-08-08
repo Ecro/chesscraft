@@ -1,0 +1,251 @@
+schema_version: 2
+spec_slug: preset-content-expansion
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project — no Python sources to mutate; ADR-009 3-layer adequacy applies instead."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+ac:
+  - id: AC-001
+    title: "`on_capture` binds the capturing piece"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "capturing_pawn_present_after_blood_toll == False"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The same position is played twice on the same engine, once with rule.blood-toll present and once absent; the control's outcome is produced by code paths the fix does not touch, so it cannot be satisfied by reading the fix."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "a `forEach` effect evaluates its condition against the piece it bound"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A quantified effect whose selector matches no eligible subject must leave the position identical to the no-card control — an invariant of what quantification MEANS, true regardless of how binding is implemented, so it cannot be derived from the engine code under test."
+    oracle_independence_waiver: null
+    input_domain: "positions where the forEach selector of a rule card matches no eligible subject (rook on a centre square with the king at home; pawn on own rank 3 while a rook moves)"
+    transformation: "resolve one ply with the card in play"
+    expected_relation: "resolved_state(with_card) == resolved_state(without_card)"
+    preconditions:
+      - "the card's trigger fires during the ply"
+      - "the position is one where the correct behaviour is provably no change"
+    observable_output: "resolved board state and win flag"
+    generator_hint: null
+
+  - id: AC-003
+    title: "a played skill card binds its quantifier"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "len(charge_plays_offered) == len(charge_selector_matches)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The expected count is computed by evaluating the card's forEach selector against the position directly, independently of the offer builder that AC-003 is checking."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "every room can open both drafts"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "min(skill_card_count_per_preset) >= 6"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The floor of 6 predates this work: work-docs/VOCAB-GAPS-variant-chess-6x6-cards.md G-8 records the draft deadlock that established it."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-005
+    title: "the lobby offers four rooms"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "len(selectable_presets) == 4"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "4 = the 1 preset on master plus the 3 agreed in the SPEC interview Round 2; the count is a stated requirement, not a reading of the implementation."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "the record counts grow as specified"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "(piece_count, square_type_count, rule_card_count, skill_card_count) == (12, 8, 17, 24)"
+    golden_table:
+      - {input: {kind: pieces}, expected: 12}
+      - {input: {kind: squareTypes}, expected: 8}
+      - {input: {kind: ruleCards}, expected: 17}
+      - {input: {kind: skillCards}, expected: 24}
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Before-counts were read off src/content/sets/bundled.ts on master; the added-counts were chosen by the user in interview Round 2. Both halves of the table exist independently of the code that will satisfy it."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "every declared text key resolves"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "translate() echoes a key it cannot resolve, so `t(k) != k` is a decidable miss-detector that depends on the i18n contract rather than on which records exist — it holds for any content set, including ones not yet written."
+    oracle_independence_waiver: null
+    input_domain: "every player-facing text key the expanded content set declares"
+    transformation: "translate the key against the ko bundle"
+    expected_relation: "t(k) != k"
+    preconditions:
+      - "the key is collected by textKeysOf, not by hand"
+    observable_output: "the translated string"
+    generator_hint: null
+
+  - id: AC-008
+    title: "the art picker offers unclaimed pictures on every surface"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "unclaimed_art_by_surface['piece'] >= 20 and unclaimed_art_by_surface['square'] >= 10 and unclaimed_art_by_surface['card'] >= 30"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The 20/10/30 quota was set by the user in interview Round 1; the claimed set is computed from artKeysOf(content), a function that predates this work and is not part of what is being added."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-009
+    title: "every sprite, spare included, obeys the sheet's own rules"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "These invariants are the sheet's pre-existing contract in tests/ui/pixels.test.ts, written before any spare existed; a new sprite is checked against a rule it had no part in setting. The sheet-wide aggregate additionally cannot be satisfied per-sprite."
+    oracle_independence_waiver: null
+    input_domain: "every sprite in PIXEL_SPRITES after expansion"
+    transformation: "measure rows, characters, non-transparent cell count and run-length compression"
+    expected_relation: "rows == 12 and all(len(r) == 12) and chars <= palette | {'.', '$'} and drawn > 0 and rects <= 60, and sheet-wide total_runs < total_pixels / 1.8"
+    preconditions: []
+    observable_output: "per-sprite measurements and the sheet aggregate"
+    generator_hint: null
+
+  - id: AC-010
+    title: "every spare is legible where it is meant to appear"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The contrast floor is a WCAG-derived luminance ratio computed from the colours themselves, not from the sprite's authoring; it is the same relation the existing sheet already satisfies, so a spare cannot pass by resembling the code that draws it."
+    oracle_independence_waiver: null
+    input_domain: "every registered pixel entry × every surface its declared `surface` permits it to land on"
+    transformation: "compute the contrast ratio of the sprite's strongest edge against that surface's background"
+    expected_relation: "ratio >= the floor the pre-existing sheet already clears, and the sprite's colours are a subset of the 25-entry palette"
+    preconditions: []
+    observable_output: "contrast ratio per (entry, surface) pair"
+    generator_hint: null
+
+  - id: AC-011
+    title: "no art id names content"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "art_ids_failing_one_segment == [] and content_id_substring_offences == []"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The `art.<one-segment>` grammar is pinned by the regex at src/content/schema.ts:149 and the substring rule by tests/structure/no-content-in-engine.test.ts, both of which predate this work."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-012
+    title: "the generator refuses what the gates refuse"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "generator_emitted_from_invalid_batch == [] and generator_gate_module == test_gate_module"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The test suite's gate predicates are the reference implementation; the assertion is module identity, so a generator that reimplements and diverges from them fails even when its own copy would accept."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-013
+    title: "every new card proves it stays inert where it must"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "new_cards_without_inert_probe == 0"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "Each probe compares against a no-card control on both surfaces a card can act through (resolved state and the legal move set); the control comes from the same engine with the card removed, so a card that changes the wrong state still fails — the failure mode a liveness-only assertion misses."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null

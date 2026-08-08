@@ -156,6 +156,35 @@ describe('the art catalogue and the content that points at it', () => {
     expect(unregistered).toEqual([])
   })
 
+  it('keeps a surplus on every surface an author can point at', () => {
+    /*
+     * AC-008. The record form builds its picker by filtering this catalogue on
+     * `surface`, so "how many pictures can an author choose from" is literally
+     * "how many entries of that surface no record has taken". Before this
+     * expansion the answer was ZERO on all three — 6 piece / 5 square / 26 card
+     * entries against exactly that many records — and a new piece could only
+     * steal another piece's picture or fall back to a `?` monogram.
+     *
+     * The floors are what the expansion committed to leave FREE, which is why
+     * this task had to bring art for its own 24 records rather than spending the
+     * pool: a surplus that the next feature eats is not a surplus.
+     */
+    const loaded = loadContentSet(bundledContentSource)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+
+    const claimed = new Set(artKeysOf(loaded.set))
+    const free = { piece: 0, square: 0, card: 0 }
+    for (const [id, entry] of artRegistry) {
+      if (entry.kind !== 'pixel' || claimed.has(id)) continue
+      free[entry.surface] += 1
+    }
+
+    expect(free.piece, `only ${free.piece} unclaimed piece pictures`).toBeGreaterThanOrEqual(20)
+    expect(free.square, `only ${free.square} unclaimed square pictures`).toBeGreaterThanOrEqual(10)
+    expect(free.card, `only ${free.card} unclaimed card pictures`).toBeGreaterThanOrEqual(30)
+  })
+
   it('uses one segment after `art.` — the schema, not just convention, forbids a content-shaped id', () => {
     // The echo test above only catches ids containing a CURRENT content id.
     // `art.piece.rabbit` embeds none and is still the mirrored form the rule

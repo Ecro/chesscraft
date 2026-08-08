@@ -174,16 +174,39 @@ describe('the room screen prices what it offers', () => {
 
 describe('the room that has no card left to own', () => {
   /**
-   * The state every other test here makes unreachable by adding a card first.
-   * The SHIPPED room deals all fifteen, and a card the room deals cannot also be
-   * one side's own — so the default room offers a picker that cannot be
-   * completed. Found by running the app, not by the suite.
+   * A card the room deals cannot also be one side's own, so a room dealing the
+   * WHOLE pool offers a picker that cannot be completed. Found by running the
+   * app, not by the suite.
+   *
+   * It used to be enough to mount the shipped document, because there was one
+   * room and it dealt all fifteen cards. Four rooms later the default deals 15
+   * of 24, so the empty state has no shipped path any more — and a test that
+   * asserted the OLD arithmetic would have been deleted as "no longer true"
+   * along with the branch it was covering. The room is built here instead, which
+   * is what the test was ever really about.
    */
+  function roomDealingEverything(): ContentSource {
+    const source = structuredClone(bundledContentSource) as ContentSource
+    const preset = source.presets.find((p) => (p as { id: string }).id === BUNDLED_PRESET_ID) as Record<string, unknown>
+    preset.skillCardIds = source.skillCards.map((c) => (c as { id: string }).id)
+    return source
+  }
+
   it('explains the empty list instead of offering a menu that cannot be completed', () => {
+    mountRoom(roomDealingEverything())
+    const options = [...screen.getByTestId('loadout-skill').querySelectorAll('option')]
+    expect(options, 'a room dealing every card leaves none ownable').toHaveLength(1)
+    expect(screen.getByTestId('loadout-no-cards').textContent).toMatch(/새 스킬 카드를 만들거나/)
+  })
+
+  it('still offers what the SHIPPED room leaves out — the expansion made the pool wider than the room', () => {
+    // The other half of the same fact, and the reason the fixture above had to
+    // be built: with 24 cards in the set and 15 dealt by the default room, an
+    // author has nine to own without making anything.
     mountRoom(bundledContentSource)
     const options = [...screen.getByTestId('loadout-skill').querySelectorAll('option')]
-    expect(options, 'the shipped room deals every card, so none is ownable').toHaveLength(1)
-    expect(screen.getByTestId('loadout-no-cards').textContent).toMatch(/새 스킬 카드를 만들거나/)
+    expect(options.length).toBeGreaterThan(1)
+    expect(screen.queryByTestId('loadout-no-cards')).toBeNull()
   })
 
   it('drops the explanation once a card is outside the shared pool', () => {

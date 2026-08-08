@@ -123,6 +123,49 @@ const THREE_CHECKS: Array<[SquareId, SquareId]> = [
   ['c5', 'c6'],
 ]
 
+/**
+ * A skill probe on a surface the card must NOT move.
+ *
+ * Every card this expansion adds is unconditional, so there is no position where
+ * it correctly does nothing — the (a) shape of an inert probe does not exist for
+ * them. The (b) shape does: a card that acts on the enemy must leave the MOVER's
+ * own moves alone, and a card that relocates or grants must never add to the
+ * captured pile. Both flip to `live` the moment the card fires on the wrong
+ * thing, which is the failure this survey was written for — 3 of the 4 defects
+ * it originally found were cards that changed state, just the wrong state.
+ */
+function skillKeeps(card: string, placements: Place[], surface: (s: GameState) => string, captured?: string[]) {
+  return (): Verdict => {
+    const before = pos({ placements, held: [card], captured: captured ?? [] })
+    const plays = legalActions(before, content).filter((a) => a.kind === 'play_card' && a.cardId === card)
+    if (plays.length === 0) return 'inert'
+    const base = surface(before)
+    return plays.some((p) => surface(apply(before, p, content)) !== base) ? 'live' : 'inert'
+  }
+}
+
+/** The captured pile, as a string — the surface a relocation must never touch. */
+const capturedOf = (s: GameState) => JSON.stringify(s.captured)
+
+/**
+ * Where one side's pieces stand.
+ *
+ * The surface for a card that acts on the OPPONENT: throwing an enemy around
+ * can legitimately end with it dead (the shipped board paints a bomb square, and
+ * the entry pipeline runs for a card-driven move exactly as it does for a board
+ * move), so the captured pile is not a rule that card obeys. Which pieces the
+ * MOVER still has, and where, is.
+ */
+const squaresOf = (side: Side) => (s: GameState) =>
+  [...s.board.entries()]
+    .filter(([, piece]) => piece.side === side)
+    .map(([square]) => square)
+    .sort()
+    .join(' ')
+
+const queen = (square: SquareId, side: Side = 'white'): Place => ({ square, pieceId: 'piece.queen', side })
+const knight = (square: SquareId, side: Side = 'white'): Place => ({ square, pieceId: 'piece.knight', side })
+
 interface Probe {
   card: string
   probe: string
@@ -371,7 +414,311 @@ const PROBES: Probe[] = [
     current: 'live',
     run: skill('skill.sacrifice', [K_W, rook('b1'), K_B, pawn('f5', 'black')]),
   },
+  // --- PLAN-preset-content-expansion: the 15 records this task added.
+  // Every one carries a live probe AND an inert probe (AC-013). The inert half
+  // is the one that matters: a card that does SOMETHING is not the same as a
+  // card that does the right thing, and a did-anything-happen assertion cleared
+  // two of the four defects the first survey found.
+  {
+    card: 'rule.beacon',
+    probe: 'the king reaches the far rank',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.beacon', [{ square: 'c5', pieceId: 'piece.king', side: 'white' }, K_B], [['c5', 'c6']]),
+  },
+  {
+    card: 'rule.beacon',
+    probe: 'a ROOK reaches the far rank while the king sits at home',
+    intended: 'inert',
+    current: 'inert',
+    run: ruleState('rule.beacon', [K_W, rook('c5'), K_B], [['c5', 'c6']]),
+  },
+  {
+    card: 'rule.tribute',
+    probe: 'a capture pays for a fresh footman',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.tribute', [K_W, rook('b1'), pawn('b5', 'black'), K_B], [['b1', 'b5']]),
+  },
+  {
+    card: 'rule.tribute',
+    probe: 'a quiet move, with a capture available and declined',
+    intended: 'inert',
+    current: 'inert',
+    run: ruleState('rule.tribute', [K_W, rook('b1'), pawn('b5', 'black'), K_B], [['b1', 'b2']]),
+  },
+  {
+    card: 'rule.eclipse',
+    probe: 'a queen is on the board',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves('rule.eclipse', [K_W, queen('c1'), K_B]),
+  },
+  {
+    card: 'rule.eclipse',
+    probe: 'a ROOK stands where the queen would — nothing else may be pinned',
+    intended: 'inert',
+    current: 'inert',
+    run: ruleMoves('rule.eclipse', [K_W, rook('c1'), K_B]),
+  },
+  {
+    card: 'rule.oath',
+    probe: 'a footman is under attack',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves('rule.oath', [K_W, rook('b1'), pawn('b5', 'black'), K_B]),
+  },
+  {
+    card: 'rule.oath',
+    probe: 'a ROOK is under attack — the shield is for footmen only',
+    intended: 'inert',
+    current: 'inert',
+    run: ruleMoves('rule.oath', [K_W, rook('b1'), rook('b5', 'black'), K_B]),
+  },
+  {
+    card: 'rule.siege',
+    probe: 'a rook is on the board',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves('rule.siege', [K_W, rook('c3'), K_B]),
+  },
+  {
+    card: 'rule.siege',
+    probe: 'a KNIGHT stands where the rook would',
+    intended: 'inert',
+    current: 'inert',
+    run: ruleMoves('rule.siege', [K_W, knight('c3'), K_B]),
+  },
+  {
+    card: 'rule.harvest',
+    probe: 'a footman steps onto the centre',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.harvest', [K_W, pawn('c2', 'white'), K_B], [['c2', 'c3']]),
+  },
+  {
+    card: 'rule.harvest',
+    probe: 'a footman steps one file over, OFF the centre',
+    intended: 'inert',
+    current: 'inert',
+    // b3 is not one of the four centre squares, so the correct behaviour here is
+    // provably nothing — the discriminating placement, not merely a quiet one.
+    run: ruleState('rule.harvest', [K_W, pawn('b2', 'white'), K_B], [['b2', 'b3']]),
+  },
+  {
+    card: 'skill.leash',
+    probe: 'an enemy piece is pinned where it stands',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.leash', [K_W, rook('b1'), rook('e5', 'black'), K_B]),
+  },
+  {
+    card: 'skill.leash',
+    probe: 'the mover’s OWN moves are untouched',
+    intended: 'inert',
+    current: 'inert',
+    run: skillKeeps('skill.leash', [K_W, rook('b1'), rook('e5', 'black'), K_B], moveSet),
+  },
+  {
+    card: 'skill.blink',
+    probe: 'a piece jumps two squares forward',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.blink', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.blink',
+    probe: 'nothing is captured by moving',
+    intended: 'inert',
+    current: 'inert',
+    /*
+     * Both friendly pieces land on an EMPTY, UNPAINTED square: the king c1->c3
+     * and the footman e2->e4... which is a portal on the shipped board, and a
+     * portal moves a piece without taking one, so the pile still may not change.
+     *
+     * The first version of this probe put an enemy rook on the destination and a
+     * king on a1 — whose two-square hop is the bomb square. Both made the card
+     * change the pile for reasons that are the ENGINE working correctly, and the
+     * probe reported a defect that was not there. A probe for wrong-firing has to
+     * place its subject where the correct behaviour is provably nothing.
+     */
+    run: skillKeeps(
+      'skill.blink',
+      [{ square: 'c1', pieceId: 'piece.king', side: 'white' }, pawn('e2', 'white'), K_B],
+      capturedOf,
+    ),
+  },
+  {
+    card: 'skill.mend',
+    probe: 'a lost piece comes back',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.mend', [K_W, rook('b1'), K_B], ['piece.knight']),
+  },
+  {
+    card: 'skill.mend',
+    probe: 'nothing has been lost yet',
+    intended: 'inert',
+    current: 'inert',
+    run: skill('skill.mend', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.quake',
+    probe: 'an enemy is thrown across the board',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.quake', [K_W, rook('b1'), rook('e5', 'black'), K_B]),
+  },
+  {
+    card: 'skill.quake',
+    probe: 'the mover’s own pieces do not move',
+    intended: 'inert',
+    current: 'inert',
+    // NOT the captured pile: the thrown piece may legitimately land on the
+    // shipped board's bomb square and die there, which is the entry pipeline
+    // doing its job. What a card aimed at the enemy may never do is relocate one
+    // of the mover's own pieces — the shape the forEach defects took.
+    run: skillKeeps('skill.quake', [K_W, rook('b1'), rook('e5', 'black'), K_B], squaresOf('white')),
+  },
+  {
+    card: 'skill.veil',
+    probe: 'a piece is covered',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.veil', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.veil',
+    probe: 'cover does not change where its own side may go',
+    intended: 'inert',
+    current: 'inert',
+    run: skillKeeps('skill.veil', [K_W, rook('b1'), K_B], moveSet),
+  },
+  {
+    card: 'skill.dart',
+    probe: 'a piece gains the diagonal leap',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.dart', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.dart',
+    probe: 'granting reach takes nothing',
+    intended: 'inert',
+    current: 'inert',
+    run: skillKeeps('skill.dart', [K_W, rook('b1'), rook('d3', 'black'), K_B], capturedOf),
+  },
+  {
+    card: 'skill.tide',
+    probe: 'a footman gains two squares of orthogonal reach',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.tide', [K_W, pawn('c2', 'white'), K_B]),
+  },
+  {
+    card: 'skill.tide',
+    probe: 'granting reach takes nothing',
+    intended: 'inert',
+    current: 'inert',
+    run: skillKeeps('skill.tide', [K_W, pawn('c2', 'white'), rook('c4', 'black'), K_B], capturedOf),
+  },
+  {
+    card: 'skill.brand',
+    probe: 'a footman becomes a lancer',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.brand', [K_W, pawn('c2', 'white'), K_B]),
+  },
+  {
+    card: 'skill.brand',
+    probe: 'there is no footman to brand',
+    intended: 'inert',
+    current: 'inert',
+    run: skill('skill.brand', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.echo',
+    probe: 'a fresh footman appears on the home rank',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.echo', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.echo',
+    probe: 'the new footman is created, not taken from anyone',
+    intended: 'inert',
+    current: 'inert',
+    run: skillKeeps('skill.echo', [K_W, rook('b1'), rook('e5', 'black'), K_B], capturedOf),
+  },
 ]
+
+describe('what the new skill cards do, exactly', () => {
+  /*
+   * The survey above asks whether a card changes anything. That is the right
+   * question for a liveness sweep and the wrong one for a card whose failure
+   * mode is "changed the wrong thing" — a second-opinion review of
+   * PLAN-preset-content-expansion made the point precisely: a Blink that moved
+   * sideways, a Brand that produced the wrong piece, or a grant with the wrong
+   * pattern all pass `skill()`.
+   *
+   * So the cards whose effect has a NAMEABLE result get one assertion each on
+   * that result. Not every card: `skill.veil` and `skill.leash` are already
+   * pinned by their inert probes above, which is the sharper direction for them.
+   */
+  function play(card: string, placements: Place[], pick: SquareId) {
+    const before = pos({ placements, held: [card] })
+    const action = legalActions(before, content).find(
+      (a) => a.kind === 'play_card' && a.cardId === card && a.targets[0] === pick,
+    )
+    if (!action) throw new Error(`${card} was not offered on ${pick}`)
+    return apply(before, action, content)
+  }
+
+  it('skill.brand turns the chosen footman into a lancer, not into anything else', () => {
+    const after = play('skill.brand', [K_W, pawn('c2', 'white'), K_B], 'c2')
+    expect(after.board.get('c2')?.pieceId).toBe('piece.lancer')
+  })
+
+  it('skill.echo adds one footman to the mover and takes nothing', () => {
+    // No chosen slot: the card spawns on the home rank, so its play carries an
+    // empty target list rather than a square.
+    const before = pos({ placements: [K_W, rook('b1'), K_B], held: ['skill.echo'] })
+    const white = (s: GameState) => [...s.board.values()].filter((p) => p.side === 'white').length
+    const action = legalActions(before, content).find((a) => a.kind === 'play_card' && a.cardId === 'skill.echo')
+    expect(action, 'echo was not offered').toBeDefined()
+    const after = apply(before, action!, content)
+    expect(white(after)).toBe(white(before) + 1)
+    expect(after.captured).toEqual(before.captured)
+  })
+
+  it('skill.blink grants a two-square straight leap to the piece that was chosen', () => {
+    // The card was re-aimed during review: as a `teleport_piece` to an `offset`
+    // destination it was offered for pieces whose destination is off the board,
+    // consuming the card and moving nothing. A grant always resolves — and this
+    // asserts WHICH piece got it and that the reach is real.
+    const after = play('skill.blink', [K_W, rook('c3'), K_B], 'c3')
+    const moves = legalActions(after, content).filter((a) => a.kind === 'move' && a.from === 'c3')
+    expect(moves.some((m) => m.kind === 'move' && m.to === 'c5')).toBe(true)
+    expect([...after.grants].some((g) => g.square === 'c3'), 'the grant landed on another piece').toBe(true)
+  })
+
+  it('skill.tide gives a footman orthogonal reach it has never had', () => {
+    const after = play('skill.tide', [K_W, pawn('c2', 'white'), K_B], 'c2')
+    const moves = legalActions(after, content).filter((a) => a.kind === 'move' && a.from === 'c2')
+    expect(moves.some((m) => m.kind === 'move' && m.to === 'a2'), 'no sideways reach was granted').toBe(true)
+  })
+
+  it('skill.quake moves the chosen ENEMY and leaves the mover’s pieces where they were', () => {
+    const before = pos({ placements: [K_W, rook('b1'), rook('e5', 'black'), K_B], held: ['skill.quake'] })
+    const action = legalActions(before, content).find(
+      (a) => a.kind === 'play_card' && a.cardId === 'skill.quake' && a.targets[0] === 'e5',
+    )
+    expect(action, 'quake was not offered on the enemy rook').toBeDefined()
+    const after = apply(before, action!, content)
+    expect(after.board.has('e5'), 'the enemy rook did not move').toBe(false)
+    expect(after.board.get('b1')?.pieceId, 'the mover’s own rook moved').toBe('piece.rook')
+  })
+})
 
 describe('every shipped card changes something a player can see', () => {
   for (const p of PROBES) {

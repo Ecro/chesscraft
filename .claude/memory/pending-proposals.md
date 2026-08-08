@@ -78,7 +78,20 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
-**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 5)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 6)
+
+**Updated 2026-08-08 — the harness now knows the shape, and still missed a whole
+CONTENT KIND.** The per-record "play it and diff the board" harness the note below
+asked for exists (`tests/engine/card-liveness.test.ts`, 41 cards, live AND
+inert-where-it-must probes) and it did not see the 6th instance, because it
+surveys CARDS and the defect was in a SQUARE TYPE. The SPEC criterion written to
+prevent this class said "every new card" — authored by the same person who wrote
+the square types. So the mechanism needs to be keyed on the CONTENT KIND ENUM
+rather than on a hand-written noun: for every kind the schema defines
+(`pieces`, `squareTypes`, `ruleCards`, `skillCards`), a coverage assertion that
+every record of that kind has a probe. `square-liveness.test.ts` now does this for
+square types, but it was written by hand after the fact, which is the same
+position the card survey was in before its own instance.
 
 **Updated 2026-08-07 — the mechanism above would not have caught the 4th
 instance.** A no-caller sweep finds vocabulary nothing *invokes*; `rule.blood-toll`
