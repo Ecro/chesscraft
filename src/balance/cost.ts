@@ -41,25 +41,56 @@ export const MINIMUM_COST = 1
  */
 const CARD_TO_PIECE = 8
 
-/**
- * Raw cost per grade step.
- *
- * The grade is what a player sees and what the rules compare, and a player
- * cannot hold "224" and "120" apart as quantities. Fifteen puts the shipped
- * pieces on a 1-to-8 scale with the pawn at 1, which is a range a child can read
- * as a number of stars.
- */
-const COST_PER_GRADE = 15
+/** Stars, and there are five of them. */
+export const MAX_STARS = 5
 
 /**
- * The grade a raw cost falls in: a small positive integer, never zero.
+ * The dearest thing a loadout may carry, derived rather than picked.
  *
- * Ceiling rather than rounding, so nothing that costs anything grades as
- * costing nothing — the floor of this scale is "cheapest thing that exists",
- * not "free".
+ * Twice the priciest piece the room itself plays. Deriving it matters more than
+ * the factor does: a constant here would be a number somebody chose that every
+ * authored piece is then judged against, and it would not move when the room
+ * does. Two is the headroom — a player may build something meaningfully above
+ * anything shipped, and not ten times above it.
+ *
+ * This ceiling is what makes a five-level scale safe. Bands compress, and an
+ * open-ended top band would put the queen and a monster ten times her price at
+ * the same five stars — which the same-grade replacement rule would then read as
+ * interchangeable. Closing the top is what stops a coarser display from becoming
+ * a looser rule.
  */
-export function gradeOf(cost: number): number {
-  return Math.max(1, Math.ceil(cost / COST_PER_GRADE))
+export function costCeiling(pieces: Iterable<PieceDef>, board: Pick<BoardDef, 'width' | 'height'>): number {
+  let dearest = 0
+  for (const piece of pieces) {
+    if (piece.royal === true) continue
+    dearest = Math.max(dearest, pieceCost(piece, board))
+  }
+  return Math.max(MINIMUM_COST * 2, dearest * 2)
+}
+
+/**
+ * How many stars a cost earns, one to five, against a ceiling.
+ *
+ * Geometric, not linear: each star is twice the one below, so the top band is
+ * half the ceiling rather than a fifth of it. Linear bands would put the pawn,
+ * the knight, the archer and the rook all in the first star and leave four for
+ * the queen alone, because the shipped pieces span an eight-fold range and
+ * strength is not felt in equal steps.
+ *
+ * A cost ABOVE the ceiling still returns five — this reports what a thing looks
+ * like, and refusing it is `checkLoadoutGrades`'s job. A display that silently
+ * showed six stars would be inventing a band the rules do not have.
+ */
+export function starsOf(cost: number, ceiling: number): number {
+  for (let star = 1; star < MAX_STARS; star += 1) {
+    if (cost <= ceiling / 2 ** (MAX_STARS - star)) return star
+  }
+  return MAX_STARS
+}
+
+/** Whether a record is simply too dear to be brought at all. */
+export function exceedsCeiling(cost: number, ceiling: number): boolean {
+  return cost > ceiling
 }
 
 /**
@@ -222,12 +253,12 @@ export function skillCardCost(card: SkillCardDef): number {
   return Math.max(MINIMUM_COST, Math.round((total * card.uses) / CARD_TO_PIECE))
 }
 
-/** The grade a piece is offered at. */
-export function pieceGrade(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): number {
-  return gradeOf(pieceCost(piece, board))
+/** The stars a piece is offered at. */
+export function pieceStars(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>, ceiling: number): number {
+  return starsOf(pieceCost(piece, board), ceiling)
 }
 
-/** The grade a card is offered at. */
-export function skillCardGrade(card: SkillCardDef): number {
-  return gradeOf(skillCardCost(card))
+/** The stars a card is offered at. */
+export function skillCardStars(card: SkillCardDef, ceiling: number): number {
+  return starsOf(skillCardCost(card), ceiling)
 }

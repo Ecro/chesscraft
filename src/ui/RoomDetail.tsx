@@ -11,7 +11,7 @@ import { PIXEL_SPRITES } from './art/pixels'
 import { Pix } from './art/Pix'
 import { namedRecords, recordLabel } from './recordLabel'
 import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i18n'
-import { type Costs, contentOf, useCosts } from './useGrades'
+import { type Costs, contentOf, starText, useCosts } from './useGrades'
 
 /**
  * One room, open — the five things a room is, one at a time.
@@ -1082,7 +1082,7 @@ function LoadoutSection({
   const costOf = (id: string | undefined): number | null => (id ? costs.of(id) : null)
   const label = (id: string | undefined): string => {
     const cost = costOf(id)
-    return cost === null ? t('ui.editor.loadout.none') : t('ui.editor.loadout.grade').replace('{cost}', String(cost))
+    return cost === null ? t('ui.editor.loadout.none') : t('ui.editor.loadout.grade').replace('{stars}', starText(cost))
   }
 
   const pieceCost = costOf(slot?.pieceId)

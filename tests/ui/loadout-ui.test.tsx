@@ -100,16 +100,19 @@ describe('the match-start path consults the price', () => {
 })
 
 describe('the room screen prices what it offers', () => {
-  it('shows a grade against every piece, with no wait and no zero', () => {
+  it('shows stars against every piece, at least one and never more than five', () => {
     mountRoom(documentWithOwnCard())
     const options = [...screen.getByTestId('loadout-piece').querySelectorAll('option')].slice(1)
     expect(options.length).toBeGreaterThan(0)
     for (const option of options) {
-      const grade = /세기 (\d+)/.exec(option.textContent ?? '')
-      expect(grade, `${option.getAttribute('value')} carries no grade`).not.toBeNull()
-      // Every record costs something. A free record would make the budget a
-      // formality and is the state the analytic model exists to rule out.
-      expect(Number(grade![1]), `${option.getAttribute('value')} is free`).toBeGreaterThan(0)
+      const filled = (option.textContent?.match(/★/g) ?? []).length
+      const empty = (option.textContent?.match(/☆/g) ?? []).length
+      // Every record costs something: a free one would make the budget a
+      // formality, which is the state the analytic price exists to rule out.
+      expect(filled, `${option.getAttribute('value')} is free`).toBeGreaterThanOrEqual(1)
+      // And the scale visibly has a top, which is what lets five bands stay a
+      // rule rather than only a label.
+      expect(filled + empty, `${option.getAttribute('value')} is off the scale`).toBe(5)
     }
   })
 
@@ -122,11 +125,13 @@ describe('the room screen prices what it offers', () => {
       const option = [...screen.getByTestId('loadout-piece').querySelectorAll('option')].find(
         (o) => o.getAttribute('value') === id,
       )!
-      return Number(/세기 (\d+)/.exec(option.textContent ?? '')![1])
+      return (option.textContent?.match(/★/g) ?? []).length
     }
     expect(gradeOf('piece.queen')).toBeGreaterThan(gradeOf('piece.rook'))
     expect(gradeOf('piece.rook')).toBeGreaterThan(gradeOf('piece.knight'))
     expect(gradeOf('piece.knight')).toBeGreaterThan(gradeOf('piece.pawn'))
+    // The top band belongs to a creation, not to anything shipped.
+    expect(gradeOf('piece.queen')).toBeLessThan(5)
   })
 
   it('names a grade mismatch before the save, not after it', () => {
@@ -143,7 +148,7 @@ describe('the room screen prices what it offers', () => {
     fireEvent.change(screen.getByTestId('loadout-replaces'), { target: { value: 'piece.knight' } })
     fireEvent.change(screen.getByTestId('loadout-skill'), { target: { value: OWN_CARD } })
     // Both grades are known the instant they are picked — there is nothing to wait for.
-    expect(screen.getByTestId('loadout-budget').textContent).toMatch(/^\d+ \/ 10/)
+    expect(screen.getByTestId('loadout-budget').textContent).toMatch(/별 \d+ \/ 6/)
   })
 
   it('states the limit of what the number means', () => {

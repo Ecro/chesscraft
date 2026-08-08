@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MINIMUM_COST, gradeOf, pieceCost, pieceGrade, skillCardCost, skillCardGrade } from '@balance/cost'
+import { MAX_STARS, MINIMUM_COST, costCeiling, exceedsCeiling, pieceCost, pieceStars, skillCardCost, skillCardStars, starsOf } from '@balance/cost'
 import { playOutGrading } from '@balance/grading-agent'
 import { type ContentSource, loadContentSet } from '@content/load'
 import type { PieceDef } from '@content/schema'
@@ -19,24 +19,60 @@ import { shippedContent } from '../helpers/shipped'
 const content = shippedContent()
 const board = content.boards.get(BUNDLED_BOARD_ID)!
 const piece = (id: string): PieceDef => content.pieces.get(id)!
+const ceiling = costCeiling(content.pieces.values(), board)
 
 describe('every record has a price, and no record is free', () => {
   it('prices every bundled piece at one or more', () => {
     for (const [id, def] of content.pieces) {
       expect(pieceCost(def, board), `${id} is free`).toBeGreaterThanOrEqual(MINIMUM_COST)
-      expect(pieceGrade(def, board), `${id} grades at zero`).toBeGreaterThanOrEqual(1)
+      expect(pieceStars(def, board, ceiling), `${id} grades at zero`).toBeGreaterThanOrEqual(1)
     }
   })
 
   it('prices every bundled card at one or more', () => {
     for (const [id, def] of content.skillCards) {
       expect(skillCardCost(def), `${id} is free`).toBeGreaterThanOrEqual(MINIMUM_COST)
-      expect(skillCardGrade(def), `${id} grades at zero`).toBeGreaterThanOrEqual(1)
+      expect(skillCardStars(def, ceiling), `${id} grades at zero`).toBeGreaterThanOrEqual(1)
     }
   })
 
   it('never grades anything at zero, however small the cost', () => {
-    for (const cost of [0, 0.4, 1, 14, 15, 16]) expect(gradeOf(cost)).toBeGreaterThanOrEqual(1)
+    for (const cost of [0, 0.4, 1, 14, 15, 16]) expect(starsOf(cost, ceiling)).toBeGreaterThanOrEqual(1)
+  })
+
+  it('never shows more stars than the scale has', () => {
+    // Above the ceiling the display stops at five and the REFUSAL takes over —
+    // a sixth star would be a band the rules do not have.
+    for (const cost of [ceiling, ceiling + 1, ceiling * 10]) expect(starsOf(cost, ceiling)).toBe(MAX_STARS)
+  })
+
+  it('leaves the top star for something dearer than anything shipped', () => {
+    // Every shipped piece sits below five, so the last band is headroom for a
+    // creation rather than a label the bundle already occupies.
+    for (const [id, def] of content.pieces) {
+      if (def.royal === true) continue
+      expect(pieceStars(def, board, ceiling), `${id} already fills the top band`).toBeLessThan(MAX_STARS)
+    }
+  })
+
+  it('refuses only what is past the ceiling', () => {
+    expect(exceedsCeiling(ceiling, ceiling)).toBe(false)
+    expect(exceedsCeiling(ceiling + 1, ceiling)).toBe(true)
+  })
+
+  it('derives the ceiling from the room rather than from a constant', () => {
+    // A wider board makes an unbounded slide worth more, so the same pieces set
+    // a higher ceiling — which is the point of deriving it.
+    expect(costCeiling(content.pieces.values(), { width: 10, height: 10 })).toBeGreaterThan(ceiling)
+  })
+
+  it('spaces the stars geometrically, so each is twice the one below', () => {
+    // Linear bands would put the pawn, knight, archer and rook all in the first
+    // star: the shipped pieces span an eight-fold range.
+    expect(starsOf(ceiling / 2, ceiling)).toBe(4)
+    expect(starsOf(ceiling / 4, ceiling)).toBe(3)
+    expect(starsOf(ceiling / 8, ceiling)).toBe(2)
+    expect(starsOf(ceiling / 16, ceiling)).toBe(1)
   })
 })
 

@@ -1,6 +1,6 @@
 import type { ContentSet, ValidationError } from '@content/load'
 import type { PresetDef } from '@content/schema'
-import { pieceGrade, skillCardGrade } from './cost'
+import { MAX_STARS, costCeiling, exceedsCeiling, pieceCost, pieceStars, skillCardCost, skillCardStars } from './cost'
 
 /**
  * The two loadout rules that need a price (ADR-004, ADR-008, ADR-012).
@@ -20,9 +20,16 @@ export function checkLoadoutGrades(preset: PresetDef, content: ContentSet): Vali
   if (!board) return errors
 
   const budget = preset.loadoutBudget
-  const gradeOfPiece = (id: string): number | null => {
+  // Derived from the room's own pieces, so the ceiling a creation is judged
+  // against is set by what that room already plays with rather than by a
+  // constant somebody chose once.
+  const ceiling = costCeiling(
+    preset.pieceIds.map((id) => content.pieces.get(id)).filter((p): p is NonNullable<typeof p> => p !== undefined),
+    board,
+  )
+  const starsOfPiece = (id: string): number | null => {
     const piece = content.pieces.get(id)
-    return piece ? pieceGrade(piece, board) : null
+    return piece ? pieceStars(piece, board, ceiling) : null
   }
 
   for (const side of ['white', 'black'] as const) {
@@ -30,26 +37,47 @@ export function checkLoadoutGrades(preset: PresetDef, content: ContentSet): Vali
     if (!slot) continue
     const at = `presets.${preset.id}.loadout.${side}`
 
-    const brought = gradeOfPiece(slot.pieceId)
-    const replaced = gradeOfPiece(slot.replaces)
+    const brought = starsOfPiece(slot.pieceId)
+    const replaced = starsOfPiece(slot.replaces)
     const card = content.skillCards.get(slot.skillCardId)
     // A missing record is `load.ts`'s reference check, not this one's; bail
     // rather than reporting the same fault twice under a different message.
     if (brought === null || replaced === null || !card) continue
 
-    // ADR-008 — the same grade, which is the number the player was shown. Exact
-    // equality is right now that a cost is exact: the bands existed to absorb
-    // measurement noise, and there is none left to absorb.
+    // The ceiling is checked BEFORE the star comparison, because five stars is
+    // where everything above it lands: without this, a piece ten times the
+    // queen's price would read as the same five stars as one just past her and
+    // the replacement rule would call them interchangeable. Closing the top band
+    // is what keeps a five-level display from being a five-level rule.
+    const broughtPiece = content.pieces.get(slot.pieceId)!
+    if (exceedsCeiling(pieceCost(broughtPiece, board), ceiling)) {
+      errors.push({
+        contentId: preset.id,
+        path: `${at}.pieceId`,
+        message: `${slot.pieceId} is too strong for this room — nothing above ${MAX_STARS} stars may be brought`,
+      })
+      continue
+    }
+    if (exceedsCeiling(skillCardCost(card), ceiling)) {
+      errors.push({
+        contentId: preset.id,
+        path: `${at}.skillCardId`,
+        message: `${slot.skillCardId} is too strong for this room — nothing above ${MAX_STARS} stars may be brought`,
+      })
+      continue
+    }
+
+    // The same number of stars, which is the number the player was shown.
     if (brought !== replaced) {
       errors.push({
         contentId: preset.id,
         path: `${at}.pieceId`,
-        message: `${slot.pieceId} is grade ${brought} and ${slot.replaces} is grade ${replaced}, so it cannot replace it`,
+        message: `${slot.pieceId} is ${brought} stars and ${slot.replaces} is ${replaced}, so it cannot replace it`,
       })
     }
 
     if (budget !== undefined) {
-      const spent = brought + skillCardGrade(card)
+      const spent = brought + skillCardStars(card, ceiling)
       if (spent > budget) {
         errors.push({
           contentId: preset.id,

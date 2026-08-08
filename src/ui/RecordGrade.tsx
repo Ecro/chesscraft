@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ContentSource } from '@content/load'
 import { useTranslate } from './i18n'
-import { contentOf, useCosts } from './useGrades'
+import { contentOf, starText, useCosts } from './useGrades'
 
 /**
  * What a record is worth, on the screen where it was made (ADR-005).
@@ -53,7 +53,7 @@ export function RecordGrade({
 
   return (
     <p className="record-grade" data-testid="record-grade" data-status="graded">
-      <strong>{t('ui.editor.loadout.grade').replace('{cost}', String(grade))}</strong>
+      <strong data-stars={grade}>{t('ui.editor.loadout.grade').replace('{stars}', starText(grade))}</strong>
       <span className="hint">{t('ui.editor.loadout.caveat')}</span>
     </p>
   )

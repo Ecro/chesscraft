@@ -25,7 +25,7 @@ function openLibrary() {
 }
 
 describe('the record form names what the record is worth', () => {
-  it('shows a bundled piece its grade, with no wait', () => {
+  it('shows a bundled piece its stars, with no wait', () => {
     mount(bundledContentSource)
     openLibrary()
     fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
@@ -35,7 +35,9 @@ describe('the record form names what the record is worth', () => {
     expect(badge.getAttribute('data-status')).toBe('graded')
     // Positive, always: a record that costs nothing would make the budget a
     // formality, which is the state the analytic price exists to rule out.
-    expect(Number(/세기 (\d+)/.exec(badge.textContent ?? '')![1])).toBeGreaterThan(0)
+    const filled = (badge.textContent?.match(/★/g) ?? []).length
+    expect(filled).toBeGreaterThanOrEqual(1)
+    expect(filled + (badge.textContent?.match(/☆/g) ?? []).length).toBe(5)
   })
 
   it('states the limit of what the number means', () => {

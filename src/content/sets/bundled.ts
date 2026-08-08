@@ -712,12 +712,12 @@ export const bundledContentSource: ContentSource = {
       /**
        * What a loadout may cost in this room (ADR-004, ADR-012).
        *
-       * On the cost scale the shipped pieces run 1 (pawn) to 8 (queen) and the
-       * shipped cards 1 to 2, so 10 is the smallest budget that lets the dearest
-       * piece travel with a card. What it forbids is the pair: a queen-grade
-       * piece beside a queen-grade card is 16, and refused.
+       * In stars, which is the unit the player is shown. The shipped pieces run
+       * one star (pawn) to four (queen) and the cards one to two, so six lets the
+       * dearest piece travel with an ordinary card. What it forbids is the pair:
+       * a four-star piece beside a three-star card is seven, and refused.
        */
-      loadoutBudget: 10,
+      loadoutBudget: 6,
       skillCardIds: [
         'skill.teleport',
         'skill.swap',
