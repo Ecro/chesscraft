@@ -1,5 +1,6 @@
 import type { ContentSet } from '@content/load'
 import { DRAFT_OFFER_SIZE, SECOND_DRAFT_AFTER_TURNS, type TrustedAction, applyTrusted, legalActions } from '../engine'
+import { skillPoolFor } from '../loadout'
 import type { Action, GameState, Side } from '../types'
 import { otherSide } from '../types'
 import { MATE_SCORE, evaluate } from './evaluate'
@@ -287,7 +288,16 @@ export function wouldRevealDraft(state: GameState, action: Action, content: Cont
   if (draft.completedTurns + 1 !== SECOND_DRAFT_AFTER_TURNS) return false
   if (draft.draftIndex !== 1 || draft.offers !== null) return false
   const preset = content.presets.get(state.presetId)
-  const pool = (preset?.skillCardIds ?? []).filter(
+  if (!preset) return false
+  // Through `skillPoolFor`, never `preset.skillCardIds` — the same rule
+  // `bumpTurns` follows, and for the same reason. A room may give a side its own
+  // loadout card, which `skillPoolFor` appends to that side's pool; reading the
+  // shared list directly undercounts by one. That is enough to flip this
+  // predicate at the boundary — a pool of exactly `DRAFT_OFFER_SIZE` reads as
+  // one short — and the failure is in the unsafe direction: this returns false,
+  // the search recurses into a child holding offers nobody has seen, and the
+  // ADR-008 information boundary this predicate exists to hold is open.
+  const pool = skillPoolFor(preset, state.sideToMove).filter(
     (id) => !draft.everOffered.includes(id) && !draft.held.includes(id),
   )
   return pool.length >= DRAFT_OFFER_SIZE

@@ -75,22 +75,62 @@ describe('the negamax sign follows the side to move, not the action count', () =
 
     const { best } = search(state, content, BUDGET)
     expect(best, 'the card that wins a queen must be the search’s choice').toEqual(leap)
-  })
+    // A real production-budget search, twice over, so vitest's 5s default is
+    // the wrong bound for it: under a full parallel run this test failed on the
+    // clock rather than on the assertion, which reads as "the search stopped
+    // choosing the card" — the most alarming way for a green change to look
+    // broken. The work is bounded by NODES (ADR-003), so the wall clock here is
+    // scheduling noise, not a signal about the engine.
+  }, 30_000)
 
-  /*
-   * KNOWN COVERAGE GAP — the same sign rule inside `negamax` is not pinned.
-   *
-   * `search` scores its root children itself, so the test above passes with the
-   * root fixed and the recursion still negating. A fixture was written to reach
-   * a card node one level down (black threatening a queen with a granted leap)
-   * and it passed with the bug REINTRODUCED — the search never reached the card
-   * node inside its budget, so it discriminated nothing. It was deleted rather
-   * than kept: a test that cannot fail is worse than a named gap, because it
-   * reads as coverage.
-   *
-   * The inner branch is the identical one-line rule as the root, verified there.
-   * Recorded in the PLAN for review.
-   */
+  it('values a card node the same one ply down as it does at the root', () => {
+    /*
+     * The rule inside `negamax`, pinned by an IDENTITY rather than by a
+     * judgement about the position.
+     *
+     * Two fixtures were written before this one that asked "does white avoid the
+     * threat?", and both passed with the bug reintroduced — the first because
+     * every move scored the same and `best` fell to move ordering, the second
+     * because the square it called dangerous was already losing for a reason
+     * that had nothing to do with the card (removing black's card entirely left
+     * the numbers unchanged). Judging a position by its score means guessing
+     * what the evaluator rewards, and both guesses were wrong.
+     *
+     * What cannot be wrong is negamax's own contract: a node's value from one
+     * side is the negation of its value from the other. `search` scores its root
+     * children through the already-pinned root path, so black's own search of a
+     * position is the trusted number; white's search of the position one ply
+     * earlier must agree with it, negated. If the recursive card branch mis-signs
+     * or short-changes depth, the two stop agreeing — and only where a card is
+     * black's best answer, which is exactly the code under test.
+     */
+    const before = position({
+      held: { white: [], black: ['skill.knight-leap'] },
+      placements: [
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'd5', pieceId: 'piece.queen', side: 'white' },
+        { square: 'c3', pieceId: 'piece.rook', side: 'black' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
+      ],
+    })
+    const quiet = legalActions(before, content).find((a) => a.kind === 'move' && a.from === 'a1' && a.to === 'b1')
+    expect(quiet, 'white needs a quiet king move that changes nothing else').toBeDefined()
+
+    const blackToMove = apply(before, quiet!, content)
+    // The premise: black's best answer really is the card, not an ordinary move.
+    // Without this the identity would hold trivially and prove nothing.
+    const inner = search(blackToMove, content, { nodeBudget: PRODUCTION_NODE_BUDGET, maxDepth: 1 })
+    expect(inner.best?.kind, 'the fixture needs the card to be black’s best').toBe('play_card')
+
+    const outer = search(before, content, { nodeBudget: PRODUCTION_NODE_BUDGET, maxDepth: 2 })
+    const white = outer.scored.find(
+      (s) => s.action.kind === 'move' && s.action.from === 'a1' && s.action.to === 'b1',
+    )
+    expect(white).toBeDefined()
+
+    // One ply, one negation. Nothing else about the position enters this.
+    expect(white!.score).toBe(-inner.scored[0]!.score)
+  })
 })
 
 describe('the transposition key separates a pending turn from a fresh one', () => {
