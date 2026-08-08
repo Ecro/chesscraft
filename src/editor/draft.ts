@@ -180,6 +180,35 @@ export function commitDraft(
 }
 
 /**
+ * What saving this draft WOULD report, without saving it (ADR-033).
+ *
+ * Deliberately not a second implementation of the rules — it runs
+ * `commitDraft`, which runs `loadContentSet`, which is the same validator the
+ * game loads with. The save path stays the authority; this is an earlier
+ * reading of it. A lightweight UI-side pre-check would have been cheaper and
+ * would have been absent on the import path, which is the trap this project
+ * already has written down: the editor form is not a validation boundary.
+ *
+ * `commitDraft` clones its input, so nothing here can reach the live document.
+ *
+ * Errors are narrowed to the record being edited. A half-typed draft sits in a
+ * document that is otherwise fine, and reporting someone else's pre-existing
+ * fault against the control the child is touching would teach them their piece
+ * is broken when it is not.
+ */
+export function validateDraft(
+  base: ContentSource,
+  kind: DraftKind,
+  draft: unknown,
+  openedId?: string,
+): ValidationError[] {
+  const result = commitDraft(base, kind, draft, openedId)
+  if (result.ok) return []
+  const id = idOf(draft)
+  return result.errors.filter((e) => e.contentId === id || e.contentId === openedId)
+}
+
+/**
  * Why a delete was refused, and what the UI needs to say about it.
  *
  * `rooms` carries the referring preset IDS rather than a boolean, because the

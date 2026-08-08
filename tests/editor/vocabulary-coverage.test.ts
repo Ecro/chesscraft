@@ -746,3 +746,138 @@ describe('schema v8 — `cost` is retired, not merely hidden', () => {
     expect(saved && 'cost' in saved, 'the form put a cost back on the record').toBe(false)
   })
 })
+
+/**
+ * AC-008 — the gate re-derived for the split movement axes (ADR-027/028/029).
+ *
+ * The table above enumerates `enumerateVocabulary()`, which is derived from the
+ * Zod schemas. The slide directions and the reach cap are NOT schema entries —
+ * they are a second way to author `movePattern`, and a gate enumerated along one
+ * axis is blind to extensions along every other one. That is this repo's own
+ * recorded failure: the first draft of the table ran 44 kind rows and could not
+ * see schema v3's `duration` PARAMETER on kinds it already covered.
+ *
+ * So these rows are the same three claims — reachable, writes its own value,
+ * round-trips — applied to the controls the split introduced.
+ */
+describe('AC-008 — the split movement controls are covered too', () => {
+  const DIRS = {
+    n: [0, 1],
+    ne: [1, 1],
+    e: [1, 0],
+    se: [1, -1],
+    s: [0, -1],
+    sw: [-1, -1],
+    w: [-1, 0],
+    nw: [-1, 1],
+  } as const
+
+  type Dir = keyof typeof DIRS
+  type Pattern = { kind: string; vectors: number[][]; maxDistance?: number }
+
+  function slideOf(draft: unknown): Pattern | undefined {
+    const movement = (draft as { movement?: Pattern[] })?.movement ?? []
+    return movement.find((p) => p.kind === 'slide')
+  }
+
+  function openPiece() {
+    const committed = mount(bundledContentSource)
+    fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
+    return committed
+  }
+
+  it.each(Object.entries(DIRS))('slide %s is reachable and writes its own vector', (dir, vector) => {
+    openPiece()
+    const control = screen.getByTestId(`piece-slide-${dir}`)
+    expectEnabled(control, `piece-slide-${dir}`)
+    fireEvent.click(control)
+
+    const slide = slideOf(readDraft())
+    expect(slide, `clicking piece-slide-${dir} wrote no slide pattern`).toBeTruthy()
+    expect(slide!.vectors.some(([df, dr]) => df === vector[0] && dr === vector[1])).toBe(true)
+    // Its OWN vector and no other — a control that lit every direction would
+    // otherwise pass every row in this table.
+    expect(slide!.vectors).toHaveLength(1)
+  })
+
+  it.each([
+    ['1', 1],
+    ['2', 2],
+  ] as const)('reach %s caps the slide at that distance', (label, expected) => {
+    openPiece()
+    fireEvent.click(screen.getByTestId('piece-slide-n'))
+    const control = screen.getByTestId(`piece-reach-${label}`)
+    expectEnabled(control, `piece-reach-${label}`)
+    fireEvent.click(control)
+    expect(slideOf(readDraft())?.maxDistance).toBe(expected)
+  })
+
+  it('reach "끝까지" writes no cap at all, rather than a large number', () => {
+    openPiece()
+    fireEvent.click(screen.getByTestId('piece-slide-n'))
+    fireEvent.click(screen.getByTestId('piece-reach-2'))
+    fireEvent.click(screen.getByTestId('piece-reach-edge'))
+    const slide = slideOf(readDraft())
+    expect(slide).toBeTruthy()
+    expect('maxDistance' in slide!).toBe(false)
+  })
+
+  /**
+   * Save-and-reopen for EVERY direction and EVERY reach, not one example.
+   *
+   * Round-1 review finding (cross-model, P2): the rows above stop at the
+   * transient `editor-draft-json`, and only one combination — east at two
+   * squares — was ever saved and reopened. A normalisation that dropped, say,
+   * the south-west vector or the one-square cap on the way through the
+   * validator would have passed the whole block. That is this repo's recorded
+   * "gate enumerated along one axis is blind to every other" shape, arriving in
+   * the very gate written to answer it.
+   *
+   * Bounded rather than Cartesian: 8 directions at one cap, plus 3 caps on one
+   * direction, is 11 round-trips and covers each value at least once. A 24-cell
+   * product would buy the interaction terms only, which nothing in `writeGrid`
+   * treats as coupled — `reach` is one shared field, not a per-direction one.
+   */
+  const roundTrip = (id: string, dir: Dir, reach: string) => {
+    const committed = openPiece()
+    fireEvent.click(screen.getByTestId(`piece-slide-${dir}`))
+    fireEvent.click(screen.getByTestId(`piece-reach-${reach}`))
+    // One hop as well, so the emitted array is the two-pattern shape.
+    fireEvent.click(screen.getByTestId('piece-cell-1,2'))
+    nameDraft(id, 'piece')
+
+    const authored = readDraft()
+    fireEvent.click(screen.getByTestId('editor-save'))
+    expect(screen.queryByTestId('editor-errors')?.textContent ?? '', `${dir}/${reach} was rejected`).toBe('')
+    expect(committed.value, 'save produced no content').not.toBeNull()
+    expect(openDraft(committed.value!, 'piece', id), `${dir}/${reach} did not survive the round trip`).toEqual(
+      authored,
+    )
+    return authored
+  }
+
+  it.each(Object.keys(DIRS) as Dir[])('a slide-plus-hop piece round-trips: %s at the board edge', (dir) => {
+    const authored = roundTrip(`piece.probe-rt-${dir}`, dir, 'edge')
+    expect(slideOf(authored)?.vectors).toEqual([[...DIRS[dir]]])
+  })
+
+  it.each(['1', '2', 'edge'] as const)('a slide-plus-hop piece round-trips: north at reach %s', (reach) => {
+    const authored = roundTrip(`piece.probe-rt-reach-${reach}`, 'n', reach)
+    const slide = slideOf(authored)
+    if (reach === 'edge') expect('maxDistance' in slide!).toBe(false)
+    else expect(slide?.maxDistance).toBe(Number(reach))
+  })
+
+  it('the expert tab is reachable without the simple maker having refused anything', () => {
+    openPiece()
+    // The simple maker opened — it did not put up its refusal note.
+    expect(screen.queryByTestId('editor-moves-complex')).toBeNull()
+    expect(screen.getByTestId('editor-moves')).toBeTruthy()
+    // And the detailed controls are there anyway, in their own tab.
+    const expertTab = screen.getByTestId('form-tab-expert')
+    expectEnabled(expertTab, 'form-tab-expert')
+    fireEvent.click(expertTab)
+    expect(screen.getByTestId('form-panel-expert').hasAttribute('hidden')).toBe(false)
+    expect(screen.getByTestId('form-panel-simple').hasAttribute('hidden')).toBe(true)
+  })
+})

@@ -145,7 +145,7 @@ consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 `<iframe>`.
 
 ## Proposal: mutate every new guard once before believing it (2026-08-07)
-**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 3)
+**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 4)
 **Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
 **Rationale:** All three instances are a test whose assertion is satisfied by the
 state the code is already in, so no implementation could fail it. Reading the
@@ -211,3 +211,18 @@ The generalization is worth encoding beyond Playwright: any harness that can ATT
 pre-existing process rather than starting one has this hazard, and the question to ask of
 a green run is not "did it pass" but "what did it load".
 
+## Proposal: bind non-pytest ACs, or say plainly that they are unbound (2026-08-08)
+**Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 3)
+**Proposed mechanism:** rule update — a wrapup Step 3.5 branch for non-pytest projects
+**Rationale:** `spec_machine mark-tested` validates a node id through
+`pytest --collect-only`, so on this TypeScript repo every AC keeps
+`pending_test: true` no matter how green its vitest and Playwright tests are.
+`find-unbound` then reports "OK — no missed binding", which is true of its own
+model and false of the thing a reader takes from it: the machine SPEC looks
+bound and is not. Three wrapups have now passed through that gap. The cheap fix
+is not a vitest collector — it is honesty in the report: when the project's
+`test_framework` is not pytest, the per-type coverage line should say
+`bindable: 0 (framework is <name>, forward write-back is pytest-only)` instead
+of a count that implies the binding was attempted and succeeded. Anything
+stronger — resolving a vitest node id — is a real feature and should be priced
+as one.

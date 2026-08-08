@@ -2531,31 +2531,37 @@ details.advanced summary {
 /* The four cell states. Colour AND a mark, because "이동" and "둘 다" differ by
    hue alone otherwise and this grid is where a child decides what their piece
    IS. */
-.move-cell[data-value='1'] {
+.move-cell[data-value='1'],
+.slide-dir[data-value='1'] {
   background: var(--color-side-white);
 }
 
-.move-cell[data-value='1']::after {
+.move-cell[data-value='1']::after,
+.slide-dir[data-value='1']::after {
   content: '·';
   color: var(--color-cue-hi);
   line-height: 1;
 }
 
-.move-cell[data-value='2'] {
+.move-cell[data-value='2'],
+.slide-dir[data-value='2'] {
   background: var(--color-side-black);
 }
 
-.move-cell[data-value='2']::after {
+.move-cell[data-value='2']::after,
+.slide-dir[data-value='2']::after {
   content: '×';
   color: var(--color-cue-hi);
   line-height: 1;
 }
 
-.move-cell[data-value='3'] {
+.move-cell[data-value='3'],
+.slide-dir[data-value='3'] {
   background: var(--color-board-painted);
 }
 
-.move-cell[data-value='3']::after {
+.move-cell[data-value='3']::after,
+.slide-dir[data-value='3']::after {
   content: '✳';
   color: var(--color-cue-hi);
   line-height: 1;
@@ -2565,16 +2571,90 @@ details.advanced summary {
   background: var(--color-primary);
 }
 
-.travel-picker {
+/* The eight slide directions, laid out as the ring they describe. Sliding is
+   asked here rather than in the grid because a finite grid has no cell that
+   means "and keep going" — see the header of `PieceMoves.tsx`. */
+.slide-dial {
+  align-self: center;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  width: 132px;
+  max-width: 100%;
+  padding: var(--space-2);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-board-frame);
+}
+
+.slide-dir {
+  aspect-ratio: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 0;
+  border: none;
+  background: var(--color-sunken);
+  box-shadow: none;
+}
+
+/* Row-major 3x3 with the centre left empty: nw n ne / w · e / sw s se. */
+.slide-nw {
+  grid-area: 1 / 1;
+}
+.slide-n {
+  grid-area: 1 / 2;
+}
+.slide-ne {
+  grid-area: 1 / 3;
+}
+.slide-w {
+  grid-area: 2 / 1;
+}
+.slide-e {
+  grid-area: 2 / 3;
+}
+.slide-sw {
+  grid-area: 3 / 1;
+}
+.slide-s {
+  grid-area: 3 / 2;
+}
+.slide-se {
+  grid-area: 3 / 3;
+}
+
+/* Two windows onto one draft. Only `hidden` moves; both panels stay mounted, so
+   the ADR-006 vocabulary gate can still reach the detailed controls. The
+   `:not([hidden])` guard is the same one `.editor > div` needs and for the same
+   reason — a bare `display: flex` here outranks the UA's `[hidden]` rule. */
+.form-tabs {
   display: flex;
   gap: var(--space-2);
 }
 
-.travel-picker button {
+.form-tabs button {
   flex: 1;
 }
 
-.travel-picker button[data-selected='true'] {
+.form-panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reach-picker {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.reach-picker button {
+  flex: 1;
+}
+
+.form-tabs button[data-selected='true'],
+.reach-picker button[data-selected='true'] {
   background: var(--color-positive);
   box-shadow:
     inset var(--bevel) var(--bevel) 0 var(--color-positive-hi),
@@ -2734,4 +2814,100 @@ details.advanced summary {
   margin: var(--space-3) 0 0;
   font-size: var(--font-size-sm);
   color: var(--color-ink-dim);
+}
+
+/* --- the movement preview (ADR-032)
+ *
+ * A real board, at the size the grid can actually describe: 7x7, so a radius-3
+ * pattern is never clipped by the frame. Marks reuse the maker's own cell
+ * palette so "갈 수 있는 곳" looks the same in both places, and each mark
+ * carries a glyph as well as a colour — the same reason the grid cells do.
+ */
+.piece-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.preview-board {
+  align-self: center;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 252px;
+  max-width: 100%;
+  padding: var(--space-2);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-board-frame);
+}
+
+.preview-square {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 0;
+  background: var(--color-sunken);
+}
+
+.preview-square[data-mark='move'] {
+  background: var(--color-side-white);
+}
+
+.preview-square[data-mark='move']::after {
+  content: '·';
+  color: var(--color-cue-hi);
+  line-height: 1;
+}
+
+.preview-square[data-mark='capture'] {
+  background: var(--color-side-black);
+}
+
+.preview-square[data-mark='capture']::after {
+  content: '×';
+  color: var(--color-cue-hi);
+  line-height: 1;
+}
+
+.preview-square[data-occupant='subject'] {
+  background: var(--color-primary);
+}
+
+.preview-square[data-occupant='enemy'],
+.preview-square[data-occupant='friend'] {
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-outline),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-outline);
+}
+
+/* --- the maker gallery (AC-009 / AC-010)
+ *
+ * The first screen of a new record, and deliberately not a form. `.form-body`
+ * needs the same `:not([hidden])` guard every other panel in this file needs —
+ * a bare `display: flex` outranks the UA's `[hidden] { display: none }` and the
+ * gallery would render on top of the form it is standing in for.
+ */
+.form-body:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.maker-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gallery-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.gallery-row button {
+  flex: 1 1 auto;
+  min-width: 8rem;
 }

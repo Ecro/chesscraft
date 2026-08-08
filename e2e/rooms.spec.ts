@@ -1,6 +1,28 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
-import { buildStep, chooseRoom, fillRoom, goEditor, startMatch } from './nav'
+import { buildStep, chooseRoom, fillRoom, goEditor, startMatch, startBlank } from './nav'
+
+/**
+ * Into the detailed controls (ADR-031, AC-008).
+ *
+ * The vocabulary palette lives in the "자세히" tab now — the simple maker holds
+ * the move grid and the four-slot recipe, and everything the schema admits sits
+ * behind one click. A spec that drives the palette has to make that click, the
+ * same as an author. Playwright enforces actionability; jsdom's `fireEvent` does
+ * not, which is why the vocabulary-coverage gate needed no such step and this
+ * suite did.
+ *
+ * Guarded, because only a piece, a rule card and a skill card have tabs at all:
+ * a special square's whole content IS its effects, and a board or a room has no
+ * simple maker, so those kinds render one column with nothing to switch to.
+ */
+async function expert(page: Page) {
+  const tab = page.getByTestId('form-tab-expert')
+  if (await tab.isVisible()) await tab.click()
+}
+
+
+
 
 /**
  * PLAN Phase 9a exit criterion — the editor is a place a child assembles a
@@ -20,6 +42,7 @@ async function openEditor(page: Page) {
 async function openLibrary(page: Page, kind: string) {
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption(kind)
+  await startBlank(page)
 }
 
 test('a child builds a room, names it in Korean, and plays it from home', async ({ page }) => {
@@ -81,10 +104,12 @@ test('the library lists a record no room uses, and says so', async ({ page }) =>
   await openLibrary(page, 'skillCard')
 
   await page.getByTestId('editor-new').click()
+  await startBlank(page)
   await page.getByTestId('editor-id').fill('skill.orphan')
   await page.getByTestId('editor-name').fill('외톨이')
   await page.getByTestId('editor-text').fill('아무 방에도 없어요')
   await page.getByTestId('editor-uses').fill('1')
+  await expert(page)
   await page.getByTestId('editor-add-effect').click()
   await page.getByTestId('vocab-trigger-on_play').click()
   await page.getByTestId('vocab-action-win').click()
@@ -108,6 +133,7 @@ test('renaming a record through the form leaves one record, with its text', asyn
   // a broken cross-reference and the validator is right to refuse it — that is
   // 9b's guard, not this claim.
   await page.getByTestId('editor-new').click()
+  await startBlank(page)
   await page.getByTestId('editor-id').fill('piece.rabbit')
   await page.getByTestId('editor-name').fill('토끼')
   await page.getByTestId('editor-text').fill('한 칸씩 콩콩 뛰어요')

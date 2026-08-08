@@ -168,3 +168,22 @@ export async function fillRoom(
 export async function roomCount(page: Page): Promise<number> {
   return page.locator('.room-dots li').count()
 }
+
+/**
+ * Answer the maker gallery, if it is asking (AC-009).
+ *
+ * A record that does not exist yet opens on "what do you want to start from",
+ * and the form is `hidden` until that is answered — so every spec that fills a
+ * field on a fresh record has to make the choice a child would make. "Start
+ * from nothing" is the choice that keeps these specs about what they were
+ * already about.
+ *
+ * Guarded by `isVisible`, so it is a no-op when a record is already open. Call
+ * it where a form is OPENED — after `editor-new`, after an `editor-kind`
+ * switch — and never mid-flow: answering the gallery REPLACES the draft, so a
+ * call after fields are filled throws that work away.
+ */
+export async function startBlank(page: Page) {
+  const blank = page.getByTestId('gallery-blank')
+  if (await blank.isVisible()) await blank.click()
+}

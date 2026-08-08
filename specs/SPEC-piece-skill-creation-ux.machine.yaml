@@ -1,0 +1,244 @@
+schema_version: 2
+spec_slug: piece-skill-creation-ux
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: metamorphic property invariants over the grid compiler (AC-001, AC-004, AC-008, AC-009, AC-010, AC-011), differential comparison against the engine's own move generator (AC-005, AC-006), and a hand-derived golden table plus pre-existing bundled fixtures (AC-002, AC-003, AC-007)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+
+ac:
+  - id: AC-001
+    title: "A lit grid cell is exactly one reachable square"
+    type: property
+    test_ids:
+      - tests/ui/piece-grid-reach.test.ts::lit offsets equal reachable squares on an empty board
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Metamorphic identity: compiling a lit-cell set and then computing reach must return that same offset set. The relation is stated over the grid's inputs and the engine's outputs and shares no code with the compiler, so a compiler that emits an unbounded slide breaks it regardless of how it is written."
+    oracle_independence_waiver: null
+    input_domain: "any subset of the 48 non-centre offsets in the 7x7 grid, each carrying move, capture, or both, with no slide direction enabled"
+    transformation: "compile the grid to movement patterns, place the piece on an empty board far from every edge, and compute its reach with the engine"
+    expected_relation: "reachable_offsets(compile(cells)) == set(cells.keys())"
+    preconditions:
+      - "at least one cell carries move or both, so the compiler does not reject the draft"
+      - "the origin square is at least 3 squares from every edge, so no offset is clipped"
+    observable_output: "the set of destination offsets the engine reports"
+    generator_hint: "vary cell count from 1 to 48 and mix the three cell values"
+
+  - id: AC-002
+    title: "A slide direction with a reach cap produces exactly that many squares"
+    type: parametric
+    test_ids:
+      - tests/ui/piece-slide-reach.test.ts::each reach setting yields its exact square count per direction
+    executable_predicate: null
+    golden_table:
+      - input: { board: "6x6", origin: "c3", direction: "N", reach: "1" }
+        expected: ["c4"]
+      - input: { board: "6x6", origin: "c3", direction: "N", reach: "2" }
+        expected: ["c4", "c5"]
+      - input: { board: "6x6", origin: "c3", direction: "N", reach: "edge" }
+        expected: ["c4", "c5", "c6"]
+      - input: { board: "6x6", origin: "c3", direction: "NE", reach: "1" }
+        expected: ["d4"]
+      - input: { board: "6x6", origin: "c3", direction: "NE", reach: "2" }
+        expected: ["d4", "e5"]
+      - input: { board: "6x6", origin: "c3", direction: "NE", reach: "edge" }
+        expected: ["d4", "e5", "f6"]
+      - input: { board: "6x6", origin: "c3", direction: "E", reach: "edge" }
+        expected: ["d3", "e3", "f3"]
+      - input: { board: "6x6", origin: "c3", direction: "S", reach: "edge" }
+        expected: ["c2", "c1"]
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected counts are derived from board geometry alone — a 6x6 board with the piece at c3 — and were written down before the reach control exists. They come from counting squares on a diagram, not from running the compiler."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-003
+    title: "A piece that both slides and hops opens in the simple maker"
+    type: mechanical
+    test_ids:
+      - tests/ui/piece-grid-multipattern.test.ts::a slide-plus-leap record opens without refusal
+    executable_predicate: "read_grid(knight_honour_record) is not None and refusal_note(knight_honour_record) is None"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The fixture is the bundled knight-honour grant at src/content/sets/bundled.ts:532, authored long before this change; its two-pattern shape was not chosen to make the assertion pass, and it is the exact shape the current reader rejects."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "Opening and re-saving never changes what a piece does"
+    type: property
+    test_ids:
+      - tests/ui/piece-grid-roundtrip.test.ts::read then write preserves legal destinations
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Metamorphic invariant over the reader's own accept set: the engine's destination set must be identical before and after a no-op edit. The engine shares no code with the grid compiler, so a compiler that silently drops a pattern or a forward flag cannot satisfy it by agreeing with itself."
+    oracle_independence_waiver: null
+    input_domain: "every piece record in the bundled, slice and gate6a content sets that the redesigned reader accepts"
+    transformation: "read the record into the maker's grid model, write it back out, and load both records into the engine"
+    expected_relation: "legal_destinations(write(read(r))) == legal_destinations(r) for all squares and both sides"
+    preconditions:
+      - "read(r) is not None — records the reader refuses are AC-011's subject, not this one"
+    observable_output: "the set of (origin, destination, is_capture) triples the engine reports"
+    generator_hint: "enumerate the bundled content sets rather than synthesising records"
+
+  - id: AC-005
+    title: "A jump piece opens in the grid and re-saves behaviourally identically"
+    type: mechanical
+    test_ids:
+      - tests/ui/piece-jump-roundtrip.test.ts::a bundled jump piece survives a no-op edit behaviourally
+    executable_predicate: "read_grid(bundled_knight) is not None and legal_destinations(resave(bundled_knight)) == legal_destinations(bundled_knight)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The pre-edit bundled knight record is the reference implementation: the engine is run against the original and the re-saved copy and the destination sets compared. Byte equality is deliberately not the oracle, because 'jump' and 'step' are behaviourally identical in reachFrom and the maker is permitted to normalise one to the other."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "The preview shows the engine's own legal destinations"
+    type: mechanical
+    test_ids:
+      - tests/ui/piece-preview-parity.test.ts::preview marks match legalActions for the fixture position
+    executable_predicate: "preview_move_marks(draft, fixture) == engine_quiet_destinations(draft, fixture) and preview_capture_marks(draft, fixture) == engine_capture_destinations(draft, fixture)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The engine's legalActions is the reference implementation and is not the code under test; the preview is a separate render path. A preview that reimplemented reachability would diverge on the fixture's blocking occupant, so the preview cannot pass by agreeing with itself."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "An invalid draft is reported before save, not at save"
+    type: mechanical
+    test_ids:
+      - tests/ui/piece-live-validation.test.tsx::the no-move draft reports without pressing save
+    executable_predicate: "len(live_errors(no_move_draft)) > 0 and live_errors(no_move_draft) == save_errors(no_move_draft)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected error is the one loadContentSet already produces for a movement array below its .min(1) floor, captured from the validator before this change. The UI must surface that specific error, so a UI that invents a friendlier but different message fails."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-008
+    title: "Every vocabulary entry stays reachable, from an always-open expert tab"
+    type: property
+    test_ids:
+      - tests/editor/vocabulary-coverage.test.ts::every vocabulary entry has a control that round-trips it
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Universal quantification over enumerateVocabulary(), which is derived from the Zod schemas rather than from the control table. The gate therefore cannot drift with the controls it checks — adding a control without a vocabulary entry, or an entry without a control, both fail."
+    oracle_independence_waiver: null
+    input_domain: "every entry returned by enumerateVocabulary(), plus the new slide-direction and reach-cap controls"
+    transformation: "insert the entry via its control, read the record back through the control, and compare"
+    expected_relation: "for every entry e, exists a control c such that read(c.make(e)) preserves e"
+    preconditions:
+      - "the expert tab is reachable without the simple maker having refused anything"
+    observable_output: "the reconstructed vocabulary entry"
+    generator_hint: "enumerate the schema, never a hand-written row list"
+
+  - id: AC-009
+    title: "The maker opens on a gallery, and a remix does not mutate its source"
+    type: property
+    test_ids:
+      - tests/ui/piece-gallery-remix.test.tsx::a remix leaves its source record untouched
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A non-mutation invariant stated over the stored document, not over the remix implementation: the source record must be byte-identical before and after, and the new id must differ. It holds for any correct remix and fails for the recorded import-then-edit overwrite bug regardless of how remix is coded."
+    oracle_independence_waiver: null
+    input_domain: "every piece record offered in the gallery"
+    transformation: "open the record via 'make one like this', save the resulting draft, and re-read the document"
+    expected_relation: "document[source_id] is unchanged and new_id != source_id"
+    preconditions:
+      - "the gallery is the maker's default view and a blank piece is one of its options"
+    observable_output: "the serialised content document"
+    generator_hint: "enumerate the gallery's own offer list"
+
+  - id: AC-010
+    title: "A card starts from a filled-in template"
+    type: property
+    test_ids:
+      - tests/ui/card-template-remix.test.tsx::every offered card template opens in the recipe view
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Universal quantification over the whole template set rather than a sampled one, using readRecipe's own rejection as the decider. A template the 4-slot view cannot open is exactly the failure this guards, and the relation does not depend on how templates are authored."
+    oracle_independence_waiver: null
+    input_domain: "every rule-card and skill-card template the maker offers"
+    transformation: "open the template into a draft and read it back with readRecipe"
+    expected_relation: "read_recipe(t) is not None and every slot of read_recipe(t) is populated, for all templates t"
+    preconditions:
+      - "the template set is non-empty"
+    observable_output: "the parsed recipe, or null"
+    generator_hint: "enumerate the template registry"
+
+  - id: AC-011
+    title: "What the maker still cannot hold, it refuses by name"
+    type: property
+    test_ids:
+      - tests/ui/piece-grid-refusal.test.ts::a refused record is left unchanged and points at the expert tab
+      - e2e/editor-refusal.spec.ts::the refusal note names the expert tab
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The test set is derived from the reader's own rejections rather than hand-picked, and the invariant — stored movement unchanged after a refused open — is a non-mutation property that holds for any correct refusal path. It fails precisely on the flatten-on-open regression it exists to prevent."
+    oracle_independence_waiver: null
+    input_domain: "every synthesised piece record for which the redesigned reader returns null, including two slide patterns with differing reach caps"
+    transformation: "open the record in the maker, observe the refusal, then re-read the stored document"
+    expected_relation: "stored_movement(r) unchanged and refusal note names the expert tab, for all r where read(r) is None"
+    preconditions:
+      - "the record is schema-valid — an invalid record is AC-007's subject"
+    observable_output: "the stored movement array and the rendered refusal note"
+    generator_hint: "synthesise from the reader's documented rejection causes"

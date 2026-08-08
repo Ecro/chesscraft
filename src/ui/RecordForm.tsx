@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ContentSource, ValidationError } from '@content/load'
 import type { ContentStrings } from '@content/schema'
-import { type DraftKind, blankDraft, commitDraft, editorContext, openDraft } from '@editor/draft'
+import { type DraftKind, blankDraft, commitDraft, editorContext, openDraft, validateDraft } from '@editor/draft'
 import { type VocabularyControl, controlsFor } from '@editor/controls'
 import { type StringField, clearString, deriveKey, readString, rekeyStrings, writeString } from '@editor/strings'
 import { DEFAULT_LOCALE, makeTranslate, useTranslate } from './i18n'
@@ -10,9 +10,25 @@ import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
 import { PIXEL_SPRITES, isSpriteName } from './art/pixels'
 import { Pix } from './art/Pix'
-import { Cell, GRID_RANGE, type PieceGrid, cycle, describeGrid, readGrid, writeGrid } from './PieceMoves'
+import {
+  Cell,
+  DIRECTIONS,
+  GRID_RANGE,
+  REACH_VALUES,
+  type Dir8,
+  type PieceGrid,
+  type Reach,
+  cycle,
+  describeGrid,
+  hasMoves,
+  hasTakes,
+  readGrid,
+  writeGrid,
+} from './PieceMoves'
 import { type SlotId, optionsFor, readRecipe, recipeSentence, takesTarget, writeRecipe } from './CardRecipe'
 import { RecordGrade } from './RecordGrade'
+import { PiecePreview } from './PiecePreview'
+import { MakerGallery, type Picked } from './MakerGallery'
 
 /**
  * One content record, open for editing (PLAN Phase 9a).
@@ -251,6 +267,42 @@ export function RecordForm({
    */
   const [nameTyped, setNameTyped] = useState(false)
   const [textTyped, setTextTyped] = useState(false)
+
+  /**
+   * Which window onto the draft is on screen (ADR-030/ADR-031).
+   *
+   * Both panels stay MOUNTED and the inactive one carries `hidden` — the same
+   * arrangement `editor-draft-json` already relies on. Unmounting would break
+   * the ADR-006 vocabulary-coverage gate, which reaches its controls by test id.
+   * Freely-clickable tabs are what ADR-031 permits; a linear wizard is not.
+   */
+  const [tab, setTab] = useState<'simple' | 'expert'>('simple')
+
+  /**
+   * Whether this kind has a simple maker worth splitting the screen for.
+   *
+   * A piece has the move grid; a rule or skill card has the four-slot recipe.
+   * Those three earn a tab. A special square's whole content IS its effects, and
+   * a board or a room has no simple maker at all — for them the split offers a
+   * simple tab holding an art picker or nothing, and hides the only form there
+   * is behind the expert one. Splitting a screen that has one half is worse than
+   * not splitting it, and the e2e suite is what said so: `fireEvent` ignores
+   * visibility, so jsdom called it fine.
+   */
+  const hasSimple = kind === 'piece' || kind === 'ruleCard' || kind === 'skillCard'
+
+  /**
+   * Whether the gallery is still the thing on screen (ADR-027's sibling
+   * decision, AC-009). Only ever true for a record that does not exist yet —
+   * opening an existing record goes straight to the form, because the gallery's
+   * question has already been answered.
+   *
+   * The form below stays MOUNTED behind it, `hidden` rather than absent, for the
+   * same reason the expert panel does: the ADR-006 coverage gate reaches its
+   * controls by test id, and an editor that unmounted them would fail a gate
+   * that is about the vocabulary, not about this screen.
+   */
+  const [choosing, setChoosing] = useState(initialId === null)
 
   const [effectIndex, setEffectIndex] = useState(0)
   const [actionIndex, setActionIndex] = useState(0)
@@ -839,21 +891,17 @@ export function RecordForm({
    */
   const subjectDeleted = openedId !== null && openDraft(source, kind, openedId) === null
 
-  const save = () => {
-    if (subjectDeleted) {
-      setErrors([{ contentId: openedId ?? '', path: '', message: t('ui.editor.form.deleted') }])
-      setSaved(null)
-      return
-    }
-    // The document must still be the one this form opened against. A record
-    // that changed or vanished under an open form means the save would silently
-    // discard someone else's write — including the author's own import.
-    if (openedId !== null && !sameSnapshot(snapshotOf(source, kind, openedId), openedSnapshot)) {
-      setErrors([{ contentId: openedId, path: '', message: t('ui.editor.form.stale') }])
-      setSaved(null)
-      return
-    }
-
+  /**
+   * The document a save would build, and the record it would put in it.
+   *
+   * Extracted so that live validation (ADR-033) runs THIS pipeline rather than
+   * a lookalike. The raw draft is not what gets validated on save — its
+   * `nameKey`/`textKey` are derived from the typed name first — so validating
+   * the raw draft would report "must be a dotted lowercase i18n key" against
+   * every half-finished record and teach the child to ignore red text. Two
+   * derivations would have drifted; one has nothing to drift from.
+   */
+  const prepared = (): { base: ContentSource; next: Draft; id: string } | { slot: string; id: string } => {
     const next = structuredClone(draft)
     const id = String(next.id ?? '')
     const renaming = openedId !== null && id !== '' && id !== openedId
@@ -879,19 +927,37 @@ export function RecordForm({
         active: id !== '' && HAS_TEXT.includes(kind),
       },
     ])
-    if (!folded.ok) {
-      setErrors([{ contentId: id, path: folded.slot, message: t('ui.editor.form.name-needed') }])
-      setSaved(null)
-      return
-    }
+    if (!folded.ok) return { slot: folded.slot, id }
     strings = folded.strings
 
     // Assigned only when there IS an overlay: `strings` is exactly-optional, so
     // writing `undefined` into it is a different document from omitting it.
-    // Narrowed rather than spread blindly: `strings` is exactly-optional, so a
-    // document with `strings: undefined` is a DIFFERENT document from one that
-    // omits the field, and the schema tells the two apart.
     const base = strings !== undefined && strings !== source.strings ? { ...source, strings } : source
+    return { base, next, id }
+  }
+
+  const save = () => {
+    if (subjectDeleted) {
+      setErrors([{ contentId: openedId ?? '', path: '', message: t('ui.editor.form.deleted') }])
+      setSaved(null)
+      return
+    }
+    // The document must still be the one this form opened against. A record
+    // that changed or vanished under an open form means the save would silently
+    // discard someone else's write — including the author's own import.
+    if (openedId !== null && !sameSnapshot(snapshotOf(source, kind, openedId), openedSnapshot)) {
+      setErrors([{ contentId: openedId, path: '', message: t('ui.editor.form.stale') }])
+      setSaved(null)
+      return
+    }
+
+    const ready = prepared()
+    if ('slot' in ready) {
+      setErrors([{ contentId: ready.id, path: ready.slot, message: t('ui.editor.form.name-needed') }])
+      setSaved(null)
+      return
+    }
+    const { base, next, id } = ready
 
     const result = commitDraft(base, kind, next, openedId ?? undefined)
     if (!result.ok) {
@@ -1018,10 +1084,25 @@ export function RecordForm({
       const written = writeGrid(next)
       update((d) => {
         if (!written.ok) {
-          // A grid with no move squares is a document that will not load
-          // (`movement` carries `.min(1)`). The draft keeps the last valid
-          // movement and the note below says what is missing, rather than the
-          // save failing later against a field name the child has never seen.
+          // An empty grid is WRITTEN, not swallowed.
+          //
+          // This branch used to `return` and leave the draft alone, reasoning
+          // that a document with no movement will not load (`movement` carries
+          // `.min(1)`) so the draft should keep its last valid one. The effect
+          // was the exact opposite of the intent: the draft never changed, so
+          // `readGrid` handed back the same grid, so the cell re-rendered LIT
+          // and `piece-no-moves` — the note this comment promised would explain
+          // things — never rendered, because it is computed from that same
+          // grid. Tapping the one seeded cell of a brand-new piece did nothing
+          // at all, silently, on a child's first interaction with the maker.
+          //
+          // Writing the empty state instead makes every downstream signal true:
+          // the cell goes dark, `hasMoves` goes false so the hint appears, and
+          // `validateDraft` reports the movement floor through the same
+          // validator the save button uses (ADR-033). An unsaveable draft that
+          // says so is a state an author can leave; an ignored click is not.
+          d.movement = []
+          delete d.attack
           return
         }
         d.movement = written.movement
@@ -1030,8 +1111,11 @@ export function RecordForm({
       })
     }
 
-    const noMoves = Object.values(grid.cells).every((v) => v !== Cell.Move && v !== Cell.Both)
-    const noTakes = Object.values(grid.cells).every((v) => v !== Cell.Capture && v !== Cell.Both)
+    // Computed over BOTH controls: a piece that only slides has somewhere to go
+    // even with an empty grid, and saying otherwise would be the old bug wearing
+    // a different hat.
+    const noMoves = !hasMoves(grid)
+    const noTakes = !hasTakes(grid)
 
     return (
       <fieldset className="piece-moves" data-testid="editor-moves">
@@ -1071,20 +1155,51 @@ export function RecordForm({
           )}
         </div>
 
-        <div className="travel-picker">
-          {(['step', 'slide', 'jump'] as const).map((travel) => (
-            <button
-              key={travel}
-              type="button"
-              data-testid={`piece-travel-${travel}`}
-              data-selected={grid.travel === travel}
-              aria-pressed={grid.travel === travel}
-              onClick={() => commit({ ...grid, travel })}
-            >
-              {t(`ui.editor.vocab.movement.${travel}`)}
-            </button>
-          ))}
+        {/* Sliding is asked SEPARATELY from hopping (ADR-027). It cannot live in
+            the grid: a slide is a direction plus a distance, and a finite grid
+            has no cell that means "and keep going". Painting it into the grid is
+            what made a lit cell stop denoting a reachable square. */}
+        <div className="slide-row">
+          <span className="kicker">{t('ui.editor.piece.slides')}</span>
+          <p className="hint">{t('ui.editor.piece.slides-hint')}</p>
+          <div className="slide-dial">
+            {DIRECTIONS.map((dir: Dir8) => {
+              const value = grid.slides[dir]
+              return (
+                <button
+                  key={dir}
+                  type="button"
+                  className={`slide-dir slide-${dir}`}
+                  data-testid={`piece-slide-${dir}`}
+                  data-value={value}
+                  aria-label={t(`ui.editor.piece.dir.${dir}`)}
+                  aria-pressed={value !== Cell.None}
+                  onClick={() => commit({ ...grid, slides: { ...grid.slides, [dir]: cycle(value) } })}
+                />
+              )
+            })}
+          </div>
+
+          <div className="reach-picker">
+            {REACH_VALUES.map((reach: Reach) => (
+              <button
+                key={String(reach)}
+                type="button"
+                data-testid={`piece-reach-${reach}`}
+                data-selected={grid.reach === reach}
+                aria-pressed={grid.reach === reach}
+                onClick={() => commit({ ...grid, reach })}
+              >
+                {t(`ui.editor.piece.reach.${reach}`)}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* The engine answers "where does it go", not this form (ADR-032). It
+            re-runs on every edit, which is also what pulls validation forward
+            off the save button. */}
+        <PiecePreview source={source} draft={draft} t={t} />
 
         <div className="note-box">
           <span className="kicker">{t('ui.editor.piece.dex-preview')}</span>
@@ -1173,8 +1288,60 @@ export function RecordForm({
     )
   }
 
+  // Recomputed on every render, which is every edit. The document is tens of
+  // records and the preview already needs a validated set, so the cost is
+  // shared rather than added; if it ever shows, debounce the RENDER and never
+  // the authority.
+  const ready = prepared()
+  /**
+   * Memoised, and keyed on the RECORD rather than on the document.
+   *
+   * `validateDraft` clones and revalidates the whole document, so running it on
+   * every render is the cost the review flagged. The first attempt at this memo
+   * keyed on `JSON.stringify(ready)` — which serialises `ready.base`, the entire
+   * content set — and so paid a full document walk per render to avoid a full
+   * document walk per render. `ready.next` is one record; `source` changes
+   * identity only when the document actually does.
+   */
+  const recordKey = 'slot' in ready ? '' : JSON.stringify(ready.next)
+  const liveErrors = useMemo(
+    () => ('slot' in ready ? [] : validateDraft(ready.base, kind, ready.next, openedId ?? undefined)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [source, recordKey, kind, openedId],
+  )
+
+  const takePick = (picked: Picked) => {
+    setDraft(picked.draft)
+    setNameText(picked.name)
+    setBodyText(picked.text)
+    // Marked as typed so a save writes the words at the COPY's own keys. A
+    // remix that left them untyped would save a record pointing at text it
+    // never wrote, which renders as a dotted key the moment the source is
+    // renamed.
+    setNameTyped(picked.name !== '')
+    setTextTyped(picked.text !== '')
+    setSaved(null)
+    setChoosing(false)
+    // NOT dirty. Answering "what do you want to start from" is navigation, not
+    // an edit — nothing the author typed exists yet, and one click puts any
+    // other starting point on screen. Marking it dirty made the shell's
+    // discard guard fire on the way OUT: pick "start from nothing", change your
+    // mind, click an existing record, and you are asked whether to throw away
+    // work you never did. When that prompt is declined the open is refused, so
+    // the blank draft stays and the next save fails on an empty `nameKey` —
+    // which is how this surfaced, as eleven e2e saves rejecting a record the
+    // test thought it had opened.
+  }
+
   return (
     <section className="record-form" data-testid="record-form">
+      {choosing && <MakerGallery source={source} kind={kind} t={t} onPick={takePick} />}
+
+      <div className="form-body" hidden={choosing}>
+      {/* The grade describes the record being edited, so it belongs INSIDE the
+          form body: while the gallery is still asking what to start from there
+          is no record to grade, and a badge rendered next to that question would
+          be scoring the previous answer. */}
       <RecordGrade source={source} kind={kind} recordId={openedId} />
       <label>
         {t('ui.editor.field.name')}
@@ -1223,16 +1390,85 @@ export function RecordForm({
         {HAS_TEXT.includes(kind) && textField('textKey', 'editor-textKey', 'ui.editor.field.text-slot', false)}
       </details>
 
-      {/* The simple views come FIRST, and the schema-shaped fieldsets below stay
-          exactly where they were. Two editors over one draft is deliberate: they
-          read the same state, so the grid always shows whatever `movement`
-          holds, and neither can drift from the other. Folding the detailed
-          controls into a closed `<details>` was the tempting tidy-up and would
-          have broken the ADR-006 vocabulary-coverage gate, which drives them by
-          test id and cannot click into collapsed content. */}
-      {artPicker()}
-      {pieceGridView()}
-      {recipeView()}
+      {/* Two windows onto ONE draft (ADR-030). They read the same state, so the
+          grid always shows whatever `movement` holds and neither can drift from
+          the other; an expert-tab edit the grid cannot depict turns the grid
+          into its refusal note at that moment rather than at open time.
+
+          Both panels stay MOUNTED — only `hidden` moves. Unmounting the expert
+          panel would break the ADR-006 vocabulary-coverage gate, which reaches
+          its controls by test id, exactly as `editor-draft-json` below is read
+          while hidden. */}
+      {/* What the save button WOULD say, said now (ADR-033). Same validator,
+          same errors, earlier — a child should not have to press a button to
+          discover that the id they typed already belongs to something else.
+          The save path is still the authority; this only reads it sooner. */}
+      {liveErrors.length > 0 && (
+        <ul className="refusal" data-testid="editor-live-errors">
+          {liveErrors.map((e) => (
+            <li key={`${e.path}:${e.message}`}>{e.message}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* A board and a room have no simple maker — no art, no move grid, no
+          four-slot recipe — so for those kinds the tabs would offer a simple tab
+          that is entirely empty and hide the only form there is behind the
+          expert one. Splitting a screen that has one half is worse than not
+          splitting it. */}
+      {hasSimple && (
+        <div className="form-tabs" role="tablist">
+          {(['simple', 'expert'] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              data-testid={`form-tab-${id}`}
+              data-selected={tab === id}
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+            >
+              {t(`ui.editor.form.tab.${id}`)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="form-panel" data-testid="form-panel-simple" hidden={hasSimple && tab !== 'simple'}>
+        {artPicker()}
+        {pieceGridView()}
+        {recipeView()}
+
+        {/* Small scalars a child changes on purpose, not schema machinery. How
+            many times a skill card can be used is the second question anyone
+            asks about one; it was in the expert panel only because of where the
+            panel boundary happened to fall, which the e2e suite caught and jsdom
+            could not — `fireEvent` ignores visibility, Playwright does not. */}
+        {kind === 'skillCard' &&
+          numberField('editor-uses', 'ui.editor.field.uses', draft.uses, (n) =>
+            update((d) => {
+              d.uses = n ?? 1
+            }),
+          )}
+
+        {kind === 'squareType' && (
+          <label>
+            {t('ui.editor.field.paired')}
+            <input
+              type="checkbox"
+              data-testid="editor-paired"
+              checked={draft.paired === true}
+              onChange={() =>
+                update((d) => {
+                  d.paired = d.paired !== true
+                })
+              }
+            />
+          </label>
+        )}
+      </div>
+
+      <div className="form-panel" data-testid="form-panel-expert" hidden={hasSimple && tab !== 'expert'}>
 
       {/* The `cost` control is gone as of schema v8. It let an author type their
           own balance number, which nothing ever read — and a number the author
@@ -1240,28 +1476,7 @@ export function RecordForm({
           A record's strength is now measured (ADR-002) and recomputed rather
           than stored (ADR-007), so there is nothing here for a form to collect.
           The field stays optional in the schema so older documents still load. */}
-      {kind === 'skillCard' &&
-        numberField('editor-uses', 'ui.editor.field.uses', draft.uses, (n) =>
-          update((d) => {
-            d.uses = n ?? 1
-          }),
-        )}
 
-      {kind === 'squareType' && (
-        <label>
-          {t('ui.editor.field.paired')}
-          <input
-            type="checkbox"
-            data-testid="editor-paired"
-            checked={draft.paired === true}
-            onChange={() =>
-              update((d) => {
-                d.paired = d.paired !== true
-              })
-            }
-          />
-        </label>
-      )}
 
       {kind === 'piece' && (
         <>
@@ -1598,6 +1813,8 @@ export function RecordForm({
         </fieldset>
       )}
 
+      </div>
+
       {subjectDeleted && (
         <p className="refusal" data-testid="editor-deleted-notice">
           {t('ui.editor.form.deleted')}
@@ -1617,6 +1834,7 @@ export function RecordForm({
           guard for a cosmetic one. `hidden` is what makes the two claims the
           same claim rather than a contradiction. */}
       <pre hidden data-testid="editor-draft-json">{JSON.stringify(draft)}</pre>
+      </div>
     </section>
   )
 }

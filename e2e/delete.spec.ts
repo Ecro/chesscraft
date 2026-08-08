@@ -1,6 +1,6 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
-import { buildStep, chooseRoom, fillRoom, goEditor, roomCount, startMatch } from './nav'
+import { buildStep, chooseRoom, fillRoom, goEditor, roomCount, startBlank, startMatch } from './nav'
 
 /**
  * PLAN Phase 9b exit criterion — deleting, and being refused, from the screens.
@@ -75,6 +75,7 @@ test('deleting a piece a room uses is refused by naming that room, and works onc
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption('piece')
   await page.getByTestId('editor-new').click()
+  await startBlank(page)
   await page.getByTestId('editor-id').fill('piece.rabbit')
   await page.getByTestId('editor-name').fill('토끼')
   await page.getByTestId('editor-text').fill('한 칸씩 콩콩 뛰어요')

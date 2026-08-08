@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
-import { goEditor, move } from './nav'
+import { goEditor, move, startBlank } from './nav'
 
 /**
  * PLAN Phase 3 exit criterion (b), through the UI — a match is playable end to
@@ -49,6 +49,7 @@ test('the editor refuses to save content that fails validation', async ({ page }
   // author go out of their way to write, which is the point of ADR-020.
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption('skillCard')
+  await startBlank(page)
   await page.getByTestId('editor-id').fill('skill.smokescreen')
   await page.getByTestId('editor-advanced').locator('summary').click()
   await page.getByTestId('editor-nameKey').fill('Smokescreen')

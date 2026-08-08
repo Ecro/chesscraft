@@ -1,6 +1,26 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
-import { chooseRoom, goEditor, startMatch } from './nav'
+import { chooseRoom, goEditor, startMatch, startBlank } from './nav'
+
+/**
+ * Into the detailed controls (ADR-031, AC-008).
+ *
+ * The vocabulary palette lives in the "자세히" tab now — the simple maker holds
+ * the move grid and the four-slot recipe, and everything the schema admits sits
+ * behind one click. A spec that drives the palette has to make that click, the
+ * same as an author. Playwright enforces actionability; jsdom's `fireEvent` does
+ * not, which is why the vocabulary-coverage gate needed no such step and this
+ * suite did.
+ *
+ * Guarded, because only a piece, a rule card and a skill card have tabs at all:
+ * a special square's whole content IS its effects, and a board or a room has no
+ * simple maker, so those kinds render one column with nothing to switch to.
+ */
+async function expert(page: Page) {
+  const tab = page.getByTestId('form-tab-expert')
+  if (await tab.isVisible()) await tab.click()
+}
+
 
 /**
  * PLAN Phase 5 exit criterion — the content editor, end to end.
@@ -24,7 +44,9 @@ async function openEditor(page: Page, kind: string) {
   await goEditor(page)
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption(kind)
+  await startBlank(page)
 }
+
 
 /**
  * Phase 9a: the child types TEXT and the editor derives the key (ADR-020), so
@@ -48,6 +70,10 @@ async function openEditor(page: Page, kind: string) {
  * check that the form offers one first.
  */
 async function fillIdentity(page: Page, id: string, opts: { text?: boolean } = {}) {
+  // NO `startBlank` here. Answering the gallery REPLACES the draft, so calling
+  // it from a helper that runs mid-flow wipes whatever the test filled before
+  // it. The gallery is answered where the form is OPENED — after `editor-new`
+  // and after an `editor-kind` switch — and nowhere else.
   await page.getByTestId('editor-id').fill(id)
   await page.getByTestId('editor-name').fill(`${id}.name`)
   if (opts.text !== false) await page.getByTestId('editor-text').fill(`${id}.text`)
@@ -100,6 +126,7 @@ async function offerIds(page: Page): Promise<string[]> {
 test('authored content is playable in the same session', async ({ page }) => {
   await openEditor(page, 'squareType')
   await fillIdentity(page, 'square.quicksand')
+  await expert(page)
   await page.getByTestId('editor-add-effect').click()
   await page.getByTestId('vocab-trigger-on_enter').click()
   await page.getByTestId('vocab-action-freeze_piece').click()
@@ -107,6 +134,7 @@ test('authored content is playable in the same session', async ({ page }) => {
   await save(page)
 
   await page.getByTestId('editor-kind').selectOption('board')
+  await startBlank(page)
   await page.getByTestId('library-open-board.slice').click()
   await page.getByTestId('paint-type').selectOption('square.quicksand')
   await page.getByTestId('paint-d3').click()
@@ -121,6 +149,7 @@ test.describe('piece axis', () => {
   test('creates a piece with the visual movement grid and places it on the board', async ({ page }) => {
     await openEditor(page, 'piece')
     await fillIdentity(page, 'piece.hopper')
+    await expert(page)
     await page.getByTestId('vocab-movement-jump').click()
     // Two squares up, one across — authored by clicking the grid, not by typing
     // a vector, because the grid IS the control ADR-006 promised.
@@ -129,6 +158,7 @@ test.describe('piece axis', () => {
 
     // Put it on the board and into the preset, so a match can reach it.
     await page.getByTestId('editor-kind').selectOption('board')
+    await startBlank(page)
     await page.getByTestId('library-open-board.slice').click()
     await page.getByTestId('place-piece').selectOption('piece.hopper')
     await page.getByTestId('place-side').selectOption('white')
@@ -136,6 +166,7 @@ test.describe('piece axis', () => {
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('preset')
+    await startBlank(page)
     await page.getByTestId('library-open-preset.slice').click()
     await page.getByTestId('preset-piece-piece.hopper').check()
     await save(page)
@@ -148,6 +179,7 @@ test.describe('piece axis', () => {
     await openEditor(page, 'piece')
     await page.getByTestId('library-open-piece.archer').click()
 
+    await expert(page)
     await page.getByTestId('editor-clear-movement').click()
     await page.getByTestId('vocab-movement-jump').click()
     await page.getByTestId('move-cell-0_2').click()
@@ -167,6 +199,7 @@ test.describe('special-square axis', () => {
   test('creates a standalone square type, paints it, and the board shows it', async ({ page }) => {
     await openEditor(page, 'squareType')
     await fillIdentity(page, 'square.lava')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_enter').click()
     await page.getByTestId('vocab-action-destroy_piece').click()
@@ -174,6 +207,7 @@ test.describe('special-square axis', () => {
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('board')
+    await startBlank(page)
     await page.getByTestId('library-open-board.slice').click()
     await page.getByTestId('paint-type').selectOption('square.lava')
     await page.getByTestId('paint-e5').click()
@@ -208,6 +242,7 @@ test.describe('rule-card axis', () => {
   test('creates a rule card and it is the card the match draws', async ({ page }) => {
     await openEditor(page, 'ruleCard')
     await fillIdentity(page, 'rule.sudden-death')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-end_of_ply').click()
     await page.getByTestId('vocab-condition-check_count_at_least').click()
@@ -216,6 +251,7 @@ test.describe('rule-card axis', () => {
 
     // A preset that offers exactly one rule card makes the draw deterministic.
     await page.getByTestId('editor-kind').selectOption('preset')
+    await startBlank(page)
     await page.getByTestId('library-open-preset.slice').click()
     await page.getByTestId('preset-rule-rule.beacon-rush').uncheck()
     await page.getByTestId('preset-rule-rule.sudden-death').check()
@@ -246,6 +282,7 @@ test.describe('skill-card axis', () => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.smokescreen')
     await page.getByTestId('editor-uses').fill('1')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
     await page.getByTestId('vocab-action-freeze_piece').click()
@@ -257,6 +294,7 @@ test.describe('skill-card axis', () => {
     // card is forced into the very first offer by counting, with no golden RNG
     // value to go stale and no turns to play first.
     await page.getByTestId('editor-kind').selectOption('preset')
+    await startBlank(page)
     await page.getByTestId('library-open-preset.slice').click()
     for (const id of ['skill.rally', 'skill.volley', 'skill.snare', 'skill.ascend']) {
       await page.getByTestId(`preset-skill-${id}`).uncheck()
@@ -280,6 +318,7 @@ test.describe('skill-card axis', () => {
     // offer, so the edited card is reachable without a seed assumption and
     // without a fallback branch that would assert the value it just typed.
     await page.getByTestId('editor-kind').selectOption('preset')
+    await startBlank(page)
     await page.getByTestId('library-open-preset.slice').click()
     for (const id of ['skill.volley', 'skill.snare', 'skill.ascend']) {
       await page.getByTestId(`preset-skill-${id}`).uncheck()
@@ -315,6 +354,7 @@ test.describe('board axis', () => {
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('preset')
+    await startBlank(page)
     await page.getByTestId('editor-id').fill('preset.duel')
     await page.getByTestId('editor-name').fill('preset.duel.name')
     await page.getByTestId('preset-board').selectOption('board.duel')
@@ -356,6 +396,7 @@ test.describe('validation and transfer', () => {
     // 고급 설정, which has to be opened first.
     await page.getByTestId('editor-advanced').locator('summary').click()
     await page.getByTestId('editor-nameKey').fill('Smokescreen')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
     await page.getByTestId('vocab-action-freeze_piece').click()
@@ -377,6 +418,7 @@ test.describe('validation and transfer', () => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.mirror')
     await page.getByTestId('editor-uses').fill('1')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
     await page.getByTestId('vocab-action-swap_pieces').click()
@@ -394,6 +436,7 @@ test.describe('validation and transfer', () => {
 
     await page.getByTestId('editor-tab-library').click()
     await page.getByTestId('editor-kind').selectOption('skillCard')
+    await startBlank(page)
     await page.getByTestId('library-open-skill.mirror').click()
     await expect(page.getByTestId('editor-id')).toHaveValue('skill.mirror')
   })
@@ -413,6 +456,7 @@ test.describe('validation and transfer', () => {
     await openEditor(page, 'skillCard')
     await fillIdentity(page, 'skill.keepsake')
     await page.getByTestId('editor-uses').fill('1')
+    await expert(page)
     await page.getByTestId('editor-add-effect').click()
     await page.getByTestId('vocab-trigger-on_play').click()
     await page.getByTestId('vocab-action-win').click()
@@ -427,6 +471,7 @@ test.describe('validation and transfer', () => {
     await goEditor(page)
     await page.getByTestId('editor-tab-library').click()
     await page.getByTestId('editor-kind').selectOption('skillCard')
+    await startBlank(page)
     await expect(page.getByTestId('library-open-skill.keepsake')).toBeVisible()
   })
 })
