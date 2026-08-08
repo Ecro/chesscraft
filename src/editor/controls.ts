@@ -103,7 +103,9 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   // reason `on_square` starts empty.
   'movement:slide': () => ({ kind: 'slide', vectors: [] }),
   'movement:step': () => ({ kind: 'step', vectors: [] }),
-  'movement:jump': () => ({ kind: 'jump', vectors: [] }),
+  // No `movement:jump`. Retired with `MOVEMENT_KINDS` (ADR-006) — the reason is
+  // recorded at BOTH removal sites on purpose, so a reader who finds one half
+  // does not restore it from the other.
 
   // the forEach quantifier
   'forEach:piece': () => ({ kind: 'piece' }),

@@ -133,9 +133,18 @@ describe("a room's shortcut and the library's unsaved buffer", () => {
     fireEvent.change(screen.getByTestId('editor-text'), { target: { value: '설명' } })
     // No cost step: the control is gone as of schema v8 and the field is
     // optional. It was only ever incidental scaffolding for a valid record here.
-    fireEvent.click(screen.getByTestId('editor-add-effect'))
-    fireEvent.click(screen.getByTestId('vocab-trigger-end_of_ply'))
-    fireEvent.click(screen.getByTestId('vocab-action-win'))
+    // Authored through the sentence: the indexed palette this used to click is
+    // gone (PLAN Phase 7 of unified-create-ux). Same record, same save, one fewer
+    // surface.
+    for (const [slot, option] of [
+      ['when', 'end_of_ply'],
+      ['then', 'win'],
+    ] as const) {
+      const chip = screen.getByTestId(`slot-${slot}`)
+      chip.focus()
+      fireEvent.click(chip)
+      fireEvent.click(screen.getByTestId(`opt-${slot}-${option}`))
+    }
     fireEvent.click(screen.getByTestId('editor-save'))
     expect(screen.queryByTestId('editor-errors')).toBeNull()
 
@@ -271,14 +280,24 @@ describe('editing a raw key under the advanced disclosure', () => {
     fireEvent.click(screen.getByTestId('library-open-piece.one'))
     expect((screen.getByTestId('editor-name') as HTMLInputElement).value).toBe('하나')
 
-    // Change ONLY the key. The visible field still shows the old key's text —
-    // which the save used to write straight over the destination.
-    fireEvent.change(screen.getByTestId('editor-nameKey'), { target: { value: 'other.name' } })
+    // Changing ONLY the key is no longer possible: PLAN Phase 7 of
+    // unified-create-ux deleted the raw slot, so this guard's original subject —
+    // "the visible field still shows the OLD key's text, and the save wrote it
+    // straight over the destination" — is unreachable through the UI. Asserted as
+    // unreachability rather than deleted, because the reason it cannot happen is
+    // the removal, and a future screen that reintroduces a key field would want
+    // this sentence in front of it.
+    expect(screen.queryByTestId('editor-nameKey')).toBeNull()
+    expect(screen.queryByTestId('editor-textKey')).toBeNull()
+    expect(screen.queryByTestId('editor-advanced')).toBeNull()
+
+    // What IS still reachable, and still guarded: renaming by ID re-points the
+    // record's own keys. The text at the OTHER record's key must survive that.
+    fireEvent.change(screen.getByTestId('editor-id'), { target: { value: 'piece.renamed' } })
     fireEvent.click(screen.getByTestId('editor-save'))
     expect(screen.queryByTestId('editor-errors')).toBeNull()
 
-    // `piece.two` still says what it said. Before the fix it said 하나.
+    // `piece.two` still says what it said, and the rename did not reach into it.
     expect(screen.getByTestId('library-open-piece.two').textContent).toBe('둘')
-    expect(screen.getByTestId('library-open-piece.one').textContent).toBe('둘')
   })
 })

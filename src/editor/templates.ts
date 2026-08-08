@@ -1,6 +1,6 @@
 import { SKILL_TRIGGER } from '@content/schema'
 import type { DraftKind, EditorContext } from './draft'
-import { writeRecipe, type SlotId } from '@ui/CardRecipe'
+import { type SlotId, writeSentence } from '@ui/CardRecipe'
 
 /**
  * Cards that are already saying something, offered instead of a blank one.
@@ -12,7 +12,7 @@ import { writeRecipe, type SlotId } from '@ui/CardRecipe'
  * going. It is the same reason the piece maker opens on a gallery.
  *
  * Templates are declared as SLOT VALUES, not as literal `effects` arrays, and
- * are built through `writeRecipe` — the same function the four-slot view uses.
+ * are built through `writeSentence` — the same function the sentence view uses.
  * A hand-written effects array would be a second account of what a card can say,
  * and the failure mode is a template the recipe view refuses to open, which is
  * exactly what AC-010 exists to prevent. Building them through the shared writer
@@ -111,10 +111,10 @@ export function applyTemplate(base: Record<string, unknown>, tpl: CardTemplate, 
   ]
   for (const [slot, value] of order) {
     // A template whose action takes no target leaves the slot alone rather than
-    // writing an empty one — `writeRecipe` would no-op, but an empty string in
+    // writing an empty one — `writeSentence` would no-op, but an empty string in
     // the draft is a different document from an absent target.
     if (slot === 'who' && value === '') continue
-    draft.effects = writeRecipe(draft, slot, value, ctx)
+    draft.effects = writeSentence(draft, slot, value, ctx)
   }
   return draft
 }

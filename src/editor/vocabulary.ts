@@ -34,7 +34,23 @@ function conditionKinds(): string[] {
   return kindsOf(inner)
 }
 
-export const MOVEMENT_KINDS = ['slide', 'step', 'jump'] as const
+/**
+ * The movement kinds an author can still CHOOSE.
+ *
+ * `jump` retired here (ADR-006 of PLAN-unified-create-ux). The schema still accepts
+ * it — `content/schema.ts` is an independent enum and existing documents load and
+ * play unchanged — but nothing offers it any more, because the engine gives `step`
+ * and `jump` the same `maxSteps` and branches on nothing else: a single-step move
+ * has no square in between for a jump to jump over. The grid always emitted
+ * `'step'` regardless, so the only control that could author a `jump` was the
+ * indexed pattern editor that PLAN Phase 7 deletes, and leaving the entry
+ * enumerated would have left the ADR-006 gate demanding a control that no longer
+ * exists.
+ *
+ * Do NOT restore this without restoring an editor for it; the gate is what will
+ * tell you, and it will be right.
+ */
+export const MOVEMENT_KINDS = ['slide', 'step'] as const
 
 export function enumerateVocabulary(): VocabularyEntry[] {
   return [

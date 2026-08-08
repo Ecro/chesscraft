@@ -2818,24 +2818,8 @@ details.advanced summary {
   grid-area: 3 / 3;
 }
 
-/* Two windows onto one draft. Only `hidden` moves; both panels stay mounted, so
-   the ADR-006 vocabulary gate can still reach the detailed controls. The
-   `:not([hidden])` guard is the same one `.editor > div` needs and for the same
-   reason — a bare `display: flex` here outranks the UA's `[hidden]` rule. */
-.form-tabs {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.form-tabs button {
-  flex: 1;
-}
-
-.form-panel:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+/* `.form-tabs` and `.form-panel` are gone (PLAN Phase 6): there is one surface, so
+   there is nothing to switch between and nothing to keep mounted-but-hidden. */
 
 .reach-picker {
   display: flex;
@@ -2846,7 +2830,6 @@ details.advanced summary {
   flex: 1;
 }
 
-.form-tabs button[data-selected='true'],
 .reach-picker button[data-selected='true'] {
   background: var(--color-positive);
   box-shadow:
@@ -2883,6 +2866,157 @@ details.advanced summary {
 
 .recipe-slot select {
   flex: 1;
+}
+
+/* ------------------------------------------------------ the three anchors */
+/* PLAN Phase 8. Sticky resolves against `.editor`, which is the nearest scrolling
+   ancestor (`overflow-y: auto`); `.phone`'s `overflow: hidden` is outside it and so
+   is not the scrollport. Both bars need an opaque background — a transparent sticky
+   element shows the form sliding through it, which reads as a rendering bug. */
+
+.form-summary {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-note);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-note-hi),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-note-lo);
+  color: var(--color-note-ink);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.form-summary p {
+  margin: 0;
+}
+
+.form-actions {
+  position: sticky;
+  /* The home indicator sits under this bar on a notched phone, and the shell's
+     safe-area inset does not reach a sticky child. */
+  bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-4);
+  background: var(--color-surface);
+  border-top: var(--border-w) solid var(--color-outline);
+}
+
+/* ----------------------------------------------------------- the sentence */
+/* One row per slot, each row a label and a chip. The chip carries the whole
+   value, so the sentence stays as tall as its clauses and no taller — which is
+   what makes the read-back line below it reachable without scrolling on a
+   390px phone. */
+
+.sentence {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.sentence-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+}
+
+.sentence-label {
+  flex: none;
+  width: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-w) solid var(--color-outline);
+  border-right: none;
+  background: var(--color-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.slot-chip {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--color-surface);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-surface-hi),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-surface-lo);
+}
+
+/* An unfilled slot reads as an invitation rather than as a value. */
+.slot-chip[data-empty='true'] {
+  color: var(--color-text-dim);
+}
+
+.slot-toggle {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--color-outline);
+  border-left: none;
+  background: var(--color-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Inside the sheet: options first, then the chosen one's own settings. */
+.slot-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+}
+
+.slot-options button {
+  min-height: 44px;
+  padding: var(--space-3);
+  background: var(--color-sunken);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-sunken-hi),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-sunken-lo);
+}
+
+.slot-options button[data-chosen='true'] {
+  background: var(--color-primary);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-primary-hi),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-primary-lo);
+  color: var(--color-primary-ink);
+}
+
+.slot-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.slot-params:empty {
+  margin-top: 0;
+}
+
+.slot-param {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.slot-param legend {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 /* ---------------------------------------------------------------------- dex */

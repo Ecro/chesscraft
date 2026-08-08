@@ -352,6 +352,8 @@ export const ko: Record<string, string> = {
   'ui.editor.kind.preset': '방',
 
   'ui.editor.form.new': '새로 만들기',
+  'ui.editor.form.summary': '지금 만드는 것',
+  'ui.editor.form.summary-empty': '아직 아무것도 정하지 않았어요.',
   'ui.editor.form.save': '저장하기',
   'ui.editor.form.saved': '저장했어요',
   'ui.editor.form.close': '닫기',
@@ -360,7 +362,6 @@ export const ko: Record<string, string> = {
   // other tab saved the same thing. Naming both causes, because the child
   // did one of them a moment ago and will recognise it.
   'ui.editor.form.stale': '이 사이에 내용이 바뀌었어요. 방금 받은 것을 덮어쓰지 않으려고 저장을 멈췄어요. 다시 열어서 고쳐 주세요.',
-  'ui.editor.form.advanced': '고급 설정',
   // Clearing a name means "cancel the name I gave it", and what shows then is
   // whatever came in the box. A thing nobody else ever named has nothing to
   // fall back to, so the editor asks for a name instead of showing its key.
@@ -370,8 +371,6 @@ export const ko: Record<string, string> = {
   'ui.editor.field.id-hint': '영어와 점으로 짧게 써요. 예: piece.rabbit',
   'ui.editor.field.name': '이름',
   'ui.editor.field.text': '설명',
-  'ui.editor.field.name-slot': '이름 열쇠',
-  'ui.editor.field.text-slot': '설명 열쇠',
   'ui.editor.field.cost': '값',
   'ui.editor.field.uses': '쓸 수 있는 횟수',
   'ui.editor.field.paired': '짝이 있는 칸',
@@ -379,21 +378,7 @@ export const ko: Record<string, string> = {
   'ui.editor.field.promotion-rank': '몇 번째 줄에서 승급하나요',
   'ui.editor.field.promotion-to': '무엇으로 승급하나요',
 
-  'ui.editor.movement.legend': '어떻게 움직이나요',
-  'ui.editor.movement.clear': '움직임 모두 지우기',
-  'ui.editor.movement.add': '움직임 더하기',
-  'ui.editor.movement.max': '최대 몇 칸',
-  'ui.editor.movement.forward': '편에 따라 앞뒤가 바뀌어요',
   'ui.editor.attack.legend': '어떻게 잡나요 (비워 두면 움직이는 대로 잡아요)',
-  'ui.editor.effects.legend': '무슨 일이 일어나나요',
-  'ui.editor.effects.add': '일 더하기',
-  'ui.editor.effects.item': '일',
-  'ui.editor.palette.trigger': '언제',
-  'ui.editor.palette.condition': '이럴 때만',
-  'ui.editor.palette.forEach': '누구마다',
-  'ui.editor.palette.action': '그러면',
-  'ui.editor.palette.target': '누구에게',
-  'ui.editor.palette.destination': '어디로',
   'ui.editor.board.width': '가로 칸 수',
   'ui.editor.board.height': '세로 칸 수',
   'ui.editor.board.paint': '칠할 칸 종류',
@@ -669,6 +654,9 @@ export const ko: Record<string, string> = {
   'ui.editor.piece.dir.sw': '왼쪽 아래',
   'ui.editor.piece.dir.w': '왼쪽',
   'ui.editor.piece.dir.nw': '왼쪽 위',
+  'ui.editor.piece.clear': '움직임 모두 지우기',
+  'ui.editor.piece.forward': '앞쪽 기준으로 뒤집기',
+  'ui.editor.piece.forward-hint': '켜면 검은 편에서는 위아래가 뒤집혀요. 병사처럼 앞으로만 가는 기물에 써요.',
   'ui.editor.piece.reach.1': '한 칸',
   'ui.editor.piece.reach.2': '두 칸',
   'ui.editor.piece.reach.edge': '끝까지',
@@ -695,8 +683,6 @@ export const ko: Record<string, string> = {
   // never captures" is not something the schema can say, and pretending
   // otherwise would ship a piece that takes when the child said it would not.
   'ui.editor.piece.no-takes': '잡기 칸을 따로 고르지 않으면, 갈 수 있는 칸에서 그대로 잡아요.',
-  'ui.editor.piece.complex': '이 기물은 자세히 설정으로 만들어졌어요',
-  'ui.editor.piece.complex-hint': '이 움직임은 격자와 화살표로는 못 그려요. 위쪽 “자세히” 탭에서 고쳐 주세요.',
   'ui.editor.gallery.title': '무엇부터 시작할까요',
   'ui.editor.gallery.hint': '이미 있는 걸 골라서 조금만 바꾸면 가장 쉬워요. 원본은 그대로 있고, 고른 것을 본뜬 새것이 만들어져요.',
   'ui.editor.gallery.blank': '아무것도 없이 시작하기',
@@ -706,8 +692,6 @@ export const ko: Record<string, string> = {
   'ui.editor.template.toll': '잡은 기물도 함께 사라지기',
   'ui.editor.template.tar': '들어온 기물 발 묶기',
   'ui.editor.template.guard': '움직인 기물 지켜 주기',
-  'ui.editor.form.tab.simple': '쉽게',
-  'ui.editor.form.tab.expert': '자세히',
 
   // --- the card maker ---
   'ui.editor.card.recipe': '이 카드가 하는 일',
@@ -720,6 +704,47 @@ export const ko: Record<string, string> = {
   'ui.editor.card.reads-as': '이렇게 됩니다',
   'ui.editor.card.sentence.skill': '카드를 내면, {cond}일 때 {who}에게 「{then}」을 한다.',
   'ui.editor.card.sentence.rule': '{when}에, {cond}일 때 {who}에게 「{then}」을 한다.',
-  'ui.editor.card.complex': '이 카드는 자세히 설정으로 만들어졌어요',
-  'ui.editor.card.complex-hint': '하는 일이 여러 가지라 블록 네 개로는 못 담아요. 위쪽 “자세히” 탭에서 고쳐 주세요.',
+  // The `ui.editor.form.tab.*`, `*.complex*`, `ui.editor.movement.*`,
+  // `ui.editor.palette.*` and `ui.editor.effects.*` keys are gone with the surfaces
+  // that used them (PLAN Phase 7 of unified-create-ux). A key that outlives its
+  // referent is worse than a missing one: it reads as copy someone still ships.
+
+  // --- a record this screen cannot edit (read-only) ---
+  'ui.editor.readonly.title': '이건 여기서 고칠 수 없어요',
+  'ui.editor.readonly.hint': '이 기록은 지금 화면이 문장으로 보여줄 수 없는 모양이에요. 하는 일은 아래에 그대로 있고, 내용은 하나도 바뀌지 않아요. 이름과 그림은 그대로 고칠 수 있어요.',
+  'ui.editor.readonly.moves-title': '이 기물의 움직임은 여기서 그릴 수 없어요',
+  'ui.editor.readonly.moves-line': '{kind} — {count}군데',
+  'ui.editor.readonly.unknown': '이 부분은 아직 문장으로 풀어 쓸 수 없어요.',
+
+  // --- the sentence maker (one screen) ---
+  'ui.editor.card.sentence-hint': '한 줄씩 눌러서 골라요. 고른 대로 아래에 이 카드가 하는 일이 문장으로 나와요.',
+  'ui.editor.card.sentence-incomplete': '아직 이 카드가 할 일을 안 골랐어요.',
+  'ui.editor.card.slot.each': '누구마다',
+  'ui.editor.card.slot.cond2': '여기에 더해',
+  'ui.editor.card.slot.op': '두 조건은',
+  'ui.editor.card.slot.then2': '그리고 또',
+  'ui.editor.card.slot.whoB': '그리고 누구와',
+  'ui.editor.card.slot.where': '어디로',
+  'ui.editor.card.slot.not': '아닐 때',
+  'ui.editor.card.slot.pick': '고르기',
+  // Relative roles, not colours. `mover` / `opponent` are resolved per event — the
+  // side that triggered it and the other one — so naming them '파란 편' / '빨간 편'
+  // (which is what `ui.side.*` says) tells the author the opposite thing half the
+  // time. Phrasing follows `ui.editor.vocab.target.mover`, which already said it right.
+  'ui.editor.vocab.side.mover': '둔 쪽',
+  'ui.editor.vocab.side.opponent': '상대 쪽',
+  'ui.editor.vocab.op.all': '둘 다 맞을 때',
+  'ui.editor.vocab.op.any': '하나만 맞아도',
+  'ui.editor.card.line.skill': '카드를 내면, {each}{cond}일 때 {body}.',
+  'ui.editor.card.line.rule': '{when}에, {each}{cond}일 때 {body}.',
+  'ui.editor.card.line.each': '해당하는 기물마다 ',
+  'ui.editor.card.line.not': '{cond}이 아닐 때',
+  'ui.editor.card.line.all': '{a}이고 {b}',
+  'ui.editor.card.line.any': '{a}이거나 {b}',
+  'ui.editor.card.line.clause': '{who}에게 「{then}」을 한다',
+  'ui.editor.card.line.clause-dest': '{who}를 {where}로 「{then}」한다',
+  'ui.editor.card.line.clause-two': '{who}와 {whoB}를 「{then}」한다',
+  'ui.editor.card.line.clause-bare': '「{then}」을 한다',
+  'ui.editor.card.line.and': ', 그리고 ',
+
 }

@@ -1,0 +1,251 @@
+schema_version: 2
+spec_slug: unified-create-ux
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: metamorphic round-trip properties over the sentence compiler (AC-002, AC-007, AC-008), a differential comparison against the bundled content set the game actually ships (AC-003) and against the schema-derived vocabulary enumeration (AC-005), and mechanical absence/containment predicates measured in a real browser (AC-001, AC-004, AC-006, AC-009, AC-010, AC-011)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: 83
+spec_quality_score_at: "2026-08-08"
+
+ac:
+  - id: AC-001
+    title: "The maker has one surface"
+    type: mechanical
+    test_ids:
+      - tests/ui/maker-one-surface.test.tsx::no tab or hidden panel renders for any draft kind
+    executable_predicate: "all(surface_split_testids(render(kind)) == [] for kind in DRAFT_KINDS)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is the empty set, fixed by the requirement itself rather than read off the implementation: the six test ids that constitute a split (form-tab-simple, form-tab-expert, form-panel-expert, editor-advanced) are named in the test, not discovered from the render. A form that still splits produces a non-empty set no matter how it is written."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "The four grammar additions round-trip"
+    type: property
+    test_ids:
+      - tests/ui/recipe-roundtrip.test.ts::every sentence shape reads back as itself
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Metamorphic identity over the sentence compiler: readRecipe(writeRecipe(s)) must equal s for every sentence the builder can express. The relation is stated over the builder's own inputs and outputs and shares no code with either direction, so a writer that drops the quantifier or a reader that ignores the second action breaks it regardless of implementation. This is the exact property whose absence would let a record be silently flattened."
+    oracle_independence_waiver: null
+    input_domain: "every sentence the builder can express: each trigger x each condition (including all/any over two leaves) x each action (including a two-target action) x each target, with the forEach quantifier present or absent and one or two actions"
+    transformation: "write the sentence into a draft, then read the draft back into a sentence"
+    expected_relation: "read(write(sentence)) == sentence"
+    preconditions:
+      - "the sentence's slots are all legal for the host content kind"
+    observable_output: "the sentence read back from the draft"
+    generator_hint: "enumerate the slot cross-product rather than sampling; the space is small enough to exhaust"
+
+  - id: AC-003
+    title: "Everything the game ships opens as a sentence"
+    type: parametric
+    test_ids:
+      - tests/ui/recipe-bundled-coverage.test.ts::no bundled record refuses the sentence
+    executable_predicate: null
+    golden_table:
+      - input: { set: "bundled", kinds: "pieces", count: 6, refused_before: 0 }
+        expected: { refusals: 0 }
+      - input: { set: "bundled", kinds: "ruleCards + skillCards", count: 26, refused_before: 8 }
+        expected: { refusals: 0 }
+      - input: { record: "rule.king-of-the-hill", refused_before_because: "forEach quantifier and an all condition" }
+        expected: { refusals: 0 }
+      - input: { record: "rule.fast-promotion", refused_before_because: "forEach quantifier" }
+        expected: { refusals: 0 }
+      - input: { record: "rule.royal-bodyguard", refused_before_because: "forEach quantifier" }
+        expected: { refusals: 0 }
+      - input: { record: "rule.last-stand", refused_before_because: "forEach quantifier" }
+        expected: { refusals: 0 }
+      - input: { record: "rule.knights-honour", refused_before_because: "forEach quantifier" }
+        expected: { refusals: 0 }
+      - input: { record: "skill.charge", refused_before_because: "forEach quantifier" }
+        expected: { refusals: 0 }
+      - input: { record: "skill.swap", refused_before_because: "swap_pieces takes two targets" }
+        expected: { refusals: 0 }
+      - input: { record: "skill.sacrifice", refused_before_because: "two actions in one effect" }
+        expected: { refusals: 0 }
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference is the shipped content set itself, authored before this change and independent of the editor: bundledContentSource is loaded through the game's own validator, so the expectation is 'the maker can show what the game already plays'. The eight named ids are the pre-change refusal set, measured on 2026-08-08 by running readGrid/readRecipe over the bundle, so each row is a case that provably fails today."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "The indexed-palette form is gone"
+    type: mechanical
+    test_ids:
+      - tests/ui/maker-one-surface.test.tsx::the indexed palette form is absent
+    executable_predicate: "all(legacy_palette_testids(render(kind)) == [] for kind in EFFECT_BEARING_KINDS)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is the empty set over a hardcoded list of the removed test ids (editor-add-effect, editor-effect-0, editor-action-0), named from the pre-change source rather than derived from the post-change render. A refactor that merely renames the old form still leaves an effect-index cursor and fails on the behavioural half of the same test."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-005
+    title: "The vocabulary stays fully reachable"
+    type: mechanical
+    test_ids:
+      - tests/editor/vocabulary-coverage.test.ts::every vocabulary entry is reachable, writes its own value, and round-trips
+    executable_predicate: "all(is_enabled(control) and writes_own_value(control) and roundtrips(control) for control in VOCABULARY_CONTROLS)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference is enumerateVocabulary(), derived mechanically from the Zod schemas rather than restated, so the expected set cannot drift with the editor. This is ADR-006's existing gate: it asserts presence AND enabledness in the render and equality at each control's own JSON path, so a control that disappears with the deleted panel fails rather than passing by omission."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "Pieces and special squares use the same sentence"
+    type: mechanical
+    test_ids:
+      - tests/ui/recipe-hosts.test.tsx::piece and squareType author effects as sentences
+    executable_predicate: "all(has_sentence_editor(render(kind)) for kind in EFFECT_BEARING_KINDS)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected host set is EFFECT_HOSTS from controls.ts — piece, squareType, ruleCard, skillCard — which is the schema's own answer to 'who can carry effects', fixed before this change. Asserting the sentence editor exists for all four catches the current asymmetry (the recipe view is gated to ruleCard | skillCard at RecordForm.tsx:1235) without restating that gate."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "An unshowable half is read-only, not flattened"
+    type: property
+    test_ids:
+      - tests/ui/recipe-unshowable.test.tsx::an unshowable record is read-only and byte-stable
+      - e2e/editor-readonly.spec.ts::saving is blocked with a stated reason
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Byte-stability of the unreadable half across a real SAVE: serialise the half, open the record, save it, read the committed document back, require equality. Stronger than the original no-op-session version, and it had to be: saving is no longer blocked (amended 2026-08-08, because the block made a shipped slice record uneditable), so what a save writes has to be proved rather than prevented. The relation holds regardless of implementation and is exactly what a flatten violates — a maker that reduces a two-effect card to one passes every rendering assertion and fails this one."
+    oracle_independence_waiver: null
+    input_domain: "records with an undrawable half: two or more effects (the sentence half), or movement patterns outside the grid-plus-direction model (the grid half); the two are independent"
+    transformation: "serialise the unreadable half, open the record in the maker, save it, read the committed record back"
+    expected_relation: "unreadable_half(commit(save(open(r)))) == unreadable_half(r) and editor_absent_for(unreadable_half)"
+    preconditions:
+      - "the record validates under the current schema, i.e. it is a document that legitimately loads and plays"
+    observable_output: "the committed record's unreadable half, and whether that half's editing controls rendered"
+    generator_hint: "build the unshowable cases from bundled records by concatenating two of their effects"
+
+  - id: AC-008
+    title: "Keys are derived, not typed"
+    type: property
+    test_ids:
+      # Corrected at wrapup: the PLAN named `rename-wiring.test.tsx` / `rename.test.ts`,
+      # but the invariant was written as its own file. The pointers were stale, and
+      # `pending_test: true` is why `cross_validate` rule 3 never caught it.
+      - tests/ui/rename-invariant.test.tsx::a foreign-keyed record survives open-and-save unchanged
+      - tests/ui/rename-invariant.test.tsx::offers no way to type a key
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Invariant: opening and saving a record without editing its name or text must not move its nameKey/textKey. This is implementation-independent and targets the exact hazard of removing the key fields — a derivation that fires unconditionally re-homes a record keyed in a foreign namespace, which is a recorded past failure of this repo's rename repair rather than a hypothetical."
+    oracle_independence_waiver: null
+    input_domain: "records whose nameKey/textKey are derived from their id, and records whose keys sit in a namespace unrelated to their id"
+    transformation: "open the record in the maker and save it without editing name or description"
+    expected_relation: "keys(save(open(r))) == keys(r)"
+    preconditions:
+      - "the record's strings resolve before the open, so a changed key would be observable as a dotted key"
+    observable_output: "the record's nameKey and textKey after save"
+    generator_hint: "include at least one record whose id namespace differs from its key namespace"
+
+  - id: AC-009
+    title: "The phone anchors hold"
+    type: mechanical
+    test_ids:
+      - e2e/maker-anchors.spec.ts::the summary, the errors and the save stay in view at the end of the form
+    executable_predicate: "all(intersects_viewport(anchor) for anchor in [preview, error_notice, save_button])"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is geometric and fixed by the 390x844 design target: each anchor's bounding box must intersect the viewport after scrolling to the form's end. Measured in a real browser via Playwright, because jsdom reports zero-sized boxes and ignores visibility — the same blind spot that let a control ship in the wrong panel here once already."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-010
+    title: "The one screen actually scrolls"
+    type: mechanical
+    test_ids:
+      - e2e/maker-anchors.spec.ts::the longest record scrolls inside the shell, and the document does not grow
+    executable_predicate: "scroller.scrollHeight > scroller.clientHeight and document_element.scrollHeight <= viewport_height"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The two-sided comparison IS the signature of the recorded failure [fail:render] unbounded-parent-defeats-inner-scroll: the inner box reports a large scrollHeight while the document element's scrollHeight equals its clientHeight, meaning an ancestor grew instead of clipping. Asserting both sides is independent of any CSS the implementation chooses, and a one-sided assertion passes in exactly the broken state."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-011
+    title: "No copy points at a destination that no longer exists"
+    type: mechanical
+    test_ids:
+      # Corrected at wrapup — same reason as AC-008. The check lives with the other
+      # two halves of the one-surface claim rather than in the i18n suite.
+      - tests/ui/maker-one-surface.test.tsx::has no key for a deleted surface
+      - tests/ui/maker-one-surface.test.tsx::has no editor copy naming a deleted surface
+    executable_predicate: "strings_matching(EDITOR_STRINGS, REMOVED_SURFACE_TERMS) == []"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "REMOVED_SURFACE_TERMS is a hardcoded list taken from the pre-change string table (the '자세히' tab label and the two complex-hint strings that name it), not discovered from the post-change UI. The check is directional on purpose: it fails when copy survives its referent, which is how ui.editor.card.complex-hint would otherwise keep telling a child to visit a tab that no longer exists."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null

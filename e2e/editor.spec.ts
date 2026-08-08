@@ -1,6 +1,7 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
 import { chooseRoom, goEditor, startMatch, startBlank } from './nav'
+import { say, sayParam } from './sentence'
 
 /**
  * Into the detailed controls (ADR-031, AC-008).
@@ -12,13 +13,14 @@ import { chooseRoom, goEditor, startMatch, startBlank } from './nav'
  * not, which is why the vocabulary-coverage gate needed no such step and this
  * suite did.
  *
- * Guarded, because only a piece, a rule card and a skill card have tabs at all:
- * a special square's whole content IS its effects, and a board or a room has no
- * simple maker, so those kinds render one column with nothing to switch to.
+ * Was a tab click; now a no-op. Every control lives on one surface (PLAN Phase 6),
+ * so there is nothing to reveal before touching a detailed control.
  */
-async function expert(page: Page) {
-  const tab = page.getByTestId('form-tab-expert')
-  if (await tab.isVisible()) await tab.click()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function expert(_page: Page) {
+  /* PLAN Phase 6 removed the tab strip: every control is on one surface, so there
+     is nothing to switch to. Kept as a no-op rather than deleted from its call
+     sites, which would bury this one-line change in an unrelated diff. */
 }
 
 
@@ -127,10 +129,9 @@ test('authored content is playable in the same session', async ({ page }) => {
   await openEditor(page, 'squareType')
   await fillIdentity(page, 'square.quicksand')
   await expert(page)
-  await page.getByTestId('editor-add-effect').click()
-  await page.getByTestId('vocab-trigger-on_enter').click()
-  await page.getByTestId('vocab-action-freeze_piece').click()
-  await page.getByTestId('vocab-target-entering').click()
+  await say(page, 'trigger', 'on_enter')
+  await say(page, 'action', 'freeze_piece')
+  await say(page, 'target', 'entering')
   await save(page)
 
   await page.getByTestId('editor-kind').selectOption('board')
@@ -149,11 +150,13 @@ test.describe('piece axis', () => {
   test('creates a piece with the visual movement grid and places it on the board', async ({ page }) => {
     await openEditor(page, 'piece')
     await fillIdentity(page, 'piece.hopper')
-    await expert(page)
-    await page.getByTestId('vocab-movement-jump').click()
-    // Two squares up, one across — authored by clicking the grid, not by typing
-    // a vector, because the grid IS the control ADR-006 promised.
-    await page.getByTestId('move-cell-1_2').click()
+    // Two squares up, one across, authored on the grid — which is now the ONLY
+    // control that writes movement (PLAN Phase 7 deleted the indexed editor). The
+    // seeded step is cleared first so the piece is exactly what the grid shows;
+    // `jump` no longer appears anywhere because the engine cannot tell it from
+    // `step` (ADR-006), and this piece plays identically either way.
+    await page.getByTestId('piece-clear').click()
+    await page.getByTestId('piece-cell-1,2').click()
     await save(page)
 
     // Put it on the board and into the preset, so a match can reach it.
@@ -179,10 +182,10 @@ test.describe('piece axis', () => {
     await openEditor(page, 'piece')
     await page.getByTestId('library-open-piece.archer').click()
 
-    await expert(page)
-    await page.getByTestId('editor-clear-movement').click()
-    await page.getByTestId('vocab-movement-jump').click()
-    await page.getByTestId('move-cell-0_2').click()
+    // Same conversion as above. `piece-clear` is the grid's own clear-all, which
+    // Phase 7 restored when it deleted the indexed form's.
+    await page.getByTestId('piece-clear').click()
+    await page.getByTestId('piece-cell-0,2').click()
     await save(page)
 
     await play(page)
@@ -200,10 +203,9 @@ test.describe('special-square axis', () => {
     await openEditor(page, 'squareType')
     await fillIdentity(page, 'square.lava')
     await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-on_enter').click()
-    await page.getByTestId('vocab-action-destroy_piece').click()
-    await page.getByTestId('vocab-target-entering').click()
+    await say(page, 'trigger', 'on_enter')
+    await say(page, 'action', 'destroy_piece')
+    await say(page, 'target', 'entering')
     await save(page)
 
     await page.getByTestId('editor-kind').selectOption('board')
@@ -243,10 +245,9 @@ test.describe('rule-card axis', () => {
     await openEditor(page, 'ruleCard')
     await fillIdentity(page, 'rule.sudden-death')
     await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-end_of_ply').click()
-    await page.getByTestId('vocab-condition-check_count_at_least').click()
-    await page.getByTestId('vocab-action-win').click()
+    await say(page, 'trigger', 'end_of_ply')
+    await say(page, 'condition', 'check_count_at_least')
+    await say(page, 'action', 'win')
     await save(page)
 
     // A preset that offers exactly one rule card makes the draw deterministic.
@@ -283,10 +284,9 @@ test.describe('skill-card axis', () => {
     await fillIdentity(page, 'skill.smokescreen')
     await page.getByTestId('editor-uses').fill('1')
     await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-on_play').click()
-    await page.getByTestId('vocab-action-freeze_piece').click()
-    await page.getByTestId('vocab-target-chosen_enemy').click()
+    await say(page, 'trigger', 'on_play')
+    await say(page, 'action', 'freeze_piece')
+    await say(page, 'target', 'chosen_enemy')
     await save(page)
 
     // Narrow the pool to exactly three, including the new card. An offer is
@@ -388,25 +388,23 @@ test.describe('board axis', () => {
 test.describe('validation and transfer', () => {
   test('blocks a save that fails validation and names the offending field', async ({ page }) => {
     await openEditor(page, 'skillCard')
-    await page.getByTestId('editor-id').fill('skill.broken')
-    await page.getByTestId('editor-text').fill('skill.broken.text')
-    // Reaching past the derived field on purpose: `editor-name` cannot produce
-    // an invalid key any more, so the only way to author one — and the only way
-    // this test still tests what it is named after — is the raw slot under
-    // 고급 설정, which has to be opened first.
-    await page.getByTestId('editor-advanced').locator('summary').click()
-    await page.getByTestId('editor-nameKey').fill('Smokescreen')
-    await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-on_play').click()
-    await page.getByTestId('vocab-action-freeze_piece').click()
+    // An invalid ID, not an invalid key. PLAN Phase 7 deleted the raw key slots,
+    // so a key is derived from the id and there is no longer any way to author an
+    // invalid one — which means the field this test is named after had to move to a
+    // field a child can actually type into. `Smokescreen` fails `contentId`
+    // (`<kind>.<slug>`, lowercase) exactly as it failed the i18n-key regex before.
+    await page.getByTestId('editor-id').fill('Smokescreen')
+    await page.getByTestId('editor-name').fill('연막')
+    await page.getByTestId('editor-text').fill('상대의 시야를 가린다.')
+    await say(page, 'trigger', 'on_play')
+    await say(page, 'action', 'freeze_piece')
     await page.getByTestId('editor-save').click()
 
     await expect(page.getByTestId('editor-errors')).toBeVisible()
     // The error is anchored to the control that caused it (#25) rather than
     // printed as a schema path — `presets.x.nameKey` names a field the author
     // has never seen, and Phase 9a's copy rule forbids putting it on screen.
-    await expect(page.getByTestId('editor-field-error-nameKey')).toBeVisible()
+    await expect(page.getByTestId('editor-field-error-id')).toBeVisible()
     await expect(page.getByTestId('editor-saved')).toHaveCount(0)
 
     // The rejected save must not have half-landed.
@@ -419,9 +417,8 @@ test.describe('validation and transfer', () => {
     await fillIdentity(page, 'skill.mirror')
     await page.getByTestId('editor-uses').fill('1')
     await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-on_play').click()
-    await page.getByTestId('vocab-action-swap_pieces').click()
+    await say(page, 'trigger', 'on_play')
+    await say(page, 'action', 'swap_pieces')
     await save(page)
 
     await page.getByTestId('editor-export').click()
@@ -457,9 +454,8 @@ test.describe('validation and transfer', () => {
     await fillIdentity(page, 'skill.keepsake')
     await page.getByTestId('editor-uses').fill('1')
     await expert(page)
-    await page.getByTestId('editor-add-effect').click()
-    await page.getByTestId('vocab-trigger-on_play').click()
-    await page.getByTestId('vocab-action-win').click()
+    await say(page, 'trigger', 'on_play')
+    await say(page, 'action', 'win')
     await save(page)
 
     // The status is Korean copy now (#39), so this asserts it is not EMPTY

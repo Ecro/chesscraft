@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import type { ContentSource, ValidationError } from '@content/load'
 import type { ContentStrings } from '@content/schema'
 import { type DraftKind, blankDraft, commitDraft, editorContext, openDraft, validateDraft } from '@editor/draft'
-import { type VocabularyControl, controlsFor } from '@editor/controls'
 import { type StringField, clearString, deriveKey, readString, rekeyStrings, writeString } from '@editor/strings'
 import { DEFAULT_LOCALE, makeTranslate, useTranslate } from './i18n'
 import { resolveMark } from './art/resolve'
@@ -25,7 +24,8 @@ import {
   readGrid,
   writeGrid,
 } from './PieceMoves'
-import { type SlotId, optionsFor, readRecipe, recipeSentence, takesTarget, writeRecipe } from './CardRecipe'
+import { readSentence } from './CardRecipe'
+import { SentenceEditor, describeRecord, sentenceText } from './SentenceSlot'
 import { RecordGrade } from './RecordGrade'
 import { PiecePreview } from './PiecePreview'
 import { MakerGallery, type Picked } from './MakerGallery'
@@ -65,14 +65,6 @@ type Draft = Record<string, unknown>
 const EFFECT_BEARING: readonly DraftKind[] = ['piece', 'squareType', 'ruleCard', 'skillCard']
 
 /** Which key of an action holds a destination. `promote_piece.to` is a piece id, not one. */
-const DESTINATION_SLOT: Record<string, string> = {
-  teleport_piece: 'to',
-  spawn_piece: 'at',
-  revive_piece: 'at',
-}
-
-const DURATION_ACTIONS = new Set(['block_capture', 'grant_movement', 'forbid_movement'])
-
 const GRID = [3, 2, 1, 0, -1, -2, -3]
 
 /** Records whose schema carries a `textKey`. Boards and rooms have a name only. */
@@ -268,28 +260,7 @@ export function RecordForm({
   const [nameTyped, setNameTyped] = useState(false)
   const [textTyped, setTextTyped] = useState(false)
 
-  /**
-   * Which window onto the draft is on screen (ADR-030/ADR-031).
-   *
-   * Both panels stay MOUNTED and the inactive one carries `hidden` — the same
-   * arrangement `editor-draft-json` already relies on. Unmounting would break
-   * the ADR-006 vocabulary-coverage gate, which reaches its controls by test id.
-   * Freely-clickable tabs are what ADR-031 permits; a linear wizard is not.
-   */
-  const [tab, setTab] = useState<'simple' | 'expert'>('simple')
 
-  /**
-   * Whether this kind has a simple maker worth splitting the screen for.
-   *
-   * A piece has the move grid; a rule or skill card has the four-slot recipe.
-   * Those three earn a tab. A special square's whole content IS its effects, and
-   * a board or a room has no simple maker at all — for them the split offers a
-   * simple tab holding an art picker or nothing, and hides the only form there
-   * is behind the expert one. Splitting a screen that has one half is worse than
-   * not splitting it, and the e2e suite is what said so: `fireEvent` ignores
-   * visibility, so jsdom called it fine.
-   */
-  const hasSimple = kind === 'piece' || kind === 'ruleCard' || kind === 'skillCard'
 
   /**
    * Whether the gallery is still the thing on screen (ADR-027's sibling
@@ -304,9 +275,11 @@ export function RecordForm({
    */
   const [choosing, setChoosing] = useState(initialId === null)
 
-  const [effectIndex, setEffectIndex] = useState(0)
-  const [actionIndex, setActionIndex] = useState(0)
-  const [patternIndex, setPatternIndex] = useState(0)
+  // `effectIndex` / `actionIndex` / `patternIndex` are gone with the indexed form
+  // (PLAN Phase 7). They were cursors into arrays the author had to navigate before
+  // they could edit anything, which is the single thing about that form a child
+  // could not be taught. `attackIndex` survives because the attack grid is still
+  // per-pattern.
   const [attackIndex, setAttackIndex] = useState(0)
   const [saved, setSaved] = useState<string | null>(null)
   const [paintType, setPaintType] = useState('')
@@ -338,14 +311,6 @@ export function RecordForm({
     onDirtyChange?.(true)
   }
 
-  const effects = (d: Draft) => (d.effects as Draft[] | undefined) ?? []
-  const effect = (d: Draft) => effects(d)[effectIndex]
-  const actions = (d: Draft) => (effect(d)?.actions as Draft[] | undefined) ?? []
-  const currentEffect = effect(draft)
-  const currentAction = actions(draft)[actionIndex]
-  const currentCondition = currentEffect?.condition as Draft | undefined
-  const patterns = (draft.movement as Draft[] | undefined) ?? []
-  const currentPattern = patterns[patternIndex]
   const attacks = (draft.attack as Draft[] | undefined) ?? []
 
   // --- field-anchored validation (#25) --------------------------------------
@@ -372,101 +337,10 @@ export function RecordForm({
     )
   }
 
-  // --- vocabulary palette ---------------------------------------------------
-
-  const applyControl = (control: VocabularyControl) => {
-    update((d) => {
-      switch (control.axis) {
-        case 'trigger': {
-          const e = effect(d)
-          if (e) e.trigger = control.make(ctx)
-          break
-        }
-        case 'condition': {
-          const e = effect(d)
-          if (e) e.condition = control.make(ctx, e.condition)
-          break
-        }
-        case 'forEach': {
-          const e = effect(d)
-          if (e) e.forEach = control.make(ctx)
-          break
-        }
-        case 'action': {
-          const e = effect(d)
-          if (!e) break
-          const list = (e.actions as Draft[] | undefined) ?? []
-          list.push(control.make(ctx) as Draft)
-          e.actions = list
-          break
-        }
-        case 'target': {
-          const a = actions(d)[actionIndex]
-          if (a && 'target' in a) a.target = control.make(ctx)
-          break
-        }
-        case 'destination': {
-          const a = actions(d)[actionIndex]
-          const slot = a ? DESTINATION_SLOT[String(a.kind)] : undefined
-          if (a && slot) a[slot] = control.make(ctx)
-          break
-        }
-        case 'movement': {
-          const list = (d.movement as Draft[] | undefined) ?? []
-          list.push(control.make(ctx) as Draft)
-          d.movement = list
-          break
-        }
-      }
-    })
-    // Selection moves outside the state updater: an updater that also sets
-    // other state is not pure, and React may run it twice.
-    if (control.axis === 'action') setActionIndex(actions(draft).length)
-    if (control.axis === 'movement') setPatternIndex(patterns.length)
-  }
-
-  const controlEnabled = (control: VocabularyControl): boolean => {
-    if (!control.hosts.includes(kind)) return false
-    if (control.axis === 'movement') return true
-    if (!currentEffect) return false
-    if (control.axis === 'target') return currentAction !== undefined && 'target' in currentAction
-    if (control.axis === 'destination') {
-      return currentAction !== undefined && DESTINATION_SLOT[String(currentAction.kind)] !== undefined
-    }
-    if (control.axis === 'action') return true
-    return true
-  }
-
-  const palette = (axis: VocabularyControl['axis'], labelKey: string) => (
-    <fieldset>
-      <legend>{t(labelKey)}</legend>
-      {controlsFor(axis).map((control) => (
-        <button
-          key={control.testid}
-          type="button"
-          data-testid={control.testid}
-          disabled={!controlEnabled(control)}
-          onClick={() => applyControl(control)}
-        >
-          {t(`ui.editor.vocab.${control.axis}.${control.kind}`)}
-        </button>
-      ))}
-    </fieldset>
-  )
-
-  // --- parameter controls ---------------------------------------------------
-
-  const setInAction = (mutate: (a: Draft) => void) =>
-    update((d) => {
-      const a = actions(d)[actionIndex]
-      if (a) mutate(a)
-    })
-
-  const setInCondition = (mutate: (c: Draft) => void) =>
-    update((d) => {
-      const e = effect(d)
-      if (e?.condition) mutate(e.condition as Draft)
-    })
+  // The vocabulary palette and the effect/action parameter controls used to live
+  // here. Both are gone with the indexed form (PLAN Phase 7): the palette's job is
+  // the sentence's slot sheets, and each parameter now renders inside the sheet of
+  // the slot that owns it (ADR-004). `SentenceSlot.tsx` holds both.
 
   const numberField = (testid: string, labelKey: string, value: unknown, apply: (n: number | null) => void) => (
     <label key={testid}>
@@ -477,18 +351,6 @@ export function RecordForm({
         value={typeof value === 'number' ? String(value) : ''}
         onChange={(e) => apply(e.target.value === '' ? null : Number(e.target.value))}
       />
-    </label>
-  )
-
-  const sideSelect = (testid: string, value: unknown, apply: (s: string) => void, withAny = false) => (
-    <label key={testid}>
-      {t('ui.editor.param.side')}
-      <select data-testid={testid} value={typeof value === 'string' ? value : ''} onChange={(e) => apply(e.target.value)}>
-        <option value="">{t('ui.editor.board.none')}</option>
-        <option value="mover">{t('ui.side.white')}</option>
-        <option value="opponent">{t('ui.side.black')}</option>
-        {withAny && <option value="any">{t('ui.editor.param.any')}</option>}
-      </select>
     </label>
   )
 
@@ -504,246 +366,6 @@ export function RecordForm({
   const pieceLabel = (id: string) => {
     const found = source.pieces.find((p) => (p as { id?: unknown }).id === id) as { nameKey?: unknown } | undefined
     return label(id, found?.nameKey)
-  }
-
-  const pieceSelect = (testid: string, value: unknown, apply: (id: string) => void) => (
-    <label key={testid}>
-      {t('ui.editor.param.pieceId')}
-      <select data-testid={testid} value={typeof value === 'string' ? value : ''} onChange={(e) => apply(e.target.value)}>
-        <option value="">{t('ui.editor.board.none')}</option>
-        {ctx.pieceIds.map((id) => (
-          <option key={id} value={id}>
-            {pieceLabel(id)}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-
-  const actionParams = () => {
-    if (!currentAction) return null
-    const k = String(currentAction.kind)
-    const out: JSX.Element[] = []
-
-    if (DURATION_ACTIONS.has(k)) {
-      out.push(
-        numberField('param-duration', 'ui.editor.param.duration', currentAction.duration, (n) =>
-          setInAction((a) => {
-            if (n === null) delete a.duration
-            else a.duration = n
-          }),
-        ),
-      )
-    }
-    if (k === 'freeze_piece') {
-      out.push(
-        numberField('param-plies', 'ui.editor.param.plies', currentAction.plies, (n) =>
-          setInAction((a) => {
-            a.plies = n ?? 1
-          }),
-        ),
-      )
-    }
-    if (k === 'promote_piece') {
-      out.push(
-        pieceSelect('param-to', currentAction.to, (id) =>
-          setInAction((a) => {
-            a.to = id
-          }),
-        ),
-      )
-    }
-    if (k === 'spawn_piece') {
-      out.push(
-        pieceSelect('param-pieceId', currentAction.pieceId, (id) =>
-          setInAction((a) => {
-            a.pieceId = id
-          }),
-        ),
-      )
-    }
-    if (k === 'spawn_piece' || k === 'revive_piece' || k === 'win') {
-      out.push(
-        sideSelect('param-side', currentAction.side, (s) =>
-          setInAction((a) => {
-            a.side = s
-          }),
-        ),
-      )
-    }
-    if (k === 'revive_piece') {
-      out.push(
-        <fieldset key="except">
-          <legend>{t('ui.editor.param.except')}</legend>
-          {ctx.pieceIds.map((id) => (
-            <button
-              key={id}
-              type="button"
-              data-testid={`param-except-${id}`}
-              onClick={() =>
-                setInAction((a) => {
-                  const list = (a.except as string[] | undefined) ?? []
-                  const at = list.indexOf(id)
-                  if (at >= 0) list.splice(at, 1)
-                  else list.push(id)
-                  if (list.length === 0) delete a.except
-                  else a.except = list
-                })
-              }
-            >
-              {pieceLabel(id)}
-            </button>
-          ))}
-        </fieldset>,
-      )
-    }
-    if (k === 'grant_movement') {
-      const pattern = (currentAction.pattern as Draft | undefined) ?? {}
-      out.push(
-        <fieldset key="pattern">
-          <legend>{t('ui.editor.param.pattern')}</legend>
-          {(['slide', 'step', 'jump'] as const).map((pk) => (
-            <button
-              key={pk}
-              type="button"
-              data-testid={`param-pattern-${pk}`}
-              onClick={() =>
-                // Switching kind clears the vectors: a jump's squares rarely
-                // mean the same thing as a slide's, and silently reinterpreting
-                // them would author a pattern nobody chose.
-                setInAction((a) => {
-                  a.pattern = { kind: pk, vectors: [] }
-                })
-              }
-            >
-              {t(`ui.editor.vocab.movement.${pk}`)}
-            </button>
-          ))}
-          {vectorGrid('param-pattern-cell', (pattern.vectors as number[][] | undefined) ?? [], (df, dr) =>
-            setInAction((a) => {
-              const p = a.pattern as Draft
-              p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
-            }),
-          )}
-        </fieldset>,
-      )
-    }
-
-    const slot = DESTINATION_SLOT[k]
-    const dest = slot ? (currentAction[slot] as Draft | undefined) : undefined
-    if (dest?.kind === 'square') {
-      out.push(
-        <label key="param-square">
-          {t('ui.editor.param.square')}
-          <select
-            data-testid="param-square"
-            value={String(dest.square ?? '')}
-            onChange={(e) =>
-              setInAction((a) => {
-                ;(a[slot!] as Draft).square = e.target.value
-              })
-            }
-          >
-            {ctx.squares.map((sq) => (
-              <option key={sq} value={sq}>
-                {sq}
-              </option>
-            ))}
-          </select>
-        </label>,
-      )
-    }
-    if (dest?.kind === 'offset') {
-      out.push(
-        numberField('param-df', 'ui.editor.param.df', dest.df, (n) =>
-          setInAction((a) => {
-            ;(a[slot!] as Draft).df = n ?? 0
-          }),
-        ),
-        numberField('param-dr', 'ui.editor.param.dr', dest.dr, (n) =>
-          setInAction((a) => {
-            ;(a[slot!] as Draft).dr = n ?? 0
-          }),
-        ),
-        <label key="param-offset-forward">
-          {t('ui.editor.param.forward')}
-          <input
-            type="checkbox"
-            data-testid="param-offset-forward"
-            checked={dest.forward === true}
-            onChange={() =>
-              setInAction((a) => {
-                const d = a[slot!] as Draft
-                if (d.forward === true) delete d.forward
-                else d.forward = true
-              })
-            }
-          />
-        </label>,
-      )
-    }
-    return out
-  }
-
-  const conditionParams = () => {
-    if (!currentCondition) return null
-    const k = String(currentCondition.kind)
-    const out: JSX.Element[] = []
-    if (k === 'piece_is') {
-      out.push(
-        pieceSelect('param-cond-pieceId', currentCondition.pieceId, (id) =>
-          setInCondition((c) => {
-            c.pieceId = id
-          }),
-        ),
-      )
-    }
-    if (k === 'piece_side' || k === 'piece_count_at_most') {
-      out.push(
-        sideSelect('param-cond-side', currentCondition.side, (s) =>
-          setInCondition((c) => {
-            c.side = s
-          }),
-        ),
-      )
-    }
-    if (k === 'check_count_at_least' || k === 'piece_count_at_most' || k === 'on_own_rank') {
-      out.push(
-        numberField('param-cond-n', 'ui.editor.param.n', currentCondition.n, (n) =>
-          setInCondition((c) => {
-            c.n = n ?? 1
-          }),
-        ),
-      )
-    }
-    if (k === 'on_square') {
-      const chosen = (currentCondition.squares as string[] | undefined) ?? []
-      out.push(
-        <fieldset key="cond-squares">
-          <legend>{t('ui.editor.param.squares')}</legend>
-          {ctx.squares.map((sq) => (
-            <button
-              key={sq}
-              type="button"
-              data-testid={`param-cond-square-${sq}`}
-              data-chosen={chosen.includes(sq)}
-              onClick={() =>
-                setInCondition((c) => {
-                  const list = (c.squares as string[] | undefined) ?? []
-                  const at = list.indexOf(sq)
-                  if (at >= 0) list.splice(at, 1)
-                  else list.push(sq)
-                  c.squares = list
-                })
-              }
-            >
-              {sq}
-            </button>
-          ))}
-        </fieldset>,
-      )
-    }
-    return out
   }
 
   // --- movement / attack grids ---------------------------------------------
@@ -1066,19 +688,42 @@ export function RecordForm({
     )
   }
 
+  /**
+   * One line saying what the record currently is — the pinned "preview".
+   *
+   * NOT the engine preview board. `PiecePreview` is a 7x7 grid; pinning it would
+   * spend most of a 390x844 viewport on the thing the child is scrolling PAST the
+   * form to see, which defeats the purpose of pinning anything. What a pinned line
+   * can carry is the answer to "what am I making right now", read from the same
+   * models the editors write — `describeGrid` for a piece's movement, `sentenceText`
+   * for what a record does — so it cannot drift from either.
+   */
+  function summaryLine(): string {
+    const parts: string[] = []
+    if (kind === 'piece') {
+      const grid = readGrid(draft)
+      if (grid) parts.push(describeGrid(t, grid))
+    }
+    const sentence = EFFECT_BEARING.includes(kind) ? readSentence(draft) : null
+    if (sentence) {
+      const said = sentenceText(t, sentence, kind)
+      if (said !== '') parts.push(said)
+    }
+    return parts.length === 0 ? t('ui.editor.form.summary-empty') : parts.join(' / ')
+  }
+
+  /** Every direction off. `slides` is a total record, so `{}` is not a valid value. */
+  const emptySlides = (): Record<Dir8, Cell> =>
+    Object.fromEntries(DIRECTIONS.map((d) => [d, Cell.None])) as Record<Dir8, Cell>
+
   /** How this piece moves, as one grid. See `PieceMoves.tsx` for the mapping. */
   function pieceGridView() {
     if (kind !== 'piece') return null
     const grid = readGrid(draft)
-    if (!grid) {
-      // Refusing to open beats flattening — see the header of `PieceMoves.tsx`.
-      return (
-        <div className="note-box" data-testid="editor-moves-complex">
-          <strong>{t('ui.editor.piece.complex')}</strong>
-          <p>{t('ui.editor.piece.complex-hint')}</p>
-        </div>
-      )
-    }
+    // Refusing to open beats flattening — see the header of `PieceMoves.tsx`. Only
+    // THIS control yields; the rest of the record stays editable, and the movement
+    // it could not read passes through the draft untouched.
+    if (!grid) return readOnlyMovesView()
 
     const commit = (next: PieceGrid) => {
       const written = writeGrid(next)
@@ -1194,6 +839,39 @@ export function RecordForm({
               </button>
             ))}
           </div>
+
+          {/* The forward mirror, on the grid at last (PLAN Phase 7).
+              `grid.forward` has been in this model since ADR-027 and `readGrid`
+              has always read it back — it simply had no control here, so the only
+              way to author it was the indexed pattern editor this phase deletes.
+              Deleting that without this would orphan a parameter the ADR-006 gate
+              measures, which is the same shape as `jump` and the opposite answer:
+              a mirror is observable in play (it is what makes a pawn a pawn),
+              where `step` and `jump` are not. */}
+          {/* Clear-all, restored onto the grid (PLAN Phase 7).
+              `editor-clear-movement` belonged to the indexed form, and deleting it
+              left no way to start a piece's movement over: every lit cell cycles
+              None -> Move -> Capture -> Both, so wiping a shipped piece's eight
+              directions meant twenty-four taps. The deletion created that gap; this
+              closes it rather than leaving it for someone to rediscover. */}
+          <button
+            type="button"
+            data-testid="piece-clear"
+            onClick={() => commit({ ...grid, cells: {}, slides: emptySlides() })}
+          >
+            {t('ui.editor.piece.clear')}
+          </button>
+
+          <label className="grid-forward">
+            {t('ui.editor.piece.forward')}
+            <input
+              type="checkbox"
+              data-testid="piece-forward"
+              checked={grid.forward}
+              onChange={() => commit({ ...grid, forward: !grid.forward })}
+            />
+          </label>
+          <p className="hint">{t('ui.editor.piece.forward-hint')}</p>
         </div>
 
         {/* The engine answers "where does it go", not this form (ADR-032). It
@@ -1231,60 +909,100 @@ export function RecordForm({
   }
 
   /** What this card does, as four blocks. See `CardRecipe.tsx`. */
-  function recipeView() {
-    if (kind !== 'ruleCard' && kind !== 'skillCard') return null
-    const recipe = readRecipe(draft)
-    if (!recipe) {
-      return (
-        <div className="note-box" data-testid="editor-recipe-complex">
-          <strong>{t('ui.editor.card.complex')}</strong>
-          <p>{t('ui.editor.card.complex-hint')}</p>
-        </div>
-      )
-    }
-    const hasTarget = takesTarget(recipe.then, ctx)
-    const slots: Array<{ id: SlotId; axis: string; value: string; disabled: boolean }> = [
-      // A skill card resolves only on its own play, so its trigger slot has one
-      // option. Shown inert rather than hidden: the sentence reads wrong without
-      // it, and "why does a rule card have four blocks and mine three" is a
-      // worse question than a greyed one.
-      { id: 'when', axis: 'trigger', value: recipe.when, disabled: kind === 'skillCard' },
-      { id: 'cond', axis: 'condition', value: recipe.cond, disabled: false },
-      { id: 'then', axis: 'action', value: recipe.then, disabled: false },
-      { id: 'who', axis: 'target', value: recipe.who, disabled: !hasTarget },
-    ]
-
+  /**
+   * Whether each half of the record can be depicted — asked SEPARATELY.
+   *
+   * An earlier version OR-ed the two and disabled the save button whenever either
+   * was unreadable. Two things killed that. First, a SHIPPED piece in one of the
+   * content sets carries two effects, so that piece became uneditable — a
+   * functional regression on shipped content, which is exactly what ADR-003's
+   * ordering exists to prevent, and which was invisible until the e2e suite ran
+   * because the measurement behind it had looked at one content set out of three.
+   * (The record is named in `recipe-bundled-coverage.test.ts`, not here: ADR-001
+   * keeps content ids out of the UI, and a comment counts.) Second, the
+   * save block was never load-bearing: a save writes the DRAFT, and the draft is a
+   * faithful clone. The flatten risk comes from an EDITOR rewriting a part it
+   * misread — the grid rewrites `movement`, the sentence rewrites `effects` — so
+   * suppressing the editor for the unreadable half is sufficient on its own, and
+   * byte-stability of that half is what proves it (AC-007's oracle, unchanged).
+   *
+   * So: each half yields to a read-only description independently, the other half
+   * stays editable, and saving stays enabled. A record whose movement cannot be
+   * drawn is still a record whose name, art and effects a child may fix.
+   */
+  const unshowableEffects = EFFECT_BEARING.includes(kind) && readSentence(draft) === null
+  /**
+   * The movement this screen cannot draw, in words.
+   *
+   * Not an empty box: the first version reused the effects description here, and
+   * for a piece with no effects that rendered a heading over an empty list — the
+   * screen claiming to say what the record does and saying nothing. Each pattern
+   * is named by its kind and how many squares it names, which is what the grid
+   * would have shown.
+   */
+  function readOnlyMovesView() {
+    const patterns = (draft.movement as Draft[] | undefined) ?? []
     return (
-      <fieldset className="card-recipe" data-testid="editor-recipe">
-        <legend>{t('ui.editor.card.recipe')}</legend>
-        <p className="hint">{t('ui.editor.card.recipe-hint')}</p>
-        {slots.map((slot) => (
-          <label key={slot.id} className="recipe-slot" data-slot={slot.id}>
-            <span className="recipe-label">{t(`ui.editor.card.slot.${slot.id}`)}</span>
-            <select
-              data-testid={`recipe-${slot.id}`}
-              value={slot.value}
-              disabled={slot.disabled}
-              onChange={(e) =>
-                update((d) => {
-                  d.effects = writeRecipe(d, slot.id, e.target.value, ctx)
-                })
-              }
-            >
-              {slot.disabled && slot.value === '' && <option value="">{t('ui.editor.card.slot.none')}</option>}
-              {optionsFor(slot.id, kind).map((option) => (
-                <option key={option} value={option}>
-                  {t(`ui.editor.vocab.${slot.axis}.${option}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-        <div className="note-box">
-          <span className="kicker">{t('ui.editor.card.reads-as')}</span>
-          <p data-testid="recipe-sentence">{recipeSentence(t, recipe, kind)}</p>
-        </div>
-      </fieldset>
+      <div className="note-box" data-testid="editor-readonly-moves">
+        <strong>{t('ui.editor.readonly.moves-title')}</strong>
+        <p>{t('ui.editor.readonly.hint')}</p>
+        <ul data-testid="editor-readonly-moves-lines">
+          {patterns.map((pattern, i) => (
+            <li key={i}>
+              {t('ui.editor.readonly.moves-line')
+                .replace('{kind}', t(`ui.editor.vocab.movement.${String(pattern.kind)}`))
+                .replace('{count}', String(((pattern.vectors as unknown[] | undefined) ?? []).length))}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  /**
+   * What the record does, in words, with nothing to edit.
+   *
+   * Not "this was made in the detailed form" — that named a destination and told
+   * the child nothing about what they had opened. Every effect is described
+   * through the same formatter the editable sentence uses, so the two cannot say
+   * different things about the same effect.
+   */
+  function readOnlyView() {
+    return (
+      <div className="note-box" data-testid="editor-readonly">
+        <strong>{t('ui.editor.readonly.title')}</strong>
+        <p>{t('ui.editor.readonly.hint')}</p>
+        <ul data-testid="editor-readonly-lines">
+          {describeRecord(t, draft, kind).map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  /**
+   * What this record does, as one sentence (ADR-001/007).
+   *
+   * The four-slot `<select>` view this replaces could not say six things the
+   * vocabulary contains, which is why a second tab existed. `SentenceEditor` owns
+   * the whole grammar; this function owns only the decision to show it, and the
+   * refusal when the record is one the sentence cannot depict.
+   */
+  function recipeView() {
+    // Every kind whose schema admits effects, not just the two card kinds
+    // (PLAN Phase 3). The four-slot view was gated to `ruleCard | skillCard`,
+    // which left `squareType` with NO easy front door at all: a special square's
+    // whole content IS its effects, and the only editor it ever had was the
+    // indexed palette. `piece` gains the same sentence for the effects it may
+    // carry, beside its move grid.
+    if (!EFFECT_BEARING.includes(kind)) return null
+    // Only THIS half yields. The grid keeps its own answer (`unshowableMoves`),
+    // and a record whose effects cannot be drawn is still one whose movement,
+    // name and art a child may fix.
+    if (unshowableEffects) return readOnlyView()
+    return (
+      <SentenceEditor draft={draft} kind={kind} ctx={ctx} t={t} pieceLabel={pieceLabel} update={update} />
     )
   }
 
@@ -1384,57 +1102,48 @@ export function RecordForm({
       {textField('id', 'editor-id', 'ui.editor.field.id')}
       <p className="hint">{t('ui.editor.field.id-hint')}</p>
 
-      <details className="advanced" data-testid="editor-advanced">
-        <summary>{t('ui.editor.form.advanced')}</summary>
-        {textField('nameKey', 'editor-nameKey', 'ui.editor.field.name-slot', false)}
-        {HAS_TEXT.includes(kind) && textField('textKey', 'editor-textKey', 'ui.editor.field.text-slot', false)}
-      </details>
+      {/* The `editor-advanced` disclosure and its two raw KEY slots are gone (PLAN
+          Phase 7).
+          Nothing on this screen has to be opened before it can be used, which is the
+          last clause of AC-001.
+          What that removes, deliberately: the ability to point a record at a key in
+          someone else's namespace by hand. `slotFor` still DERIVES a missing key
+          from the id at save time, and the rename path still re-points a record's own
+          keys when its id changes — so every key a child can produce is
+          `<their id>.name`. Editing a foreign key is now an export/import job, which
+          is a maintainer's task and not a child's.
+          It also removes the only UI route to an INVALID key, which two tests were
+          named after; both now author an invalid `id` instead, because that is a
+          field a child can actually type into. */}
 
-      {/* Two windows onto ONE draft (ADR-030). They read the same state, so the
-          grid always shows whatever `movement` holds and neither can drift from
-          the other; an expert-tab edit the grid cannot depict turns the grid
-          into its refusal note at that moment rather than at open time.
+      {/* ONE surface (PLAN Phase 6). The tab strip and the two `form-panel`
+          wrappers are gone; every control they held renders unconditionally, in a
+          deliberate order — picture, then what the record DOES, then the small
+          scalars, then the per-kind machinery, then the errors and the save.
 
-          Both panels stay MOUNTED — only `hidden` moves. Unmounting the expert
-          panel would break the ADR-006 vocabulary-coverage gate, which reaches
-          its controls by test id, exactly as `editor-draft-json` below is read
-          while hidden. */}
-      {/* What the save button WOULD say, said now (ADR-033). Same validator,
-          same errors, earlier — a child should not have to press a button to
-          discover that the id they typed already belongs to something else.
-          The save path is still the authority; this only reads it sooner. */}
-      {liveErrors.length > 0 && (
-        <ul className="refusal" data-testid="editor-live-errors">
-          {liveErrors.map((e) => (
-            <li key={`${e.path}:${e.message}`}>{e.message}</li>
-          ))}
-        </ul>
-      )}
+          The wrappers were not the effects palette's container. `form-panel-expert`
+          also held `royal`, `promotion`, the indexed movement editor, the `attack`
+          grid, the whole board painter and the room controls — and for `board` and
+          `preset` it was never hidden, so it WAS their only surface. Unwrapping it
+          therefore deletes nothing; PLAN Phase 7 does the deleting, and its scope
+          names these five explicitly as things it must NOT touch.
 
-      {/* A board and a room have no simple maker — no art, no move grid, no
-          four-slot recipe — so for those kinds the tabs would offer a simple tab
-          that is entirely empty and hide the only form there is behind the
-          expert one. Splitting a screen that has one half is worse than not
-          splitting it. */}
-      {hasSimple && (
-        <div className="form-tabs" role="tablist">
-          {(['simple', 'expert'] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              data-testid={`form-tab-${id}`}
-              data-selected={tab === id}
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-            >
-              {t(`ui.editor.form.tab.${id}`)}
-            </button>
-          ))}
-        </div>
-      )}
+          ADR-030's "two windows onto one draft" is retired by construction rather
+          than by argument: there is one window now, so nothing can drift. */}
+      {/* The three anchors (PLAN Phase 8). On a 390x844 phone this form is several
+          screens tall, so what the child is making, why they cannot save, and the
+          save itself have to stay reachable from anywhere in it.
 
-      <div className="form-panel" data-testid="form-panel-simple" hidden={hasSimple && tab !== 'simple'}>
+          Sticky resolves against the nearest scrolling ancestor, which is `.editor`
+          (`overflow-y: auto`). `.phone`'s `overflow: hidden` sits OUTSIDE that, so it
+          is not the scrollport here — the arrangement that produced
+          `[fail:render] sticky-inert-under-overflow-ancestor` was the other way
+          round, with the unwanted scrollport nearer than the intended one. */}
+      <div className="form-summary" data-testid="form-summary">
+        <span className="kicker">{t('ui.editor.form.summary')}</span>
+        <p data-testid="form-summary-text">{summaryLine()}</p>
+      </div>
+
         {artPicker()}
         {pieceGridView()}
         {recipeView()}
@@ -1466,9 +1175,6 @@ export function RecordForm({
             />
           </label>
         )}
-      </div>
-
-      <div className="form-panel" data-testid="form-panel-expert" hidden={hasSimple && tab !== 'expert'}>
 
       {/* The `cost` control is gone as of schema v8. It let an author type their
           own balance number, which nothing ever read — and a number the author
@@ -1537,69 +1243,20 @@ export function RecordForm({
             </select>
           </label>
 
-          <fieldset>
-            <legend>{t('ui.editor.movement.legend')}</legend>
-            <button
-              type="button"
-              data-testid="editor-clear-movement"
-              onClick={() =>
-                update((d) => {
-                  d.movement = []
-                })
-              }
-            >
-              {t('ui.editor.movement.clear')}
-            </button>
-            {palette('movement', 'ui.editor.movement.add')}
-            {patterns.map((p, i) => (
-              <button
-                key={i}
-                type="button"
-                data-testid={`movement-select-${i}`}
-                data-selected={i === patternIndex}
-                onClick={() => setPatternIndex(i)}
-              >
-                {t(`ui.editor.vocab.movement.${String(p.kind)}`)}
-              </button>
-            ))}
-            {currentPattern && (
-              <>
-                {vectorGrid('move-cell', (currentPattern.vectors as number[][] | undefined) ?? [], (df, dr) =>
-                  update((d) => {
-                    const p = (d.movement as Draft[])[patternIndex]!
-                    p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
-                  }),
-                )}
-                {numberField('param-move-maxDistance', 'ui.editor.movement.max', currentPattern.maxDistance, (n) =>
-                  update((d) => {
-                    const p = (d.movement as Draft[])[patternIndex]!
-                    if (n === null) delete p.maxDistance
-                    else p.maxDistance = n
-                  }),
-                )}
-                <label>
-                  {t('ui.editor.movement.forward')}
-                  <input
-                    type="checkbox"
-                    data-testid="param-move-forward"
-                    checked={currentPattern.forward === true}
-                    onChange={() =>
-                      update((d) => {
-                        const p = (d.movement as Draft[])[patternIndex]!
-                        if (p.forward === true) delete p.forward
-                        else p.forward = true
-                      })
-                    }
-                  />
-                </label>
-              </>
-            )}
-            {fieldError('movement')}
-          </fieldset>
+          {/* The indexed pattern editor is GONE (PLAN Phase 7). It was the only
+              control that could author a `jump`, a second pattern with its own
+              reach cap, or a per-pattern `forward` — and each of those was either
+              retired (ADR-006) or moved onto the grid, where the model already
+              held it. `fieldError('movement')` moves to the grid, which is now the
+              only thing that writes `movement`. */}
 
           <fieldset>
             <legend>{t('ui.editor.attack.legend')}</legend>
-            {(['slide', 'step', 'jump'] as const).map((k) => (
+            {/* No `jump`, matching `MOVEMENT_KINDS` (ADR-006). An attack pattern
+                is a movement pattern, so offering a distinction here that the
+                movement axis just retired would be the same unobservable choice
+                wearing a different label. */}
+            {(['slide', 'step'] as const).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -1627,83 +1284,12 @@ export function RecordForm({
         </>
       )}
 
-      {EFFECT_BEARING.includes(kind) && (
-        <fieldset>
-          <legend>{t('ui.editor.effects.legend')}</legend>
-          <button
-            type="button"
-            data-testid="editor-add-effect"
-            onClick={() => {
-              update((d) => {
-                const list = (d.effects as Draft[] | undefined) ?? []
-                // No trigger: an effect that has not been told WHEN it fires is
-                // unfinished, and seeding one would silently author a lifecycle
-                // choice the author never made.
-                list.push({ condition: { kind: 'always' }, actions: [] })
-                d.effects = list
-              })
-              setEffectIndex(effects(draft).length)
-              setActionIndex(0)
-            }}
-          >
-            {t('ui.editor.effects.add')}
-          </button>
-          {effects(draft).map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              data-testid={`editor-effect-${i}`}
-              data-selected={i === effectIndex}
-              onClick={() => {
-                setEffectIndex(i)
-                setActionIndex(0)
-              }}
-            >
-              {`${t('ui.editor.effects.item')} ${i + 1}`}
-            </button>
-          ))}
-
-          {palette('trigger', 'ui.editor.palette.trigger')}
-          {palette('condition', 'ui.editor.palette.condition')}
-          {conditionParams()}
-          {palette('forEach', 'ui.editor.palette.forEach')}
-          {currentEffect?.forEach !== undefined && (
-            <>
-              {pieceSelect('param-foreach-pieceId', (currentEffect.forEach as Draft).pieceId, (id) =>
-                update((d) => {
-                  ;(effect(d)!.forEach as Draft).pieceId = id
-                }),
-              )}
-              {sideSelect(
-                'param-foreach-side',
-                (currentEffect.forEach as Draft).side,
-                (s) =>
-                  update((d) => {
-                    ;(effect(d)!.forEach as Draft).side = s
-                  }),
-                true,
-              )}
-            </>
-          )}
-
-          {palette('action', 'ui.editor.palette.action')}
-          {actions(draft).map((a, i) => (
-            <button
-              key={i}
-              type="button"
-              data-testid={`editor-action-${i}`}
-              data-selected={i === actionIndex}
-              onClick={() => setActionIndex(i)}
-            >
-              {t(`ui.editor.vocab.action.${String(a.kind)}`)}
-            </button>
-          ))}
-          {palette('target', 'ui.editor.palette.target')}
-          {palette('destination', 'ui.editor.palette.destination')}
-          {actionParams()}
-          {fieldError('effects')}
-        </fieldset>
-      )}
+      {/* The indexed effects palette is GONE (PLAN Phase 7): the effect index
+          cursor, the action index cursor, the five palettes and their parameter
+          blocks. Everything it authored is in the sentence, which the ADR-006
+          gate now measures directly — and the shape it authored that nothing
+          uses, a record with several effects, falls to the read-only path rather
+          than to a second form. */}
 
       {kind === 'board' && (
         <fieldset>
@@ -1813,18 +1399,30 @@ export function RecordForm({
         </fieldset>
       )}
 
+      {/* Why you cannot save, next to the save (PLAN Phase 8). They were three
+          separate places in the flow — an error list near the top, the button at the
+          bottom — which on a tall form meant scrolling between the refusal and the
+          control it refuses. One bar, pinned. */}
+      <div className="form-actions" data-testid="form-actions">
+        {liveErrors.length > 0 && (
+          <ul className="refusal" data-testid="editor-live-errors">
+            {liveErrors.map((e) => (
+              <li key={`${e.path}:${e.message}`}>{e.message}</li>
+            ))}
+          </ul>
+        )}
+
+        {subjectDeleted && (
+          <p className="refusal" data-testid="editor-deleted-notice">
+            {t('ui.editor.form.deleted')}
+          </p>
+        )}
+
+        <button type="button" data-testid="editor-save" onClick={save} disabled={subjectDeleted}>
+          {t('ui.editor.form.save')}
+        </button>
+        {saved && <p data-testid="editor-saved">{t('ui.editor.form.saved')}</p>}
       </div>
-
-      {subjectDeleted && (
-        <p className="refusal" data-testid="editor-deleted-notice">
-          {t('ui.editor.form.deleted')}
-        </p>
-      )}
-
-      <button type="button" data-testid="editor-save" onClick={save} disabled={subjectDeleted}>
-        {t('ui.editor.form.save')}
-      </button>
-      {saved && <p data-testid="editor-saved">{t('ui.editor.form.saved')}</p>}
 
       {/* The draft's raw JSON stays in the DOM and off the screen (#19).
           A child reading `{"movement":[{"kind":"step"...` learns nothing and is

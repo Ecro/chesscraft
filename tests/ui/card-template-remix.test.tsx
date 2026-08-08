@@ -96,9 +96,11 @@ describe('AC-010 — every template opens in the recipe view', () => {
     expect(screen.getByTestId('gallery-templates')).toBeTruthy()
     fireEvent.click(screen.getByTestId(`gallery-template-${first.stem}`))
 
-    // The four-slot view opened rather than the refusal note.
+    // The sentence opened rather than the refusal note. (`editor-recipe` was the
+    // four-slot fieldset this replaced; the claim is unchanged — a template must
+    // land the child in the maker, not in a note about it.)
     expect(screen.queryByTestId('editor-recipe-complex')).toBeNull()
-    expect(screen.getByTestId('editor-recipe')).toBeTruthy()
+    expect(screen.getByTestId('editor-sentence')).toBeTruthy()
 
     const draft = JSON.parse(screen.getByTestId('editor-draft-json').textContent ?? 'null')
     const recipe = readRecipe(draft)

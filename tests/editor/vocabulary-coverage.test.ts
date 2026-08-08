@@ -59,6 +59,13 @@ interface Row {
   /** Clicked before this entry's control, in order. */
   requires?: string[]
   params?: Param[]
+  /**
+   * The test id of the control that authors this entry, when the mechanical
+   * axis→slot mapping does not apply. `not` is a per-leaf toggle and `all`/`any`
+   * are the join operator between two leaves, so none of the three is an option
+   * in the condition slot's own sheet (ADR-007).
+   */
+  reachTestId?: string
   /** Dotted path into the draft that this control owns. */
   path: string
   /** The exact value that must be there afterwards. */
@@ -279,28 +286,64 @@ const ROWS: readonly Row[] = [
     authored: { kind: 'piece_count_at_most', side: 'mover', n: 2 },
   },
   {
+    // Authored as a toggle on the leaf it inverts, not as an option in a list:
+    // "not" is not a condition a child picks, it is something they say about one.
     axis: 'condition',
     kind: 'not',
     host: 'piece',
     requires: [...EFFECT, 'vocab-condition-piece_side'],
+    reachTestId: 'slot-not',
     path: 'effects.0.condition',
     authored: { kind: 'not', of: { kind: 'piece_side', side: 'mover' } },
   },
   {
+    // TWO operands, where the palette produced one.
+    //
+    // `{kind:'all', of:[x]}` — a conjunction of a single thing — was an artifact
+    // of a control that wrapped whatever condition happened to be selected. The
+    // sentence joins two leaves, which is the only shape that means anything to a
+    // reader, so the authored value moves with it. The entry is still authorable,
+    // which is what this gate measures. `op` defaults to `all` the moment a second
+    // leaf exists, so the row switches to `any` first and proves the control
+    // switches it back.
     axis: 'condition',
     kind: 'all',
     host: 'piece',
-    requires: [...EFFECT, 'vocab-condition-piece_side'],
+    requires: [
+      ...EFFECT,
+      'vocab-condition-piece_side',
+      'slot-cond2',
+      'opt-cond2-on_own_rank',
+      'slot-op',
+      'opt-op-any',
+    ],
+    reachTestId: 'opt-op-all',
     path: 'effects.0.condition',
-    authored: { kind: 'all', of: [{ kind: 'piece_side', side: 'mover' }] },
+    authored: {
+      kind: 'all',
+      of: [
+        { kind: 'piece_side', side: 'mover' },
+        { kind: 'on_own_rank', n: 1 },
+      ],
+    },
   },
   {
+    // Same two-operand move as `all` above. No discriminating click is needed
+    // here: adding a second leaf defaults the join to `all`, so `any` is never
+    // already sitting at the path.
     axis: 'condition',
     kind: 'any',
     host: 'piece',
-    requires: [...EFFECT, 'vocab-condition-piece_side'],
+    requires: [...EFFECT, 'vocab-condition-piece_side', 'slot-cond2', 'opt-cond2-on_own_rank', 'slot-op'],
+    reachTestId: 'opt-op-any',
     path: 'effects.0.condition',
-    authored: { kind: 'any', of: [{ kind: 'piece_side', side: 'mover' }] },
+    authored: {
+      kind: 'any',
+      of: [
+        { kind: 'piece_side', side: 'mover' },
+        { kind: 'on_own_rank', n: 1 },
+      ],
+    },
   },
 
   // --- actions ------------------------------------------------------------
@@ -370,7 +413,9 @@ const ROWS: readonly Row[] = [
     host: 'skillCard',
     requires: ['editor-add-effect'],
     params: [
-      { testid: 'param-pattern-jump' },
+      // `step`, not `jump`: ADR-006 retires `jump` from the authorable
+      // vocabulary, and the engine gives the two the same `maxSteps` anyway.
+      { testid: 'param-pattern-step' },
       { testid: 'param-pattern-cell-2_1' },
       { testid: 'param-duration', value: '3' },
     ],
@@ -378,7 +423,7 @@ const ROWS: readonly Row[] = [
     authored: {
       kind: 'grant_movement',
       target: { kind: 'self' },
-      pattern: { kind: 'jump', vectors: [[2, 1]] },
+      pattern: { kind: 'step', vectors: [[2, 1]] },
       duration: 3,
     },
   },
@@ -424,33 +469,50 @@ const ROWS: readonly Row[] = [
   // --- movement patterns --------------------------------------------------
   // A blank piece starts with one step pattern (a piece that cannot move is not
   // a draft anyone wants), so an authored pattern lands at index 1.
+  // Authored through the GRID now, not the indexed pattern editor (PLAN Phase 7
+  // deleted it). Two consequences the paths record honestly:
+  //
+  //  - `writeGrid` emits `[slide?, step?]` in that order, so a slide lands at
+  //    index 0, not 1. The old `movement.1` was an artifact of an editor that
+  //    appended patterns to whatever was already there.
+  //  - `forward` is ONE flag over the whole grid, not per pattern, so the step row
+  //    below carries it on the pattern it asserts and the slide row does not set
+  //    it at all. `readGrid` refuses a record whose patterns disagree about
+  //    `forward`, which is why a per-pattern control was never coherent here.
   {
     axis: 'movement',
     kind: 'slide',
     host: 'piece',
-    params: [
-      { testid: 'move-cell-0_1' },
-      { testid: 'param-move-maxDistance', value: '2' },
-    ],
-    path: 'movement.1',
+    // A direction toggle plus a reach. The blank piece's seeded step stays lit at
+    // (0,1), so it is emitted after the slide.
+    reachTestId: 'piece-slide-n',
+    params: [{ testid: 'piece-reach-2' }],
+    path: 'movement.0',
     authored: { kind: 'slide', vectors: [[0, 1]], maxDistance: 2 },
   },
   {
     axis: 'movement',
     kind: 'step',
     host: 'piece',
-    params: [{ testid: 'move-cell-1_1' }, { testid: 'param-move-forward' }],
-    path: 'movement.1',
-    authored: { kind: 'step', vectors: [[1, 1]], forward: true },
+    // Lighting a second cell; the seed at (0,1) is part of the authored value,
+    // which is the grid meaning exactly what it shows (ADR-027).
+    reachTestId: 'piece-cell-1,1',
+    params: [{ testid: 'piece-forward' }],
+    path: 'movement.0',
+    authored: {
+      kind: 'step',
+      vectors: [
+        [0, 1],
+        [1, 1],
+      ],
+      forward: true,
+    },
   },
-  {
-    axis: 'movement',
-    kind: 'jump',
-    host: 'piece',
-    params: [{ testid: 'move-cell-1_2' }],
-    path: 'movement.1',
-    authored: { kind: 'jump', vectors: [[1, 2]] },
-  },
+  // `movement: jump` is GONE, not moved (ADR-006 of PLAN-unified-create-ux).
+  // `MOVEMENT_KINDS` no longer enumerates it, so `goldenKeys` — derived from these
+  // rows — must not either, or the two identity tests above go red. The schema
+  // still accepts `jump` and shipped documents still play; what retired is the
+  // ability to CHOOSE it, because the engine cannot tell it from `step`.
 
   // --- the forEach quantifier (schema v2) ---------------------------------
   {
@@ -502,9 +564,11 @@ const FIELD_ROWS: readonly FieldRow[] = [
     // the fixtures have been built around since Phase 1.
     host: 'piece',
     what: 'attack',
-    params: [{ testid: 'attack-kind-jump' }, { testid: 'attack-cell-2_0' }],
+    // `step`, not `jump`: an attack pattern is a movement pattern, and ADR-006
+    // retired that distinction on both axes rather than on one.
+    params: [{ testid: 'attack-kind-step' }, { testid: 'attack-cell-2_0' }],
     path: 'attack',
-    authored: [{ kind: 'jump', vectors: [[2, 0]] }],
+    authored: [{ kind: 'step', vectors: [[2, 0]] }],
   },
   { host: 'squareType', what: 'paired', params: [{ testid: 'editor-paired' }], path: 'paired', authored: true },
   // `ruleCard.cost` and `skillCard.cost` used to be rows here. They were removed
@@ -568,8 +632,75 @@ function expectEnabled(el: Element, testid: string) {
   expect(el.getAttribute('disabled'), `${testid} is present but disabled`).toBeNull()
 }
 
+/**
+ * PLAN Phase 5 — the gate now measures the SENTENCE, not the indexed form.
+ *
+ * The 38 rows below are unchanged, and deliberately so: each one states which
+ * vocabulary entry it covers, where that entry lands in the draft, and what
+ * discriminates it from a default. None of that is affected by which control the
+ * author reaches it through. What changes is the reach, and it changes here, once,
+ * rather than 38 times — a hand-edited row is a row whose intent can drift from
+ * its comment while still passing.
+ *
+ * The translation is mechanical: a `vocab-<axis>-<kind>` id becomes "open the
+ * sentence slot that owns that axis, then choose that entry in its sheet", and a
+ * `param-*` id becomes its `s-param-*` twin inside the sheet. `editor-add-effect`
+ * disappears because the sentence always has exactly one effect to edit.
+ *
+ * The `movement` axis is NOT translated. It has no sentence slot — a piece's
+ * movement is the grid, not a clause — so those three rows still reach the indexed
+ * editor. Phase 7 handles them together with ADR-006's retirement of `jump`; until
+ * then they keep the axis measured rather than briefly unmeasured, which is the
+ * whole point of ADR-003's ordering.
+ */
+const SLOT_OF: Partial<Record<VocabAxis, string>> = {
+  trigger: 'when',
+  condition: 'cond',
+  action: 'then',
+  target: 'who',
+  destination: 'where',
+  forEach: 'each',
+}
+
+/** Opens a slot's sheet the way a child does, and returns its option button. */
+function openOption(slot: string, kind: string): Element {
+  const chip = screen.getByTestId(`slot-${slot}`)
+  expectEnabled(chip, `slot-${slot}`)
+  // `Sheet` captures `document.activeElement` to restore focus on close, and a
+  // real tap focuses the button first; jsdom's click does not.
+  ;(chip as HTMLElement).focus()
+  fireEvent.click(chip)
+  return screen.getByTestId(`opt-${slot}-${kind}`)
+}
+
+/** `vocab-<axis>-<kind>` → the sentence slot and entry that now author it. */
+function retarget(testid: string): { slot: string; kind: string } | null {
+  const parsed = /^vocab-([A-Za-z]+)-(.+)$/.exec(testid)
+  if (parsed === null) return null
+  const slot = SLOT_OF[parsed[1] as VocabAxis]
+  return slot === undefined ? null : { slot, kind: parsed[2]! }
+}
+
+/** The control this axis/kind is reached through, opening its sheet if needed. */
+export function reach(axis: VocabAxis, kind: string): Element {
+  const slot = SLOT_OF[axis]
+  if (slot === undefined) return screen.getByTestId(controlTestId(axis, kind))
+  return openOption(slot, kind)
+}
+
 function clickAll(testids: readonly string[] | undefined) {
   for (const testid of testids ?? []) {
+    // The sentence has one effect and always has it; there is nothing to add.
+    if (testid === 'editor-add-effect') continue
+
+    const moved = retarget(testid)
+    if (moved !== null) {
+      const option = openOption(moved.slot, moved.kind)
+      expectEnabled(option, `opt-${moved.slot}-${moved.kind}`)
+      fireEvent.click(option)
+      continue
+    }
+
     const el = screen.getByTestId(testid)
     // A disabled prerequisite silently no-ops and the row fails somewhere else
     // entirely, so it is checked here rather than diagnosed downstream.
@@ -578,10 +709,23 @@ function clickAll(testids: readonly string[] | undefined) {
   }
 }
 
-function applyParams(params: readonly Param[] | undefined) {
+/**
+ * A row's parameter id, inside the sheet.
+ *
+ * `s-param-*` rather than `param-*` because the indexed form still renders its own
+ * copies until Phase 7 deletes them, and two nodes sharing a test id makes every
+ * `getByTestId` here ambiguous. Ids that are not parameters (grid cells, record
+ * fields) pass through untouched.
+ */
+function sentenceParam(testid: string): string {
+  return testid.startsWith('param-') ? `s-${testid}` : testid
+}
+
+function applyParams(params: readonly Param[] | undefined, translate = true) {
   for (const param of params ?? []) {
-    const el = screen.getByTestId(param.testid)
-    expectEnabled(el, param.testid)
+    const testid = translate ? sentenceParam(param.testid) : param.testid
+    const el = screen.getByTestId(testid)
+    expectEnabled(el, testid)
     if (param.value === undefined) fireEvent.click(el)
     else fireEvent.change(el, { target: { value: param.value } })
   }
@@ -591,12 +735,34 @@ function readDraft(): unknown {
   return JSON.parse(screen.getByTestId('editor-draft-json').textContent ?? 'null')
 }
 
+/**
+ * Gives the draft an id, which is now the whole of naming it.
+ *
+ * The two raw KEY fields are gone (PLAN Phase 7 of unified-create-ux), so a key is
+ * DERIVED from the id at save time by `slotFor`. The draft therefore still carries
+ * empty keys while the committed record carries `<id>.name` — a documented
+ * transformation, not a discrepancy, and `derivedKeys` below is where the row
+ * assertions account for it. Stated as a literal rather than by calling `deriveKey`:
+ * an expectation computed with the function under test cannot fail with it.
+ */
 function nameDraft(id: string, host: DraftKind) {
   fireEvent.change(screen.getByTestId('editor-id'), { target: { value: id } })
-  fireEvent.change(screen.getByTestId('editor-nameKey'), { target: { value: `${id}.name` } })
+  // The human fields, which is the only naming path left. `slotFor` derives a key
+  // ONLY for a slot the author actually typed into (`if (!s.active || !s.typed)
+  // continue`) — so a draft with an id and no words keeps empty keys and fails the
+  // i18n-key regex on save. That is correct behaviour, and it means this helper has
+  // to do what a child does rather than what the old raw slots did.
+  fireEvent.change(screen.getByTestId('editor-name'), { target: { value: `이름 ${id}` } })
   if (host !== 'board' && host !== 'preset') {
-    fireEvent.change(screen.getByTestId('editor-textKey'), { target: { value: `${id}.text` } })
+    fireEvent.change(screen.getByTestId('editor-text'), { target: { value: `설명 ${id}` } })
   }
+}
+
+/** What the save adds to a draft that never named its own keys. */
+function derivedKeys(id: string, host: DraftKind): Record<string, string> {
+  const keys: Record<string, string> = { nameKey: `${id}.name` }
+  if (host !== 'board' && host !== 'preset') keys.textKey = `${id}.text`
+  return keys
 }
 
 afterEach(cleanup)
@@ -612,20 +778,20 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
     expect([...controls].sort()).toEqual([...goldenKeys].sort())
   })
 
-  it('seeds a blank piece with exactly one starter pattern, which the movement rows index past', () => {
-    // The movement rows assert `movement.1`, so the seed at index 0 is part of
-    // the contract, not an accident of an implementation. Asserted here rather
-    // than assumed there: a seed that silently changes shape would otherwise
-    // shift every movement row's index and fail for the wrong reason, and a
-    // seed nobody declared would ship a placeholder pattern on every piece an
-    // author never opened the grid for.
+  it('seeds a blank piece with exactly one starter pattern, which the movement rows build on', () => {
+    // The movement rows author through the GRID now (PLAN Phase 7 deleted the
+    // indexed editor), and the grid emits `[slide?, step?]` — so the seed is part
+    // of what those rows assert rather than something they index past. Asserted
+    // here rather than assumed there: a seed that silently changed shape would
+    // fail those rows for the wrong reason, and a seed nobody declared would ship
+    // a placeholder pattern on every piece an author never opened the grid for.
     mount(sliceContentSource)
     fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
 
     const blank = readDraft()
     expect(at(blank, 'movement')).toEqual([{ kind: 'step', vectors: [[0, 1]] }])
     // And it is visible in the grid, so the author can see and remove it.
-    expect(screen.getByTestId('move-cell-0_1').getAttribute('data-on')).toBe('true')
+    expect(screen.getByTestId('piece-cell-0,1').getAttribute('aria-pressed')).toBe('true')
   })
 
   it('names every control with a stable, collision-free test id', () => {
@@ -649,8 +815,11 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       if (axis !== 'trigger' && addEffect >= 0) requires.splice(addEffect + 1, 0, TRIGGER_CLICK[row.host]!)
       clickAll(requires)
 
-      const testid = controlTestId(axis, kind)
-      const button = screen.getByTestId(testid)
+      // Reached through the sentence for every axis that has a slot; the
+      // `movement` axis still reaches the indexed editor (see `reach`).
+      const inSentence = SLOT_OF[axis] !== undefined
+      const testid = row.reachTestId ?? (inSentence ? `opt-${SLOT_OF[axis]}-${kind}` : controlTestId(axis, kind))
+      const button = row.reachTestId === undefined ? reach(axis, kind) : screen.getByTestId(row.reachTestId)
       expectEnabled(button, `${testid} in ${row.host}`)
 
       // The anti-tautology guard, and the reason no row needs to argue its own
@@ -664,10 +833,10 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       ).not.toEqual(row.authored)
 
       fireEvent.click(button)
-      applyParams(row.params)
+      applyParams(row.params, inSentence)
       nameDraft(`${PREFIX[row.host]}.probe-${axis.toLowerCase()}-${kind.replace(/_/g, '-')}`, row.host)
 
-      const authored = readDraft()
+      const authored = readDraft() as Record<string, unknown>
       expect(at(authored, row.path), `wrong value at ${row.path}; draft was ${JSON.stringify(authored)}`).toEqual(
         row.authored,
       )
@@ -677,7 +846,7 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       expect(committed.value, 'save produced no content').not.toBeNull()
 
       const id = `${PREFIX[row.host]}.probe-${axis.toLowerCase()}-${kind.replace(/_/g, '-')}`
-      expect(openDraft(committed.value!, row.host, id)).toEqual(authored)
+      expect(openDraft(committed.value!, row.host, id)).toEqual({ ...authored, ...derivedKeys(id, row.host) })
     })
   })
 
@@ -691,11 +860,11 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
         at(readDraft(), row.path),
         `${row.path} already holds the asserted value before the control was touched`,
       ).not.toEqual(row.authored)
-      applyParams(row.params)
+      applyParams(row.params, false)
       const id = `${PREFIX[row.host]}.probe-${row.what.replace(/[^a-z]+/g, '-')}`
       nameDraft(id, row.host)
 
-      const authored = readDraft()
+      const authored = readDraft() as Record<string, unknown>
       expect(at(authored, row.path), `wrong value at ${row.path}; draft was ${JSON.stringify(authored)}`).toEqual(
         row.authored,
       )
@@ -703,7 +872,7 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       fireEvent.click(screen.getByTestId('editor-save'))
       expect(screen.queryByTestId('editor-errors')?.textContent ?? '', `saving ${label} was rejected`).toBe('')
       expect(committed.value, 'save produced no content').not.toBeNull()
-      expect(openDraft(committed.value!, row.host, id)).toEqual(authored)
+      expect(openDraft(committed.value!, row.host, id)).toEqual({ ...authored, ...derivedKeys(id, row.host) })
     })
   })
 })
@@ -846,13 +1015,14 @@ describe('AC-008 — the split movement controls are covered too', () => {
     fireEvent.click(screen.getByTestId('piece-cell-1,2'))
     nameDraft(id, 'piece')
 
-    const authored = readDraft()
+    const authored = readDraft() as Record<string, unknown>
     fireEvent.click(screen.getByTestId('editor-save'))
     expect(screen.queryByTestId('editor-errors')?.textContent ?? '', `${dir}/${reach} was rejected`).toBe('')
     expect(committed.value, 'save produced no content').not.toBeNull()
-    expect(openDraft(committed.value!, 'piece', id), `${dir}/${reach} did not survive the round trip`).toEqual(
-      authored,
-    )
+    expect(openDraft(committed.value!, 'piece', id), `${dir}/${reach} did not survive the round trip`).toEqual({
+      ...authored,
+      ...derivedKeys(id, 'piece'),
+    })
     return authored
   }
 
@@ -868,16 +1038,22 @@ describe('AC-008 — the split movement controls are covered too', () => {
     else expect(slide?.maxDistance).toBe(Number(reach))
   })
 
-  it('the expert tab is reachable without the simple maker having refused anything', () => {
+  it('has ONE set of movement controls, not a simple one and a detailed one', () => {
     openPiece()
-    // The simple maker opened — it did not put up its refusal note.
-    expect(screen.queryByTestId('editor-moves-complex')).toBeNull()
+    // The grid opened — it did not put up its refusal note.
+    expect(screen.queryByTestId('editor-readonly-moves')).toBeNull()
     expect(screen.getByTestId('editor-moves')).toBeTruthy()
-    // And the detailed controls are there anyway, in their own tab.
-    const expertTab = screen.getByTestId('form-tab-expert')
-    expectEnabled(expertTab, 'form-tab-expert')
-    fireEvent.click(expertTab)
-    expect(screen.getByTestId('form-panel-expert').hasAttribute('hidden')).toBe(false)
-    expect(screen.getByTestId('form-panel-simple').hasAttribute('hidden')).toBe(true)
+
+    // This asserted `form-tab-expert` and two `hidden` flags, then (Phase 6) that
+    // the indexed controls sat on the same surface. Phase 7 deleted them, so the
+    // claim is now the simpler one the whole PLAN was for: there is one way to say
+    // how a piece moves, and every part of it is on screen at once.
+    expect(screen.queryByTestId('form-tab-expert')).toBeNull()
+    expect(screen.queryByTestId('editor-clear-movement')).toBeNull()
+    expect(screen.queryByTestId('movement-select-0')).toBeNull()
+    expect(screen.queryByTestId('editor-add-effect')).toBeNull()
+    expectEnabled(screen.getByTestId('piece-cell-1,2'), 'piece-cell-1,2')
+    expectEnabled(screen.getByTestId('piece-slide-n'), 'piece-slide-n')
+    expectEnabled(screen.getByTestId('piece-forward'), 'piece-forward')
   })
 })

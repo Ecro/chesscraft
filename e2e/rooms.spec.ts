@@ -1,6 +1,7 @@
 import { type Page, expect, test } from '@playwright/test'
 import { useSliceContent } from './content'
 import { buildStep, chooseRoom, fillRoom, goEditor, startMatch, startBlank } from './nav'
+import { say, sayParam } from './sentence'
 
 /**
  * Into the detailed controls (ADR-031, AC-008).
@@ -12,13 +13,14 @@ import { buildStep, chooseRoom, fillRoom, goEditor, startMatch, startBlank } fro
  * not, which is why the vocabulary-coverage gate needed no such step and this
  * suite did.
  *
- * Guarded, because only a piece, a rule card and a skill card have tabs at all:
- * a special square's whole content IS its effects, and a board or a room has no
- * simple maker, so those kinds render one column with nothing to switch to.
+ * Was a tab click; now a no-op. Every control lives on one surface (PLAN Phase 6),
+ * so there is nothing to reveal before touching a detailed control.
  */
-async function expert(page: Page) {
-  const tab = page.getByTestId('form-tab-expert')
-  if (await tab.isVisible()) await tab.click()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function expert(_page: Page) {
+  /* PLAN Phase 6 removed the tab strip: every control is on one surface, so there
+     is nothing to switch to. Kept as a no-op rather than deleted from its call
+     sites, which would bury this one-line change in an unrelated diff. */
 }
 
 
@@ -110,9 +112,8 @@ test('the library lists a record no room uses, and says so', async ({ page }) =>
   await page.getByTestId('editor-text').fill('아무 방에도 없어요')
   await page.getByTestId('editor-uses').fill('1')
   await expert(page)
-  await page.getByTestId('editor-add-effect').click()
-  await page.getByTestId('vocab-trigger-on_play').click()
-  await page.getByTestId('vocab-action-win').click()
+  await say(page, 'trigger', 'on_play')
+  await say(page, 'action', 'win')
   await page.getByTestId('editor-save').click()
   await expect(page.getByTestId('editor-errors')).toHaveCount(0)
 

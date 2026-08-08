@@ -53,6 +53,18 @@ prompt beside "enumerate the callers": **name the set the reported case is one
 member of, in the finding's own terms, before writing the guard.** In all three
 of these the set was nameable in one sentence and was never written down.
 
+**Update (2026-08-08, count 5 -> 6).** The sixth instance is the cleanest statement of
+the shape yet, and it survived three phases of a green suite. A measurement taken over
+`bundledContentSource` — the set the RESEARCH phase happened to measure — was promoted to
+the premise "no shipped record is unshowable", and a save-block was built on it. The app
+loads THREE content sets; a slice piece with two effects was the counterexample, so the
+block made a shipped piece uneditable. Nothing caught it until the e2e suite ran, because
+every unit test was written against the same one set. What would have caught it in one
+minute: the proposed sweep, plus one addition this instance argues for — **when the
+closed set is a set of DATA SOURCES rather than callers, assert its cardinality**. The
+fix here is `expect(SOURCES.length).toBe(3)` beside the sweep, so a fourth source cannot
+join silently. That is the data-side twin of "enumerate the callers", and it is cheap.
+
 ## Proposal: derive phase scope from reachability, not prose (2026-08-06)
 **Triggered by:** [fail:design] phase-scope-omits-wiring (count: 3)
 **Proposed mechanism:** rule update to `/hm:plan` + a check in `/hm:execute` Step 1
@@ -223,6 +235,19 @@ which is the sentence three separate debugging sessions had to derive by hand.
 The generalization is worth encoding beyond Playwright: any harness that can ATTACH to a
 pre-existing process rather than starting one has this hazard, and the question to ask of
 a green run is not "did it pass" but "what did it load".
+
+**Update (2026-08-08, count 5 -> 6).** Sixth instance, and the first where the wrong
+target was a WORKTREE rather than a stale build. `playwright.config.ts` runs `npm run dev`
+with `reuseExistingServer: !CI`, and port 5173 already held a Vite server started from the
+MAIN checkout — so a worktree e2e run reported 20 failures measured against master's UI.
+Two things make this instance worth the update. First, the tell was cheap and general: a
+DOM probe found `form-panel-expert` live while `grep` said the source no longer contained
+it, i.e. **the served tree disagreed with the read tree**. Second, and worse than the
+failure: the same mechanism produces a false PASS, which nothing would have surfaced. The
+per-task worktree workflow makes this reachable by default rather than by accident — any
+two checkouts of this repo share port 5173. Concrete guard the proposal should now carry:
+derive the e2e port from the worktree path (or refuse `reuseExistingServer` when
+`git rev-parse --show-toplevel` differs from the running server's cwd).
 
 ## Proposal: bind non-pytest ACs, or say plainly that they are unbound (2026-08-08)
 **Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 3)

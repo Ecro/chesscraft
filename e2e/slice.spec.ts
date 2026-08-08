@@ -44,16 +44,17 @@ test('the editor refuses to save content that fails validation', async ({ page }
   await useSliceContent(page)
   await goEditor(page)
 
-  // Phase 9a moved the record forms behind the library tab, and the raw key
-  // slot behind 고급 설정 — a literal name is now something the editor makes an
-  // author go out of their way to write, which is the point of ADR-020.
+  // Phase 9a moved the record forms behind the library tab; PLAN Phase 7 of
+  // unified-create-ux then deleted the raw key slot entirely, so a literal name is
+  // no longer something an author can write at all — ADR-020's point, reached by
+  // removal rather than by friction. What a child CAN still get wrong is the id,
+  // and that is what this now checks: the refusal is anchored to the field that
+  // caused it, which is the claim this test was always about.
   await page.getByTestId('editor-tab-library').click()
   await page.getByTestId('editor-kind').selectOption('skillCard')
   await startBlank(page)
-  await page.getByTestId('editor-id').fill('skill.smokescreen')
-  await page.getByTestId('editor-advanced').locator('summary').click()
-  await page.getByTestId('editor-nameKey').fill('Smokescreen')
+  await page.getByTestId('editor-id').fill('Smokescreen')
   await page.getByTestId('editor-save').click()
 
-  await expect(page.getByTestId('editor-field-error-nameKey')).toBeVisible()
+  await expect(page.getByTestId('editor-field-error-id')).toBeVisible()
 })
