@@ -72,13 +72,53 @@ main {
    * no bounded parent to scroll inside. The whole document overflowed silently
    * and the editor could not be scrolled at all.
    */
-  height: 100dvh;
-  min-height: 100dvh;
+  /*
+   * `vh` here and `dvh` in the `@supports` block below. Both are load-bearing,
+   * and the SHAPE is too — see the block for why it is not two declarations.
+   *
+   * `dvh` is the correct unit and an unsupported one is not a degraded unit: the
+   * whole declaration is dropped. With `dvh` alone that left `main` with NO
+   * height, so it grew to its content, `overflow: hidden` clipped nothing, and
+   * the document scrolled — the tab bar landed below the fold and three of the
+   * app's destinations could only be reached by scrolling the page.
+   *
+   * `dvh` needs Chromium 108, and the bundle's own JS target is lower than that,
+   * so there is a real band of engines that run this app fine and lack the unit.
+   * `index.html` names the audience as children on whatever phone the household
+   * already had, which is precisely that band.
+   *
+   * `100vh` is the viewport with the URL bar EXCLUDED, so on a browser that
+   * takes this branch the bar can overlap the app's bottom edge. Installed to
+   * the home screen — how this app is meant to be run — there is no URL bar and
+   * the two units agree.
+   */
+  height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
   padding-top: env(safe-area-inset-top, 0px);
   padding-right: env(safe-area-inset-right, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
+}
+
+/*
+ * The `dvh` upgrade, in an `@supports` block rather than as a second declaration.
+ *
+ * The two-declaration idiom — `height: 100vh; height: 100dvh;` in one rule — is the
+ * one everybody reaches for, and in this project it does nothing. esbuild's CSS
+ * minifier drops a duplicate property whose later value it can keep, so the shipped
+ * bundle came out with only the `dvh` line: source review sees a fallback, `dist/`
+ * has none, and the browser that needed it is the one nobody in the room is holding.
+ * A minifier cannot merge across an at-rule, so this shape survives the build.
+ *
+ * `tests/build/css-fallbacks.test.ts` asserts that over `dist/` rather than over this
+ * file, because the source was never the thing in doubt.
+ */
+@supports (height: 100dvh) {
+  main {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 /**
@@ -152,6 +192,17 @@ main {
 @media (min-width: 480px) and (min-height: 700px) and (not (min-width: 1280px)) {
   .phone {
     height: 844px;
+    /*
+     * The cap, because the band's floor is 700px and the device is 844px tall.
+     *
+     * `flex: none` stops the shell shrinking against `main`, which is the point on a
+     * tall window and a trap on a short one: at any height in 700-843 — an unfolded
+     * foldable, a small tablet, a split-screen pane — an 844px shell inside a shorter
+     * `main` with `overflow: hidden` put the tab bar past the bottom edge, clipped and
+     * unreachable, with no scroll to recover it. The band was only ever rendered at
+     * 900px tall, so nothing saw it.
+     */
+    max-height: 100%;
     flex: none;
     border: 6px solid var(--color-shell-frame);
     box-shadow:
@@ -406,9 +457,15 @@ hr {
   display: flex;
   background: var(--color-surface);
   border-top: var(--border-w) solid var(--color-outline);
-  /* The home indicator sits under this on an iPhone. `main`'s inset padding
-     covers the page, but the bar is the thing at the very bottom of it. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /*
+   * No `padding-bottom: env(safe-area-inset-bottom)` here, deliberately.
+   *
+   * `main` already consumes all four insets, and `.phone` — tab bar included —
+   * lives inside its content box, so the bar's bottom edge is ALREADY clear of
+   * the home indicator. Adding the inset again here counted it twice: 34px of
+   * dead space inside the bar on top of 34px under it, which is a third of the
+   * bar's height spent on nothing and reads as the layout not fitting.
+   */
 }
 
 .tabbar .tab {
@@ -1135,7 +1192,12 @@ hr {
      turn bar, the rule bar and the waiting player's strip. Everything below it
      can scroll inside `.play-body`, so the board only has to clear its own top
      offset rather than the whole of the chrome. */
-  width: min(100%, calc(100dvh - 200px));
+  /* `vh` here and `dvh` in the `@supports` block below the rule — same shape and
+     same reason as the shell's height, including the minifier one. Without a
+     fallback the whole declaration is dropped on a browser that lacks `dvh` and
+     the board falls back to the full container width, which is the one outcome
+     `min()` exists to stop: a board taller than the screen, bottom ranks gone. */
+  width: min(100%, calc(100vh - 200px));
   margin-inline: auto;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
@@ -1143,6 +1205,12 @@ hr {
     'ranks board'
     '.     files';
   gap: var(--space-1);
+}
+
+@supports (width: 100dvh) {
+  .board-frame {
+    width: min(100%, calc(100dvh - 200px));
+  }
 }
 
 .rank-rail,

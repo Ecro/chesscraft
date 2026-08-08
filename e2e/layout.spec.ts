@@ -836,6 +836,64 @@ test.describe('at the desktop boundary', () => {
     })
   })
 
+  test.describe('inside the frame band, on a window shorter than the device (674x800)', () => {
+    test.use({ viewport: { width: 674, height: 800 } })
+
+    test('keeps the whole tab bar on screen', async ({ page }) => {
+      /*
+       * The hole the frame band left, and the reason no existing test saw it.
+       *
+       * The band floors at 700px of height and draws an 844px device with `flex: none`.
+       * Every viewport in 700-843 therefore got a shell TALLER than its `main`, which
+       * clips — so the tab bar sat past the bottom edge, and because nothing in this app
+       * scrolls the document there was no way to reach it. Three of the app's
+       * destinations were simply gone. The band's other tests all render at 900px tall,
+       * which is above the hole; 674x800 is an unfolded foldable, and a small tablet or
+       * an Android split-screen pane lands in the same range.
+       *
+       * Measured against the viewport rather than against `main`, because "clipped by its
+       * parent" and "off the screen" are the same defect here and only the second is what
+       * the child experiences.
+       */
+      await page.goto('/')
+
+      const bar = await page.evaluate(() => {
+        const el = document.querySelector('.tabbar')
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), viewport: window.innerHeight }
+      })
+
+      expect(bar, 'there is no tab bar on the title screen').not.toBeNull()
+      expect(bar!.bottom, `the tab bar ends ${bar!.bottom - bar!.viewport}px below a ${bar!.viewport}px window`).toBeLessThanOrEqual(
+        bar!.viewport,
+      )
+      expect(bar!.top, 'the tab bar starts above the top of the window').toBeGreaterThanOrEqual(0)
+    })
+
+    test('the bar stays put when the screen above it scrolls', async ({ page }) => {
+      /*
+       * What "the bar is fixed" means in this layout, pinned as a behaviour rather than
+       * as a `position` value. The bar is NOT `position: fixed` on purpose — inside the
+       * frame band it belongs to a 390px device drawn in the middle of the window, and a
+       * fixed bar would leave that device and stick to the window's bottom edge instead.
+       * It is pinned by being a `flex: none` child of a height-bounded shell, with the
+       * screen above it owning the scroll. This asserts the outcome both approaches claim.
+       */
+      await page.goto('/')
+      const before = await page.evaluate(() => Math.round(document.querySelector('.tabbar')!.getBoundingClientRect().top))
+
+      await page.evaluate(() => {
+        const screen = document.querySelector('.phone > section')!
+        screen.scrollTop = screen.scrollHeight
+        window.scrollTo(0, document.documentElement.scrollHeight)
+      })
+
+      const after = await page.evaluate(() => Math.round(document.querySelector('.tabbar')!.getBoundingClientRect().top))
+      expect(after, `the tab bar moved ${after - before}px when the page scrolled`).toBe(before)
+    })
+  })
+
   test.describe('on a short laptop window (1366x640)', () => {
     test.use({ viewport: { width: 1366, height: 640 } })
 

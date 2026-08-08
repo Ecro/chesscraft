@@ -156,8 +156,69 @@ describe('the phone shell bounds its content', () => {
     // parent that has a height. With `min-height` alone the shell grew to fit
     // the editor's 4,700px of forms, its `overflow: hidden` clipped nothing,
     // and every inner scroller had an unbounded parent to grow inside instead.
+    //
+    // Any viewport unit, not `dvh` by name. The unit moved into an `@supports` block
+    // when the fallback went in, and what this test is about is that `main` has a
+    // DEFINITE height at all — which is the property `.phone` shrinks against. Pinning
+    // the unit here would have made the fallback look like the regression.
     const body = ruleBody(CSS(), 'main')
-    expect(body).toMatch(/(^|\s|;)height:\s*100dvh/)
+    expect(body).toMatch(/(^|\s|;)height:\s*100[a-z]*vh/)
+  })
+
+  it('reaches for `dvh` only from inside an `@supports` block', () => {
+    /*
+     * An unsupported unit is not a degraded unit — the declaration is dropped whole.
+     *
+     * With `height: 100dvh` and no fallback, `main` on a browser without `dvh` has NO
+     * height, grows to its content, clips nothing through its `overflow: hidden`, and
+     * the document scrolls: the tab bar goes below the fold and three of the app's
+     * destinations can only be reached by scrolling the page. That is the reported bug.
+     *
+     * The obvious fix is two declarations in one rule — `height: 100vh; height: 100dvh`
+     * — and in this project it is a NO-OP. esbuild's CSS minifier drops the earlier
+     * duplicate, so the fallback exists in source and not in `dist/`. It shipped that
+     * way once, green, which is why the rule enforced here is the at-rule shape rather
+     * than the declaration pair. `tests/build/css-fallbacks.test.ts` holds the other
+     * half, over the bytes that actually ship.
+     */
+    const css = CSS().replace(/\/\*[\s\S]*?\*\//g, '')
+    // Blank out every `@supports` block, then look for what `dvh` is left outside one.
+    const outside = css.replace(/@supports[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
+    const stray = [...outside.matchAll(/[a-z-]+\s*:[^;{}]*\d+dvh\b[^;{}]*/g)].map(([m]) => m.trim())
+
+    expect(stray, `these dvh declarations sit outside an @supports guard: ${stray.join(' | ')}`).toEqual([])
+    expect(css, 'no @supports guard for dvh at all — has the shell stopped using it?').toMatch(
+      /@supports\s*\([a-z-]+:\s*\d+dvh\)/,
+    )
+  })
+
+  it('never lets the device frame stand taller than the window it is in', () => {
+    /*
+     * The frame band floors at 700px of height and draws an 844px device, so every
+     * viewport in 700-843 got a shell taller than its `main` — and `main` clips. An
+     * unfolded foldable, a small tablet and a split-screen pane all land in there,
+     * and the tab bar sat past the bottom edge with no scroll able to reach it. The
+     * band's e2e only ever rendered it at 900px tall, which is above the hole.
+     */
+    const band = /@media[^{]*min-width:\s*480px[^{]*\{([\s\S]*?)\n\}/.exec(CSS())?.[1] ?? ''
+    const phone = /\.phone\s*\{([^}]*)\}/.exec(band)?.[1] ?? ''
+
+    expect(phone, 'the frame band no longer sizes `.phone` — has it moved?').toMatch(/height:\s*844px/)
+    expect(phone, '`.phone` is a fixed 844px with no cap; a 700-843px window clips its tab bar').toMatch(
+      /max-height:\s*100%/,
+    )
+  })
+
+  it('consumes the bottom inset once, on the shell and not again on the bar', () => {
+    /*
+     * `.tabbar` is inside `main`'s content box, so `main`'s `padding-bottom` has
+     * already lifted it clear of the home indicator. Repeating the inset on the bar
+     * counted it twice — 34px of dead space inside the bar on top of 34px under it,
+     * a third of the bar's height spent on nothing.
+     */
+    // Comments stripped first — the rule now carries a comment SAYING it does not
+    // consume the inset, and a raw substring scan would read that as the violation.
+    expect(ruleBody(CSS().replace(/\/\*[\s\S]*?\*\//g, ''), '.tabbar')).not.toContain('safe-area-inset')
   })
 
   it('lets each screen decide whether it scrolls', () => {
