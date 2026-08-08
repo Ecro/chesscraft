@@ -58,11 +58,34 @@ describe('the record form names what the record is worth', () => {
     expect(screen.queryByTestId('record-grade')).toBeNull()
   })
 
-  it('offers no badge before the first save, when there is nothing to measure', () => {
+  it('prices an unsaved draft, with the band and the price describing that same draft', () => {
+    /*
+     * This assertion used to be "no badge at all, because there is nothing to measure", and
+     * the premise stopped being true. A cost is a pure function of the declaration (ADR-012),
+     * so an unsaved draft has a price — what it does not have is a BAND, because a band is
+     * relative to a ceiling derived from the room's own pieces and a draft is not in the room
+     * yet. PLAN Phase 9 / ADR-009 shows the arithmetic before the first save deliberately:
+     * "why does it cost this" is loudest while the author is still choosing.
+     *
+     * The replacement is stricter about the thing the old test actually protected. It names
+     * the star element specifically, so inventing a band for an unsaved record fails here —
+     * where the old wording would have passed the moment any badge appeared for any reason.
+     */
     mount(bundledContentSource)
     openLibrary()
     fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
     fireEvent.click(screen.getByTestId('editor-new'))
-    expect(screen.queryByTestId('record-grade')).toBeNull()
+
+    /*
+     * Superseded once more, by round-1 review. This asserted NO band for an unsaved draft; that
+     * rule is what allowed a saved band to sit beside a draft price and contradict it, so the
+     * band now follows the record being priced. The check that survives is the one whose failure
+     * was actually reported: both halves describe the same record, and `data-from` names it.
+     */
+    const badge = screen.getByTestId('record-grade')
+    const why = screen.getByTestId('record-cost-why')
+    expect(why, 'an unsaved draft explained nothing').toBeTruthy()
+    expect(why.getAttribute('data-from'), 'the price did not come from the draft').toBe('draft')
+    expect(badge.querySelector('[data-stars]'), 'the price came from the draft and the band from nowhere').not.toBeNull()
   })
 })

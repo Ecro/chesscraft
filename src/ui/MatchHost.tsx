@@ -617,6 +617,25 @@ export function MatchHost({
     if (selected) {
       const moveAction = legal.find((a) => a.kind === 'move' && a.from === selected && a.to === sq)
       if (moveAction) return push(moveAction)
+
+      /*
+       * A refused MOVE has to say something (PLAN Phase 4).
+       *
+       * Until this, `describeRejection` had two call sites and both were card plays, so
+       * tapping an enemy piece you were sure you could take did nothing at all: no marker,
+       * because the generator never offered it, and no words, because this branch fell
+       * straight through to re-selecting. That silence is the whole of the reported bug.
+       *
+       * Scoped to a tap on an ENEMY piece rather than any refused square. Tapping an empty
+       * square, or one of your own pieces, is how a player changes their mind — answering
+       * that with a refusal would turn ordinary navigation into an error message. Reaching
+       * for a capture is the one that deserves an answer.
+       */
+      const target = state.board.get(sq)
+      if (target && target.side !== state.sideToMove) {
+        setRejection(describeRejection(state, { kind: 'move', from: selected, to: sq }, content))
+        return
+      }
     }
     setSelected(state.board.get(sq)?.side === state.sideToMove ? sq : null)
   }
@@ -695,12 +714,26 @@ export function MatchHost({
    * states `beginDrag` refuses. `onDrag` still defers to `dragFrom`, so those
    * guards keep deciding what a DRAG may do without deciding what may be READ.
    */
+  /**
+   * Opens an inspection sheet, and drops any refusal on the way.
+   *
+   * One helper rather than a `setRejection(null)` beside each `setPeek`, because there are six
+   * ways to open a sheet — press, the `i` key, the selection strip, a card, a square type — and
+   * a rule applied at five of them is the shape that made this a finding in the first place. A
+   * refusal answers the move just attempted; asking what something IS is a different question,
+   * and the old answer sitting in the status line reads as the answer to the new one.
+   */
+  const openPeek = (found: Peek | null) => {
+    if (!found) return
+    setRejection(null)
+    setPeek(found)
+  }
+
   const press = usePressInspect({
     onInspect: (sq) => {
       dragFrom.current = null
       setSelected(selectedAtPress.current)
-      const found = inspectPeek(sq)
-      if (found) setPeek(found)
+      openPeek(inspectPeek(sq))
     },
     onTap: (sq) => {
       dragFrom.current = null
@@ -712,7 +745,22 @@ export function MatchHost({
       // `beginDrag` refused this square, so there is no drag to commit.
       if (start !== from) return
       const moveAction = legal.find((a) => a.kind === 'move' && a.from === from && a.to === to)
-      if (moveAction) push(moveAction)
+      if (moveAction) return push(moveAction)
+
+      /*
+       * A refused DRAG says why, exactly as a refused tap does.
+       *
+       * `usePressInspect` resolves one pointer sequence into exactly one of inspect / tap /
+       * drag, so a player who presses a piece and pulls it onto an enemy never reaches
+       * `clickSquare`. Wiring only the tap path left the reported defect — reach for a capture
+       * the engine refuses and NOTHING happens — alive on the gesture a finger actually uses.
+       * Both reviewers found this independently; it is the same fix as the tap path's, not a
+       * variant of it.
+       */
+      const target = state.board.get(to)
+      if (target && target.side !== state.sideToMove) {
+        setRejection(describeRejection(state, { kind: 'move', from, to }, content))
+      }
     },
     /*
      * Undo the eager highlight when the browser takes the gesture away.
@@ -783,7 +831,7 @@ export function MatchHost({
    */
   const peekEffect = (effect: LiveEffect) => {
     const record = sourceRecord(effect, content)
-    setPeek({
+    openPeek({
       mark: iconMark(t, record),
       name: t(`ui.effect.${effect.kind}`),
       kind: t('ui.effect.remaining').replace('{n}', String(effect.remaining)),
@@ -796,7 +844,7 @@ export function MatchHost({
   const peekCard = (cardId: string, kindKey: string) => {
     const card = content.skillCards.get(cardId) ?? content.ruleCards.get(cardId)
     if (!card) return
-    setPeek({ mark: iconMark(t, card), name: t(card.nameKey), kind: t(kindKey), text: t(card.textKey) })
+    openPeek({ mark: iconMark(t, card), name: t(card.nameKey), kind: t(kindKey), text: t(card.textKey) })
   }
 
   const ranks = Array.from({ length: state.height }, (_, i) => (flipped ? i : state.height - 1 - i))
@@ -1025,8 +1073,7 @@ export function MatchHost({
                       onKeyDown={(e) => {
                         if (e.key !== 'i' && e.key !== 'I') return
                         e.preventDefault()
-                        const found = inspectPeek(sq)
-                        if (found) setPeek(found)
+                        openPeek(inspectPeek(sq))
                       }}
                       data-legal={isLegal}
                       // Which KIND of legal, so the cue can differ: an empty
@@ -1130,17 +1177,21 @@ export function MatchHost({
                       ? 'turn'
                       : 'idle'
           }
-          {...(rejection ? { 'data-testid': 'rejection' } : {})}
+          {...(rejection ? { 'data-testid': 'rejection', 'data-reason': rejection } : {})}
           role="status"
         >
           {rejection ? (
-            <p className="hint-line">{rejection}</p>
+            // The code is the machine value and the word is translated — the same split
+            // `data-phase` / `data-winner` already use, so a spec can assert WHICH refusal
+            // happened without asserting Korean prose. `describeRejection` returns a
+            // `RejectionReason`; the engine no longer owns the sentence.
+            <p className="hint-line">{t(`ui.match.reject.${rejection}`)}</p>
           ) : pendingCard ? (
             <p className="hint-line">{t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target')}</p>
           ) : passAction ? (
             <p className="hint-line">{t('ui.hint.no-moves')}</p>
           ) : selectedInfo ? (
-            <button type="button" className="piece-strip" data-testid="piece-strip" onClick={() => setPeek(selectedInfo)}>
+            <button type="button" className="piece-strip" data-testid="piece-strip" onClick={() => openPeek(selectedInfo)}>
               <span className="strip-icon" aria-hidden="true">
                 <MarkBody mark={selectedInfo.mark} />
               </span>
@@ -1218,7 +1269,7 @@ export function MatchHost({
                   <button
                     type="button"
                     onClick={() =>
-                      setPeek({ mark, name: t(type.nameKey), kind: t('ui.dex.kind.square'), text: t(type.textKey) })
+                      openPeek({ mark, name: t(type.nameKey), kind: t('ui.dex.kind.square'), text: t(type.textKey) })
                     }
                   >
                     {mark.kind !== 'none' && (

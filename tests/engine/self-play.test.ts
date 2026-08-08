@@ -61,6 +61,26 @@ describe('AC-012 self-play match length', () => {
   })
 
   it('has a median of at most 40 plies', () => {
+    /*
+     * Measured 2026-08-09: median 36, so four plies of headroom under the cap. Said out loud
+     * because it has been zero before — `[fail:test] metric-green-because-of-the-defect` is
+     * recorded here for a round where this AC passed at exactly 40, and a green suite reads the
+     * same whether the margin is four or nothing.
+     *
+     * The headroom arrived from PLAN Phase 6, and the direction is the interesting part. That
+     * change raised `rule.sudden-death`'s threshold from two pieces to four: at two, its win
+     * clause was reachable in 1% of matches, so the card could not end anything and the matches
+     * it presided over ran to the clock. Repairing it moved the median DOWN, 40 to 36.
+     *
+     * That is the mirror of the recorded failure rather than a repeat of it. There, a false win
+     * condition ended matches early and flattered this number, and removing it looked like a
+     * regression. Here a dead win condition ended nothing and inflated the number, and fixing it
+     * looks like an improvement. Both directions are the same lesson: before reading this median
+     * as a fact about the game, ask which cards can currently end a match at all.
+     *
+     * The cap stays at 40. A tighter one derived from today's measurement would be a new
+     * requirement nobody asked for, and the next honest content change would owe it a debate.
+     */
     expect(median(lengths)).toBeLessThanOrEqual(40)
   })
 

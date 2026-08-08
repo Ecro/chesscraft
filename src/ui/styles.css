@@ -2767,6 +2767,31 @@ details.advanced summary {
 /* The eight slide directions, laid out as the ring they describe. Sliding is
    asked here rather than in the grid because a finite grid has no cell that
    means "and keep going" — see the header of `PieceMoves.tsx`. */
+/*
+ * The two controls sit together as one block (PLAN Phase 8).
+ *
+ * A 9x9 layout — the cells in the middle, the eight directions on the ring along their rays —
+ * was attempted and REVERTED, twice. Recorded here because the next person will have the same
+ * idea and the two failures are informative rather than mysterious: `.move-grid` carries its
+ * own `width: 294px` and `.move-cell` its own `aspect-ratio: 1`, so a 7-of-9 track area and
+ * the inner grid's intrinsic sizing each insisted on a different size and the map came out
+ * clipped; adding `aspect-ratio: 1` to the outer grid to give the row tracks a height then
+ * collapsed the whole thing inside its flex-column parent. Making it work means giving the
+ * inner grid up as a grid — laying all 49 cells and 8 directions out as siblings of one 9x9 —
+ * and that is a model-shaped change to a control ADR-007 froze, not a stylesheet tweak.
+ *
+ * What is kept is what the author actually asked about: the two pictures are adjacent with no
+ * prose wedged between them, and the words that were missing — a cell jumps OVER what is in
+ * the way, a slide STOPS at it — are now on screen. That difference is what made settings look
+ * like they disagreed with the preview, and no amount of re-drawing would have said it.
+ */
+.move-map {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .slide-dial {
   align-self: center;
   display: grid;
@@ -2838,10 +2863,26 @@ details.advanced summary {
   color: var(--color-positive-ink);
 }
 
+/*
+ * `flex-wrap: nowrap` is load-bearing here, not tidying — do not drop it in a rewrite.
+ *
+ * The base `fieldset` rule sets `flex-wrap: wrap`, which is correct for the row-direction
+ * fieldsets (measured: forcing nowrap on them makes one grow 267px and reflows another).
+ * On a COLUMN-direction one it is the cause of a 1475px layout bug. A column-direction
+ * multi-line flex container takes each flex line's main size from the container's own
+ * content-box height, so a single child in that line receives a DEFINITE block size — and
+ * a grid with a definite block size distributes it across its auto rows via the default
+ * `align-content`. The art picker's rows measured 264.7px against 54px of content: 225px
+ * of blank under every 26px sprite, and a 1926px fieldset on an 844px screen.
+ *
+ * Guarded by tests/ui/maker-fieldset-wrap.test.ts (the rule) and e2e/maker-anchors.spec.ts
+ * (the rendered geometry, which enumerates the real fieldsets so a fifth one is caught).
+ */
 .piece-moves,
 .card-recipe,
 .art-picker {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
 }
 
@@ -2916,8 +2957,38 @@ details.advanced summary {
    what makes the read-back line below it reachable without scrolling on a
    390px phone. */
 
+/* Why a record costs what it costs (PLAN Phase 9). One term per line: these are read, not
+   scanned, and inline spans would run the arithmetic together into a sentence nobody can
+   check. The step lines are indented because they happen TO the terms above them rather than
+   alongside them. */
+.record-grade {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.cost-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.cost-total {
+  color: var(--color-text);
+}
+
+.cost-step {
+  padding-left: var(--space-4);
+}
+
+/* Column-direction fieldset — see the note on `.art-picker` for why the wrap is off. Its
+   content does not stretch today; the rule is here so it cannot start. */
 .sentence {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
 }
 

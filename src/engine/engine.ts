@@ -483,36 +483,90 @@ function sameAction(a: Action, b: Action): boolean {
   return false
 }
 
-/** Why an action is illegal, or null when it is legal. AC-008's UI clause. */
-export function describeRejection(state: GameState, action: Action, content: ContentSet): string | null {
-  if (state.result) return 'the match is already over'
+/**
+ * Why an action is illegal, as a CODE. Null when it is legal. AC-008's UI clause.
+ *
+ * A code rather than a sentence, and that is the load-bearing part. This used to return
+ * English prose which the hint bar rendered verbatim, so a Korean-speaking player was shown
+ * "that card cannot target those squares" — the engine owning player-facing text is the same
+ * mistake as the engine owning a piece's name, and `src/i18n` is where the words live. The UI
+ * maps each code to a `ui.match.reject.*` key.
+ *
+ * Three of these codes exist because of what the capture oracle found (PLAN Phase 3). A
+ * capture can be refused for a reason the board is entitled to refuse it — the target stands
+ * on a square whose type blocks capture, a passive protects it, the mover is frozen, the
+ * mover's square is blockaded — and every one of those used to answer `unreachable`, which is
+ * a lie. "It was plainly able to take that and nothing happened" is what a lie like that
+ * looks like from the other side of the screen.
+ *
+ * `target-protected` is deliberately narrow: it is returned only when the geometry DOES reach
+ * the square and protection is what removed it. Saying "protected" about a square the piece
+ * could never have reached would trade one wrong answer for another.
+ */
+export type RejectionReason =
+  | 'match-over'
+  | 'draft-first'
+  | 'card-not-held'
+  | 'card-spent'
+  | 'card-already-played'
+  | 'card-bad-targets'
+  | 'card-not-offered'
+  | 'empty-square'
+  | 'not-your-piece'
+  | 'piece-frozen'
+  | 'piece-forbidden'
+  | 'target-protected'
+  | 'unreachable'
+  | 'move-owed'
+  | 'card-owed'
+
+export function describeRejection(state: GameState, action: Action, content: ContentSet): RejectionReason | null {
+  if (state.result) return 'match-over'
   const legal = legalActions(state, content)
   if (legal.some((a) => sameAction(a, action))) return null
 
   const drafting = pendingDraftSide(state)
-  if (drafting && action.kind !== 'draft_pick') return 'pick a skill card first'
+  if (drafting && action.kind !== 'draft_pick') return 'draft-first'
   if (action.kind === 'play_card') {
     const draft = state.drafts[state.sideToMove]
-    if (!draft.held.includes(action.cardId)) return 'that card belongs to the other player, or you do not hold it'
-    if (draft.used.includes(action.cardId)) return 'that card has already been used'
+    if (!draft.held.includes(action.cardId)) return 'card-not-held'
+    if (draft.used.includes(action.cardId)) return 'card-spent'
     // Said before the targeting message, because the targets are irrelevant
     // once the turn's one card is spent — telling a player their squares are
     // wrong when the real answer is "move now" sends them back to the board
     // looking for a square that does not exist.
-    if (state.turnCard !== null) return 'you have already played a card this turn — make your move'
-    return 'that card cannot target those squares'
+    if (state.turnCard !== null) return 'card-already-played'
+    return 'card-bad-targets'
   }
   if (action.kind === 'move') {
     const piece = state.board.get(action.from)
-    if (!piece) return 'there is no piece on that square'
-    if (piece.side !== state.sideToMove) return 'that piece belongs to the other player'
-    return 'that piece cannot reach that square'
+    if (!piece) return 'empty-square'
+    if (piece.side !== state.sideToMove) return 'not-your-piece'
+
+    // The mover's own two blockers first: they explain why NOTHING of its is offered, which
+    // is a different sentence from anything about the destination.
+    if ((state.frozenUntil[action.from]?.untilPly ?? -1) > state.plyCount) return 'piece-frozen'
+    const mods = generationModifiers(state, content)
+    if (mods.forbidden.has(action.from)) return 'piece-forbidden'
+
+    // Then: could it have taken there, and was protection the thing that stopped it?
+    const occupant = state.board.get(action.to)
+    if (occupant && occupant.side !== piece.side && mods.protectedSquares.has(action.to)) {
+      const def = pieceDefOf(content, piece)
+      const hasSeparateAttack = def.attack !== undefined
+      const movement = [...def.movement, ...(mods.granted.get(action.from) ?? [])]
+      const reaches =
+        reachFrom(state, action.from, piece, movement, !hasSeparateAttack, false).captures.includes(action.to) ||
+        (hasSeparateAttack && reachFrom(state, action.from, piece, def.attack!, true, false).captures.includes(action.to))
+      if (reaches) return 'target-protected'
+    }
+    return 'unreachable'
   }
   if (action.kind === 'end_turn') {
-    if (state.turnCard === null) return 'you have not played a card this turn — make your move'
-    return 'you still have a move to make'
+    if (state.turnCard === null) return 'card-owed'
+    return 'move-owed'
   }
-  return 'that card is not on offer'
+  return 'card-not-offered'
 }
 
 // ---------------------------------------------------------------------------

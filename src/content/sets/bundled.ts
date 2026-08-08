@@ -471,9 +471,23 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.skull',
       cost: 5,
       effects: [
+        /*
+         * `n: 4`, raised from 2 (PLAN Phase 6).
+         *
+         * A side starts with twelve pieces, and the threshold decides whether this card's one
+         * and only clause can ever fire. Measured over 600 self-play matches: a side is reduced
+         * to two pieces in 1% of them, to three in 5%, to four in 14%. At the old threshold the
+         * card promised "그 즉시 이긴다" and delivered it three times in forty-seven matches —
+         * near-inert, while reading as one of the strongest cards in the set.
+         *
+         * Four keeps the premise (a side down to its king and three) and puts the clause within
+         * reach of real play. The threshold is not taste: it is the smallest value whose
+         * reachability was measured above the noise, and the card's own text was corrected in
+         * the same change so the number a player reads is the number the engine uses.
+         */
         {
           trigger: 'end_of_ply',
-          condition: { kind: 'piece_count_at_most', side: 'opponent', n: 2 },
+          condition: { kind: 'piece_count_at_most', side: 'opponent', n: 4 },
           actions: [{ kind: 'win', side: 'mover' }],
         },
       ],

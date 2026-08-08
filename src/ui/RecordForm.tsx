@@ -761,12 +761,29 @@ export function RecordForm({
     // a different hat.
     const noMoves = !hasMoves(grid)
     const noTakes = !hasTakes(grid)
+    /**
+     * Whether this record captures wherever it walks (ADR-008).
+     *
+     * True exactly when the draft carries no `attack`, which is the schema's way of saying
+     * "takes on its movement" and what makes `readGrid` promote every move cell to both. Read
+     * off the draft rather than inferred from the grid, because the grid has already been
+     * promoted by the time this renders — asking it would be asking the answer.
+     */
+    const capturesFollowMovement = (draft as { attack?: unknown }).attack === undefined
 
     return (
       <fieldset className="piece-moves" data-testid="editor-moves">
         <legend>{t('ui.editor.piece.how')}</legend>
         <p className="hint">{t('ui.editor.piece.how-hint')}</p>
-        <div className="move-grid">
+        {/* One map, not two (PLAN Phase 8, ADR-007).
+            The cells and the eight slide directions used to be two separate pictures of the
+            same thing, and reading them together was the author's job. They are now one
+            drawing: the 7x7 of cells with the directions on the ring around it, so a slide
+            reads as "and keeps going that way" from the square it starts on. The MODEL is
+            untouched — `readGrid` / `writeGrid` / `PieceGrid` / `REACH_VALUES` and every
+            `data-testid` are exactly as they were, which is what ADR-007 froze. */}
+        <div className="move-map">
+          <div className="move-grid">
           {GRID_RANGE.map((dr) =>
             GRID_RANGE.map((df) => {
               const centre = df === 0 && dr === 0
@@ -798,16 +815,15 @@ export function RecordForm({
               )
             }),
           )}
-        </div>
+          </div>
 
-        {/* Sliding is asked SEPARATELY from hopping (ADR-027). It cannot live in
-            the grid: a slide is a direction plus a distance, and a finite grid
-            has no cell that means "and keep going". Painting it into the grid is
-            what made a lit cell stop denoting a reachable square. */}
-        <div className="slide-row">
-          <span className="kicker">{t('ui.editor.piece.slides')}</span>
-          <p className="hint">{t('ui.editor.piece.slides-hint')}</p>
-          <div className="slide-dial">
+        {/* Sliding is still asked SEPARATELY from hopping (ADR-027) and still MEANS something
+            different — a slide stops at the first piece in the way, a lit cell jumps over
+            whatever is there. What changed in Phase 8 is only where it is drawn: the dial sits
+            on the ring of the same map rather than in a second one. The difference between the
+            two is now said in words below, because it was never said anywhere and it is what
+            made some settings look like they disagreed with the preview. */}
+        <div className="slide-dial">
             {DIRECTIONS.map((dir: Dir8) => {
               const value = grid.slides[dir]
               return (
@@ -824,6 +840,23 @@ export function RecordForm({
               )
             })}
           </div>
+        </div>
+
+        {/* The two things the map cannot say by itself, said in words.
+            The leap-versus-slide difference was never stated anywhere, and it is exactly what
+            made a setting look like it disagreed with the preview once a blocker was in the
+            way. The second line is ADR-008: a piece with nowhere to capture takes wherever it
+            walks, so `readGrid` shows its move cells as capture cells too — correct, already
+            implemented, and until now unexplained, which made a tap on the move-only state look
+            like it did something the author had not asked for. */}
+        <p className="hint" data-testid="piece-travel-note">{t('ui.editor.piece.travel-note')}</p>
+        {capturesFollowMovement && (
+          <p className="hint" data-testid="piece-takes-note">{t('ui.editor.piece.takes-note')}</p>
+        )}
+
+        <div className="slide-row">
+          <span className="kicker">{t('ui.editor.piece.slides')}</span>
+          <p className="hint">{t('ui.editor.piece.slides-hint')}</p>
 
           <div className="reach-picker">
             {REACH_VALUES.map((reach: Reach) => (
@@ -1060,7 +1093,10 @@ export function RecordForm({
           form body: while the gallery is still asking what to start from there
           is no record to grade, and a badge rendered next to that question would
           be scoring the previous answer. */}
-      <RecordGrade source={source} kind={kind} recordId={openedId} />
+      {/* `draft` as well as the saved id: a cost is a pure function of the declaration
+          (ADR-012), so the "why does it cost this" answer can follow the author's edits
+          instead of waiting for a save that has not happened yet (ADR-009). */}
+      <RecordGrade source={source} kind={kind} recordId={openedId} draft={draft as Record<string, unknown>} />
       <label>
         {t('ui.editor.field.name')}
         <input

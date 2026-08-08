@@ -253,6 +253,93 @@ export function skillCardCost(card: SkillCardDef): number {
   return Math.max(MINIMUM_COST, Math.round((total * card.uses) / CARD_TO_PIECE))
 }
 
+/**
+ * The arithmetic that produced a price, term by term.
+ *
+ * The header of this file has claimed since ADR-012 that the model is explainable — "this one
+ * costs more because it reaches further" — and no screen ever said it. That is
+ * `declared-but-inert-vocabulary`, this repo's most-recurring failure, and the fix is not help
+ * text: help text is a second description of the model that goes stale the day a weight
+ * changes. These terms come out of the SAME expressions `pieceCost` and `skillCardCost`
+ * evaluate, so the explanation cannot drift from the number it explains.
+ *
+ * `terms` are additive and `steps` are what happens to their sum afterwards. A piece has no
+ * steps — its terms add up to its cost exactly. A card has two: `uses` multiplies, then the
+ * card divisor divides and the result is rounded, so a card's terms CANNOT sum to its price
+ * and pretending otherwise would be a lie in the arithmetic. `skill.teleport` is the standing
+ * example: 36 raw, one use, and a price of 5 rather than 4.5.
+ */
+export interface CostTerm {
+  /** What this term is, for the caller to translate. Never a sentence. */
+  kind: 'walk' | 'take' | 'separate-attack' | 'promotion' | 'effect'
+  amount: number
+}
+
+export interface CostStep {
+  kind: 'times-uses' | 'card-divisor' | 'rounded' | 'floor'
+  /** The operand, where the step has one. */
+  amount?: number
+}
+
+export interface CostExplanation {
+  terms: CostTerm[]
+  steps: CostStep[]
+  /** What `pieceCost` / `skillCardCost` return for this record. */
+  total: number
+}
+
+/** Why a piece costs what it costs. */
+export function explainPieceCost(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>): CostExplanation {
+  const boardMax = Math.max(board.width, board.height)
+  const terms: CostTerm[] = [
+    { kind: 'walk', amount: patternReach(piece.movement, boardMax) },
+    // Doubled, and named as one term rather than two: what the price says is "taking is worth
+    // twice walking", and splitting it into a reach and a multiplier says something else.
+    { kind: 'take', amount: patternReach(piece.attack ?? piece.movement, boardMax) * 2 },
+  ]
+  if (piece.attack !== undefined) terms.push({ kind: 'separate-attack', amount: 4 })
+  if (piece.promotion !== undefined) terms.push({ kind: 'promotion', amount: 6 })
+  for (const effect of piece.effects) terms.push({ kind: 'effect', amount: effectCost(effect) })
+
+  const sum = terms.reduce((n, t) => n + t.amount, 0)
+  const total = pieceCost(piece, board)
+  // The floor is a step rather than a silent clamp: a record whose parts add to less than the
+  // minimum is priced at the minimum, and a player looking at the terms deserves to see why
+  // they do not add up.
+  const steps: CostStep[] = sum < MINIMUM_COST ? [{ kind: 'floor', amount: MINIMUM_COST }] : []
+  return { terms, steps, total }
+}
+
+/** Why a card costs what it costs. */
+export function explainSkillCardCost(card: SkillCardDef): CostExplanation {
+  const terms: CostTerm[] = card.effects.map((effect) => ({ kind: 'effect' as const, amount: effectCost(effect) }))
+  const steps: CostStep[] = []
+  if (card.uses !== 1) steps.push({ kind: 'times-uses', amount: card.uses })
+  steps.push({ kind: 'card-divisor', amount: CARD_TO_PIECE })
+  steps.push({ kind: 'rounded' })
+  const sum = terms.reduce((n, t) => n + t.amount, 0)
+  if (Math.round((sum * card.uses) / CARD_TO_PIECE) < MINIMUM_COST) steps.push({ kind: 'floor', amount: MINIMUM_COST })
+  return { terms, steps, total: skillCardCost(card) }
+}
+
+/**
+ * Applies an explanation's steps to its terms, reproducing the price it explains.
+ *
+ * Exists so a test can assert the two are the same computation rather than two computations
+ * that happen to agree today. For a piece this is the sum; for a card it is the sum through
+ * the discount and its rounding.
+ */
+export function replayExplanation(explanation: CostExplanation): number {
+  let value = explanation.terms.reduce((n, t) => n + t.amount, 0)
+  for (const step of explanation.steps) {
+    if (step.kind === 'times-uses') value *= step.amount ?? 1
+    else if (step.kind === 'card-divisor') value /= step.amount ?? 1
+    else if (step.kind === 'rounded') value = Math.round(value)
+    else if (step.kind === 'floor') value = Math.max(step.amount ?? MINIMUM_COST, value)
+  }
+  return Math.round(value)
+}
+
 /** The stars a piece is offered at. */
 export function pieceStars(piece: PieceDef, board: Pick<BoardDef, 'width' | 'height'>, ceiling: number): number {
   return starsOf(pieceCost(piece, board), ceiling)

@@ -52,7 +52,9 @@ export const ko: Record<string, string> = {
   'rule.three-check.name': '삼세판 체크',
   'rule.three-check.text': '상대 왕을 세 번 체크하면 그 즉시 이긴다. 잡지 않아도 된다.',
   'rule.sudden-death.name': '전멸전',
-  'rule.sudden-death.text': '상대 기물이 두 개 이하로 줄어들면 그 즉시 이긴다.',
+  /* Two -> four in PLAN Phase 6, matching the engine. The old number was reachable in 1% of
+     matches, so the sentence promised a win route that almost never existed. */
+  'rule.sudden-death.text': '상대 기물이 네 개 이하로 줄어들면 그 즉시 이긴다.',
   'rule.fast-promotion.name': '빠른 승격',
   'rule.fast-promotion.text': '내 병사가 끝줄 바로 앞까지만 가도 여왕이 된다.',
   'rule.royal-bodyguard.name': '왕의 호위',
@@ -314,7 +316,16 @@ export const ko: Record<string, string> = {
   'ui.editor.loadout.no-budget': '이 방은 아직 한도를 안 정했어요.',
   'ui.editor.loadout.mismatch': '별 개수가 다른 기물끼리는 바꿔 넣을 수 없어요. 같은 별끼리만 돼요.',
   'ui.editor.loadout.over-budget': '둘을 합치면 한도를 넘어요. 하나를 더 약한 걸로 바꿔 보세요.',
-  'ui.editor.loadout.caveat': '세기는 컴퓨터가 아무렇게나 두는 대국을 여러 번 해 보고 잰 값이에요. 사람이 잘 쓰면 더 셀 수 있어요.',
+  /*
+   * Rewritten in PLAN Phase 9. It used to read "세기는 컴퓨터가 아무렇게나 두는 대국을 여러 번
+   * 해 보고 잰 값이에요" — a description of the self-play measurement rig that ADR-012 deleted.
+   * The price is read off the declaration now, so that sentence was telling a player something
+   * about the product that had stopped being true, and it sat directly under the term-by-term
+   * arithmetic this phase added, contradicting it. Same class as
+   * `[fail:design] comment-claims-unbuilt-safeguard`, one layer out: player-facing text
+   * outliving the mechanism it describes.
+   */
+  'ui.editor.loadout.caveat': '이 값은 기물이 할 수 있는 일을 보고 셈한 거예요. 사람이 잘 쓰면 더 셀 수 있어요.',
   'ui.editor.room.save': '이 방 저장하기',
   'ui.editor.room.saved': '저장했어요',
   'ui.editor.room.back': '방 목록으로',
@@ -563,6 +574,73 @@ export const ko: Record<string, string> = {
   // player hunting the board for a target the card never wanted.
   'ui.hint.card-ready': '고를 곳이 없는 카드예요. 아래 버튼을 누르면 바로 써요.',
   'ui.match.use-card': '이 카드 쓰기',
+
+  /*
+   * Why this record costs what it costs (PLAN Phase 9, ADR-009).
+   *
+   * One line per term of the actual arithmetic, in the author's language. The card lines are
+   * the ones that need saying out loud: a card's parts do NOT add up to its price, because a
+   * card fires and is gone where a piece stays on the board, so the total is divided and
+   * rounded. Hiding that step would make the numbers look wrong to anyone who added them.
+   */
+  /*
+   * The two things one map cannot say by itself (PLAN Phase 8, ADR-007 / ADR-008).
+   *
+   * The first was never said anywhere, and it is the whole reason some settings looked like
+   * they disagreed with the preview: a lit cell JUMPS OVER whatever is in the way, a slide
+   * STOPS at it. Put an enemy in the path and the two behave differently on purpose.
+   *
+   * The second explains a promotion the editor has always done and never mentioned: a piece
+   * with no capture squares takes wherever it walks, so its move cells come back marked as
+   * both. Tapping "이동" and watching the cell say "둘 다" looked like the tap misfired.
+   */
+  /* "바깥 화살표" in the first draft of this line, from the ring layout that was reverted.
+     A sentence that points at something not on screen is the defect this line exists to fix,
+     wearing the other hat. */
+  'ui.editor.piece.travel-note': '위쪽 칸을 켜면 그 칸까지 뛰어가요 — 가는 길에 기물이 있어도 넘어가요. 아래쪽 방향 판은 쭉 미끄러지는 방향이에요 — 가는 길에 기물이 있으면 거기서 멈춰요.',
+  'ui.editor.piece.takes-note': '잡는 칸을 하나도 안 켜면, 갈 수 있는 칸에서 모두 잡을 수 있어요. 그래서 켠 칸이 "둘 다"로 보여요.',
+
+  /* Shown when a draft cannot be priced yet. Silence here used to mean the SAVED record's price
+     stayed on screen describing a declaration the author had already edited away. */
+  'ui.editor.cost.unpriceable': '지금은 값을 셈할 수 없어요. 위에 빨간 글씨가 있으면 먼저 고쳐 주세요.',
+  'ui.editor.cost.total': '값 {n}',
+  'ui.editor.cost.term.walk': '걸어가는 칸 {n}',
+  'ui.editor.cost.term.take': '잡을 수 있는 칸 {n} (잡기는 두 배로 셈)',
+  'ui.editor.cost.term.separate-attack': '가는 길과 잡는 길이 달라서 {n}',
+  'ui.editor.cost.term.promotion': '승급할 수 있어서 {n}',
+  'ui.editor.cost.term.effect': '특별한 힘 {n}',
+  'ui.editor.cost.step.times-uses': '쓸 수 있는 횟수만큼 {n}배',
+  'ui.editor.cost.step.card-divisor': '카드는 한 번 쓰고 사라지니 {n}로 나눔',
+  'ui.editor.cost.step.rounded': '가까운 수로 맞춤',
+  'ui.editor.cost.step.floor': '아무리 작아도 {n}',
+
+  /*
+   * Why a tap was refused (PLAN Phase 4, ADR-010).
+   *
+   * `describeRejection` returns a code and these are the words. It used to return English
+   * prose that the hint bar printed as-is, so a child playing in Korean was shown "that card
+   * cannot target those squares".
+   *
+   * The three protection lines carry the weight. A capture blocked by a painted square, a
+   * passive or a blockade used to be reported as "그 칸에는 갈 수 없어요", which is false —
+   * the piece could reach it, and something else refused. Each says WHAT refused, because a
+   * player who is told the truth can play around it and a player who is told a lie cannot.
+   */
+  'ui.match.reject.match-over': '이 판은 이미 끝났어요.',
+  'ui.match.reject.draft-first': '먼저 카드를 한 장 고르세요.',
+  'ui.match.reject.card-not-held': '그 카드는 지금 내 카드가 아니에요.',
+  'ui.match.reject.card-spent': '그 카드는 이미 썼어요.',
+  'ui.match.reject.card-already-played': '이번 차례에 카드를 벌써 썼어요. 이제 기물을 움직이세요.',
+  'ui.match.reject.card-bad-targets': '그 카드는 거기에 쓸 수 없어요.',
+  'ui.match.reject.card-not-offered': '그 카드는 지금 고를 수 있는 카드가 아니에요.',
+  'ui.match.reject.empty-square': '그 칸에는 기물이 없어요.',
+  'ui.match.reject.not-your-piece': '그건 상대 기물이에요.',
+  'ui.match.reject.piece-frozen': '이 기물은 얼어 있어서 지금은 못 움직여요.',
+  'ui.match.reject.piece-forbidden': '이 기물은 지금 움직일 수 없게 막혀 있어요.',
+  'ui.match.reject.target-protected': '그 기물은 보호받고 있어서 잡을 수 없어요.',
+  'ui.match.reject.unreachable': '이 기물은 그 칸까지 갈 수 없어요.',
+  'ui.match.reject.move-owed': '아직 기물을 움직여야 해요.',
+  'ui.match.reject.card-owed': '이번 차례에 카드를 쓰지 않았어요. 기물을 움직이세요.',
   // The turn no longer ends with the card (ADR-001), so the hint has to say
   // what is left to do — a player who reads "카드를 쓸 곳을 고르세요" and then
   // sees their own turn still on the clock has been told the wrong thing.

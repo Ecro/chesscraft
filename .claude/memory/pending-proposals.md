@@ -17,7 +17,7 @@ have caught all three: for any fixture, name the negative instance; for any samp
 risk, or iterate.
 
 ## Proposal: a closed-set sweep before any fix is declared resolved (2026-08-06)
-**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 5)
+**Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 7)
 **Proposed mechanism:** rule update — a step in `/hm:review`'s auto-fix loop
 **Rationale:** All three instances share one shape: the remedy was verified
 against the evidence that prompted it rather than against the closed set the
@@ -90,7 +90,7 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
-**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 6)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 7)
 
 **Updated 2026-08-08 — the harness now knows the shape, and still missed a whole
 CONTENT KIND.** The per-record "play it and diff the board" harness the note below
@@ -184,7 +184,7 @@ guards were validated exactly this way and two of them were vacuous until the
 mutant proved it.
 
 ## Proposal: check the comment against the code it justifies (2026-08-07)
-**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 5)
+**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 8)
 **Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
 for the `code-reviewer` agent
 **Rationale:** Three instances, and the third landed *inside the fix for the
