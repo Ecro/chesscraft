@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ContentSet } from '@content/load'
+import type { PieceDef } from '@content/schema'
 import type { AiClient } from '@engine/ai/client'
 import type { Difficulty } from '@engine/ai/difficulty'
 import { paintedSquares } from '@engine/effects'
@@ -15,6 +16,8 @@ import { type Settings, DEFAULT_SETTINGS } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
 import { Result } from './Result'
 import { Sheet } from './Sheet'
+import { PieceMoveRegion } from './PieceDetail'
+import { usePressInspect } from './usePressInspect'
 
 /**
  * Hot-seat play plus the match lifecycle around it.
@@ -168,8 +171,16 @@ const HAND_OFF_MS = 1600
  */
 const AI_MIN_THINK_MS = 650
 
-/** What the detail sheet is currently showing. Content-agnostic on purpose. */
-type Peek = { mark: Mark; name: string; kind: string; text: string; because?: string }
+/**
+ * What the detail sheet is currently showing. Content-agnostic on purpose.
+ *
+ * `because` and `piece` are the two exceptions, and both are optional so that
+ * the call sites predating them (legend chip, hotbar slot, waiting hand) are
+ * unchanged: a card and a square type have no movement to draw, and passing
+ * nothing is the accurate statement of that rather than a special case inside
+ * the sheet.
+ */
+type Peek = { mark: Mark; name: string; kind: string; text: string; because?: string; piece?: PieceDef }
 
 /**
  * Whether the player has asked the system for less movement.
@@ -277,6 +288,46 @@ export function MatchHost({
   const [aiDegraded, setAiDegraded] = useState(false)
   const aiRef = useRef<AiClient | null>(null)
   const [peek, setPeek] = useState<Peek | null>(null)
+  /**
+   * The hover tooltip's square and label (AC-007), on pointer devices only.
+   *
+   * Held as ONE piece of state rather than one flag per square: only one can be
+   * hovered, and 36 booleans is 36 chances for two to be true.
+   */
+  const [tip, setTip] = useState<{ sq: SquareId; name: string } | null>(null)
+  /**
+   * Escape has dismissed the tooltips; none may open until the pointer leaves
+   * the board.
+   *
+   * The first version of this suppressed only the square that was dismissed,
+   * and it did not work — not subtly, either. The tooltip is a CHILD of its
+   * square and is drawn ABOVE it, so a pointer resting on the tooltip is
+   * geometrically over the NEIGHBOURING square. Unmounting it therefore
+   * delivered `mouseenter` to that neighbour and a second tooltip appeared
+   * under the same motionless pointer: Escape looked like it did nothing.
+   *
+   * WCAG 1.4.13 asks for dismissal WITHOUT moving the pointer, so the
+   * suppression has to be board-wide and has to outlive the hover that was
+   * interrupted. It clears when the pointer leaves the board — a deliberate
+   * choice over clearing on the next mousemove, which would re-open the
+   * tooltip on the first jitter and put us back where we started.
+   */
+  const tipsSuppressed = useRef(false)
+
+  // The "dismissible" half of WCAG 1.4.13. Bound to the window rather than to
+  // the square, because the criterion is explicit that the pointer must not
+  // have to move — and a keydown on a square the mouse is merely hovering
+  // never reaches that square, which has no focus.
+  useEffect(() => {
+    if (!tip) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      tipsSuppressed.current = true
+      setTip(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tip])
   /**
    * Whose turn a hand-off is announcing, or null when nothing is being said.
    *
@@ -631,14 +682,91 @@ export function MatchHost({
     setSelected(sq)
   }
 
-  const endDrag = (sq: SquareId) => {
-    const from = dragFrom.current
-    dragFrom.current = null
-    // Same square means a tap, and `onClick` already owns that.
-    if (!from || from === sq) return
-    const moveAction = legal.find((a) => a.kind === 'move' && a.from === from && a.to === sq)
-    if (moveAction) push(moveAction)
+  /**
+   * What a square IS, for the three routes that ask: the press, the `i` key,
+   * and the selection strip.
+   *
+   * One resolver rather than one per route, and that is the whole reason it is a
+   * function. AC-004's four rows — own piece, enemy piece, painted square, bare
+   * square — have to hold for every route at once, and three call sites deciding
+   * independently is three places for the enemy-piece row to be dropped.
+   *
+   * The side is carried by the NAME as well as by the sprite's tint (ADR-005).
+   * On the board a third channel does that job — a corner marker anchored to the
+   * square — and off the board that anchor does not exist, so colour would
+   * otherwise be the only cue.
+   */
+  const inspectPeek = (sq: SquareId): Peek | null => {
+    const piece = state.board.get(sq)
+    if (piece) {
+      const def = content.pieces.get(piece.pieceId)
+      if (!def) return null
+      return {
+        mark: pieceMark(t, def, piece.side),
+        name: t('ui.piece-info.side-name').replace('{side}', t(`ui.side.${piece.side}`)).replace('{name}', t(def.nameKey)),
+        kind: t('ui.dex.kind.piece'),
+        text: t(def.textKey),
+        piece: def,
+      }
+    }
+    const type = painted.get(sq)?.type
+    if (!type) return null
+    return { mark: iconMark(t, type), name: t(type.nameKey), kind: t('ui.dex.kind.square'), text: t(type.textKey) }
   }
+
+  /**
+   * The selection that was live when the finger went down.
+   *
+   * `beginDrag` sets `selected` on pointerdown so a drag has its highlight, and
+   * a press that wins must not keep that side effect: AC-002 says inspecting
+   * changes nothing about the board, and a piece that quietly became selected
+   * because you asked what it was is a change.
+   */
+  const selectedAtPress = useRef<SquareId | null>(null)
+
+  /**
+   * One pointer sequence, exactly one commit.
+   *
+   * The hook owns the arbitration rather than sitting beside the old handlers —
+   * see its header for why a press timer bolted onto an untouched `onClick` is
+   * the recorded `rule-keyed-to-event-not-state` failure wearing a new hat.
+   * Note what is NOT guarded here: the press fires on any square, including the
+   * opponent's pieces and a turn with an armed card, which are exactly the
+   * states `beginDrag` refuses. `onDrag` still defers to `dragFrom`, so those
+   * guards keep deciding what a DRAG may do without deciding what may be READ.
+   */
+  const press = usePressInspect({
+    onInspect: (sq) => {
+      dragFrom.current = null
+      setSelected(selectedAtPress.current)
+      const found = inspectPeek(sq)
+      if (found) setPeek(found)
+    },
+    onTap: (sq) => {
+      dragFrom.current = null
+      clickSquare(sq)
+    },
+    onDrag: (from, to) => {
+      const start = dragFrom.current
+      dragFrom.current = null
+      // `beginDrag` refused this square, so there is no drag to commit.
+      if (start !== from) return
+      const moveAction = legal.find((a) => a.kind === 'move' && a.from === from && a.to === to)
+      if (moveAction) push(moveAction)
+    },
+    /*
+     * Undo the eager highlight when the browser takes the gesture away.
+     *
+     * `beginDrag` selects on pointerdown so a drag has something to show, and a
+     * cancelled sequence commits nothing — so leaving that selection behind
+     * means a touch scroll started on your own piece silently selects it, with
+     * its legal moves lit up, for a gesture the player never finished.
+     */
+    onCancel: () => {
+      dragFrom.current = null
+      setSelected(selectedAtPress.current)
+    },
+  })
 
   const clickCard = (side: Side, cardId: string) => {
     setSelected(null)
@@ -718,6 +846,18 @@ export function MatchHost({
   // twice was correct (the function is pure) but says the two could differ.
   const ruleMark = iconMark(t, rule)
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
+  /** The selected piece's own entry, for the strip and for its opener. */
+  const selectedInfo = selected ? inspectPeek(selected) : null
+
+  /**
+   * Whether this device has a pointer that can hover at all.
+   *
+   * Checked in JS as well as in CSS, and the redundancy is deliberate: a touch
+   * screen synthesises `mouseenter` after a tap, so a CSS-only gate would leave
+   * the tooltip mounted-but-hidden on a phone — present to a screen reader and
+   * to every locator, absent to the eye. The state simply never opens there.
+   */
+  const canHover = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches === true
 
   /**
    * Whether a full-screen overlay currently owns the screen.
@@ -881,6 +1021,12 @@ export function MatchHost({
             data-testid="board"
             role="grid"
             aria-label={t('ui.board.label')}
+            // Where an Escape-dismissal is released: leaving the board is a
+            // deliberate act, so a tooltip that comes back afterwards is one
+            // the player asked for again.
+            onMouseLeave={() => {
+              tipsSuppressed.current = false
+            }}
             style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
           >
             {/* `role="grid"` owns `row`, which owns `gridcell` — the middle level
@@ -919,8 +1065,35 @@ export function MatchHost({
                             } as React.CSSProperties)
                           : undefined
                       }
-                      onPointerDown={() => beginDrag(sq)}
-                      onPointerUp={() => endDrag(sq)}
+                      onPointerDown={(e) => {
+                        selectedAtPress.current = selected
+                        beginDrag(sq)
+                        press.onPointerDown(sq, e)
+                      }}
+                      onPointerMove={press.onPointerMove}
+                      onMouseEnter={() => {
+                        if (!canHover || tipsSuppressed.current) return
+                        const found = inspectPeek(sq)
+                        // Name only (ADR-004). The strip and the sheet stay the
+                        // canonical place for what a piece DOES; a third copy of
+                        // that paragraph is a third place for it to go stale.
+                        if (found) setTip({ sq, name: found.name })
+                      }}
+                      onMouseLeave={() => {
+                        setTip((current) => (current?.sq === sq ? null : current))
+                      }}
+                      onPointerUp={(e) => press.onPointerUp(sq, e)}
+                      onPointerCancel={press.onPointerCancel}
+                      // The keyboard's route to the same sheet the press opens
+                      // (AC-007). Enter and Space are already spent on
+                      // select/move by the native button, so inspecting needs a
+                      // key of its own rather than a modifier on those.
+                      onKeyDown={(e) => {
+                        if (e.key !== 'i' && e.key !== 'I') return
+                        e.preventDefault()
+                        const found = inspectPeek(sq)
+                        if (found) setPeek(found)
+                      }}
                       data-legal={isLegal}
                       // Which KIND of legal, so the cue can differ: an empty
                       // square you may step onto and an enemy you may take are
@@ -933,7 +1106,7 @@ export function MatchHost({
                       // role overrides the native button role, and `aria-pressed`
                       // is a button-family state a gridcell does not support.
                       aria-selected={selected === sq}
-                      onClick={() => clickSquare(sq)}
+                      onClick={() => press.onClick(sq)}
                     >
                       {/* What this square DOES, drawn on it. The stripe alone
                           said only "something happens here", and the bundled
@@ -976,6 +1149,19 @@ export function MatchHost({
                           {badge.remaining}
                         </span>
                       )}
+                      {/* Rendered INSIDE the square, which is what makes it
+                          hoverable per WCAG 1.4.13 without any pointer
+                          bookkeeping: moving onto the tooltip never leaves the
+                          element that owns the hover, so `mouseleave` does not
+                          fire and the tooltip does not vanish from under the
+                          pointer. `aria-hidden` because the square's own
+                          `aria-label` already names the piece — a screen reader
+                          would otherwise hear it twice. */}
+                      {tip?.sq === sq && (
+                        <span className="square-tip" data-testid="square-tip" aria-hidden="true">
+                          {tip.name}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -993,20 +1179,69 @@ export function MatchHost({
             refused or is waiting for. Always present because a line that appears
             only on an error reflows the board under the player's thumb at the
             exact moment they are being told they did something wrong. */}
-        {/* The turn no longer ends with the card (ADR-001), so this line has one
-            more thing to say: a card is spent and the move is still owed. It is
-            said only when nothing is armed — a player choosing targets is being
-            asked a narrower question and should not be told two things at once. */}
-        <p className="hint-bar" data-pending={Boolean(pendingCard)} {...(rejection ? { 'data-testid': 'rejection' } : {})} role="status">
-          {rejection ??
-            (pendingCard
-              ? t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target')
-              : passAction
-                ? t('ui.hint.no-moves')
-                : state.turnCard !== null
-                  ? t('ui.hint.now-move')
-                  : t('ui.hint.tap-piece'))}
-        </p>
+        {/* ADR-003: ONE reserved region, now with SIX states in priority order —
+            rejection, armed card, forced pass, selected piece, move-still-owed,
+            idle hint. A second always-present region would cost this height
+            twice on a 390x844 phone, and the whole reason this one is always
+            present is that a region appearing on demand reflows the board under
+            the player's thumb.
+
+            The order is the decision. A rejection wins outright — it is the one
+            message that must never be buried. A forced pass outranks the piece
+            strip because it says the board is stuck, which no description of a
+            piece answers. The strip outranks "a card is spent, the move is
+            still owed" for the opposite reason: the player who selected a piece
+            is already doing the thing that prompt is asking for, and answering
+            the question they just posed beats repeating the instruction. */}
+        <div
+          className="hint-bar"
+          data-pending={Boolean(pendingCard)}
+          data-state={
+            rejection
+              ? 'rejection'
+              : pendingCard
+                ? 'card'
+                : passAction
+                  ? 'pass'
+                  : selectedInfo
+                    ? 'piece'
+                    : state.turnCard !== null
+                      ? 'turn'
+                      : 'idle'
+          }
+          {...(rejection ? { 'data-testid': 'rejection' } : {})}
+          role="status"
+        >
+          {rejection ? (
+            <p className="hint-line">{rejection}</p>
+          ) : pendingCard ? (
+            <p className="hint-line">{t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target')}</p>
+          ) : passAction ? (
+            <p className="hint-line">{t('ui.hint.no-moves')}</p>
+          ) : selectedInfo ? (
+            <button type="button" className="piece-strip" data-testid="piece-strip" onClick={() => setPeek(selectedInfo)}>
+              <span className="strip-icon" aria-hidden="true">
+                <MarkBody mark={selectedInfo.mark} />
+              </span>
+              <span className="strip-body">
+                <span className="strip-head">
+                  <strong data-testid="strip-name">{selectedInfo.name}</strong>
+                  <span className="more">{t('ui.dex.more')}</span>
+                </span>
+                <span className="strip-text">{selectedInfo.text}</span>
+                {/* AC-010. A gesture nobody is told about is discovered only by
+                    accident, which is the whole reason the strip is the floor
+                    and the press is the accelerator rather than the other way
+                    round. */}
+                <span className="strip-hint" data-testid="press-hint">{t('ui.piece-info.press-hint')}</span>
+              </span>
+            </button>
+          ) : state.turnCard !== null ? (
+            <p className="hint-line">{t('ui.hint.now-move')}</p>
+          ) : (
+            <p className="hint-line">{t('ui.hint.tap-piece')}</p>
+          )}
+        </div>
 
         {/* The forced pass (ADR-003). Present only while the engine offers it,
             which is only when a card has left nothing that can move — so it can
@@ -1396,6 +1631,8 @@ function PeekSheet({ peek, onClose }: { peek: Peek; onClose: () => void }) {
           froze it may be four turns spent and gone from the hand. */}
       {peek.because && <p className="sheet-because">{peek.because}</p>}
       <p className="sheet-text">{peek.text}</p>
+      {/* ADR-007: exactly one of a grid or a sentence, never a blank box. */}
+      {peek.piece && <PieceMoveRegion piece={peek.piece} t={t} />}
       <button type="button" data-testid="peek-close" onClick={onClose}>
         {t('ui.action.close')}
       </button>

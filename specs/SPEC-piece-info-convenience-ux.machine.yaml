@@ -1,0 +1,217 @@
+schema_version: 2
+spec_slug: piece-info-convenience-ux
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: property invariants for the gesture arbitration and the undrawable-piece fallback (AC-003, AC-005), golden e2e fixtures for the observable affordances (AC-001, AC-002, AC-006, AC-007, AC-008, AC-010), a parametric table over inspect targets (AC-004), and the existing measured contrast floors (AC-009)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+
+ac:
+  - id: AC-001
+    title: "The selected piece explains itself in place"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::selecting a piece fills the strip without reflowing the board
+    executable_predicate: "strip_name(selected_piece) == piece_name(selected_piece) and strip_has_opener(strip) and board_top(before) == board_top(after)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected name and ability text come from the content bundle's nameKey/textKey resolved through the ko locale table, which predates this feature and is the same source the dex screen already renders; the board-offset equality is a layout invariant measured before and after selection, not a value read off the new code."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "Pressing and holding a square opens its detail sheet"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::press and hold opens the piece sheet without moving
+    executable_predicate: "sheet_open(after_hold) and board_fen(after_hold) == board_fen(before_hold) and selected_square(after_hold) == selected_square(before_hold)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The unchanged-board expectation is pinned to the position the match starts from under a fixed seed, which the existing hotseat e2e already relies on; the assertion is that a documented prior state is preserved, so it cannot be satisfied by whatever the new handler happens to do."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-003
+    title: "A press that becomes a drag is a drag, never both"
+    type: property
+    test_ids:
+      - tests/ui/press-gesture.test.tsx::a sequence never both opens the sheet and commits a move
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Mutual exclusion of the two commits is a relation over the input sequence and the pair of outcomes, holding for any threshold values and any handler structure; an implementation that fires both violates it regardless of how it is written, so the relation cannot be derived from the code it judges."
+    oracle_independence_waiver: null
+    input_domain: "pointer sequences over one square: pointerdown, zero or more pointermove events with arbitrary displacement, then pointerup or pointercancel, with arbitrary elapsed time"
+    transformation: "dispatch the sequence at the board and observe which commits fired"
+    expected_relation: "at most one of {detail sheet opened, move committed} occurs; and displacement exceeding the movement threshold before the press threshold elapses implies the sheet did not open"
+    preconditions:
+      - "a match is in progress and the pressed square is on the board"
+    observable_output: "the pair (sheet_opened: bool, move_committed: bool)"
+    generator_hint: "vary displacement across the movement threshold and hold duration across the press threshold, including exactly-at-threshold values"
+
+  - id: AC-004
+    title: "Every inspectable target on the board has the route"
+    type: parametric
+    test_ids:
+      - e2e/piece-info.spec.ts::own piece, enemy piece and painted square each open; bare square does not
+    executable_predicate: null
+    golden_table:
+      - input:
+          target: "square holding one of the mover's own pieces"
+        expected: "sheet_open with kind label ui.dex.kind.piece"
+      - input:
+          target: "square holding an opponent piece"
+        expected: "sheet_open with kind label ui.dex.kind.piece"
+      - input:
+          target: "painted square with no piece on it"
+        expected: "sheet_open with kind label ui.dex.kind.square"
+      - input:
+          target: "unpainted square with no piece on it"
+        expected: "no_sheet"
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The four rows were fixed in the SPEC interview before any implementation existed, and the kind labels are the existing dex keys the legend and hotbar already use; the table is the decision record, not a transcript of behaviour."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-005
+    title: "A piece too complex to draw says so instead of showing nothing"
+    type: property
+    test_ids:
+      - tests/ui/piece-detail.test.tsx::every bundled piece renders either a grid or the undrawable notice
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Exactly-one-of is a totality relation over the whole bundled piece set: it is satisfiable only if the null branch of readGrid is handled, and it is falsified by the silent no-op this project's recorded absent-case failure mode produces. It holds independently of how the grid is rendered."
+    oracle_independence_waiver: null
+    input_domain: "every piece definition in the shipped content bundle, including those whose movement readGrid returns null for"
+    transformation: "render the detail sheet for the piece and inspect what the movement region contains"
+    expected_relation: "exactly one of {a 7x7 grid with at least one non-empty cell, the undrawable notice} is present; a rendered-but-empty grid satisfies neither"
+    preconditions:
+      - "the piece has a non-empty movement definition"
+    observable_output: "the movement region's rendered kind"
+    generator_hint: "enumerate the bundle rather than sampling, and include at least one multi-pattern and one mixed-travel-kind piece"
+
+  - id: AC-006
+    title: "Inspecting does not disarm an armed card"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::inspecting while a card is armed preserves the arming
+    executable_predicate: "armed_card(after_close) == armed_card(before_press) and pending_targets(after_close) == pending_targets(before_press) and hint_text(after_close) == hint_text(before_press)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected post-state is the pre-state captured in the same test before the press; the hint string is the existing ui.hint.choose-target key from the ko table, which predates this feature."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "Pointer and keyboard reach the same information"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::hover tooltip is dismissible, hoverable and persistent; focus plus inspect key opens the sheet
+    executable_predicate: "tooltip_visible(on_hover) and not tooltip_visible(after_escape) and tooltip_visible(pointer_over_tooltip) and sheet_open(after_inspect_key)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The three conditions are read off WCAG 2.1 SC 1.4.13 (dismissible / hoverable / persistent) as an external normative reference, and the keyboard route is asserted to open the same sheet node the pointer route opens — a comparison against an independently reached state rather than against this handler's own output."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-008
+    title: "The operating system does not eat the press"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::a long press raises no system menu and leaves scrolling intact
+      - tests/ui/touch-hardening.test.ts::suppresses the iOS callout and the selection handles together
+    executable_predicate: "computed(square, '-webkit-touch-callout') == 'none' and computed(square, 'user-select') == 'none' and contextmenu_default_prevented(long_press) and scroll_offset(after_swipe) != scroll_offset(before_swipe)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The two CSS values are the documented WebKit remedy for the long-press callout and the selection loupe, pinned from the vendor bug report and Apple's own guidance rather than from this codebase; the scroll assertion pins a behaviour that exists today and must survive. Split across two tests because -webkit-touch-callout is iOS-only and is dropped at parse time by Playwright WebKit on Linux, so it is asserted on the source rather than on a computed value that can never carry it."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-009
+    title: "The new surfaces obey the recorded visual rules"
+    type: mechanical
+    test_ids:
+      - tests/ui/art-contrast.test.ts::piece-info surfaces clear their floors
+      - e2e/piece-info.spec.ts::square hover changes bevel only
+    executable_predicate: "min_contrast(piece_info_surfaces) >= recorded_floor and computed(square, 'filter', hovered) == computed(square, 'filter', idle) and computed(square, 'opacity', hovered) == computed(square, 'opacity', idle) and box_size(square, hovered) == box_size(square, idle)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The floors are the thresholds already committed in tests/ui/art-contrast.test.ts from the pixel-redesign cycle, and the recorded project rule is that a regression is fixed by moving the colour, never by lowering the floor — so the expected values are prior art this feature must clear, not values it sets."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-010
+    title: "The gesture advertises itself"
+    type: mechanical
+    test_ids:
+      - e2e/piece-info.spec.ts::the strip names the press-and-hold gesture
+    executable_predicate: "strip_hint_text(strip) == locale_string('ui.piece-info.press-hint')"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The assertion compares against the ko locale table entry rather than a literal, which is how every other user-facing string in this repo is asserted; the string's presence in the locale bundle is the independent record that the affordance was advertised."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null

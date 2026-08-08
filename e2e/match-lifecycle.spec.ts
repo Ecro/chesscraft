@@ -37,7 +37,12 @@ test('a first visitor starts from home and lands in a playable match', async ({ 
   await expect(page.getByTestId('rule-card')).toHaveAttribute('data-rule', /.+/)
 })
 
-test('the seed in play is reachable and copyable (ADR-024)', async ({ page, context }) => {
+test('the seed in play is reachable and copyable (ADR-024)', async ({ page, context, browserName }) => {
+  // Playwright cannot grant clipboard permission on WebKit — `grantPermissions`
+  // throws `Unknown permission: clipboard-write` before the app is even loaded.
+  // A harness limit, not a claim about the engine, so it is named here rather
+  // than worked around. (PLAN-piece-info-convenience-ux, R3 triage.)
+  test.skip(browserName === 'webkit', 'Playwright/WebKit cannot grant clipboard-write')
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto('/')
   await startMatch(page)

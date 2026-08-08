@@ -839,6 +839,15 @@ test.describe('at the desktop boundary', () => {
   test.describe('inside the frame band, on a window shorter than the device (674x800)', () => {
     test.use({ viewport: { width: 674, height: 800 } })
 
+    // Same class as the sibling block below: the frame band is what a DESKTOP
+    // window draws around a phone-shaped column, and there is no band to be
+    // inside of when the profile already IS a phone (`mobile-webkit` runs as
+    // `iPhone 13`, `isMobile: true`). Resizing the viewport does not produce
+    // the banded shell, so the tab bar this asserts on is genuinely absent and
+    // the failure is about the profile rather than about the layout. Named
+    // rather than left red. (PLAN-piece-info-convenience-ux, R3 triage.)
+    test.skip(({ isMobile }) => Boolean(isMobile), 'the frame band is a desktop shell; a phone profile has no band')
+
     test('keeps the whole tab bar on screen', async ({ page }) => {
       /*
        * The hole the frame band left, and the reason no existing test saw it.
@@ -896,6 +905,13 @@ test.describe('at the desktop boundary', () => {
 
   test.describe('on a short laptop window (1366x640)', () => {
     test.use({ viewport: { width: 1366, height: 640 } })
+
+    // A laptop-shell claim cannot be made under a phone device profile. The
+    // `mobile-webkit` project runs as `iPhone 13` (`isMobile: true`), so
+    // resizing the viewport does not produce the desktop shell this block is
+    // about and the assertion reads a null element. Named rather than left
+    // red. (PLAN-piece-info-convenience-ux, R3 triage.)
+    test.skip(({ isMobile }) => Boolean(isMobile), 'a desktop-shell claim under a phone device profile is not a claim')
 
     test('takes the desktop shell, because the height floor is not the frame band’s', async ({ page }) => {
       /*

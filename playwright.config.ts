@@ -81,6 +81,41 @@ export default defineConfig({
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } },
     },
+    /*
+     * Mobile WebKit (ADR-006 of PLAN-piece-info-convenience-ux).
+     *
+     * Added for one criterion the matrix could not reach: AC-008 is about
+     * mobile Safari eating a long press — the system callout, the selection
+     * handles, the magnifier — and both existing projects are Chromium, which
+     * has none of those behaviours. A Chromium assertion that the CSS is
+     * present would have certified a remedy against an engine that never
+     * needed it.
+     *
+     * It runs the WHOLE spec set rather than only the new one, which is a cost
+     * accepted with its eyes open: every other screen gains WebKit coverage it
+     * did not have, and a WebKit-only failure in a spec this feature never
+     * touched is recorded and triaged rather than hidden by narrowing the
+     * project (recorded as R3 in the PLAN).
+     */
+    {
+      name: 'mobile-webkit',
+      use: { ...devices['iPhone 13'] },
+      /*
+       * A longer per-test budget for this project ALONE.
+       *
+       * Measured, not guessed: the whole suite passes on WebKit at
+       * `--workers=1`, and three tests time out at 30s when `npm run verify`
+       * runs all three projects at the default worker count. WebKit is several
+       * times slower here than Chromium, so sharing the pool starves it and the
+       * failures land on whichever test happened to be long — a different one
+       * each run, which is the signature of a starved worker rather than a
+       * defect.
+       *
+       * Raising the budget here keeps Chromium's 30s honest: a Chromium test
+       * that needs 90s is a bug, and this must not hide it.
+       */
+      timeout: 90_000,
+    },
   ],
   webServer: {
     /*

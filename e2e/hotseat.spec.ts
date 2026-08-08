@@ -49,6 +49,11 @@ async function heldBy(page: Page, side: 'white' | 'black'): Promise<string[]> {
 }
 
 test('plays a hot-seat match through all four draft picks to a result', async ({ page }) => {
+  // The longest test in the suite, and WebKit here is several times slower than
+  // Chromium — it exceeded the 30s default on the first full WebKit run. Marked
+  // slow rather than skipped: the claim is engine-independent and worth keeping.
+  // (PLAN-piece-info-convenience-ux, R3 triage.)
+  test.slow()
   await useSliceContent(page)
 
   const ruleCard = page.getByTestId('rule-card')

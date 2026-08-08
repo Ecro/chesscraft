@@ -547,6 +547,22 @@ export const ko: Record<string, string> = {
   'ui.result.stat.plies': '둔 수',
   'ui.result.stat.took': '{name} 잡음',
 
+  // --- 기물 정보 (piece info affordances) ---
+  // The undrawable notice is a SENTENCE, not an apology or an empty box: a
+  // piece whose movement `readGrid` cannot round-trip still has to tell the
+  // player something they can act on, and "read the words above" is that.
+  'ui.piece-info.undrawable': '이 기물은 움직임이 복잡해서 그림으로 못 보여줘요. 위 설명을 읽어 보세요.',
+  'ui.piece-info.grid-label': '이 기물이 갈 수 있는 칸',
+  'ui.piece-info.legend.move': '· 갈 수 있어요',
+  'ui.piece-info.legend.capture': '× 잡을 수 있어요',
+  'ui.piece-info.legend.both': '✳ 가거나 잡아요',
+  'ui.piece-info.slides': '{dirs} 쪽으로 {reach}',
+  'ui.piece-info.reach.1': '한 칸 미끄러져요',
+  'ui.piece-info.reach.2': '두 칸까지 미끄러져요',
+  'ui.piece-info.reach.edge': '끝까지 쭉 미끄러져요',
+  'ui.piece-info.press-hint': '기물을 꾹 누르면 무슨 기물인지 볼 수 있어요.',
+  'ui.piece-info.side-name': '{side} {name}',
+
   // --- 도감 ---
   'ui.dex.kind.piece': '기물',
   'ui.dex.kind.square': '특별한 칸',

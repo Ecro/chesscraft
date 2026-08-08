@@ -1543,6 +1543,19 @@ hr {
 
 .hint-bar {
   flex: none;
+  /* ADR-003: the height is RESERVED, not derived. The four states have
+     different natural heights, and letting the tallest one grow the region
+     reflows everything below it the moment a player selects a piece.
+     `min-height` alone was NOT enough and measuring caught it: the strip's
+     three rows came to 85px against a 72px reservation, so the region grew
+     anyway and only the board — which sits above it — stayed put. The board
+     assertion passed for the wrong reason. Hence a fixed height plus a clamp
+     on the one row that can grow without bound. */
+  height: 5.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-2) var(--space-3);
   text-align: center;
   font-size: var(--font-size-sm);
@@ -1552,6 +1565,118 @@ hr {
     inset var(--bevel) var(--bevel) 0 var(--color-sunken-hi),
     inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-sunken-lo);
   color: var(--color-text-muted);
+}
+
+.hint-line {
+  margin: 0;
+}
+
+/* --- the selected piece's strip, and the move grid it opens */
+
+.piece-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+}
+
+.strip-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  line-height: 0;
+}
+
+.strip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* ADR-005 keeps the side in the NAME, so this line can be long. It wraps
+   rather than truncating: a name cut mid-word is worse than a second line in
+   a region whose height is already reserved. */
+.strip-head strong {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Clamped to two rows, which is what makes the region's fixed height a
+   promise rather than a hope: an authored piece can carry a description of any
+   length, and one long enough to add a third row would push the press hint out
+   of a region that no longer grows. The full text is one tap away through the
+   opener, so nothing is lost — the strip is the summary, the sheet is the
+   entry. */
+.strip-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.strip-hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.move-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.move-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.move-undrawable {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* AC-008 — the board is a gesture surface, so the OS must not claim a long
+   press on it. `-webkit-touch-callout` suppresses the action sheet and
+   `user-select` the selection handles; neither alone is enough, and WebKit
+   bug 231161 means the magnifier can still appear on some iOS versions (recorded
+   as R4, detected by the manual pass). Scoped to the board rather than
+   declared on `html`, so text everywhere else stays selectable — a child who
+   wants to copy a room code still can.
+
+   `touch-action: manipulation` keeps scrolling and pinch-zoom working while
+   dropping the 300ms double-tap delay; it does NOT disable panning, which is
+   what the swipe assertion in the e2e checks. */
+.board .square {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 .hint-bar[data-pending='true'] {

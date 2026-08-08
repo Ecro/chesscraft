@@ -427,5 +427,44 @@
       outline: var(--bevel-lg) solid var(--color-primary);
       outline-offset: calc(-1 * var(--bevel-lg));
     }
+
+    /*
+     * The hover tooltip (AC-007), and the three things WCAG 1.4.13 asks of it.
+     *
+     * PERSISTENT is the default here rather than an addition: nothing dismisses
+     * it on a timer, so it lives exactly as long as the hover or until Escape.
+     * HOVERABLE comes from the DOM rather than from CSS — the node is a child
+     * of the square, so moving the pointer onto it never leaves the element
+     * that owns the hover. DISMISSIBLE is the one CSS cannot do, and it is a
+     * window-level keydown in `MatchHost`.
+     *
+     * `position: absolute` inside the square's `position: relative`, so it is
+     * outside the flow entirely: the board's grid geometry does not move when a
+     * tooltip appears, which is the same reason the square's own hover state is
+     * an outline rather than a border.
+     */
+    .square-tip {
+      position: absolute;
+      bottom: calc(100% + var(--bevel));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      padding: var(--space-1) var(--space-2);
+      white-space: nowrap;
+      font-size: var(--font-size-sm);
+      line-height: 1.2;
+      color: var(--color-note-ink);
+      background: var(--color-note);
+      border: var(--border-w) solid var(--color-outline);
+      box-shadow:
+        inset var(--bevel) var(--bevel) 0 var(--color-note-hi),
+        inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-note-lo);
+      /* `auto`, NOT `none`, and this is the load-bearing line of the rule. The
+         tooltip sits above the square's own box, so a pointer that passed
+         THROUGH it would land on the square above and fire `mouseleave` on the
+         one being described — the tooltip would vanish exactly as the user
+         reached for it, which is the failure 1.4.13's "hoverable" names. */
+      pointer-events: auto;
+    }
   }
 }
