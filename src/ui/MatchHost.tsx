@@ -5,7 +5,8 @@ import type { Difficulty } from '@engine/ai/difficulty'
 import { paintedSquares } from '@engine/effects'
 import { apply, describeRejection, legalActions, pendingDraftSide } from '@engine/engine'
 import { type Match, createMatch, currentState, undo } from '@engine/match'
-import { type Action, type Side, type SquareId, squareId } from '@engine/types'
+import { type Action, type GameState, type Side, type SquareId, squareId } from '@engine/types'
+import { type LiveEffect, badgeFor, liveEffects, sourceRecord } from './liveEffects'
 import { type Translate, useTranslate } from './i18n'
 import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
@@ -112,11 +113,18 @@ function squareLabel(
   piece: { side: string } | undefined,
   type: { nameKey: string } | undefined,
   reachable: boolean,
+  effect: { kind: string; remaining: number } | undefined,
 ): string {
   const parts = [sq]
   if (def && piece) parts.push(`${t(`ui.side.${piece.side}`)} ${t(def.nameKey)}`)
   else parts.push(t('ui.board.empty'))
   if (type) parts.push(t(type.nameKey))
+  // The badge is `aria-hidden`, so this is the ONLY way the effect reaches a
+  // screen reader — the same reason legal-move state is in the label rather
+  // than only in an outline.
+  if (effect) {
+    parts.push(`${t(`ui.effect.${effect.kind}`)}, ${t('ui.effect.remaining').replace('{n}', String(effect.remaining))}`)
+  }
   if (reachable) parts.push(t('ui.board.reachable'))
   return parts.join(', ')
 }
@@ -161,7 +169,22 @@ const HAND_OFF_MS = 1600
 const AI_MIN_THINK_MS = 650
 
 /** What the detail sheet is currently showing. Content-agnostic on purpose. */
-type Peek = { mark: Mark; name: string; kind: string; text: string }
+type Peek = { mark: Mark; name: string; kind: string; text: string; because?: string }
+
+/**
+ * Whether the player has asked the system for less movement.
+ *
+ * Read here rather than left to a CSS media query because the flourish is a
+ * one-shot attribute the board carries, not a permanent style — and a component
+ * that keeps emitting it while the stylesheet silently ignores it is a
+ * behaviour nothing can test. `matchMedia` is absent in some older WebViews,
+ * so its absence means "no preference expressed", not "reduce".
+ */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false
+}
 
 /** How many hotbar slots the player to move sees, filled or not. */
 const HOTBAR_SLOTS = 5
@@ -179,10 +202,21 @@ export function MatchHost({
   aiSide,
   aiDifficulty = 'medium',
   createAi,
+  initialState,
 }: {
   content: ContentSet
   presetId: string
   newSeed?: () => number
+  /**
+   * The position this screen opens on, instead of a fresh deal.
+   *
+   * Injected for the same reason `newSeed` and `createAi` are (ADR-024): some
+   * states are reachable in play and not reachable from an opening within a
+   * test's patience — a card that leaves its own owner with no legal move is
+   * the one ADR-003 exists for, and no seed deals it on turn one. A rematch
+   * still deals normally; this seeds the first match only.
+   */
+  initialState?: GameState | undefined
   /**
    * The side the computer plays, or absent for hot-seat.
    *
@@ -227,7 +261,7 @@ export function MatchHost({
   // let the two drift, and the seed on screen is the one a player copies.
   const [{ seed, match }, setPlay] = useState<{ seed: number; match: Match }>(() => {
     const s = newSeed()
-    return { seed: s, match: createMatch({ content, presetId, seed: s }) }
+    return { seed: s, match: initialState ? { states: [initialState] } : createMatch({ content, presetId, seed: s }) }
   })
   const [selected, setSelected] = useState<SquareId | null>(null)
   const [pendingCard, setPendingCard] = useState<{ cardId: string; targets: SquareId[] } | null>(null)
@@ -269,6 +303,45 @@ export function MatchHost({
   const drafting = pendingDraftSide(state)
   const phase = state.result ? 'result' : drafting ? 'draft' : 'play'
   const painted = paintedSquares(state, content)
+  // Every lasting effect on the board, derived once and read by all three
+  // surfaces (ADR-005): the square badge, the legend chips and the sheet.
+  const effects = liveEffects(state)
+  // The forced pass, offered only when the engine offers it (ADR-003). Asking
+  // the engine rather than re-deriving "has a card and cannot move" keeps one
+  // rule in one place — the UI has been the second copy of a rule before.
+  const passAction = legal.find((a) => a.kind === 'end_turn')
+  /*
+   * The effects that appeared on the LAST action, for the one-shot flourish.
+   *
+   * Derived from the history rather than held in state: `match.states` already
+   * records what the board looked like a moment ago, and a `useState` mirror of
+   * it would be a second source of truth that drifts on undo. Suppressed
+   * wholesale when the player has asked for less movement — the badge simply
+   * appears, which is the same information without the motion.
+   */
+  const arrived = (() => {
+    if (prefersReducedMotion() || match.states.length < 2) return new Set<string>()
+    /*
+     * Keyed on the source and the EXPIRY, not just the square and the kind.
+     *
+     * `square:kind` alone cannot see a re-application: re-freezing a frozen
+     * square, or a second card extending a live grant, leaves that key
+     * unchanged — so the badge's number ticked back up and the flourish that
+     * says "something just happened here" silently did not fire, on exactly the
+     * plies where a player most needs telling.
+     *
+     * The expiry rather than the remaining COUNT, and the difference is not
+     * cosmetic: `remaining` ticks down every ply, so keying on it would mark
+     * every surviving effect as newly arrived on every single ply — a board
+     * that flashes constantly says nothing at all. `remaining + plyCount` is
+     * the absolute ply the effect ends on: constant while it merely persists,
+     * and pushed forward exactly when something re-applies it.
+     */
+    const previous = match.states[match.states.length - 2]!
+    const key = (e: LiveEffect, ply: number) => `${e.square}:${e.kind}:${e.sourceId}:${e.remaining + ply}`
+    const was = new Set(liveEffects(previous).map((e) => key(e, previous.plyCount)))
+    return new Set(effects.filter((e) => !was.has(key(e, state.plyCount))).map((e) => e.square))
+  })()
 
   /** The player's name if they gave one, else the side's own word. */
   const nameOf = (side: Side) => names[side].trim() || t(`ui.side.${side}`)
@@ -404,7 +477,14 @@ export function MatchHost({
 
       const land = () => {
         if (cancelled) return
-        setAiThinking(false)
+        // Cleared only when the computer is actually DONE thinking. Since
+        // ADR-001 its turn can take two searches — a card, then the move it
+        // owes — and clearing here unconditionally put a render with the
+        // indicator OFF between them: the effect that starts the second search
+        // runs after commit, so the blank frame can paint. What the player sees
+        // is the computer finishing, then starting again, which reads as the
+        // app having lost track of whose turn it is.
+        if (move?.action?.kind !== 'play_card') setAiThinking(false)
         // A search that overran its wall-clock backstop still returns a legal
         // move — it just stops being reproducible from the seed, and the player
         // is told rather than left with a seed that no longer replays (AC-011).
@@ -603,6 +683,27 @@ export function MatchHost({
     setPendingCard({ cardId, targets: [] })
   }
 
+  /**
+   * Opens the detail sheet for an effect standing on the board.
+   *
+   * Names the effect AND the record that caused it (ADR-004/005). The effect's
+   * own name alone is the state the badge already showed; the question a player
+   * actually has is which card did it — and until now the engine knew and
+   * nothing asked.
+   * A source the content set no longer defines still renders, under its id: a
+   * badge that vanishes because its LABEL is missing hides the effect itself.
+   */
+  const peekEffect = (effect: LiveEffect) => {
+    const record = sourceRecord(effect, content)
+    setPeek({
+      mark: iconMark(t, record),
+      name: t(`ui.effect.${effect.kind}`),
+      kind: t('ui.effect.remaining').replace('{n}', String(effect.remaining)),
+      text: record ? t(record.textKey) : '',
+      because: t('ui.effect.caused-by').replace('{name}', record ? t(record.nameKey) : effect.sourceId),
+    })
+  }
+
   /** Opens the detail sheet for a card. The same sheet the dex screen uses. */
   const peekCard = (cardId: string, kindKey: string) => {
     const card = content.skillCards.get(cardId) ?? content.ruleCards.get(cardId)
@@ -797,6 +898,7 @@ export function MatchHost({
                   const def = piece ? content.pieces.get(piece.pieceId) : undefined
                   const typeMark = iconMark(t, type)
                   const isLegal = reachable.has(sq)
+                  const badge = badgeFor(effects, sq)
                   return (
                     <button
                       key={sq}
@@ -805,6 +907,8 @@ export function MatchHost({
                       data-piece={piece?.pieceId ?? ''}
                       data-side={piece?.side ?? ''}
                       data-square-type={type?.id ?? ''}
+                      {...(badge ? { 'data-effect': badge.kind, 'data-effect-plies': String(badge.remaining) } : {})}
+                      {...(badge && arrived.has(sq) ? { 'data-effect-new': 'true' } : {})}
                       data-parity={parity}
                       data-last={lastMove?.from === sq ? 'from' : lastMove?.to === sq ? 'to' : undefined}
                       style={
@@ -824,7 +928,7 @@ export function MatchHost({
                       data-legal-kind={isLegal ? (piece ? 'capture' : 'move') : undefined}
                       data-selected={selected === sq}
                       role="gridcell"
-                      aria-label={squareLabel(t, sq, def, piece, type, isLegal)}
+                      aria-label={squareLabel(t, sq, def, piece, type, isLegal, badge)}
                       // `aria-selected`, not `aria-pressed`: the explicit gridcell
                       // role overrides the native button role, and `aria-pressed`
                       // is a button-family state a gridcell does not support.
@@ -846,6 +950,32 @@ export function MatchHost({
                           top-right, so the two armies differ by a mark you can
                           LOCATE without resolving its colour. */}
                       {piece && <span className="side-tag" data-side={piece.side} aria-hidden="true" />}
+                      {/* The effect standing here, with the plies it has left.
+                          Its own hit area, and it swallows the click: the square
+                          body means "select / move" and always will, so opening
+                          a sheet from it would put an explanation in the way of
+                          the game. `aria-hidden` because the square's label
+                          already says the same thing in words — a screen reader
+                          that heard both would hear the effect twice.
+
+                          Not a nested <button>: the square IS one, and a button
+                          inside a button is invalid. The keyboard path to the
+                          same sheet is the legend chip below, which is a real
+                          button. */}
+                      {badge && (
+                        <span
+                          className="effect-pip"
+                          data-testid="effect-pip"
+                          data-effect={badge.kind}
+                          aria-hidden="true"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            peekEffect(badge)
+                          }}
+                        >
+                          {badge.remaining}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -863,9 +993,29 @@ export function MatchHost({
             refused or is waiting for. Always present because a line that appears
             only on an error reflows the board under the player's thumb at the
             exact moment they are being told they did something wrong. */}
+        {/* The turn no longer ends with the card (ADR-001), so this line has one
+            more thing to say: a card is spent and the move is still owed. It is
+            said only when nothing is armed — a player choosing targets is being
+            asked a narrower question and should not be told two things at once. */}
         <p className="hint-bar" data-pending={Boolean(pendingCard)} {...(rejection ? { 'data-testid': 'rejection' } : {})} role="status">
-          {rejection ?? (pendingCard ? t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target') : t('ui.hint.tap-piece'))}
+          {rejection ??
+            (pendingCard
+              ? t(readyCard ? 'ui.hint.card-ready' : 'ui.hint.choose-target')
+              : passAction
+                ? t('ui.hint.no-moves')
+                : state.turnCard !== null
+                  ? t('ui.hint.now-move')
+                  : t('ui.hint.tap-piece'))}
         </p>
+
+        {/* The forced pass (ADR-003). Present only while the engine offers it,
+            which is only when a card has left nothing that can move — so it can
+            never be used to spend a card and skip your move. */}
+        {passAction && (
+          <button type="button" className="primary end-turn" data-testid="end-turn" onClick={() => push(passAction)}>
+            {t('ui.action.end-turn')}
+          </button>
+        )}
 
         {/* The commit for a card that asks nothing. It appears only while such a
             card is armed, so it never competes with choosing a target, and the
@@ -879,8 +1029,32 @@ export function MatchHost({
 
         {/* AC-018's UI clause: every painted type on this board, with its ability
             text one tap away. A chip rather than a paragraph — see the header. */}
-        {legendTypes.length > 0 && (
+        {(legendTypes.length > 0 || effects.length > 0) && (
           <ul className="legend" data-testid="square-legend">
+            {/* The effects first, the square types after (ADR-005). Effects are
+                what changed this turn and what a player is looking for; square
+                types are a property of the board and have been there all match.
+                Absent entirely when nothing is live, so the row costs no height
+                on the board a player spends most of the match looking at. */}
+            {effects.map((effect) => {
+              const record = sourceRecord(effect, content)
+              const mark = iconMark(t, record)
+              return (
+                <li key={`${effect.square}:${effect.kind}`} data-testid="effect-chip" data-effect={effect.kind} data-square={effect.square}>
+                  <button type="button" onClick={() => peekEffect(effect)}>
+                    {mark.kind !== 'none' && (
+                      <span className="legend-icon" aria-hidden="true">
+                        <MarkBody mark={mark} />
+                      </span>
+                    )}
+                    <strong>{t(`ui.effect.${effect.kind}`)}</strong>
+                    <span className="effect-where">
+                      {effect.square} · {t('ui.effect.remaining').replace('{n}', String(effect.remaining))}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
             {legendTypes.map((type) => {
               const mark = iconMark(t, type)
               return (
@@ -1216,6 +1390,11 @@ function PeekSheet({ peek, onClose }: { peek: Peek; onClose: () => void }) {
           <span className="sheet-kind">{peek.kind}</span>
         </span>
       </div>
+      {/* Which record did this, when the sheet is about an effect rather than
+          about a record (ADR-004). The one question the board could not answer
+          before: by the time a player looks at a frozen piece, the card that
+          froze it may be four turns spent and gone from the hand. */}
+      {peek.because && <p className="sheet-because">{peek.because}</p>}
       <p className="sheet-text">{peek.text}</p>
       <button type="button" data-testid="peek-close" onClick={onClose}>
         {t('ui.action.close')}

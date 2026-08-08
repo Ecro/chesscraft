@@ -2,6 +2,31 @@ import type { MovePattern } from '@content/schema'
 
 export type Side = 'white' | 'black'
 
+/** Which kind of content owns an effect — the ADR-002 resolution layers. */
+export type EffectLayer = 'square' | 'piece' | 'rule' | 'skill'
+
+/**
+ * What created a lasting effect (ADR-004).
+ *
+ * Carried by every structure that outlives the ply that made it, because "which
+ * skill did this?" is otherwise unanswerable: by the time a player looks at a
+ * frozen piece, the card that froze it may be four turns spent and gone from
+ * the hand. The layer is as load-bearing as the id — a freeze from a SQUARE and
+ * a freeze from a CARD are identical on the board, and which one it was decides
+ * whether the player should walk away or wait it out.
+ */
+export interface EffectSource {
+  /** Record id: a card, a piece, a square type — whatever the layer names. */
+  readonly sourceId: string
+  readonly layer: EffectLayer
+}
+
+/** A frozen square: until when, and what did it. */
+export interface FrozenEntry extends EffectSource {
+  /** Exclusive: the occupant cannot act while `plyCount < untilPly`. */
+  readonly untilPly: number
+}
+
 /**
  * A generation-time modifier that outlives the effect that created it (v3).
  *
@@ -10,7 +35,7 @@ export type Side = 'white' | 'black'
  * engine has. A granted piece that walks away leaves the grant behind, which is
  * the same rule freezing already follows.
  */
-export interface ActiveGrant {
+export interface ActiveGrant extends EffectSource {
   readonly kind: 'grant_movement' | 'forbid_movement' | 'block_capture'
   readonly square: SquareId
   readonly pattern?: MovePattern
@@ -64,12 +89,31 @@ export interface GameState {
   readonly boardId: string
   readonly seed: number
   readonly ruleCardId: string | null
+  /**
+   * The skill card played THIS turn, or null when none has been (ADR-001).
+   *
+   * A turn is `[play_card?] → move`: the card resolves without handing the board
+   * over, and the move that follows closes the ply. One field answers both
+   * questions that shape depends on — "may I still play a card?" (only while
+   * this is null) and "am I awaiting a move?" (only while it is not) — and it is
+   * what the end-turn escape hatch, the UI and the AI's position key all read.
+   *
+   * Cleared by every close-out, including the royal-capture short-circuit: a
+   * terminal state with a pending card would describe a turn nobody can finish.
+   */
+  readonly turnCard: string | null
   readonly drafts: Readonly<Record<Side, DraftState>>
   readonly result: MatchResult | null
   /** 0 when the ply was a card play — AC-007's "no board move" observable. */
   readonly movesMadeLastPly: number
-  /** square -> ply index until which the occupant cannot act. */
-  readonly frozenUntil: Readonly<Record<SquareId, number>>
+  /**
+   * square -> until when the occupant cannot act, and what froze it.
+   *
+   * A bare ply number until ADR-004. Keyed by square rather than by piece
+   * identity, matching `grants` — the board has no piece ids, so "the piece
+   * standing here" is the only handle the engine has.
+   */
+  readonly frozenUntil: Readonly<Record<SquareId, FrozenEntry>>
   /**
    * How many times each side has left the opponent in check (schema v2).
    *
@@ -93,6 +137,15 @@ export type Action =
   | { kind: 'move'; from: SquareId; to: SquareId }
   | { kind: 'play_card'; cardId: string; targets: readonly SquareId[] }
   | { kind: 'draft_pick'; cardId: string }
+  /**
+   * The forced pass (ADR-003).
+   *
+   * Legal only while a card has been played this turn AND no move exists — a
+   * card can immobilise the mover's own last piece, and the turn still has to
+   * end. Deliberately not a voluntary pass: offering it whenever a card is
+   * pending would let a player spend a card and skip their move.
+   */
+  | { kind: 'end_turn' }
 
 export function otherSide(side: Side): Side {
   return side === 'white' ? 'black' : 'white'

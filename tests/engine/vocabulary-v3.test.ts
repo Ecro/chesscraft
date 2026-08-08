@@ -168,17 +168,18 @@ describe('skill.knight-leap', () => {
     return play(state, 'skill.knight-leap', ['c3'])
   }
 
-  it('reaches the player on the turn after the card was played', () => {
-    // The card consumes its own turn, so a grant that expired at end of ply
-    // would be one the player could never use — the exact no-op G-15 names.
-    const afterPlay = granted()
-    const whitesNextTurn = step(afterPlay, 'f6', 'f5')
-    expect(movesFrom(whitesNextTurn, 'c3')).toContain('d5')
+  it('reaches the player on the turn the card was played (ADR-002)', () => {
+    // It used to reach them only on the NEXT turn, because a card consumed its
+    // own. Since ADR-001 the turn continues, and since ADR-002 the whole turn is
+    // one ply — so the grant is live for the move the player makes next. A grant
+    // that expired before it could be used is the no-op G-15 names, and "the
+    // player has to wait a full turn to use what they paid a card for" was the
+    // milder version of the same complaint.
+    expect(movesFrom(granted(), 'c3')).toContain('d5')
   })
 
   it('does not grant the move to a piece that was not chosen', () => {
-    const whitesNextTurn = step(granted(), 'f6', 'f5')
-    expect(movesFrom(whitesNextTurn, 'a1')).not.toContain('b3')
+    expect(movesFrom(granted(), 'a1')).not.toContain('b3')
   })
 
   it('expires while the granted piece stays exactly where it was', () => {
@@ -186,11 +187,15 @@ describe('skill.knight-leap', () => {
     // orphaned the moment the rook left c3, and this test would then pass with
     // no expiry logic implemented at all. Plies are burned with the king so the
     // only thing that changes is the clock.
-    let state = step(granted(), 'f6', 'f5')
+    let state = granted() // white, card played, still to move — ply 0
+    expect(movesFrom(state, 'c3'), 'grant should be live on the turn it was bought').toContain('d5')
+
+    state = step(state, 'a1', 'a2') // white closes its turn, rook untouched — ply 1
+    state = step(state, 'f6', 'f5') // black — ply 2
     expect(movesFrom(state, 'c3'), 'grant should still be live here').toContain('d5')
 
-    state = step(state, 'a1', 'a2') // white burns a ply, rook untouched
-    state = step(state, 'f5', 'f6') // black burns a ply
+    state = step(state, 'a2', 'a1') // white burns a ply — ply 3
+    state = step(state, 'f5', 'f6') // black burns a ply — ply 4
     expect(state.board.get('c3')).toEqual({ pieceId: 'piece.rook', side: 'white' })
     expect(movesFrom(state, 'c3')).not.toContain('d5')
   })

@@ -516,6 +516,24 @@ export const ko: Record<string, string> = {
   // player hunting the board for a target the card never wanted.
   'ui.hint.card-ready': '고를 곳이 없는 카드예요. 아래 버튼을 누르면 바로 써요.',
   'ui.match.use-card': '이 카드 쓰기',
+  // The turn no longer ends with the card (ADR-001), so the hint has to say
+  // what is left to do — a player who reads "카드를 쓸 곳을 고르세요" and then
+  // sees their own turn still on the clock has been told the wrong thing.
+  'ui.hint.now-move': '카드를 썼어요. 이제 기물을 움직이세요.',
+  // Shown only when the card left nothing that can move (ADR-003). Named as a
+  // consequence rather than as a choice, because it is not one.
+  'ui.hint.no-moves': '움직일 수 있는 기물이 없어요. 차례를 넘기세요.',
+  'ui.action.end-turn': '차례 넘기기',
+
+  // --- effects standing on the board (ADR-005) ---
+  'ui.effect.frozen': '얼어붙음',
+  'ui.effect.granted': '새 움직임',
+  'ui.effect.forbidden': '묶임',
+  'ui.effect.shielded': '보호막',
+  // The badge shows a number; this is what it means when read aloud or shown in
+  // the sheet. Plies, not turns, because that is what the engine counts.
+  'ui.effect.remaining': '{n}수 남음',
+  'ui.effect.caused-by': '{name} 때문이에요',
   'ui.hand.owner': '{name}의 카드',
   'ui.hand.no-cards': '스킬 카드를 뽑으면 여기에 들어와요.',
   'ui.dex.more': '도감 ▸',

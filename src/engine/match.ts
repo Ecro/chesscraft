@@ -17,11 +17,32 @@ export function currentState(match: Match): GameState {
   return match.states[match.states.length - 1]!
 }
 
-/** UI-level history operation. Unavailable once the match has a result. */
+/**
+ * UI-level history operation. Unavailable once the match has a result.
+ *
+ * Contextual since ADR-007. A turn is `[play_card?] → move`, so it pushes two
+ * states, and a plain pop-one would make taking back a completed turn cost two
+ * taps — with the first landing on the OPPONENT's intermediate state, a card
+ * played and no move made, which is not a position anyone was ever looking at.
+ *
+ * So: mid-turn (a card of your own is pending) it retracts the card; otherwise
+ * it retracts the whole preceding turn, intermediate state included. One tap is
+ * one retraction, and the intermediate state is never a resting place.
+ */
 export function undo(match: Match): Match {
   const state = currentState(match)
   if (state.result || match.states.length < 2) return match
-  return { states: match.states.slice(0, -1) }
+  const popped = { states: match.states.slice(0, -1) }
+  // Mid-turn: one step is exactly the card, and the board is already yours.
+  if (state.turnCard !== null) return popped
+  // Otherwise step back over the turn — and over its card, if it had one. The
+  // guard is `length >= 2` again rather than a blind second pop: a match whose
+  // whole history is one turn must still leave its opening state standing.
+  const previous = currentState(popped)
+  if (previous.turnCard !== null && popped.states.length >= 2) {
+    return { states: popped.states.slice(0, -1) }
+  }
+  return popped
 }
 
 function emptyDraft(offers: string[] | null): DraftState {
@@ -71,6 +92,7 @@ export function createMatch({ content, presetId, seed }: CreateMatchOptions): Ma
     boardId: board.id,
     seed,
     ruleCardId,
+    turnCard: null,
     drafts: { white: emptyDraft(offersFor('white')), black: emptyDraft(offersFor('black')) },
     result: null,
     movesMadeLastPly: 0,
@@ -129,6 +151,7 @@ export function createPosition(opts: CreatePositionOptions): GameState {
     boardId: board.id,
     seed,
     ruleCardId: opts.ruleCardId === undefined ? null : opts.ruleCardId,
+    turnCard: null,
     drafts: { white: draftFor('white'), black: draftFor('black') },
     result: null,
     movesMadeLastPly: 0,

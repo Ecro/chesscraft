@@ -43,8 +43,16 @@ export function chooseAction(state: GameState, content: ContentSet, seed: number
   // Keyed by ply AND by the number of picks made, because a draft pick does not
   // advance the ply count — without the second key both sides' opening drafts
   // would draw the same number from the same substream.
+  //
+  // The third key is the pending card (ADR-001). A turn is now `[play_card?] →
+  // move`, so the same side draws twice at the same ply — and without this the
+  // two draws are the SAME number. The move would then be picked at the same
+  // relative position in its list as the card was in its own, which is a
+  // correlation, not a coin flip. AC-012's whole claim is that this agent
+  // measures the content rather than a heuristic; a rule that says "the index
+  // you chose the card with is the index you move with" is a heuristic.
   const drafted = state.drafts.white.draftIndex + state.drafts.black.draftIndex
-  const roll = rngFor(seed, 'agent', state.plyCount, drafted, state.sideToMove)()
+  const roll = rngFor(seed, 'agent', state.plyCount, drafted, state.sideToMove, state.turnCard ?? '-')()
   // `roll` is in [0, 1); the min guards the boundary rather than trusting it,
   // since an index of `actions.length` would be an off-by-one that biases the
   // last action.
@@ -64,12 +72,19 @@ export interface PlayOut {
  * The action budget is the ply cap plus the four draft picks, which are actions
  * that do not advance the ply count. Bounding by plies alone would abandon a
  * cap-reaching match four actions early and report it as unfinished.
+ *
+ * Two actions per ply since ADR-001: a card play does not advance the ply
+ * either, so a turn can cost two. At one-per-ply the budget ran out mid-match
+ * and `playOut` reported a perfectly healthy game as unfinished — AC-012's
+ * "finishes every one of the 1000 matches" failed for ~1% of seeds with nothing
+ * wrong with the engine at all.
  */
 export function playOut(content: ContentSet, presetId: string, seed: number): PlayOut {
   const DRAFT_ACTIONS = 4
+  const ACTIONS_PER_PLY = 2
   let match = createMatch({ content, presetId, seed })
 
-  for (let step = 0; step < PLY_CAP + DRAFT_ACTIONS; step += 1) {
+  for (let step = 0; step < ACTIONS_PER_PLY * PLY_CAP + DRAFT_ACTIONS; step += 1) {
     const state = currentState(match)
     if (state.result) break
     const action = chooseAction(state, content, seed)

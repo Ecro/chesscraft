@@ -23,17 +23,24 @@ import { shippedContent } from '../helpers/shipped'
  * cannot assert, because a scripted line stops before the boundary.
  *
  * NOTE on plies vs actions, which an earlier draft of this file conflated: a
- * `draft_pick` is an action but NOT a ply (SPEC — a ply is one player's move or
- * card play), and `apply` leaves `plyCount` alone for it. A match therefore
- * consumes up to `PLY_CAP + 4` actions: the cap in plies, plus two opening
- * drafts and two second drafts. Bounding the walk by plies made cap-reaching
- * seeds fail with a message blaming the engine.
+ * `draft_pick` is an action but NOT a ply, and `apply` leaves `plyCount` alone
+ * for it. Since ADR-001 a card play is not a ply either — a turn is
+ * `[play_card?] → move`, so a ply can cost TWO actions. A match therefore
+ * consumes up to `2 * PLY_CAP + 4` actions: two per ply at the cap, plus two
+ * opening drafts and two second drafts. Bounding the walk by plies made
+ * cap-reaching seeds fail with a message blaming the engine; bounding it at one
+ * action per ply does something worse — the walk quietly stops halfway and the
+ * fall-through at the end of the loop fails for a reason that looks nothing
+ * like the turn model.
  */
 
 const content = shippedContent()
 
 /** Opening drafts (2) plus second drafts (2) — actions that are not plies. */
 const DRAFT_ACTIONS = 4
+
+/** Actions per ply at the cap: a card play plus the move that closes it. */
+const ACTIONS_PER_PLY = 2
 
 function checkInvariants(state: GameState, content: ContentSet, seed: number, step: number) {
   const where = `seed ${seed}, step ${step}`
@@ -111,7 +118,7 @@ describe('AC-013 engine invariants under random play', () => {
         let match = createMatch({ content, presetId: BUNDLED_PRESET_ID, seed })
         let previousSize = currentState(match).board.size
 
-        for (let step = 0; step <= PLY_CAP + DRAFT_ACTIONS; step += 1) {
+        for (let step = 0; step <= ACTIONS_PER_PLY * PLY_CAP + DRAFT_ACTIONS; step += 1) {
           const state = currentState(match)
           checkInvariants(state, content, seed, step)
 
@@ -149,16 +156,18 @@ describe('AC-013 engine invariants under random play', () => {
     // a loaded machine, and a timeout here reads as an engine failure.
   }, 120_000)
 
-  it('advances the ply count on a move or a card play, and not on a draft pick', () => {
-    // The transition invariant, and the distinction an earlier draft got wrong:
-    // asserting +1 for EVERY action would have made a draft pick look like a
-    // ply, and the cheapest way to make that pass is to change the engine —
-    // which silently moves AC-003's cap and every AC-012 measurement with it.
+  it('advances the ply count on the action that closes the turn, and on nothing else', () => {
+    // The transition invariant, three-way since ADR-001. Two of the branches are
+    // there to stop a cheap fix: asserting +1 for EVERY action would make a
+    // draft pick look like a ply, and asserting it for a card play would make
+    // the card advance the ply — the alternative ADR-002 rejects, which halves
+    // every authored duration and moves AC-003's cap under every measurement.
     let sawDraft = false
-    let sawPly = false
+    let sawCard = false
+    let sawClose = false
     for (const seed of [11, 202, 3003]) {
       let match = createMatch({ content, presetId: BUNDLED_PRESET_ID, seed })
-      for (let i = 0; i < 30; i += 1) {
+      for (let i = 0; i < 60; i += 1) {
         const before = currentState(match)
         if (before.result) break
         const action = chooseAction(before, content, seed)
@@ -168,14 +177,21 @@ describe('AC-013 engine invariants under random play', () => {
         if (action.kind === 'draft_pick') {
           sawDraft = true
           expect(after.plyCount, 'a draft pick advanced the ply count').toBe(before.plyCount)
-        } else {
-          sawPly = true
+          expect(after.turnCard, 'a draft pick opened a turn').toBeNull()
+        } else if (action.kind === 'play_card' && !after.result) {
+          sawCard = true
+          expect(after.plyCount, 'a card play advanced the ply count').toBe(before.plyCount)
+          expect(after.sideToMove, 'a card play handed the board over').toBe(before.sideToMove)
+          expect(after.turnCard, 'a card play left no pending turn').toBe(action.cardId)
+        } else if (!after.result) {
+          sawClose = true
           expect(after.plyCount).toBe(before.plyCount + 1)
+          expect(after.turnCard, 'the close-out left a stale pending card').toBeNull()
         }
       }
     }
-    // Both branches must have been exercised, or one half is untested.
-    expect(sawDraft && sawPly).toBe(true)
+    // All three branches must have been exercised, or a third of it is untested.
+    expect({ sawDraft, sawCard, sawClose }).toEqual({ sawDraft: true, sawCard: true, sawClose: true })
   })
 
   it('never mutates the state it was given', () => {

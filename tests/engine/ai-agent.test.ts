@@ -113,9 +113,14 @@ describe('AC-002 — the search acts only through the shared pipeline', () => {
       // Not a no-op: `apply` returns the input state for an action it rejects,
       // so an identical result would be the failure this asserts against.
       expect(committed).not.toBe(state)
-      expect(committed.plyCount + committed.drafts.white.draftIndex + committed.drafts.black.draftIndex).toBeGreaterThan(
-        state.plyCount + state.drafts.white.draftIndex + state.drafts.black.draftIndex,
-      )
+      // Progress, counted in the three things an action can advance. The card
+      // term is not decoration: since ADR-001 a card play advances neither the
+      // ply nor a draft index — it opens a turn — so a measure without it reads
+      // a perfectly good commit as "nothing happened". Weighted so that closing
+      // a turn (ply +1, card cleared) still counts as forward motion.
+      const progress = (s: typeof state) =>
+        2 * s.plyCount + (s.turnCard === null ? 0 : 1) + s.drafts.white.draftIndex + s.drafts.black.draftIndex
+      expect(progress(committed)).toBeGreaterThan(progress(state))
     }
   })
 

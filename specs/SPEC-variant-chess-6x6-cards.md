@@ -90,12 +90,47 @@ an attacked square is legal
 holds and none of which appeared in that player's first offer
 **And** offers are drawn from the match seed with no bias toward either player's position
 
-### AC-007: Playing a skill card consumes the entire turn
+### AC-007: ~~Playing a skill card consumes the entire turn~~ — RETIRED 2026-08-08
+
+Retired by PLAN-skill-then-move-and-effect-visibility (ADR-001). The rule it
+described — a card play ends the turn with no board move — made a card a turn
+you did not get, and eleven of the thirteen measured skill cards carried a
+negative win-rate delta as a result. Its two clauses are replaced by AC-019 (the
+turn shape) and AC-020 (consumption); the second clause is carried over
+unchanged, and is called out separately here because it was the only statement
+of the one-use rule anywhere in this document.
+
+### AC-019: A skill card is played during the turn, not instead of it
 
 **Given** it is a player's turn and they hold an unused active skill card
 **When** they play that card and its effect resolves
-**Then** the turn passes to the opponent without that player making a board move
-**And** the card is marked used and cannot be played again in that match
+**Then** the board stays with that player, who then makes a board move to end the turn
+**And** the whole turn counts as one ply, so an effect the card created is live for that
+same turn's move
+**And** no second skill card may be played in the same turn
+
+### AC-020: A played skill card is spent for the rest of the match
+
+**Given** a player has played a skill card
+**When** the card's effect resolves
+**Then** the card is marked used and cannot be played again in that match
+**And** it stays visible in its owner's hand, marked as spent
+
+### AC-021: A turn that cannot be finished can still be ended
+
+**Given** a player has played a skill card and no legal board move remains to them
+**When** they are asked to move
+**Then** an end-turn action is offered, and taking it ends the turn with no move made
+**And** that action is never offered while any legal move exists, nor before a card is played
+
+### AC-022: The board shows every lasting effect and what caused it
+
+**Given** an effect with a duration is standing on the board — a frozen piece, a granted or
+forbidden movement, a blocked capture
+**When** the player looks at the board
+**Then** the affected square is marked with the effect and the plies it has left
+**And** the effect is listed beside the square-type legend while it is live
+**And** inspecting it names the card, rule, piece or square type that caused it
 
 ### AC-008: Skill cards cannot be played out of turn or in response
 
@@ -239,7 +274,7 @@ to both players
 | AC-004 | property | `tests/engine/determinism.test.ts::same seed yields same rule card and offers` |
 | AC-005 | unit | `tests/engine/draft.test.ts::first draft offers three distinct cards` |
 | AC-006 | unit | `tests/engine/draft.test.ts::second draft opens on turn six without repeats` |
-| AC-007 | unit | `tests/engine/skill-cards.test.ts::playing a card consumes the turn` |
+| AC-007 | — | RETIRED 2026-08-08; see AC-019 / AC-020 |
 | AC-008 | unit | `tests/engine/skill-cards.test.ts::out-of-turn card play is rejected` |
 | AC-009 | unit (parametric) | `tests/content/piece-definitions.test.ts::piece move generation matches definition` |
 | AC-010 | unit | `tests/content/bundled-content.test.ts::bundled set meets minimum counts and validates` |
@@ -251,6 +286,10 @@ to both players
 | AC-016 | unit (static) | `tests/content/i18n.test.ts::content text fields are keys resolvable in ko` |
 | AC-017 | e2e | `e2e/hotseat.spec.ts::both players skill cards are visible` |
 | AC-018 | unit (parametric) | `tests/content/special-squares.test.ts::square abilities apply from definition` |
+| AC-019 | unit | `tests/engine/skill-cards.test.ts::turn shape — a card does not end the turn` + `::same-turn effect application` |
+| AC-020 | unit | `tests/engine/skill-cards.test.ts::marks the card used the moment it resolves, exactly once` + `::never offers a spent card again` |
+| AC-021 | unit | `tests/engine/skill-cards.test.ts::end_turn — the forced pass`; UI half `tests/ui/effect-visibility.test.tsx::offers the end-turn control exactly when the card left nothing to move` |
+| AC-022 | unit | `tests/engine/effect-provenance.test.ts`; UI half `tests/ui/effect-visibility.test.tsx::a square under an effect says so` + `::the legend names what is live` + `::the player can find out which skill did it` |
 
 ## ❓ Open Questions
 

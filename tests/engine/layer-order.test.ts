@@ -59,11 +59,48 @@ describe('ADR-002 layer order, driven by the slice content', () => {
     ).toBe(true)
   })
 
-  it('resolves skill -> square -> piece -> rule in exactly that order on one ply', () => {
+  /**
+   * The four-layer turn, and the log it produced.
+   *
+   * ADR-001 changed what a ply is, and this test with it. A ply used to be one
+   * action, so a card play alone could reach all four layers: the card at
+   * `on_play`, the square and the piece at E4 as it landed the archer, and the
+   * rule at E7 reading the archer as the ply's subject. Now the ply is
+   * `[play_card?] → move` and E7 runs on the action that CLOSES it — so the
+   * subject a rule card reads at end-of-ply is the piece that made the move,
+   * never the card's. A four-layer ply is still reachable and still exercises
+   * the same total order; the archer simply has to walk onto the beacon itself
+   * rather than be thrown onto it. The card fires layer 4 by warping the king,
+   * which touches nothing else on the board.
+   */
+  function fourLayerTurn(): { state: GameState; log: string[] } {
     const content = loadSliceContent()
-    const next = apply(positionWithArcherAndBlockedBeacon(false), WARP, content)
+    const start = createPosition({
+      content,
+      presetId: SLICE_PRESET_ID,
+      seed: 7,
+      sideToMove: 'white',
+      ruleCardId: 'rule.beacon-rush',
+      placements: [
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'c2', pieceId: 'piece.archer', side: 'white' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
+      ],
+      held: { white: ['skill.warp'] },
+    })
+    const warpKing: Action = { kind: 'play_card', cardId: 'skill.warp', targets: ['a1', 'b1'] }
+    const mid = apply(start, warpKing, content)
+    const close = legalActions(mid, content).find((a) => a.kind === 'move' && a.from === 'c2' && a.to === 'c3')
+    if (!close) throw new Error('the archer cannot step onto the beacon')
+    const after = apply(mid, close, content)
+    // `log` is per ACTION and the order under test is a property of the PLY.
+    return { state: after, log: [...mid.log, ...after.log] }
+  }
 
-    expect(next.log).toEqual([
+  it('resolves skill -> square -> piece -> rule in exactly that order on one ply', () => {
+    const { log } = fourLayerTurn()
+
+    expect(log).toEqual([
       'on_play:skill:skill.warp',
       'on_enter:square:square.beacon',
       'on_enter:piece:piece.archer',
@@ -72,13 +109,13 @@ describe('ADR-002 layer order, driven by the slice content', () => {
   })
 
   it('produces the board that only square-before-piece can produce', () => {
-    const content = loadSliceContent()
-    const next = apply(positionWithArcherAndBlockedBeacon(false), WARP, content)
+    const { state: next } = fourLayerTurn()
 
     // The beacon moved the archer off c3 first, so the volley hit nothing.
     expect(next.board.get('d4')).toEqual({ pieceId: 'piece.archer', side: 'white' })
     expect(next.board.has('c3')).toBe(false)
-    expect(next.board.has('e5')).toBe(false)
+    expect(next.board.has('c2')).toBe(false)
+    expect(next.board.get('b1')).toEqual({ pieceId: 'piece.king', side: 'white' })
     // ...and the rule card, resolving last, saw the archer standing on d4.
     expect(next.result).toEqual({ kind: 'win', winner: 'white', reason: 'win_action' })
   })

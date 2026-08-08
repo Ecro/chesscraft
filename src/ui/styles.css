@@ -1505,11 +1505,26 @@ hr {
 .legend {
   flex: none;
   display: flex;
-  flex-wrap: wrap;
+  /*
+   * One line, scrolled sideways — NOT wrapped (ADR-005).
+   *
+   * The row now carries effect chips as well as square types, and chips arrive
+   * mid-match. Wrapping meant the row grew a second line the moment one
+   * appeared, which pushed the board down under the player's thumb at the exact
+   * moment they were about to tap it — the e2e suite caught it as a square that
+   * would not hold still long enough to click. Scrolling keeps the row one line
+   * tall whatever it holds, which is the height the layout was budgeted for.
+   */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.legend > li {
+  flex: none;
 }
 
 .legend button {
@@ -1532,6 +1547,85 @@ hr {
 .legend-icon {
   font-size: 14px;
   line-height: 0;
+}
+
+/*
+ * Effects standing on the board (ADR-005).
+ *
+ * The chips lead the legend row and the square carries a pip. Both are drawn
+ * from one derivation, so a pip with no chip beside it cannot happen — and the
+ * colour is the same in both places, which is what makes "that one, there"
+ * work without reading either label.
+ */
+.legend li[data-testid='effect-chip'] strong {
+  color: var(--color-text);
+}
+
+.effect-where {
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+}
+
+/*
+ * The pip: a corner marker with the plies it has left inside it.
+ *
+ * Bottom-RIGHT, because the side tag already owns bottom-left and top-right,
+ * and the square-type mark sits centred behind the piece. It is the fourth mark
+ * a square can carry, which is exactly why it is small, hard-edged and numeric
+ * rather than another icon competing with the three already there.
+ */
+.effect-pip {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  min-width: 12px;
+  padding: 0 2px;
+  font-size: 9px;
+  line-height: 12px;
+  text-align: center;
+  color: var(--color-bg);
+  background: var(--color-text-dim);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/*
+ * One colour per effect, reusing the roles that already mean these things:
+ * negative for what stops you, positive for what protects you, primary for what
+ * gives you something. Frozen and forbidden differ in shade rather than hue
+ * because they are the same news — this piece is not going anywhere — and the
+ * number in the pip is what separates them.
+ */
+.effect-pip[data-effect='frozen'] {
+  background: var(--color-negative-hi);
+  color: var(--color-negative-ink);
+}
+
+.effect-pip[data-effect='forbidden'] {
+  background: var(--color-negative);
+  color: var(--color-negative-ink);
+}
+
+.effect-pip[data-effect='shielded'] {
+  background: var(--color-positive);
+  color: var(--color-positive-ink);
+}
+
+.effect-pip[data-effect='granted'] {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+}
+
+/*
+ * The flourish, on the ply an effect lands and never again.
+ *
+ * The attribute is emitted only when the player has NOT asked for less motion
+ * (the component reads the query), so this rule needs no media guard of its
+ * own — and the badge underneath is present either way, which is the half that
+ * carries the information.
+ */
+.square[data-effect-new='true'] .effect-pip {
+  animation: pop var(--motion-card-duration) steps(3);
 }
 
 .hotbar-block {

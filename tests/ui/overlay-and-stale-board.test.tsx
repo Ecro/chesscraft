@@ -193,23 +193,15 @@ describe('a card the player cannot use is never a dead end', () => {
 
     fireEvent.click(screen.getByTestId('use-card'))
 
-    // The ply happened rather than the card quietly disarming.
-    expect(container.querySelector('.play')?.getAttribute('data-turn')).toBe('black')
+    // The card resolved rather than quietly disarming — and since ADR-001 that
+    // does NOT hand the board over: the turn continues with the player who
+    // spent the card, which is the whole point of the change.
+    expect(container.querySelector('.play')?.getAttribute('data-turn')).toBe('white')
+    expect(container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.charge"]')?.getAttribute('data-used')).toBe('true')
 
-    // And it did what it said. Hand the turn back and a white pawn now offers a
-    // two-square advance, which is the grant the card exists to give — the UI
-    // fix is worth nothing if the card it unlocked is still inert.
-    let handedBack = false
-    for (const sq of container.querySelectorAll<HTMLElement>('[data-side="black"]')) {
-      fireEvent.click(sq)
-      const target = container.querySelector<HTMLElement>('[data-legal="true"]')
-      if (!target) continue
-      fireEvent.click(target)
-      handedBack = true
-      break
-    }
-    expect(handedBack, 'black had no legal move at all - the fixture is broken').toBe(true)
-
+    // And it did what it said, immediately: a white pawn now offers a two-square
+    // advance on this same turn. The UI fix is worth nothing if the card it
+    // unlocked is still inert.
     fireEvent.click(screen.getByTestId('sq-c2'))
     const reach = [...container.querySelectorAll<HTMLElement>('[data-legal="true"]')].map((e) =>
       e.getAttribute('data-testid'),
@@ -238,13 +230,28 @@ describe('a card the player cannot use is never a dead end', () => {
       fireEvent.click(target!)
     }
 
+    // The card no longer ends the turn (ADR-001), so white owes a move before
+    // the board changes hands. Neither loop below can be dropped: without the
+    // white one the turn never passes, and the spent-card refusal this test is
+    // about is only reachable on white's NEXT turn.
+    let whiteMoved = false
+    for (const sq of container.querySelectorAll<HTMLElement>('.board .square[data-side="white"]')) {
+      fireEvent.click(sq)
+      const target = container.querySelector<HTMLElement>('[data-legal="true"]')
+      if (!target) continue
+      fireEvent.click(target)
+      whiteMoved = true
+      break
+    }
+    expect(whiteMoved, 'white had no move to close its turn with — the fixture is broken').toBe(true)
+
     // Hand the turn back: black moves, and white is on strike again holding a
     // card it has already spent.
     // The FIRST black piece is not necessarily a piece that can move — a back
     // rank boxed in by its own pawns is the normal opening — so try each until
     // one highlights something.
     let moved = false
-    for (const sq of container.querySelectorAll<HTMLElement>('[data-side="black"]')) {
+    for (const sq of container.querySelectorAll<HTMLElement>('.board .square[data-side="black"]')) {
       fireEvent.click(sq)
       const target = container.querySelector<HTMLElement>('[data-legal="true"]')
       if (!target) continue

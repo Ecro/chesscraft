@@ -58,6 +58,21 @@ export const SURROGATE_NODE_BUDGET = 1_000
 /** Below the root, expand at most this many card plays per node (ADR-007). */
 const CARD_EXPANSION_CAP = 8
 
+/**
+ * How many follow-up moves are expanded after a card play (ADR-001).
+ *
+ * A turn is `[play_card?] → move`, so a card node's children are moves by the
+ * same player — and the turn's true branching is cards × moves. The mean move
+ * count is ~22, so eight cards uncapped is ~176 nodes for one turn where the
+ * search previously spent eight. Six keeps the best-ordered captures and the
+ * moves the card was bought for (a grant's new destinations sort high, since
+ * they are usually captures) while holding the product near the old cost.
+ *
+ * It is a WIDTH cap, not a depth cap: the chosen follow-up is still searched to
+ * full depth, so a card whose point shows up three plies later is still valued.
+ */
+const FOLLOW_UP_MOVE_CAP = 6
+
 /** Iterative deepening stops here regardless of budget; nothing is this deep. */
 const MAX_DEPTH = 12
 
@@ -165,7 +180,13 @@ let generation = 0
  * `offers` is included: an open offer is on screen, and it decides which
  * actions are legal right now.
  */
-function positionKey(state: GameState): number {
+/*
+ * Exported for the turn-model tests (ADR-001). The property they pin — two
+ * states with different legal-action sets never share a key — has no observable
+ * proxy: a collision here surfaces as a wrong score on some other line, on some
+ * other seed, depending on traversal order.
+ */
+export function positionKey(state: GameState): number {
   // TWO independent FNV-1a hashes, folded into one 53-bit integer.
   //
   // One 32-bit hash is not enough, and the arithmetic says so rather than the
@@ -209,6 +230,12 @@ function positionKey(state: GameState): number {
   fold(state.sideToMove)
   fold(String(state.plyCount))
   fold(state.ruleCardId ?? '-')
+  // The pending card (ADR-001). Two states can share a board, a side and a ply
+  // and still offer different actions — one may still play a card, the other
+  // may only move. `used` distinguishes them for a card that was really played,
+  // but not for a card whose effects changed nothing the key observes, and TT
+  // hits depend on traversal order, so the corruption would be nondeterministic.
+  fold(state.turnCard ?? '-')
   for (const side of ['white', 'black'] as const) {
     const draft = state.drafts[side]
     fold(`${side}h${[...draft.held].sort().join(',')}`)
@@ -218,7 +245,13 @@ function positionKey(state: GameState): number {
     fold(`x${state.checkCount[side]}`)
     fold(`p${[...state.captured[side]].sort().join(',')}`)
   }
-  for (const square of Object.keys(state.frozenUntil).sort()) fold(`f${square}:${state.frozenUntil[square]}`)
+  // The EXPIRY, not the entry. `frozenUntil` became a structure in ADR-004 and
+  // interpolating it whole would stringify every entry to `[object Object]` —
+  // every frozen square hashing identically, silently, with the compiler
+  // perfectly happy about it. The source is deliberately not folded: it changes
+  // what the UI can say, never what is legal, so two positions that differ only
+  // in which card froze a piece are the same position to the search.
+  for (const square of Object.keys(state.frozenUntil).sort()) fold(`f${square}:${state.frozenUntil[square]!.untilPly}`)
   for (const grant of [...state.grants].sort((a, b) => (a.square + a.kind).localeCompare(b.square + b.kind))) {
     fold(`g${grant.square}${grant.kind}${grant.untilPly}`)
   }
@@ -241,10 +274,15 @@ function positionKey(state: GameState): number {
  * of silently opening the leak back up.
  *
  * A `draft_pick` never triggers it — that path returns before the turn is
- * recorded — which is what lets the AI still make its own picks.
+ * recorded — which is what lets the AI still make its own picks. A `play_card`
+ * does not trigger it either, since ADR-001: a card no longer completes a turn,
+ * so `bumpTurns` does not run for it. Left in, the search would truncate the
+ * subtree of the very card it just played and score it statically — blind to
+ * the move that card was bought for. `end_turn` DOES complete a turn, and is
+ * deliberately not excluded here.
  */
 export function wouldRevealDraft(state: GameState, action: Action, content: ContentSet): boolean {
-  if (action.kind === 'draft_pick') return false
+  if (action.kind === 'draft_pick' || action.kind === 'play_card') return false
   const draft = state.drafts[state.sideToMove]
   if (draft.completedTurns + 1 !== SECOND_DRAFT_AFTER_TURNS) return false
   if (draft.draftIndex !== 1 || draft.offers !== null) return false
@@ -300,6 +338,9 @@ function outOfTime(ctx: Ctx): boolean {
 function orderingScore(state: GameState, action: Action, content: ContentSet): number {
   if (action.kind === 'draft_pick') return 0
   if (action.kind === 'play_card') return -1_000
+  // The forced pass is the only action at the node that offers it (ADR-003), so
+  // its score never decides anything — it just must not be read as a move.
+  if (action.kind === 'end_turn') return 0
   const victim = state.board.get(action.to)
   if (!victim) return 0
   const def = content.pieces.get(victim.pieceId)
@@ -325,10 +366,21 @@ function orderChildren(
 
   const out: TrustedAction[] = []
   let cards = 0
+  // A node with a card pending is a FOLLOW-UP node (ADR-001): the same player
+  // moves again, so the turn's branching is the product of the cards tried and
+  // the moves tried after each. Left uncapped that product is what the card cap
+  // was introduced to avoid, one level down. Only the best few follow-ups are
+  // expanded — the same trade the card cap already makes, for the same reason.
+  const followUps = state.turnCard === null ? Number.POSITIVE_INFINITY : FOLLOW_UP_MOVE_CAP
+  let moves = 0
   for (const entry of decorated) {
     if (entry.action.kind === 'play_card') {
       if (cards >= cardCap) continue
       cards += 1
+    }
+    if (entry.action.kind === 'move') {
+      if (moves >= followUps) continue
+      moves += 1
     }
     out.push(entry.action)
   }
@@ -370,9 +422,33 @@ function negamax(state: GameState, depth: number, alpha: number, beta: number, s
     // The boundary: scored where it stands, never expanded (ADR-008). The child
     // carries offers that were just drawn, and evaluation does not read them —
     // but nothing below this line ever looks at the child again either.
+    //
+    /*
+     * A card play keeps the board (ADR-001), so its child is the SAME player's
+     * node: maximised for them, in the same window, with no negation. Negating
+     * it — as every other child is negated — makes the search read the mover's
+     * own follow-up move as the opponent's choice, so every card is priced at
+     * the worst thing its owner could do next. Nothing about that looks wrong
+     * from outside: the search still returns a legal move, promptly, and simply
+     * never plays a card worth playing.
+     *
+     * It does not spend depth either, and that is the second half of the same
+     * rule. Depth counts PLIES — ADR-002's unit — and a card is not a ply. Spent
+     * as `depth - 1` (as it was), a turn cost two levels, so at the frontier a
+     * card child landed on `depth <= 0` and was scored WITHOUT the move it
+     * obliges: a card line judged one action deep against a move line judged a
+     * full ply deep. The position after a card and before its owner's move is
+     * not quiet — the effect has landed and the reply is not yet paid for — so
+     * that comparison systematically mispriced every card at the horizon.
+     * Recursion still terminates: `turnCard` forbids a second card, so at most
+     * one non-decrementing step exists per ply, and the follow-up width is
+     * capped below.
+     */
     const score = wouldRevealDraft(state, action, ctx.content)
       ? evaluate(child, ctx.content, side)
-      : -negamax(child, depth - 1, -beta, -alpha, otherSide(side), ctx)
+      : action.kind === 'play_card'
+        ? negamax(child, depth, alpha, beta, side, ctx)
+        : -negamax(child, depth - 1, -beta, -alpha, otherSide(side), ctx)
 
     if (score > best) best = score
     if (best > alpha) alpha = best
@@ -446,9 +522,14 @@ export function search(state: GameState, content: ContentSet, options: SearchOpt
       }
       ctx.nodes += 1
       const child = applyTrusted(state, action, content)
+      // Same rule as inside `negamax`: a card play does not hand the board over,
+      // so its child is this player's node — not negated, and not charged a
+      // level of depth, because a card is not a ply (see the note there).
       const score = wouldRevealDraft(state, action, content)
         ? evaluate(child, content, side)
-        : -negamax(child, depth - 1, -Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, otherSide(side), ctx)
+        : action.kind === 'play_card'
+          ? negamax(child, depth, -Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, side, ctx)
+          : -negamax(child, depth - 1, -Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, otherSide(side), ctx)
       next.push({ action, score })
     }
 

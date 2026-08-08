@@ -15,6 +15,7 @@ import { pickDistinct, rngFor } from './rng'
 import {
   type ActiveGrant,
   type Action,
+  type FrozenEntry,
   type GameState,
   type MatchResult,
   type PieceOnBoard,
@@ -143,7 +144,7 @@ function movesFor(state: GameState, content: ContentSet, mods: GenerationModifie
   for (const [from, piece] of state.board) {
     if (piece.side !== state.sideToMove) continue
     if (mods.forbidden.has(from)) continue
-    if ((state.frozenUntil[from] ?? -1) > state.plyCount) continue
+    if ((state.frozenUntil[from]?.untilPly ?? -1) > state.plyCount) continue
 
     const def = pieceDefOf(content, piece)
     const granted = mods.granted.get(from) ?? []
@@ -391,11 +392,26 @@ export function legalActions(state: GameState, content: ContentSet): TrustedActi
   }
 
   const mods = generationModifiers(state, content)
-  return [...movesFor(state, content, mods), ...cardPlays(state, content)] as TrustedAction[]
+  const moves = movesFor(state, content, mods)
+  // One card per turn (ADR-001). While a card is pending the only thing left to
+  // do is move — asking `cardPlays` again here is what would let a player chain
+  // their whole hand into a single turn.
+  //
+  // Unless the card left nothing that can move (ADR-003), which a freeze or a
+  // blockade on your own last mobile piece does. The escape hatch is offered
+  // ONLY then: a pass available whenever a card is pending is a way to spend a
+  // card and skip your move, and a pass available with no card pending is a way
+  // to skip your turn outright.
+  if (state.turnCard !== null) {
+    return (moves.length > 0 ? moves : [{ kind: 'end_turn' }]) as TrustedAction[]
+  }
+  return [...moves, ...cardPlays(state, content)] as TrustedAction[]
 }
 
 function sameAction(a: Action, b: Action): boolean {
   if (a.kind !== b.kind) return false
+  // `end_turn` carries no payload, so kind equality is identity for it.
+  if (a.kind === 'end_turn') return true
   if (a.kind === 'move' && b.kind === 'move') return a.from === b.from && a.to === b.to
   if (a.kind === 'draft_pick' && b.kind === 'draft_pick') return a.cardId === b.cardId
   if (a.kind === 'play_card' && b.kind === 'play_card') {
@@ -416,6 +432,11 @@ export function describeRejection(state: GameState, action: Action, content: Con
     const draft = state.drafts[state.sideToMove]
     if (!draft.held.includes(action.cardId)) return 'that card belongs to the other player, or you do not hold it'
     if (draft.used.includes(action.cardId)) return 'that card has already been used'
+    // Said before the targeting message, because the targets are irrelevant
+    // once the turn's one card is spent — telling a player their squares are
+    // wrong when the real answer is "move now" sends them back to the board
+    // looking for a square that does not exist.
+    if (state.turnCard !== null) return 'you have already played a card this turn — make your move'
     return 'that card cannot target those squares'
   }
   if (action.kind === 'move') {
@@ -423,6 +444,10 @@ export function describeRejection(state: GameState, action: Action, content: Con
     if (!piece) return 'there is no piece on that square'
     if (piece.side !== state.sideToMove) return 'that piece belongs to the other player'
     return 'that piece cannot reach that square'
+  }
+  if (action.kind === 'end_turn') {
+    if (state.turnCard === null) return 'you have not played a card this turn — make your move'
+    return 'you still have a move to make'
   }
   return 'that card is not on offer'
 }
@@ -435,7 +460,7 @@ interface Mutable {
   board: Map<SquareId, PieceOnBoard>
   /** Squares the acting piece has occupied this ply — see the teleport rule. */
   visited: Set<SquareId>
-  frozenUntil: Record<SquareId, number>
+  frozenUntil: Record<SquareId, FrozenEntry>
   log: string[]
   result: MatchResult | null
   captured: Record<Side, string[]>
@@ -627,6 +652,11 @@ function executeActions(
               kind: act.kind,
               square: sq,
               untilPly: plyCount + act.duration,
+              // The binding already knows who owns this effect (ADR-004) — the
+              // whole provenance is two fields copied off it, at the one place
+              // that has both.
+              sourceId: bound.sourceId,
+              layer: bound.layer,
               ...(act.kind === 'grant_movement' ? { pattern: act.pattern } : {}),
             })
           }
@@ -634,7 +664,7 @@ function executeActions(
         }
         case 'freeze_piece':
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
-            m.frozenUntil[sq] = plyCount + act.plies
+            m.frozenUntil[sq] = { untilPly: plyCount + act.plies, sourceId: bound.sourceId, layer: bound.layer }
           }
           break
         case 'win':
@@ -775,6 +805,11 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
           movesMadeLastPly: 1,
           log: [...m.log, 'on_capture:royal:short-circuit'],
           result: { kind: 'win', winner: mover, reason: 'king_capture' },
+          // This close-out enumerates its overrides rather than falling through
+          // to the one below, so the pending turn has to be cleared HERE too —
+          // a terminal state carrying a card nobody can follow with a move is
+          // the stale-field bug this branch is shaped to produce.
+          turnCard: null,
           drafts: bumpTurns(state, content, mover),
         }
       }
@@ -795,10 +830,11 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       // E4 — destination entered, cascading through relocations.
       subjectSquare = cascadeEnter(state, content, m, action.to, mover)
     }
-  } else {
-    // A card play consumes the whole turn and makes no board move (AC-007) —
-    // `movesMadeLastPly` stays 0 even when the card relocates a piece, because
-    // what the rules count is a move, not a displacement.
+  } else if (action.kind === 'play_card') {
+    // A card makes no board move — `movesMadeLastPly` stays 0 even when the card
+    // relocates a piece, because what the rules count is a move, not a
+    // displacement. Since ADR-001 it no longer ends the turn either; the branch
+    // that closes the ply for it is below.
     const card = content.skillCards.get(action.cardId)!
     const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
     let relocatedTo: SquareId | null = null
@@ -836,6 +872,11 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     // no card author could see, and one no rule card could patch.
     if (relocatedTo) subjectSquare = cascadeEnter(state, content, m, relocatedTo, mover)
   }
+  // `end_turn` has no branch of its own on purpose: it contributes no board
+  // change and no subject, and everything it DOES do — the check tally, E7, the
+  // royal transition, the cap, the turn bookkeeping — is the close-out below,
+  // which it must run in full. A ply on which no rule card can fire and the cap
+  // cannot trigger would be the one ply nobody scripts (ADR-003).
 
   // Anything that APPEARED this ply enters its square too (G-6). A revived or
   // spawned piece that skipped this would make creation the one safe way onto a
@@ -861,6 +902,41 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
 
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
   runEvent(state, content, m, 'on_remove', null, null, mover, subjectSquare)
+
+  /*
+   * The card branch stops here (ADR-001).
+   *
+   * What follows is the ply CLOSE-OUT, and a card no longer closes a ply: the
+   * check tally, E7 and the cap all belong to the action that ends the turn.
+   * Two clauses do NOT — a `win` action and the royal transition — and skipping
+   * them here would be silent. `destroy_piece` can name a royal and a shipped
+   * card does exactly that; judged per PLY the transition would compare the
+   * move's already-royal-less starting board against itself, find nothing lost,
+   * and let the match run to the cap with one side unable to lose by king
+   * capture. That is the bug the note below records as found by the AC-013
+   * walk, and it comes straight back if this check is not per ACTION.
+   */
+  if (action.kind === 'play_card') {
+    const result = m.result ?? royalTransition(state.board, m.board, content)
+    const draft = state.drafts[mover]
+    return {
+      ...state,
+      board: m.board,
+      frozenUntil: m.frozenUntil,
+      captured: m.captured,
+      grants: m.grants,
+      log: m.log,
+      result,
+      // A finished match has no follow-up move to wait for, so it carries no
+      // pending turn either.
+      turnCard: result ? null : action.cardId,
+      movesMadeLastPly: 0,
+      // Consumption is recorded HERE, where the card id is in hand. The
+      // close-out used to do it, and the close-out no longer sees a card —
+      // leaving it there is how a one-use card becomes infinitely reusable.
+      drafts: { ...state.drafts, [mover]: { ...draft, used: [...draft.used, action.cardId] } },
+    }
+  }
 
   // The check tally is settled BEFORE E7 runs, so a rule card reading
   // `check_count_at_least` on the ply that delivers the third check sees three,
@@ -892,19 +968,17 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
   // Evaluated after effects resolve and before the cap, so a `win` action on
   // the same ply keeps its precedence and the cap still loses to both.
   //
-  // Judged as a TRANSITION — had a royal at the start of the ply, has none at
+  // Judged as a TRANSITION — had a royal at the start of the ACTION, has none at
   // the end — rather than against the board definition. Content may ship a
   // royal-less side (a puzzle position, and `createPosition` builds exactly
   // those for the editor preview), and such a side must not lose at ply one for
   // a king it never had. Reading the board definition got that wrong; reading
-  // the ply's own before/after cannot.
-  if (!result) {
-    const lost = (['white', 'black'] as const).filter(
-      (side) => hasRoyal(state.board, content, side) && !hasRoyal(m.board, content, side),
-    )
-    if (lost.length === 2) result = { kind: 'draw', reason: 'king_capture' }
-    else if (lost.length === 1) result = { kind: 'win', winner: otherSide(lost[0]!), reason: 'king_capture' }
-  }
+  // the action's own before/after cannot.
+  //
+  // Per action rather than per ply since ADR-001, and the card branch above runs
+  // the same check for the same reason: a turn can now contain two actions, and
+  // the second one's starting board is the first one's result.
+  result ??= royalTransition(state.board, m.board, content)
   if (!result && plyCount >= PLY_CAP) result = materialResult(m.board)
 
   return {
@@ -919,8 +993,29 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     movesMadeLastPly: movesMade,
     log: m.log,
     result,
-    drafts: bumpTurns(state, content, mover, action.kind === 'play_card' ? action.cardId : null),
+    // The turn is over, whatever it contained.
+    turnCard: null,
+    drafts: bumpTurns(state, content, mover),
   }
+}
+
+/**
+ * The result a royal leaving the board produces, or null when none did.
+ *
+ * Split out because it is now asked TWICE per turn — once by the card branch and
+ * once by the close-out — and a copy of it in each is a copy that can drift.
+ */
+function royalTransition(
+  before: ReadonlyMap<SquareId, PieceOnBoard>,
+  after: ReadonlyMap<SquareId, PieceOnBoard>,
+  content: ContentSet,
+): MatchResult | null {
+  const lost = (['white', 'black'] as const).filter(
+    (side) => hasRoyal(before, content, side) && !hasRoyal(after, content, side),
+  )
+  if (lost.length === 2) return { kind: 'draw', reason: 'king_capture' }
+  if (lost.length === 1) return { kind: 'win', winner: otherSide(lost[0]!), reason: 'king_capture' }
+  return null
 }
 
 /**
@@ -931,7 +1026,12 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
  * It is drawn from the (seed, player, draftIndex) substream, never from board
  * state — that independence is what the AC-006 bias test pins.
  */
-function bumpTurns(state: GameState, content: ContentSet, mover: Side, usedCard: string | null = null): GameState['drafts'] {
+/*
+ * Takes no card id since ADR-001. A turn's card is consumed by the card branch,
+ * which is the only place that still knows one was played — a `usedCard`
+ * parameter here would be permanently null and silently stop marking cards used.
+ */
+function bumpTurns(state: GameState, content: ContentSet, mover: Side): GameState['drafts'] {
   const draft = state.drafts[mover]
   const completedTurns = draft.completedTurns + 1
 
@@ -965,7 +1065,6 @@ function bumpTurns(state: GameState, content: ContentSet, mover: Side, usedCard:
       completedTurns,
       offers,
       everOffered,
-      used: usedCard ? [...draft.used, usedCard] : draft.used,
     },
   }
 }
