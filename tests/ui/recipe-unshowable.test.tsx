@@ -50,12 +50,29 @@ function twoEffectCard(): Record_ {
  * slides with different caps is precisely a movement the grid cannot depict —
  * `readGrid` returns null and the record falls to this path.
  */
-function twoCapPiece(): Record_ {
+/**
+ * A piece the grid genuinely cannot draw.
+ *
+ * It used to be "two slide patterns with different reach caps", and that stopped
+ * being unshowable when a cap became a property of each direction (ADR-001) —
+ * north-at-1 and east-at-2 is now the ordinary case the widening exists for.
+ * The fixture moved to the new boundary rather than being deleted, because what
+ * these tests are actually about is the READ-ONLY path, and that path needs a
+ * live example to stay honest.
+ *
+ * A cap of exactly 3 is the boundary now: the outermost ring cell means "and
+ * keeps going", so there is no cell that says "three squares and stop". It is
+ * also not hypothetical — `piece.charger` ships this shape.
+ */
+function undrawablePiece(): Record_ {
   const source = bundledContentSource as unknown as { pieces: Record_[] }
   const base = structuredClone(source.pieces[0]!)
+  // Two patterns, because the read-only view lists one line per pattern and a
+  // single-pattern fixture would let that assertion pass on a renderer that
+  // only ever emitted one line.
   base.movement = [
-    { kind: 'slide', vectors: [[0, 1]], maxDistance: 1 },
-    { kind: 'slide', vectors: [[1, 0]], maxDistance: 2 },
+    { kind: 'slide', vectors: [[0, 1]], maxDistance: 3 },
+    { kind: 'step', vectors: [[1, 2], [-1, 2]] },
   ]
   delete base.attack
   return base
@@ -86,7 +103,7 @@ function mountWith(kind: 'skillCard' | 'piece', record: Record_) {
 
 const CASES = [
   ['skillCard', twoEffectCard, 'two effects in one record'],
-  ['piece', twoCapPiece, 'two slide patterns with different reach caps'],
+  ['piece', undrawablePiece, 'a slide capped at exactly three, which no cell can say'],
 ] as const
 
 describe('AC-007 — the fixtures are genuinely unshowable', () => {
@@ -96,8 +113,8 @@ describe('AC-007 — the fixtures are genuinely unshowable', () => {
     expect(readSentence(card)).toBeNull()
   })
 
-  it('a two-cap piece is refused by the grid, while its sentence half is fine', () => {
-    const piece = twoCapPiece()
+  it('an undrawable-cap piece is refused by the grid, while its sentence half is fine', () => {
+    const piece = undrawablePiece()
     expect(readGrid(piece)).toBeNull()
     // The point of covering this half separately: the effects side reads fine, so
     // a maker that only consulted the sentence would offer an editable form and
@@ -118,7 +135,7 @@ describe('AC-007 — read-only, with the reason and the meaning shown', () => {
     // the save button, which made `piece.archer` — a SHIPPED piece with two
     // effects — uneditable. The e2e suite caught it; the unit suite could not,
     // because the Phase 1 measurement only looked at the bundled content set.
-    mountWith('piece', twoCapPiece())
+    mountWith('piece', undrawablePiece())
     expect(screen.getByTestId('editor-readonly-moves')).toBeTruthy()
     expect(screen.queryByTestId('editor-moves')).toBeNull()
     // Its effects side reads fine, so that half stays editable.
@@ -129,7 +146,7 @@ describe('AC-007 — read-only, with the reason and the meaning shown', () => {
     // Never an empty box. The first version reused the effects description here,
     // and a piece with no effects rendered a heading over an empty list — the
     // screen claiming to say what the record does and saying nothing.
-    mountWith('piece', twoCapPiece())
+    mountWith('piece', undrawablePiece())
     const lines = screen.getByTestId('editor-readonly-moves-lines').querySelectorAll('li')
     expect(lines.length).toBe(2)
     for (const line of lines) expect(line.textContent ?? '').not.toMatch(/[{}]/)

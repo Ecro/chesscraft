@@ -11,8 +11,7 @@ import { type RecordSnapshot, sameSnapshot, snapshotOf } from './RecordForm'
 import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { PlacementPainter, paintSquare, parityOf, togglePlacement } from './PlacementPainter'
 import { namedRecords, recordLabel, recordLabels } from './recordLabel'
 import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i18n'
 import { type Costs, contentOf, starText, useCosts } from './useGrades'
@@ -374,82 +373,22 @@ export function RoomDetail({
   const isPaired = (typeId: string) =>
     Boolean((source.squareTypes as Array<{ id?: unknown; paired?: unknown }>).find((s) => s.id === typeId)?.paired)
 
-  /** Removes a square's paint, and its partner's with it. */
-  const erase = (b: Draft, square: string) => {
-    const squares = (b.squares as PaintedSquare[] | undefined) ?? []
-    const hit = squares.find((s) => s.square === square)
-    if (!hit) return
-    // A half-erased pair is a board the loader refuses, and the child's action
-    // was "remove this one" — silently taking both is the only outcome that
-    // leaves them somewhere valid.
-    const alsoRemove = new Set([square, ...(hit.pairedWith ? [hit.pairedWith] : [])])
-    b.squares = squares.filter((s) => !alsoRemove.has(s.square))
-  }
-
   const paint = (square: string) => {
-    if (paintSel === '') {
-      setPendingPair(null)
-      updateBoard((b) => erase(b, square))
-      return
-    }
-    // Painting over something replaces it, and tapping a square that already
-    // holds the SELECTED type erases — "tap the same square again to clear it",
-    // which is what makes a palette usable without a separate eraser
-    // mode for the common case.
-    const existing = painted.find((s) => s.square === square)
-    if (existing?.typeId === paintSel) {
-      setPendingPair(null)
-      updateBoard((b) => erase(b, square))
-      return
-    }
-
-    if (!isPaired(paintSel)) {
-      setPendingPair(null)
-      updateBoard((b) => {
-        erase(b, square)
-        const squares = (b.squares as PaintedSquare[] | undefined) ?? []
-        b.squares = [...squares, { square, typeId: paintSel }]
-      })
-      return
-    }
-
-    // Paired: two taps. See the note on `pendingPair`.
-    if (pendingPair === null) {
-      setPendingPair(square)
-      return
-    }
-    if (pendingPair === square) {
-      setPendingPair(null)
-      return
-    }
-    const first = pendingPair
-    setPendingPair(null)
-    updateBoard((b) => {
-      erase(b, first)
-      erase(b, square)
-      const squares = (b.squares as PaintedSquare[] | undefined) ?? []
-      b.squares = [
-        ...squares,
-        { square: first, typeId: paintSel, pairedWith: square },
-        { square, typeId: paintSel, pairedWith: first },
-      ]
+    // The rule lives with the painter so the board record's editor cannot drift
+    // from it — it had, and the drift produced boards the loader refuses.
+    const result = paintSquare(painted, square, paintSel, isPaired, pendingPair)
+    setPendingPair(result.pendingPair)
+    if (result.squares) updateBoard((b) => {
+      b.squares = result.squares
     })
   }
 
   const place = (square: string) => {
     updateBoard((b) => {
-      const current = (b.placements as Placement[] | undefined) ?? []
-      const existing = current.find((p) => p.square === square)
-      // Tapping an occupied square clears it — including when the child is
-      // holding a different piece, because "swap what is here" and "remove what
-      // is here" cannot both be one tap and removal is the one they can undo by
-      // tapping again.
-      if (existing) {
-        b.placements = current.filter((p) => p.square !== square)
-        return
-      }
-      if (placePiece === '') return
-      b.placements = [...current, { square, pieceId: placePiece, side: placeSide }]
+      // The rule itself lives with the painter, so the board record's editor
+      // cannot drift from this one. It used to, and nobody could have noticed
+      // from either file alone.
+      b.placements = togglePlacement((b.placements as Placement[] | undefined) ?? [], square, placePiece, placeSide)
     })
   }
 
@@ -652,20 +591,6 @@ export function RoomDetail({
 
   // ------------------------------------------------------------------ render
 
-  const squareGrid = (render: (square: string) => React.ReactNode) => {
-    const rows = []
-    for (let rank = height - 1; rank >= 0; rank--) {
-      for (let file = 0; file < width; file++) rows.push(sq(file, rank))
-    }
-    return (
-      <div className="build-grid" style={{ gridTemplateColumns: `repeat(${width}, 1fr)` }}>
-        {rows.map((square) => render(square))}
-      </div>
-    )
-  }
-
-  const parityOf = (square: string) => (square.charCodeAt(0) - 97 + Number(square.slice(1)) - 1) % 2
-
   return (
     <section className="room-detail" data-testid="room-detail" data-step={step}>
       {/*
@@ -709,69 +634,38 @@ export function RoomDetail({
 
       <div className="screen-body">
         {step === 'board' && (
-          <>
-            <p className="hint">{t('ui.editor.step.board-hint')}</p>
-            {squareGrid((square) => {
+          <PlacementPainter
+            mode="paint"
+            width={width}
+            height={height}
+            hint={t('ui.editor.step.board-hint')}
+            t={t}
+            cellOf={(square) => {
               const hit = painted.find((s) => s.square === square)
-              const mark = hit ? markOfRecord('squareTypes', hit.typeId) : null
-              return (
-                <button
-                  key={square}
-                  type="button"
-                  className="build-cell"
-                  data-testid={`paint-${square}`}
-                  data-parity={parityOf(square)}
-                  data-painted={Boolean(hit)}
-                  data-arming={pendingPair === square}
-                  aria-label={square}
-                  onClick={() => paint(square)}
-                >
-                  {mark && mark.kind !== 'none' && <MarkBody mark={mark} />}
-                </button>
-              )
-            })}
-            {pendingPair && <p className="hint pending">{t('ui.editor.paint.pair-pending')}</p>}
-
-            <h3>{t('ui.editor.paint.palette')}</h3>
-            <div className="palette">
-              {squareTypes.map(([id, nameKey]) => {
-                const mark = markOfRecord('squareTypes', id)
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    data-testid={`paint-pick-${id}`}
-                    data-selected={paintSel === id}
-                    aria-pressed={paintSel === id}
-                    onClick={() => {
-                      setPaintSel(id)
-                      setPendingPair(null)
-                    }}
-                  >
-                    {mark.kind !== 'none' && <MarkBody mark={mark} />}
-                    <span>{squareLabels.get(id)}</span>
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                data-testid="paint-pick-erase"
-                data-selected={paintSel === ''}
-                aria-pressed={paintSel === ''}
-                onClick={() => {
-                  setPaintSel('')
-                  setPendingPair(null)
-                }}
-              >
-                <Pix sprite={PIXEL_SPRITES.erase} />
-                <span>{t('ui.editor.paint.erase')}</span>
-              </button>
-            </div>
-
-            {/* What the held tool DOES. The palette is marks and short names, and
-                a child who has not met a portal yet has no way to learn it there. */}
-            <SelectedTypeNote source={source} typeId={paintSel} t={t} />
-          </>
+              return {
+                mark: hit ? markOfRecord('squareTypes', hit.typeId) : null,
+                painted: Boolean(hit),
+                arming: pendingPair === square,
+              }
+            }}
+            onSquare={paint}
+            paletteHeading={t('ui.editor.paint.palette')}
+            includeErase
+            palette={squareTypes.map(([id, nameKey]) => ({
+              id,
+              label: recordLabel(t, 'squareType', id, nameKey),
+              mark: markOfRecord('squareTypes', id),
+            }))}
+            selected={paintSel}
+            onSelect={(id) => {
+              setPaintSel(id)
+              setPendingPair(null)
+            }}
+            afterGrid={pendingPair && <p className="hint pending">{t('ui.editor.paint.pair-pending')}</p>}
+            /* What the held tool DOES. The palette is marks and short names, and
+               a child who has not met a portal yet has no way to learn it there. */
+            footer={<SelectedTypeNote source={source} typeId={paintSel} t={t} />}
+          />
         )}
 
         {step === 'pieces' && (
@@ -810,88 +704,52 @@ export function RoomDetail({
         )}
 
         {step === 'place' && (
-          <>
-            <p className="hint">{t('ui.editor.step.place-hint')}</p>
-            <div className="side-picker">
-              {(['white', 'black'] as const).map((side) => (
-                <button
-                  key={side}
-                  type="button"
-                  data-testid={`place-side-${side}`}
-                  data-side={side}
-                  data-selected={placeSide === side}
-                  aria-pressed={placeSide === side}
-                  onClick={() => setPlaceSide(side)}
-                >
-                  {t(`ui.side.${side}`)}
-                </button>
-              ))}
-            </div>
-            {squareGrid((square) => {
+          <PlacementPainter
+            mode="place"
+            width={width}
+            height={height}
+            hint={t('ui.editor.step.place-hint')}
+            t={t}
+            cellOf={(square) => {
               const here = placements.find((p) => p.square === square)
               const hit = painted.find((s) => s.square === square)
-              const mark = here
-                ? markOfRecord('pieces', here.pieceId, here.side)
-                : hit
-                  ? markOfRecord('squareTypes', hit.typeId)
-                  : null
-              return (
-                <button
-                  key={square}
-                  type="button"
-                  className="build-cell"
-                  data-testid={`place-${square}`}
-                  data-parity={parityOf(square)}
-                  data-painted={Boolean(hit)}
-                  data-side={here?.side ?? ''}
-                  aria-label={square}
-                  onClick={() => place(square)}
-                >
-                  {mark && mark.kind !== 'none' && <MarkBody mark={mark} />}
-                </button>
-              )
-            })}
-            <p className="hint centred" data-testid="place-count">
-              {t('ui.editor.place.count')
-                .replace('{white}', String(placements.filter((p) => p.side === 'white').length))
-                .replace('{black}', String(placements.filter((p) => p.side === 'black').length))}
-            </p>
-            <div className="palette">
-              {/* Only the pieces this room actually plays with. Offering the rest
-                  would let a child place a piece the room does not list, which
-                  the loader accepts and the match then draws with no rules a
-                  player can look up. */}
-              {pieces
-                .filter(([id]) => list('pieceIds').includes(id))
-                .map(([id, nameKey]) => {
-                  const mark = markOfRecord('pieces', id, placeSide)
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      data-testid={`place-pick-${id}`}
-                      data-selected={placePiece === id}
-                      aria-pressed={placePiece === id}
-                      onClick={() => setPlacePiece(id)}
-                    >
-                      {mark.kind !== 'none' && <MarkBody mark={mark} />}
-                      <span>{pieceLabels.get(id)}</span>
-                    </button>
-                  )
-                })}
-            </div>
-            <button
-              type="button"
-              data-testid="place-clear"
-              onClick={() =>
-                updateBoard((b) => {
-                  b.placements = []
-                })
+              return {
+                mark: here
+                  ? markOfRecord('pieces', here.pieceId, here.side)
+                  : hit
+                    ? markOfRecord('squareTypes', hit.typeId)
+                    : null,
+                painted: Boolean(hit),
+                side: here?.side ?? '',
               }
-            >
-              {t('ui.editor.place.clear')}
-            </button>
-          </>
+            }}
+            onSquare={place}
+            side={placeSide}
+            onSide={setPlaceSide}
+            counts={{
+              white: placements.filter((p) => p.side === 'white').length,
+              black: placements.filter((p) => p.side === 'black').length,
+            }}
+            /* Only the pieces this room actually plays with. Offering the rest
+               would let a child place a piece the room does not list, which the
+               loader accepts and the match then draws with no rules a player can
+               look up. A standalone board record has no room to scope by, which
+               is why this list is a prop rather than derived in the painter. */
+            palette={pieces
+              .filter(([id]) => list('pieceIds').includes(id))
+              .map(([id, nameKey]) => ({
+                id,
+                label: recordLabel(t, 'piece', id, nameKey),
+                mark: markOfRecord('pieces', id, placeSide),
+              }))}
+            selected={placePiece}
+            onSelect={setPlacePiece}
+            onClear={() =>
+              updateBoard((b) => {
+                b.placements = []
+              })
+            }
+          />
         )}
 
         {step === 'cards' && (

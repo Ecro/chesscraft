@@ -33,28 +33,42 @@ const seeded = () => screen.getByTestId('piece-cell-0,1')
 const draft = () => JSON.parse(screen.getByTestId('editor-draft-json').textContent ?? 'null')
 
 describe('emptying the grid from the UI', () => {
-  it('starts from a single lit cell that says both', () => {
-    // Not vacuous: if the seed ever changes, the cycle count below is wrong and
+  it('starts from a single lit cell, painted for the question on screen', () => {
+    // Not vacuous: if the seed ever changes, the tap counts below are wrong and
     // this names why rather than failing somewhere confusing.
+    //
+    // `data-value` became axis-scoped when the grid gained its movement/capture
+    // mode: it says "painted for THIS question", so a seeded cell reads 1 in
+    // movement mode rather than 3. The record still means "both" — an omitted
+    // `attack` makes every move square a capture square — and that is what
+    // `data-cells` carries and what the capture mode ghosts.
     blankPiece()
-    expect(seeded().getAttribute('data-value')).toBe('3')
+    expect(seeded().getAttribute('data-value')).toBe('1')
+    expect(seeded().getAttribute('data-cells'), 'the record still captures where it walks').toBe('3')
     expect(screen.queryByTestId('piece-no-moves')).toBeNull()
   })
 
   it('turning the only lit cell off actually turns it off', () => {
+    // Two taps, not one: a cell on a compass ray now visits leap and then ray
+    // before going dark. The bug this guards is unchanged — the clear has to be
+    // an EDIT rather than a swallowed click.
     blankPiece()
     fireEvent.click(seeded())
-    expect(seeded().getAttribute('data-value'), 'the click was swallowed').toBe('0')
+    expect(seeded().getAttribute('data-paint'), 'the first tap must reach the ray state').toBe('ray')
+    fireEvent.click(seeded())
+    expect(seeded().getAttribute('data-paint'), 'the click was swallowed').toBe('none')
   })
 
   it('says what is missing once nothing is left to walk on', () => {
     blankPiece()
+    fireEvent.click(seeded())
     fireEvent.click(seeded())
     expect(screen.getByTestId('piece-no-moves')).toBeTruthy()
   })
 
   it('reports the empty movement through the same validator the save uses', () => {
     blankPiece()
+    fireEvent.click(seeded())
     fireEvent.click(seeded())
     expect(draft().movement).toEqual([])
     // ADR-033: the live list is the save's own complaint, arriving earlier.
@@ -66,27 +80,37 @@ describe('emptying the grid from the UI', () => {
     // fix above would just trade a silent no-op for a dead end.
     blankPiece()
     fireEvent.click(seeded())
+    fireEvent.click(seeded())
     fireEvent.click(screen.getByTestId('piece-cell-1,2'))
-    // Reads back as "both" after ONE tap, not "move". That is the schema's own
+    // `data-cells` reads back as "both" after ONE tap. That is the schema's own
     // default surfacing, not a miscount: an omitted `attack` means captures use
     // the movement patterns, so a move square IS a capture square until the
     // author gives the piece a separate capture set. `readGrid` shows what the
-    // record means rather than what was tapped.
-    expect(screen.getByTestId('piece-cell-1,2').getAttribute('data-value')).toBe('3')
+    // record means rather than what was tapped; `data-value` shows which
+    // question the cell is painted for.
+    expect(screen.getByTestId('piece-cell-1,2').getAttribute('data-cells')).toBe('3')
+    expect(screen.getByTestId('piece-cell-1,2').getAttribute('data-value')).toBe('1')
     expect(draft().movement).toEqual([{ kind: 'step', vectors: [[1, 2]] }])
     expect(screen.queryByTestId('piece-no-moves')).toBeNull()
   })
 
-  it('the same holds for the last slide direction', () => {
+  it('the same holds for the last ray', () => {
+    // Was "the last slide direction", driven through the dial. The dial is gone
+    // and a ray is now a cell, so the claim is re-pointed rather than dropped:
+    // taking the last ray off must reach the empty state and say so, exactly as
+    // taking the last leap off does.
     blankPiece()
-    // Clear the seeded cell, put a slide on, then take the slide off again.
+    const ring = () => screen.getByTestId('piece-cell-0,3')
+    // From the seed: clear it, then put a ray on the ring cell.
     fireEvent.click(seeded())
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
+    fireEvent.click(seeded())
+    fireEvent.click(ring())
+    fireEvent.click(ring())
     expect(draft().movement).toEqual([{ kind: 'slide', vectors: [[0, 1]] }])
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
-    expect(screen.getByTestId('piece-slide-n').getAttribute('data-value')).toBe('0')
+
+    fireEvent.click(ring())
+    expect(ring().getAttribute('data-paint')).toBe('none')
+    expect(draft().movement).toEqual([])
     expect(screen.getByTestId('piece-no-moves')).toBeTruthy()
   })
 })

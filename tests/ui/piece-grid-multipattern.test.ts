@@ -7,7 +7,7 @@
  * its movement and attack use different kinds.
  */
 import { describe, expect, it } from 'vitest'
-import { Cell, readGrid } from '@ui/PieceMoves'
+import { DIRECTIONS, Cell, readGrid } from '@ui/PieceMoves'
 import { bundledContentSource } from '@content/sets/bundled'
 
 const ORTHOGONAL = [
@@ -46,7 +46,14 @@ describe('AC-003 — slide-plus-leap records open', () => {
     expect(grid.slides.n).toBe(Cell.Both)
     expect(grid.slides.e).toBe(Cell.Both)
     expect(grid.slides.ne).toBe(Cell.None)
-    expect(grid.reach).toBe('edge')
+    // Per-direction since ADR-001; every sliding direction of a rook is unbounded,
+    // so the assertion is about the four that slide rather than one scalar.
+    expect(DIRECTIONS.filter((d) => grid.slides[d] !== Cell.None).map((d) => grid.reach.move[d])).toEqual([
+      'edge',
+      'edge',
+      'edge',
+      'edge',
+    ])
     expect(grid.cells['1,2']).toBe(Cell.Both)
     expect(grid.cells['-2,1']).toBe(Cell.Both)
   })

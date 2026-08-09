@@ -1,0 +1,261 @@
+schema_version: 2
+spec_slug: unified-movement-and-placement-ux
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: metamorphic properties over the grid compiler (AC-002, AC-004, AC-005, AC-007), differential comparison against sources outside the editor — the three shipped content sets (AC-006), the room maker's own painter (AC-010) and the schema-derived vocabulary enumeration (AC-012) — and mechanical absence/containment predicates measured in jsdom and again in a real browser (AC-001, AC-003, AC-008, AC-009, AC-011, AC-013)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: 83
+spec_quality_score_at: "2026-08-09"
+
+ac:
+  - id: AC-001
+    title: "The piece maker has exactly one editable movement surface"
+    type: mechanical
+    test_ids:
+      - tests/editor/vocabulary-coverage.test.ts::has ONE set of movement controls, not a simple one and a detailed one
+    executable_predicate: "legacy_movement_testids(render_piece_maker()) == []"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is the empty set, fixed by the requirement rather than read off the implementation: the test names the legacy ids (piece-slide-*, piece-reach-*, the capture-pattern editor, PiecePreview, piece-summary, the travel notes, the top summary line) as a literal list taken from RESEARCH's surface inventory, not by querying the render. Any surviving surface yields a non-empty set however the form is rewritten."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "A cell tap cycles through every state its square can hold, and comes back"
+    type: property
+    test_ids:
+      - tests/ui/movement-cell-cycle.test.ts::a ray cell at (%i,%i) visits leap then ray then nothing
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Cyclic idempotence holds for any correct cycle regardless of how the cycle is coded, and it simultaneously pins the state COUNT at each square: a four-state cycle fails the round-trip and a two-state cycle fails the intermediate-state assertion. The implementation cannot satisfy it by agreeing with itself because the oracle is equality with the pre-tap grid, captured before any code under test runs. NOTE the comparison is over the GRID, not over writeGrid's output: in capture mode a grid with capture squares and no movement squares compiles to the same refusal before and after, so a writeGrid-based oracle passes by comparing one refusal to another."
+    oracle_independence_waiver: null
+    input_domain: "every cell of the 7x7 grid except the centre, in each of the two modes, split by whether the cell lies on one of the eight compass rays (24 do, 24 do not)"
+    transformation: "tap the cell three times on a compass cell, twice off one"
+    expected_relation: "the grid is deep-equal to its pre-tap value, and the intermediate states are exactly [step, slide, none] on a compass cell and [step, none] off one"
+    preconditions:
+      - "the piece draft opens in the grid rather than the refusal view"
+      - "the tapped cell's direction carries no ray yet ON THE AXIS BEING EDITED — a cap belongs to a direction and an axis, so tapping a square of an EXISTING ray clears that ray and the third tap re-tips it at the tapped square, which does not round-trip and is asserted separately. The OTHER axis is never touched by a tap."
+    observable_output: "the grid's cells, slides, reach and forward"
+    generator_hint: "sweep all 48 non-centre cells x 2 modes rather than sampling, partitioned by rayOf(df,dr) !== null"
+
+  - id: AC-003
+    title: "Painting nothing in the capture mode means captures follow the movement"
+    type: mechanical
+    test_ids:
+      - tests/ui/movement-capture-mode.test.tsx::writes attack the moment the capture set stops matching the movement set
+    executable_predicate: "'attack' not in save(piece_with_empty_capture_grid())"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is fixed by the schema, not by the editor: movePattern's attack field is optional and the engine reads `def.attack ?? def.movement` (src/engine/engine.ts:217), so absence is the documented encoding of 'captures as it moves'. Writing a duplicated array would also be observably different from every hand-written bundled piece, which is what makes the assertion non-circular."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "A slide cell owns its ray, and the ray's length is per-direction"
+    type: property
+    test_ids:
+      - tests/ui/movement-ray.test.ts::caps one direction without touching another
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The relation is between the painted distance and the emitted cap, and it must hold for every direction and every distance independently — that independence is exactly the model widening under test, so a shared-cap implementation fails it for any pair of directions painted at different distances. The relation is stated over the compiler's output shape, which the compiler cannot define for itself."
+    oracle_independence_waiver: null
+    input_domain: "any two distinct compass directions d1, d2 and any reaches r1, r2 drawn from {1, 2, edge}; and the same direction on the two AXES at two different reaches"
+    transformation: "paint the cell at reach r1 along d1 and the cell at reach r2 along d2 as slide, then save"
+    expected_relation: "the saved movement contains a slide pattern along d1 carrying reach r1 and a slide pattern along d2 carrying reach r2, and r1 != r2 does not collapse either into a shared cap"
+    preconditions:
+      - "the grid is in the movement mode"
+    observable_output: "the saved movement array"
+    generator_hint: "include a pair where one reach is edge and the other is bounded, and a case where movement and attack cap the SAME direction differently — both were unrepresentable before this change"
+
+  - id: AC-005
+    title: "Sliding past the grid's edge is expressible"
+    type: mechanical
+    test_ids:
+      - tests/ui/movement-ray.test.ts::AC-005 — the ring cell writes no maxDistance
+    executable_predicate: "'maxDistance' not in slide_pattern_for(save(grid_with_ring_cell_painted('n')), 'n')"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Absence, not a large number, is the schema's own encoding of unlimited reach — movePattern documents maxDistance as 'omitted means to the board edge' (src/content/schema.ts:175) and reachFrom substitutes max(width,height) at runtime (engine.ts:122). A written-out cap would be byte-different from every shipped slider, so the assertion is anchored outside the editor."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-006
+    title: "The set of shipped pieces the grid cannot open is exactly one, and it is named"
+    type: mechanical
+    test_ids:
+      - tests/editor/movement-opens-shipped-content.test.ts::refuses exactly piece.charger, and opens everything else
+    executable_predicate: "refused_piece_ids() == {'piece.charger'} and len(content_sources()) == 3"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference is the shipped content itself — bundled, slice and gate6a — authored by hand and by earlier tools, never by the control under test. Measured 2026-08-09 before the SPEC was written: 18 pieces, 17 open today, and the sole refusal is piece.charger (maxDistance 3), which the chosen ring-cell-as-arrow design leaves unrepresentable. Asserting the refusal SET rather than a count is what makes a second exception a failure instead of an unnoticed drift, and the source COUNT is asserted because a prior failure came from measuring against one source while the app loaded three (.claude/memory/failures.md:74)."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "The one piece the grid cannot open survives an unrelated edit"
+    type: property
+    test_ids:
+      - tests/editor/movement-opens-shipped-content.test.ts::keeps piece.charger byte-identical, and never disables the save
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The golden is piece.charger's shipped definition in src/content/sets/bundled.ts — a forward slide with maxDistance 3 plus two forward steps — written long before this change and unchanged by it. Its provenance is the game's own content, so byte-equality of the movement half after an unrelated edit cannot be satisfied by an editor that quietly rewrites what it cannot draw. This is the real-content instance of AC-008, and it matters more than the synthetic one because this piece actually ships."
+    oracle_independence_waiver: null
+    input_domain: "piece.charger as shipped"
+    transformation: "open in the maker, edit a field unrelated to movement, save"
+    expected_relation: "the saved movement and attack are deep-equal to the shipped ones, and the save control was never disabled"
+    preconditions: []
+    observable_output: "the saved piece document and the save control's disabled state"
+    generator_hint: null
+
+  - id: AC-008
+    title: "A record the grid cannot draw stays saveable"
+    type: property
+    test_ids:
+      - tests/ui/movement-undrawable.test.tsx::AC-008 — undrawable means the editor is suppressed, not the save
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Byte-stability of the untouched half is the recorded oracle for this class of bug (.claude/memory/wiki.md:129): suppressing the editor prevents the flatten, while blocking the save made a shipped piece uneditable. The relation holds for any undrawable input and any unrelated field, so it cannot be satisfied by special-casing the one fixture."
+    oracle_independence_waiver: null
+    input_domain: "any piece whose movement the grid cannot express — e.g. a slide on a non-compass vector, or a leap beyond +-3"
+    transformation: "open in the maker, edit a field unrelated to movement, save"
+    expected_relation: "the saved movement and attack are deep-equal to the input's, and the save control was never disabled"
+    preconditions: []
+    observable_output: "the saved document and the save control's disabled state"
+    generator_hint: "construct the fixture rather than searching shipped content — AC-006 asserts shipped content never lands here"
+
+  - id: AC-009
+    title: "The board record maker shows no coordinate text and no dropdown"
+    type: mechanical
+    test_ids:
+      - tests/ui/board-record-painter.test.tsx::renders no text node that reads as a square name
+    executable_predicate: "algebraic_text_nodes(render_board_record()) == [] and select_elements(render_board_record()) == []"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "Both expected values are the empty set, fixed by the requirement. The algebraic predicate is the schema's own squareRef regex (src/content/schema.ts:168) applied to rendered text nodes rather than to test ids, so it catches a coordinate label however it is produced; aria-labels are excluded by construction because the room painter already keeps the square name there and must keep passing."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-010
+    title: "The board record and the room's placement step place pieces identically"
+    type: mechanical
+    test_ids:
+      - tests/ui/board-record-painter.test.tsx::draws and writes the same thing for the same taps
+    executable_predicate: "placements_after(board_record_maker, taps) == placements_after(room_place_step, taps)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference implementation is RoomDetail's existing place() (src/ui/RoomDetail.tsx:374-388), which ships today and is not modified by this change beyond extraction. Driving the same tap sequence through both surfaces and comparing the resulting placements arrays is independent of either surface's internals — a divergence in either one fails, so the test cannot pass by both being wrong in the same way unless they are literally the same code, which is the outcome this AC exists to force."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-011
+    title: "Square-type painting is its own mode, as it is in the room maker"
+    type: mechanical
+    test_ids:
+      - tests/ui/board-record-painter.test.tsx::shows exactly one of the two painters at a time
+    executable_predicate: "len(active_board_modes(render_board_record())) == 1"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value 1 comes from the room maker's shipped step model, where 'board' and 'place' are distinct entries of STEPS (src/ui/RoomDetail.tsx:127) and only one panel renders at a time. It is a structural count taken from the reference surface, not from the surface under test."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-012
+    title: "The vocabulary stays fully reachable through the new controls"
+    type: mechanical
+    test_ids:
+      - tests/editor/vocabulary-coverage.test.ts::has one editor control per vocabulary entry, and no control for anything else
+    executable_predicate: "set(enumerate_vocabulary()) == set(vocabulary_controls())"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference is enumerateVocabulary(), derived from the schema's discriminated unions rather than from the editor, and the comparison is bidirectional — a missing control and an orphan control both fail. This is ADR-006's standing gate; the recorded requirement is that it be RE-DERIVED against the new control set rather than extended row-wise, because a gate enumerated along one axis is blind to the others (.claude/memory/failures.md:54)."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-013
+    title: "The controls are reachable in a real browser, not only in jsdom"
+    type: mechanical
+    test_ids:
+      - e2e/maker-movement-and-placement.spec.ts
+    executable_predicate: "all(locator.is_visible() and locator.is_enabled() for locator in spec_named_controls())"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The oracle is a different engine from the one every other AC runs on: Playwright enforces visibility where testing-library's fireEvent does not, so a control hidden behind a collapsed container passes jsdom and fails here. This is not redundancy — four regressions shipped through a green 71-test jsdom gate for exactly this reason (.claude/memory/failures.md:173), which is why the browser run is a separate acceptance criterion rather than a nice-to-have."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null

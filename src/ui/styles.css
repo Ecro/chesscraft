@@ -2700,10 +2700,24 @@ details.advanced summary {
   align-self: center;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  width: 294px;
-  max-width: 100%;
-  padding: var(--space-2);
+  /* Fluid, and every number here was measured rather than chosen.
+
+     On an iPhone 13 (390px) the editor's chrome takes 112px before this grid is
+     reached — 14px of padding each at `.editor`, `.library` and `.record-form`,
+     then 11px at `.piece-moves` — leaving 278px. The fixed 294px this used to
+     carry was therefore never honoured: `max-width: 100%` clamped it to the
+     container and the cell measured 36.3px, well under the 44px touch target on
+     a screen whose entire audience is children.
+
+     Escaping the fieldset's own padding and halving the gap is what is
+     recoverable without restructuring padding every other screen shares. It does
+     not reach 44px — see the e2e spec, which asserts what is actually achieved
+     and names the shortfall rather than pretending. */
+  width: calc(100% + 2 * var(--space-2));
+  max-width: 344px;
+  margin-inline: calc(-1 * var(--space-2));
+  padding: var(--space-1);
+  gap: 1px;
   border: var(--border-w) solid var(--color-outline);
   background: var(--color-board-frame);
 }
@@ -3308,4 +3322,93 @@ details.advanced summary {
 .gallery-row button {
   flex: 1 1 auto;
   min-width: 8rem;
+}
+
+/* ---------------------------------------------------------------------------
+   The ray, drawn INSIDE the cells rather than on a ring around them.
+
+   A 9x9 ring layout was attempted twice and reverted twice (see the note above
+   `.slide-dial`); the difference here is that nothing new sits outside the 7x7.
+   A sliding direction paints the cells it actually reaches, and the outermost
+   one carries an arrow meaning "and keeps going" — so a lit cell denotes a
+   reachable square, which is the thing the old split grid could not say.
+
+   The bars overhang the 2px gap on both ends so a trail reads as continuous
+   across cell boundaries; the diagonal is the cell's diagonal (x1.4143) plus
+   the same overhang, or the corners break the line.
+--------------------------------------------------------------------------- */
+.move-cell[data-paint='ray']::before {
+  content: '';
+  position: absolute;
+  background: var(--color-side-white);
+  border-radius: 1px;
+}
+.move-cell[data-ray='n']::before,
+.move-cell[data-ray='s']::before {
+  width: 6px;
+  height: calc(100% + 2px);
+  left: 50%;
+  top: -1px;
+  transform: translateX(-50%);
+}
+.move-cell[data-ray='e']::before,
+.move-cell[data-ray='w']::before {
+  height: 6px;
+  width: calc(100% + 2px);
+  top: 50%;
+  left: -1px;
+  transform: translateY(-50%);
+}
+.move-cell[data-ray='ne']::before,
+.move-cell[data-ray='sw']::before,
+.move-cell[data-ray='nw']::before,
+.move-cell[data-ray='se']::before {
+  height: 6px;
+  width: calc((100% + 2px) * 1.4143);
+  top: 50%;
+  left: 50%;
+}
+.move-cell[data-ray='ne']::before,
+.move-cell[data-ray='sw']::before {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.move-cell[data-ray='nw']::before,
+.move-cell[data-ray='se']::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* "And keeps going." Replaces the far half of the bar rather than sitting next
+   to it, so the trail reads as leaving the drawing rather than stopping at a
+   decoration. */
+.move-cell[data-endless='true']::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 12px solid var(--color-side-white);
+  background: none;
+  clip-path: none;
+}
+.move-cell[data-ray='n'][data-endless='true']::after { top: 2px; }
+.move-cell[data-ray='s'][data-endless='true']::after { bottom: 2px; transform: rotate(180deg); }
+.move-cell[data-ray='e'][data-endless='true']::after { right: 2px; transform: rotate(90deg); }
+.move-cell[data-ray='w'][data-endless='true']::after { left: 2px; transform: rotate(-90deg); }
+.move-cell[data-ray='ne'][data-endless='true']::after { top: 4px; right: 4px; transform: rotate(45deg); }
+.move-cell[data-ray='se'][data-endless='true']::after { bottom: 4px; right: 4px; transform: rotate(135deg); }
+.move-cell[data-ray='sw'][data-endless='true']::after { bottom: 4px; left: 4px; transform: rotate(225deg); }
+.move-cell[data-ray='nw'][data-endless='true']::after { top: 4px; left: 4px; transform: rotate(315deg); }
+
+.move-modes {
+  display: flex;
+  gap: var(--space-1);
+  align-self: center;
+}
+.move-modes button[data-selected='true'] {
+  background: var(--color-positive);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 var(--color-positive-hi),
+    inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-positive-lo);
+  color: var(--color-positive-ink);
 }

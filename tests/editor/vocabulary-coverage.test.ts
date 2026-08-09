@@ -483,10 +483,11 @@ const ROWS: readonly Row[] = [
     axis: 'movement',
     kind: 'slide',
     host: 'piece',
-    // A direction toggle plus a reach. The blank piece's seeded step stays lit at
-    // (0,1), so it is emitted after the slide.
-    reachTestId: 'piece-slide-n',
-    params: [{ testid: 'piece-reach-2' }],
+    // One cell, tapped until it is a ray. The dial and the reach picker are
+    // gone: the tapped square's distance IS the cap. The seed at (0,1) is on the
+    // same ray, so tapping (0,2) twice takes it from leap to a two-square ray.
+    reachTestId: 'piece-cell-0,2',
+    params: [{ testid: 'piece-cell-0,2' }],
     path: 'movement.0',
     authored: { kind: 'slide', vectors: [[0, 1]], maxDistance: 2 },
   },
@@ -564,11 +565,18 @@ const FIELD_ROWS: readonly FieldRow[] = [
     // the fixtures have been built around since Phase 1.
     host: 'piece',
     what: 'attack',
-    // `step`, not `jump`: an attack pattern is a movement pattern, and ADR-006
-    // retired that distinction on both axes rather than on one.
-    params: [{ testid: 'attack-kind-step' }, { testid: 'attack-cell-2_0' }],
+    // Re-pointed onto the grid's capture mode. The separate attack form is gone
+    // (ADR-003) — it was a second, uncoordinated writer of this same field.
+    //
+    // The authored value gained `[0,1]` and that is the schema surfacing rather
+    // than the control misbehaving: a blank piece omits `attack`, which MEANS
+    // captures follow the movement, so `readGrid` promotes the seeded move
+    // square to a capture square too. Tapping (2,0) adds to that set. A row
+    // asserting only `[[2,0]]` would be asserting that the tap DESTROYED the
+    // piece's existing captures.
+    params: [{ testid: 'piece-mode-capture' }, { testid: 'piece-cell-2,0' }],
     path: 'attack',
-    authored: [{ kind: 'step', vectors: [[2, 0]] }],
+    authored: [{ kind: 'step', vectors: [[0, 1], [2, 0]] }],
   },
   { host: 'squareType', what: 'paired', params: [{ testid: 'editor-paired' }], path: 'paired', authored: true },
   // `ruleCard.cost` and `skillCard.cost` used to be rows here. They were removed
@@ -582,10 +590,15 @@ const FIELD_ROWS: readonly FieldRow[] = [
     host: 'board',
     what: 'pairedWith',
     source: 'bundled',
+    // Re-pointed when the board record's `<select>` + `a6`-labelled buttons
+    // became the room's painter. The control did not change what it authors —
+    // only how it is reached — so the row's `path` and `authored` are untouched,
+    // which is the whole evidence that this was a re-point and not a weakening.
     params: [
-      { testid: 'paint-type', value: 'square.portal' },
-      { testid: 'paint-a1' },
-      { testid: 'paint-a6' },
+      { testid: 'board-mode-paint' },
+      { testid: 'board-paint-pick-square.portal' },
+      { testid: 'board-paint-a1' },
+      { testid: 'board-paint-a6' },
     ],
     path: 'squares.0',
     authored: { square: 'a1', typeId: 'square.portal', pairedWith: 'a6' },
@@ -955,11 +968,33 @@ describe('AC-008 — the split movement controls are covered too', () => {
     return committed
   }
 
+  /**
+   * A ray along `dir`, capped at `distance` — two taps on the cell that far out.
+   *
+   * This block used to reach the dial and the reach picker. Both are gone: a
+   * cell now carries its own ray and the cap IS the tapped square's distance,
+   * so "slide north two squares" is one control rather than two. The rows below
+   * are otherwise unchanged, which is the evidence that this was a re-point and
+   * not a weakening — same directions, same caps, same round-trips.
+   */
+  const rayAt = (dir: Dir, distance: 1 | 2 | 3) => {
+    const [ux, uy] = DIRS[dir]
+    const id = `piece-cell-${ux * distance},${uy * distance}`
+    const control = screen.getByTestId(id)
+    expectEnabled(control, id)
+    // Tap until it IS a ray rather than a fixed number of times. A blank piece
+    // is seeded with a step at (0,1), so that one cell starts one state further
+    // round the cycle than the other 47 — a fixed count silently tests a
+    // different thing there, which is how this helper first passed on eleven
+    // rows and produced no ray at all on the twelfth.
+    for (let i = 0; i < 3 && control.getAttribute('data-paint') !== 'ray'; i += 1) fireEvent.click(control)
+    expect(control.getAttribute('data-paint'), `${id} never reached the ray state`).toBe('ray')
+    return control
+  }
+
   it.each(Object.entries(DIRS))('slide %s is reachable and writes its own vector', (dir, vector) => {
     openPiece()
-    const control = screen.getByTestId(`piece-slide-${dir}`)
-    expectEnabled(control, `piece-slide-${dir}`)
-    fireEvent.click(control)
+    rayAt(dir as Dir, 3)
 
     const slide = slideOf(readDraft())
     expect(slide, `clicking piece-slide-${dir} wrote no slide pattern`).toBeTruthy()
@@ -972,20 +1007,18 @@ describe('AC-008 — the split movement controls are covered too', () => {
   it.each([
     ['1', 1],
     ['2', 2],
-  ] as const)('reach %s caps the slide at that distance', (label, expected) => {
+  ] as const)('a ray tipped %s squares out caps the slide there', (_label, expected) => {
     openPiece()
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
-    const control = screen.getByTestId(`piece-reach-${label}`)
-    expectEnabled(control, `piece-reach-${label}`)
-    fireEvent.click(control)
+    rayAt('n', expected)
     expect(slideOf(readDraft())?.maxDistance).toBe(expected)
   })
 
-  it('reach "끝까지" writes no cap at all, rather than a large number', () => {
+  it('a ray tipped on the outer ring writes no cap at all, rather than a large number', () => {
     openPiece()
-    fireEvent.click(screen.getByTestId('piece-slide-n'))
-    fireEvent.click(screen.getByTestId('piece-reach-2'))
-    fireEvent.click(screen.getByTestId('piece-reach-edge'))
+    // Tipped at two first, then moved out to the ring — so this also proves the
+    // tip MOVES rather than a second ray being added alongside the first.
+    rayAt('n', 2)
+    rayAt('n', 3)
     const slide = slideOf(readDraft())
     expect(slide).toBeTruthy()
     expect('maxDistance' in slide!).toBe(false)
@@ -1003,14 +1036,15 @@ describe('AC-008 — the split movement controls are covered too', () => {
    * the very gate written to answer it.
    *
    * Bounded rather than Cartesian: 8 directions at one cap, plus 3 caps on one
-   * direction, is 11 round-trips and covers each value at least once. A 24-cell
-   * product would buy the interaction terms only, which nothing in `writeGrid`
-   * treats as coupled — `reach` is one shared field, not a per-direction one.
+   * direction, is 11 round-trips and covers each value at least once. The old
+   * argument for that bound was that `reach` was one shared field; it is now
+   * per-direction, so the interaction terms are real — and they are covered
+   * where they belong, by `tests/ui/movement-ray.test.ts`, which drives two
+   * directions at DIFFERENT caps through the same compile-and-read path.
    */
   const roundTrip = (id: string, dir: Dir, reach: string) => {
     const committed = openPiece()
-    fireEvent.click(screen.getByTestId(`piece-slide-${dir}`))
-    fireEvent.click(screen.getByTestId(`piece-reach-${reach}`))
+    rayAt(dir, reach === 'edge' ? 3 : (Number(reach) as 1 | 2))
     // One hop as well, so the emitted array is the two-pattern shape.
     fireEvent.click(screen.getByTestId('piece-cell-1,2'))
     nameDraft(id, 'piece')
@@ -1044,16 +1078,119 @@ describe('AC-008 — the split movement controls are covered too', () => {
     expect(screen.queryByTestId('editor-readonly-moves')).toBeNull()
     expect(screen.getByTestId('editor-moves')).toBeTruthy()
 
-    // This asserted `form-tab-expert` and two `hidden` flags, then (Phase 6) that
-    // the indexed controls sat on the same surface. Phase 7 deleted them, so the
-    // claim is now the simpler one the whole PLAN was for: there is one way to say
-    // how a piece moves, and every part of it is on screen at once.
-    expect(screen.queryByTestId('form-tab-expert')).toBeNull()
-    expect(screen.queryByTestId('editor-clear-movement')).toBeNull()
-    expect(screen.queryByTestId('movement-select-0')).toBeNull()
-    expect(screen.queryByTestId('editor-add-effect')).toBeNull()
+    /*
+     * Re-derived, not edited row-wise. This assertion has been rewritten three
+     * times and each rewrite is the record of a surface leaving: it began as
+     * `form-tab-expert` plus two `hidden` flags, became "the indexed controls sit
+     * on the same surface", and then pinned the grid AND the slide dial AND the
+     * forward toggle as simultaneously present — which is what made the dial's
+     * removal fail here, exactly as ADR-007 intended before ADR-001 lifted its
+     * freeze.
+     *
+     * What it claims now is the thing the whole task was for: there is ONE way to
+     * say how a piece moves. The list below is therefore the enumeration of every
+     * surface that used to say it too, asserted ABSENT by name — a list, so that
+     * deleting one and forgetting another is a failure rather than a silence.
+     */
+    for (const gone of [
+      'form-tab-expert',
+      'editor-clear-movement',
+      'movement-select-0',
+      'editor-add-effect',
+      'piece-slide-n',
+      'piece-slide-ne',
+      'piece-reach-1',
+      'piece-reach-2',
+      'piece-reach-edge',
+      'piece-travel-note',
+      'piece-takes-note',
+      'piece-summary',
+      'piece-use-summary',
+      'piece-preview',
+      'attack-kind-slide',
+    ]) {
+      expect(screen.queryByTestId(gone), `${gone} is still a second way to say how a piece moves`).toBeNull()
+    }
+
+    // And the one that remains is whole: the drawing, the question it answers,
+    // and the two affordances that were rehoused out of the deleted block.
     expectEnabled(screen.getByTestId('piece-cell-1,2'), 'piece-cell-1,2')
-    expectEnabled(screen.getByTestId('piece-slide-n'), 'piece-slide-n')
+    expectEnabled(screen.getByTestId('piece-cell-0,3'), 'piece-cell-0,3')
+    expectEnabled(screen.getByTestId('piece-mode-move'), 'piece-mode-move')
+    expectEnabled(screen.getByTestId('piece-mode-capture'), 'piece-mode-capture')
+    expectEnabled(screen.getByTestId('piece-clear'), 'piece-clear')
     expectEnabled(screen.getByTestId('piece-forward'), 'piece-forward')
+  })
+})
+
+/**
+ * The NEW movement controls carry the vocabulary — asserted while the old ones
+ * are still mounted.
+ *
+ * This is the overlap ADR-003 of PLAN-unified-create-ux asks for and ADR-006 of
+ * PLAN-unified-movement-and-placement-ux bounds: extend, prove the replacement
+ * carries coverage, and only then delete. What is deliberately NOT asserted here
+ * is "one editor control per vocabulary entry" — with both control sets mounted
+ * that claim is either false or has been weakened, and a weakened assertion that
+ * reads as coverage is worse than an absence somebody named. It lands in the
+ * phase that removes the old controls, not in this one.
+ */
+describe('the grid cells author the movement vocabulary (overlap coverage)', () => {
+  function openPiece() {
+    const committed = mount(bundledContentSource)
+    fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'piece' } })
+    fireEvent.click(screen.getByTestId('gallery-blank'))
+    return committed
+  }
+
+  type Pattern = { kind: string; vectors: number[][]; maxDistance?: number }
+  const patterns = (): Pattern[] => ((readDraft() as { movement?: Pattern[] })?.movement ?? [])
+  const of = (kind: string) => patterns().find((p) => p.kind === kind)
+
+  it('movement:step — one tap on a cell writes a step at exactly that offset', () => {
+    openPiece()
+    const control = screen.getByTestId('piece-cell-1,2')
+    expectEnabled(control, 'piece-cell-1,2')
+    expect(of('step')?.vectors, 'the seed already holds the asserted vector').not.toContainEqual([1, 2])
+
+    fireEvent.click(control)
+    expect(of('step')?.vectors).toContainEqual([1, 2])
+    // Its OWN offset and no other, so a control that lit the whole grid fails.
+    expect(of('step')?.vectors.filter(([df, dr]) => df === 1 && dr === 2)).toHaveLength(1)
+  })
+
+  it('movement:slide — a second tap turns the same cell into a ray with its own cap', () => {
+    openPiece()
+    const control = screen.getByTestId('piece-cell-0,2')
+    fireEvent.click(control)
+    fireEvent.click(control)
+    expect(of('slide')).toEqual({ kind: 'slide', vectors: [[0, 1]], maxDistance: 2 })
+  })
+
+  it('the ring cell writes an unbounded ray rather than a cap of three', () => {
+    openPiece()
+    fireEvent.click(screen.getByTestId('piece-cell-0,3'))
+    fireEvent.click(screen.getByTestId('piece-cell-0,3'))
+    expect(of('slide')).toEqual({ kind: 'slide', vectors: [[0, 1]] })
+  })
+
+  it.each([
+    ['step', 'piece-cell-1,2', 1],
+    ['slide', 'piece-cell-3,0', 2],
+  ])('%s round-trips through a real save and re-open', (kind, testid, taps) => {
+    const committed = openPiece()
+    for (let i = 0; i < taps; i += 1) fireEvent.click(screen.getByTestId(testid))
+    const authored = readDraft() as Record<string, unknown>
+    expect(of(kind), `no ${kind} pattern was written`).toBeTruthy()
+
+    nameDraft(`piece.probe-grid-${kind}`, 'piece')
+    fireEvent.click(screen.getByTestId('editor-save'))
+    expect(screen.queryByTestId('editor-errors')?.textContent ?? '', `saving the ${kind} row was rejected`).toBe('')
+    expect(committed.value, 'save produced no content').not.toBeNull()
+
+    const id = `piece.probe-grid-${kind}`
+    const reopened = openDraft(committed.value!, 'piece', id) as Record<string, unknown>
+    expect(reopened.movement, `${kind} did not survive the round-trip`).toEqual(authored.movement)
+    expect(reopened.attack).toEqual(authored.attack)
   })
 })

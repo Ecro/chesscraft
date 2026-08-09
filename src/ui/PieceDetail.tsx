@@ -1,6 +1,6 @@
 import type { PieceDef } from '@content/schema'
 import type { Translate } from './i18n'
-import { Cell, DIRECTIONS, type Dir8, GRID_RANGE, hasMoves, hasTakes, readGrid } from './PieceMoves'
+import { Cell, DIRECTIONS, type Dir8, GRID_RANGE, type Reach, hasMoves, hasTakes, readGrid } from './PieceMoves'
 import { resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
@@ -37,7 +37,7 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
    * schema's own helpers rather than by counting cells here.
    *
    * Counting `cells` alone was correct only while the grid was the whole model.
-   * Sliding now lives in `slides` — a direction plus a shared reach, because a
+   * Sliding now lives in `slides` — a direction plus its own reach, because a
    * finite grid has no cell meaning "and keep going" — so a rook has an EMPTY
    * `cells` map and is perfectly drawable. Reading the count would have called
    * every sliding piece undrawable, which is the same silent-blank failure this
@@ -53,7 +53,35 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
     )
   }
 
-  const slides: Dir8[] = DIRECTIONS.filter((dir) => grid.slides[dir] !== Cell.None)
+  /**
+   * The sliding directions, GROUPED BY THEIR CAP.
+   *
+   * It used to be one flat list plus one shared reach word, which stopped being
+   * true the moment a cap became a property of each direction (ADR-001): a piece
+   * that slides two squares north and to the edge eastward would have had one of
+   * those two facts printed over the other, on the card a player reads mid-match
+   * to decide a move. One clause per group says both.
+   */
+  const slideGroups = (() => {
+    const byReach = new Map<Reach, Dir8[]>()
+    for (const dir of DIRECTIONS) {
+      if (grid.slides[dir] === Cell.None) continue
+      // A cap belongs to a direction AND an axis. This card has one sentence per
+      // group and no way to say "for capturing", so it reports the MOVEMENT cap
+      // where the piece moves that way, and falls back to the capture cap for a
+      // direction it only captures along — otherwise a capture-only slide would
+      // vanish from the card entirely.
+      //
+      // KNOWN LIMIT, stated rather than hidden: a direction that slides BOTH
+      // ways at different caps is described by its movement cap alone. Rendering
+      // two clauses naming the same direction with two different distances reads
+      // as a contradiction to the player, and no shipped piece has that shape.
+      const r = (grid.slides[dir] & Cell.Move) !== 0 ? grid.reach.move[dir] : grid.reach.capture[dir]
+      byReach.set(r, [...(byReach.get(r) ?? []), dir])
+    }
+    const capOrder = (r: Reach) => (r === 'edge' ? Number.POSITIVE_INFINITY : r)
+    return [...byReach.entries()].sort((a, b) => capOrder(a[0]) - capOrder(b[0]))
+  })()
 
   return (
     <div className="move-region" data-testid="move-region">
@@ -84,13 +112,13 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
           painting it into the grid is what made a lit cell stop denoting a
           reachable square. Rendered only when the piece actually slides, so a
           knight's sheet does not carry an empty dial. */}
-      {slides.length > 0 && (
-        <p className="move-slides" data-testid="move-slides">
+      {slideGroups.map(([reach, dirs]) => (
+        <p className="move-slides" key={String(reach)} data-testid="move-slides" data-reach={String(reach)}>
           {t('ui.piece-info.slides')
-            .replace('{dirs}', slides.map((dir) => t(`ui.editor.piece.dir.${dir}`)).join(', '))
-            .replace('{reach}', t(`ui.piece-info.reach.${grid.reach}`))}
+            .replace('{dirs}', dirs.map((dir) => t(`ui.editor.piece.dir.${dir}`)).join(', '))
+            .replace('{reach}', t(`ui.piece-info.reach.${reach}`))}
         </p>
-      )}
+      ))}
       {/* The legend is not decoration. The three cell states differ by hue and
           by a glyph, and the glyph is the channel a colour-blind player has —
           but a glyph nobody has been told the meaning of is not a channel. */}

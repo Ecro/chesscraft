@@ -73,6 +73,12 @@ export const DIRECTION_VECTORS: Readonly<Record<Dir8, readonly [number, number]>
  * square for no gain.
  */
 export type Reach = 1 | 2 | 'edge'
+
+/** Which of a piece's two questions a cap, a cell or a tap belongs to. */
+export type Axis = 'move' | 'capture'
+
+/** The axis a `Cell` bit names. */
+export const axisOf = (bit: Cell.Move | Cell.Capture): Axis => (bit === Cell.Move ? 'move' : 'capture')
 export const REACH_VALUES = [1, 2, 'edge'] as const
 
 export interface PieceGrid {
@@ -80,10 +86,44 @@ export interface PieceGrid {
   cells: Record<string, Cell>
   /** Direction -> what sliding that way does. */
   slides: Record<Dir8, Cell>
-  /** Shared cap for every enabled direction. */
-  reach: Reach
+  /**
+   * Cap per DIRECTION and per AXIS.
+   *
+   * It was a single scalar, then one cap per direction, and it is now one per
+   * direction on each of the two axes — which is what `movePattern` has said all
+   * along: `movement` and `attack` are separate arrays and each pattern in each
+   * carries its own `maxDistance`. The editor was the narrower of the two.
+   *
+   * The middle version cost two review findings, and they are worth keeping
+   * because they are the same defect wearing different clothes. With ONE cap per
+   * direction, a tap on the capture grid had to either overwrite the cap — which
+   * silently lengthened a MOVEMENT ray on a mode the child was not looking at —
+   * or adopt it, which drew the square they DID tap as untouched while a square
+   * they never tapped became the tip. Both are edits a child cannot see. There is
+   * no third answer while one number has to serve two questions.
+   *
+   * A direction that does not slide on an axis still holds a value here; it is
+   * simply never read.
+   */
+  reach: Record<Axis, Record<Dir8, Reach>>
   /** Whether the vectors mirror by the owning side's forward direction. */
   forward: boolean
+}
+
+/** The cap every sliding direction shares, across both axes, or null when they disagree. */
+export function sharedReach(grid: PieceGrid): Reach | null {
+  const caps = new Set<Reach>()
+  for (const axis of ['move', 'capture'] as const) {
+    const bit = axis === 'move' ? Cell.Move : Cell.Capture
+    for (const d of DIRECTIONS) if ((grid.slides[d] & bit) !== 0) caps.add(grid.reach[axis][d])
+  }
+  return caps.size === 1 ? [...caps][0]! : null
+}
+
+/** Sets one cap on every direction of every axis — used by fixtures, not by the UI. */
+export function withAllReach(grid: PieceGrid, reach: Reach): PieceGrid {
+  const all = () => Object.fromEntries(DIRECTIONS.map((d) => [d, reach])) as Record<Dir8, Reach>
+  return { ...grid, reach: { move: all(), capture: all() } }
 }
 
 type Pattern = { kind?: unknown; vectors?: unknown; maxDistance?: unknown; forward?: unknown }
@@ -94,7 +134,10 @@ export function blankGrid(): PieceGrid {
   return {
     cells: {},
     slides: { n: 0, ne: 0, e: 0, se: 0, s: 0, sw: 0, w: 0, nw: 0 },
-    reach: 'edge',
+    reach: {
+      move: { n: 'edge', ne: 'edge', e: 'edge', se: 'edge', s: 'edge', sw: 'edge', w: 'edge', nw: 'edge' },
+      capture: { n: 'edge', ne: 'edge', e: 'edge', se: 'edge', s: 'edge', sw: 'edge', w: 'edge', nw: 'edge' },
+    },
     forward: false,
   }
 }
@@ -115,14 +158,15 @@ const DIR_BY_VECTOR = new Map<string, Dir8>(DIRECTIONS.map((d) => [key(...DIRECT
  * them apart. Null means the array holds something this control cannot depict:
  * an unknown kind, or two patterns competing for the same bucket.
  */
-type Buckets = { slide?: Pattern; leap?: Pattern }
+type Buckets = { slides: Pattern[]; leap?: Pattern }
 
 function bucketize(patterns: Pattern[]): Buckets | null {
-  const out: Buckets = {}
+  const out: Buckets = { slides: [] }
   for (const p of patterns) {
     if (p.kind === 'slide') {
-      if (out.slide) return null
-      out.slide = p
+      // Several are expected now, one per distinct cap. Refusing the second was
+      // correct only while the grid held a single shared reach.
+      out.slides.push(p)
     } else if (p.kind === 'step' || p.kind === 'jump') {
       if (out.leap) return null
       out.leap = p
@@ -131,6 +175,117 @@ function bucketize(patterns: Pattern[]): Buckets | null {
     }
   }
   return out
+}
+
+/**
+ * The compass ray a cell sits on, or null when it sits on none.
+ *
+ * Half the grid is on no ray at all. A slide vector must be one of the eight
+ * compass units — `DIR_BY_VECTOR` holds exactly those — so a knight-shaped
+ * offset like `(1,2)` has no "and keeps going" to offer and never will: a
+ * repeating knight vector is an explicit non-goal, and the engine would need a
+ * different pattern shape for it. Those cells cycle through two states, not
+ * three, and that asymmetry is a fact about the model rather than a choice this
+ * control made.
+ */
+export function rayOf(df: number, dr: number): { dir: Dir8; distance: 1 | 2 | 3 } | null {
+  if (df === 0 && dr === 0) return null
+  if (df !== 0 && dr !== 0 && Math.abs(df) !== Math.abs(dr)) return null
+  const distance = Math.max(Math.abs(df), Math.abs(dr))
+  if (distance > 3) return null
+  const dir = DIR_BY_VECTOR.get(key(Math.sign(df), Math.sign(dr)))
+  return dir ? { dir, distance: distance as 1 | 2 | 3 } : null
+}
+
+/** What one cell shows, for one axis. `endless` is the ring cell of an uncapped ray. */
+export type CellPaint =
+  | { kind: 'none' }
+  | { kind: 'leap' }
+  | { kind: 'ray'; tip: boolean; endless: boolean }
+
+const bit = (v: Cell, axis: Cell.Move | Cell.Capture) => (v & axis) !== 0
+
+/**
+ * What the cell at `(df, dr)` draws for one axis.
+ *
+ * A ray is a property of its DIRECTION, so every cell between the centre and the
+ * cap draws as part of the trail rather than each holding its own value. That is
+ * the whole point of putting the ray in the drawing: a lit cell means "this
+ * square is reachable", which is exactly what the old split grid could not say.
+ */
+export function paintAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): CellPaint {
+  const ray = rayOf(df, dr)
+  if (ray && bit(grid.slides[ray.dir], axis)) {
+    const cap = grid.reach[axisOf(axis)][ray.dir]
+    const reach = cap === 'edge' ? 3 : cap
+    if (ray.distance <= reach) {
+      return { kind: 'ray', tip: ray.distance === reach, endless: cap === 'edge' && ray.distance === 3 }
+    }
+  }
+  if (bit((grid.cells[key(df, dr)] ?? Cell.None) as Cell, axis)) return { kind: 'leap' }
+  return { kind: 'none' }
+}
+
+/**
+ * One tap: none -> leap -> ray -> none, skipping `ray` where it cannot exist.
+ *
+ * Two things worth knowing before reading a test that looks surprising.
+ *
+ * 1. **Off-ray cells have two states, not three** — see `rayOf`. Tapping one
+ *    twice returns it, rather than three times.
+ * 2. **Tapping any cell of an existing ray clears the WHOLE ray on that axis**,
+ *    not just that square. A cap belongs to a direction; there is no way to keep
+ *    squares 1 and 3 of a ray while dropping 2, so "remove what is here" is the
+ *    only honest answer to a tap and it is the one a child can undo by tapping
+ *    again. Shortening is tap-to-clear then tap-tap on the new tip.
+ * 3. **The other axis is never touched.** Each axis owns its own cap for each
+ *    direction, so a tap here cannot move a ray on the mode the child is not
+ *    looking at — see the note on `PieceGrid.reach` for the two review findings
+ *    that bought that rule.
+ */
+export function cycleAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): PieceGrid {
+  const k = key(df, dr)
+  const current = paintAt(grid, axis, df, dr)
+  const ray = rayOf(df, dr)
+
+  if (current.kind === 'ray') {
+    const slides = { ...grid.slides, [ray!.dir]: (grid.slides[ray!.dir] & ~axis) as Cell }
+    // A cap with no ray under it is a dead value. Leaving it behind is
+    // invisible in play — nothing reads `reach` for a direction that does not
+    // slide — and it makes two grids that draw identically compare unequal,
+    // which is how a "tapping three times puts it back" test fails on code that
+    // is behaving correctly.
+    const axis_ = axisOf(axis)
+    return {
+      ...grid,
+      slides,
+      reach: { ...grid.reach, [axis_]: { ...grid.reach[axis_], [ray!.dir]: 'edge' as Reach } },
+    }
+  }
+
+  const cells = { ...grid.cells }
+  if (current.kind === 'none') {
+    cells[k] = ((cells[k] ?? Cell.None) | axis) as Cell
+    return { ...grid, cells }
+  }
+
+  // Was a leap. Off a ray there is nowhere further to go, so it turns off.
+  const next = ((cells[k] ?? Cell.None) & ~axis) as Cell
+  if (next === Cell.None) delete cells[k]
+  else cells[k] = next
+  if (!ray) return { ...grid, cells }
+
+  // The tapped square's distance is the cap, on THIS axis only. Nothing about
+  // the other axis is read or written here, which is the whole point of the cap
+  // being per axis.
+  const axis_ = axisOf(axis)
+  const reach: Reach = ray.distance === 3 ? 'edge' : ray.distance
+  return {
+    ...grid,
+    cells,
+    slides: { ...grid.slides, [ray.dir]: (grid.slides[ray.dir] | axis) as Cell },
+    reach: { ...grid.reach, [axis_]: { ...grid.reach[axis_], [ray.dir]: reach } },
+  }
 }
 
 /** The reach a slide pattern declares, or null when the control has no value for it. */
@@ -160,9 +315,12 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
   const takeBuckets = attack === undefined ? undefined : bucketize(attack)
   if (!moveBuckets || takeBuckets === null) return null
 
-  const present = [moveBuckets.slide, moveBuckets.leap, takeBuckets?.slide, takeBuckets?.leap].filter(
-    (p): p is Pattern => p !== undefined,
-  )
+  const present = [
+    ...moveBuckets.slides,
+    moveBuckets.leap,
+    ...(takeBuckets?.slides ?? []),
+    takeBuckets?.leap,
+  ].filter((p): p is Pattern => p !== undefined)
   if (present.length === 0) return blankGrid()
 
   // A capped leap is inert (the engine gives every non-slide `maxSteps = 1`),
@@ -171,29 +329,39 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
     if (leap && leap.maxDistance !== undefined) return null
   }
 
-  const reaches = new Set<Reach | null>()
-  for (const slide of [moveBuckets.slide, takeBuckets?.slide]) {
-    if (slide) reaches.add(reachOf(slide))
-  }
-  if (reaches.has(null)) return null
-  if (reaches.size > 1) return null
-  const reach = (reaches.size === 1 ? [...reaches][0] : 'edge') as Reach
-
   const forwards = new Set(present.map((p) => p.forward === true))
   if (forwards.size > 1) return null
 
   const grid = blankGrid()
-  grid.reach = reach
   grid.forward = forwards.has(true)
 
-  const paintSlide = (pattern: Pattern | undefined, value: Cell): boolean => {
-    if (!pattern) return true
-    const vectors = vectorsOf(pattern)
-    if (vectors.length === 0) return false
-    for (const [df, dr] of vectors) {
-      const dir = DIR_BY_VECTOR.get(key(df, dr))
-      if (!dir) return false
-      grid.slides[dir] = (grid.slides[dir] | value) as Cell
+  /**
+   * Paints every slide pattern, recording each direction's own cap.
+   *
+   * Refuses when one direction is claimed twice at two different caps — that is
+   * a document saying a piece slides both two squares and to the edge the same
+   * way, which the grid has no cell for and the engine would resolve by pattern
+   * order rather than by anything a child could see.
+   */
+  const paintSlides = (patterns: Pattern[], value: Cell.Move | Cell.Capture): boolean => {
+    const axis = axisOf(value)
+    for (const pattern of patterns) {
+      const reach = reachOf(pattern)
+      if (reach === null) return false
+      const vectors = vectorsOf(pattern)
+      if (vectors.length === 0) return false
+      for (const [df, dr] of vectors) {
+        const dir = DIR_BY_VECTOR.get(key(df, dr))
+        if (!dir) return false
+        // Refused only when the SAME axis claims this direction twice at two
+        // caps — the grid has one cell per direction per axis, so there is
+        // nowhere to put the second answer. The two axes disagreeing is no
+        // longer a refusal: it is a document `movePattern` always permitted and
+        // the editor used to be too narrow to open.
+        if ((grid.slides[dir] & value) !== 0 && grid.reach[axis][dir] !== reach) return false
+        grid.slides[dir] = (grid.slides[dir] | value) as Cell
+        grid.reach[axis][dir] = reach
+      }
     }
     return true
   }
@@ -211,7 +379,7 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
     return true
   }
 
-  if (!paintSlide(moveBuckets.slide, Cell.Move)) return null
+  if (!paintSlides(moveBuckets.slides, Cell.Move)) return null
   if (!paintCells(moveBuckets.leap, Cell.Move)) return null
 
   if (takeBuckets === undefined) {
@@ -219,9 +387,18 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
     // is also a capture square — the schema's default, and showing it as
     // move-only would misdescribe every bundled piece but the pawn.
     for (const k of Object.keys(grid.cells)) grid.cells[k] = Cell.Both
-    for (const d of DIRECTIONS) if (grid.slides[d] === Cell.Move) grid.slides[d] = Cell.Both
+    for (const d of DIRECTIONS) {
+      if (grid.slides[d] !== Cell.Move) continue
+      grid.slides[d] = Cell.Both
+      // The CAP has to be promoted with the direction, now that each axis owns
+      // one. Leaving the capture cap at its default made the two axes disagree
+      // about a ray neither the document nor the author had said anything about,
+      // so `writeGrid` emitted an `attack` for a record that had none — a field
+      // appearing out of a round-trip that was supposed to be a no-op.
+      grid.reach.capture[d] = grid.reach.move[d]
+    }
   } else {
-    if (!paintSlide(takeBuckets.slide, Cell.Capture)) return null
+    if (!paintSlides(takeBuckets.slides, Cell.Capture)) return null
     if (!paintCells(takeBuckets.leap, Cell.Capture)) return null
   }
 
@@ -265,12 +442,20 @@ function patternEqual(a: Emitted | undefined, b: Emitted | undefined): boolean {
  */
 function sameReach(a: Emitted[], b: Emitted[]): boolean {
   const bucket = (ps: Emitted[]) => ({
-    slide: ps.find((p) => p.kind === 'slide'),
+    // Keyed by cap, because there is one slide pattern per cap now. Taking the
+    // FIRST slide pattern — which is what this did — silently compared a
+    // two-square ray against an edge ray and called them the same reach, which
+    // would omit an `attack` that genuinely differs from the movement.
+    slides: new Map(ps.filter((p) => p.kind === 'slide').map((p) => [String(p.maxDistance ?? 'edge'), p])),
     leap: ps.find((p) => p.kind !== 'slide'),
   })
   const x = bucket(a)
   const y = bucket(b)
-  return patternEqual(x.slide, y.slide) && patternEqual(x.leap, y.leap)
+  if (x.slides.size !== y.slides.size) return false
+  for (const [cap, pattern] of x.slides) {
+    if (!patternEqual(pattern, y.slides.get(cap))) return false
+  }
+  return patternEqual(x.leap, y.leap)
 }
 
 /**
@@ -292,19 +477,34 @@ export function writeGrid(grid: PieceGrid): WriteResult {
     v.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1])
 
   const build = (axis: Cell.Move | Cell.Capture): Emitted[] => {
-    const dirs = DIRECTIONS.filter((d) => has(grid.slides[d], axis)).map(
-      (d) => [...DIRECTION_VECTORS[d]] as [number, number],
-    )
+    /**
+     * One `slide` pattern per distinct cap, ordered capped-ascending with the
+     * uncapped group last.
+     *
+     * The order is not cosmetic: it is what makes the round-trip an equality
+     * rather than a set comparison, so a save that reordered the document would
+     * be a failure somebody sees rather than churn nobody attributes.
+     */
+    const byReach = new Map<Reach, Array<[number, number]>>()
+    for (const d of DIRECTIONS) {
+      if (!has(grid.slides[d], axis)) continue
+      const r = grid.reach[axisOf(axis)][d]
+      const group = byReach.get(r) ?? []
+      group.push([...DIRECTION_VECTORS[d]] as [number, number])
+      byReach.set(r, group)
+    }
+    const capOrder = (r: Reach) => (r === 'edge' ? Number.POSITIVE_INFINITY : r)
+    const slideGroups = [...byReach.entries()].sort((a, b) => capOrder(a[0]) - capOrder(b[0]))
     const cells = Object.entries(grid.cells)
       .filter(([, v]) => has(v, axis))
       .map(([k]) => k.split(',').map(Number) as [number, number])
 
     const out: Emitted[] = []
-    if (dirs.length > 0) {
+    for (const [reach, vectors] of slideGroups) {
       out.push({
         kind: 'slide',
-        vectors: sortVectors(dirs),
-        ...(grid.reach === 'edge' ? {} : { maxDistance: grid.reach }),
+        vectors: sortVectors(vectors),
+        ...(reach === 'edge' ? {} : { maxDistance: reach }),
         ...(grid.forward ? { forward: true as const } : {}),
       })
     }
@@ -331,10 +531,6 @@ export function writeGrid(grid: PieceGrid): WriteResult {
   }
 }
 
-/** The next value when a cell or a direction is tapped: move -> capture -> both -> none. */
-export function cycle(value: Cell): Cell {
-  return ((value + 1) % 4) as Cell
-}
 
 /** Whether the grid names anywhere to walk — the pre-save hint, computed live. */
 export function hasMoves(grid: PieceGrid): boolean {
@@ -370,7 +566,12 @@ export function describeGrid(t: Translate, grid: PieceGrid): string {
   const takeDirs = DIRECTIONS.filter((d) => has(grid.slides[d], Cell.Capture)).length
   const takeCells = Object.values(grid.cells).filter((v) => has(v, Cell.Capture)).length
 
-  const reachWord = t(`ui.editor.piece.summary.reach.${grid.reach}`)
+  // A single word cannot describe a piece that slides two squares one way and
+  // to the edge another. Saying one of them would be worse than saying neither,
+  // because this line is offered to the author AS the record's description and
+  // becomes player-facing the moment they accept it.
+  const shared = sharedReach(grid)
+  const reachWord = t(`ui.editor.piece.summary.reach.${shared ?? 'mixed'}`)
   const fill = (k: string) =>
     t(k)
       .replace('{dirs}', String(dirs))

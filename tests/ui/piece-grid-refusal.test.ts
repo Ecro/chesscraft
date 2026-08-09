@@ -14,13 +14,24 @@ type Rec = Record<string, unknown>
 /** One record per documented rejection cause. */
 const REFUSED: Array<{ why: string; rec: Rec }> = [
   {
-    why: 'two slide patterns disagreeing on reach cap',
+    // Was 'two slide patterns disagreeing on reach cap' — that document OPENS
+    // now, because a cap is a property of each direction (ADR-001) and two
+    // directions capped differently is the ordinary case the widening exists
+    // for. What is still refused is the same direction claimed TWICE at two
+    // caps: the grid has one cell per direction, so it has nowhere to put the
+    // second answer, and the engine would settle it by pattern order rather
+    // than by anything a child could see.
+    why: 'one direction claimed twice, at two different caps',
     rec: {
       movement: [
         { kind: 'slide', vectors: [[0, 1]] },
-        { kind: 'slide', vectors: [[1, 0]], maxDistance: 2 },
+        { kind: 'slide', vectors: [[0, 1]], maxDistance: 2 },
       ],
     },
+  },
+  {
+    why: 'a slide cap the grid has no cell for',
+    rec: { movement: [{ kind: 'slide', vectors: [[0, 1]], maxDistance: 3 }] },
   },
   {
     why: 'a reach cap the control cannot express',
@@ -50,6 +61,18 @@ const REFUSED: Array<{ why: string; rec: Rec }> = [
       ],
     },
   },
+  // 'slide caps disagreeing between movement and attack' was here, and it OPENS
+  // now. A cap belongs to a direction AND an axis — which is what `movePattern`
+  // always said, since `movement` and `attack` are separate arrays each carrying
+  // its own `maxDistance`. The editor was the narrower of the two, and a review
+  // finding showed what that narrowness cost: with one cap per direction, a tap
+  // on one axis had to either move the other axis's ray or be drawn on a square
+  // the child never tapped. The fixture moved to the OPENS list below rather
+  // than being deleted, so the boundary shift is visible rather than implied.
+]
+
+/** Documents that used to be refused and now open, with the reason they moved. */
+const NOW_OPENS: Array<{ why: string; rec: Rec }> = [
   {
     why: 'slide caps disagreeing between movement and attack',
     rec: {
@@ -78,5 +101,20 @@ describe('AC-011 — refusal is total and non-destructive', () => {
     expect(written.ok).toBe(false)
     if (written.ok) return
     expect(written.reason).toBe('no-move')
+  })
+})
+
+describe('the boundary that moved', () => {
+  it.each(NOW_OPENS)('opens, and round-trips: $why', ({ rec }) => {
+    const grid = readGrid(rec)
+    expect(grid, 'this document is supposed to open now').not.toBeNull()
+    const out = writeGrid(grid!)
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    // Byte-identical, not merely equivalent: a widening that quietly rewrote the
+    // document on the way through would be a worse outcome than the refusal it
+    // replaced.
+    expect(out.movement).toEqual(rec.movement)
+    expect(out.attack).toEqual(rec.attack)
   })
 })

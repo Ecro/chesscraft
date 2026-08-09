@@ -6,7 +6,7 @@
  * diagram, not read out of the compiler.
  */
 import { describe, expect, it } from 'vitest'
-import { Cell, blankGrid, writeGrid, type Dir8, type PieceGrid, type Reach } from '@ui/PieceMoves'
+import { Cell, blankGrid, withAllReach, writeGrid, type Dir8, type PieceGrid, type Reach } from '@ui/PieceMoves'
 import { reachOf } from '../helpers/reach'
 
 const WIDTH = 6
@@ -32,9 +32,12 @@ const GOLDEN: Row[] = [
 ]
 
 function slideOnly(direction: Dir8, reach: Reach): PieceGrid {
-  const grid = blankGrid()
+  // `reach` became per-direction when the ray moved into the cell (ADR-001), so
+  // a fixture that set one scalar now sets one map. The golden table above is
+  // untouched, which is the point: what these rows assert about where a piece
+  // can go did not change, only how the cap is spelled.
+  const grid = withAllReach(blankGrid(), reach)
   grid.slides[direction] = Cell.Both
-  grid.reach = reach
   return grid
 }
 
@@ -62,7 +65,7 @@ describe('AC-002 — slide reach caps', () => {
       { width: WIDTH, height: HEIGHT, origin: ORIGIN },
     )
 
-    const withSlide: PieceGrid = { ...cellsOnly, slides: { ...cellsOnly.slides, e: Cell.Both }, reach: 'edge' }
+    const withSlide: PieceGrid = withAllReach({ ...cellsOnly, slides: { ...cellsOnly.slides, e: Cell.Both } }, 'edge')
     const after = writeGrid(withSlide)
     expect(after.ok).toBe(true)
     if (!after.ok) return

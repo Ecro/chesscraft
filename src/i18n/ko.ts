@@ -420,11 +420,8 @@ export const ko: Record<string, string> = {
   'ui.editor.field.promotion-rank': '몇 번째 줄에서 승급하나요',
   'ui.editor.field.promotion-to': '무엇으로 승급하나요',
 
-  'ui.editor.attack.legend': '어떻게 잡나요 (비워 두면 움직이는 대로 잡아요)',
   'ui.editor.board.width': '가로 칸 수',
   'ui.editor.board.height': '세로 칸 수',
-  'ui.editor.board.paint': '칠할 칸 종류',
-  'ui.editor.board.place': '놓을 기물',
   'ui.editor.board.pair-hint': '이 칸과 이어질 칸을 하나 더 골라요.',
   'ui.editor.board.none': '고르지 않음',
   'ui.editor.storage.saved': '이 기기에 저장했어요.',
@@ -628,8 +625,6 @@ export const ko: Record<string, string> = {
   /* "바깥 화살표" in the first draft of this line, from the ring layout that was reverted.
      A sentence that points at something not on screen is the defect this line exists to fix,
      wearing the other hat. */
-  'ui.editor.piece.travel-note': '위쪽 칸을 켜면 그 칸까지 뛰어가요 — 가는 길에 기물이 있어도 넘어가요. 아래쪽 방향 판은 쭉 미끄러지는 방향이에요 — 가는 길에 기물이 있으면 거기서 멈춰요.',
-  'ui.editor.piece.takes-note': '잡는 칸을 하나도 안 켜면, 갈 수 있는 칸에서 모두 잡을 수 있어요. 그래서 켠 칸이 "둘 다"로 보여요.',
 
   /* Shown when a draft cannot be priced yet. Silence here used to mean the SAVED record's price
      stayed on screen describing a declaration the author had already edited away. */
@@ -752,9 +747,7 @@ export const ko: Record<string, string> = {
   // --- the piece maker ---
   'ui.editor.field.art': '그림',
   'ui.editor.piece.how': '어디로 뛰어가나요',
-  'ui.editor.piece.how-hint': '칸을 누를 때마다 이동 → 잡기 → 둘 다 → 없음 순으로 바뀝니다. 가운데가 이 기물이에요. 여기 켠 칸은 딱 그 칸까지만 가요.',
-  'ui.editor.piece.slides': '어느 쪽으로 쭉 미끄러지나요',
-  'ui.editor.piece.slides-hint': '쭉 미끄러지는 건 칸이 아니라 방향으로 골라요. 화살표를 누를 때마다 이동 → 잡기 → 둘 다 → 없음 순으로 바뀝니다.',
+  'ui.editor.piece.how-hint': '가운데가 이 기물이에요. 칸을 누르면 안 감 → 뛰어감 순으로 바뀌어요. 가운데에서 곧게 뻗은 칸은 한 번 더 누르면 미끄러짐이 돼요. 뛰어감은 가는 길에 기물이 있어도 넘어가고, 미끄러짐은 거기서 멈춰요. 맨 바깥 칸을 미끄러짐으로 켜면 끝까지 가요.',
   'ui.editor.piece.dir.n': '위',
   'ui.editor.piece.dir.ne': '오른쪽 위',
   'ui.editor.piece.dir.e': '오른쪽',
@@ -766,9 +759,6 @@ export const ko: Record<string, string> = {
   'ui.editor.piece.clear': '움직임 모두 지우기',
   'ui.editor.piece.forward': '앞쪽 기준으로 뒤집기',
   'ui.editor.piece.forward-hint': '켜면 검은 편에서는 위아래가 뒤집혀요. 병사처럼 앞으로만 가는 기물에 써요.',
-  'ui.editor.piece.reach.1': '한 칸',
-  'ui.editor.piece.reach.2': '두 칸',
-  'ui.editor.piece.reach.edge': '끝까지',
   // The summary counts DIRECTIONS for the sliding half and SQUARES for the
   // hopping half. The version before this counted lit cells for both, which
   // under a `slide` travel kind was a number that meant nothing — four lit cells
@@ -776,17 +766,14 @@ export const ko: Record<string, string> = {
   'ui.editor.piece.summary.reach.1': '한 칸씩',
   'ui.editor.piece.summary.reach.2': '두 칸까지',
   'ui.editor.piece.summary.reach.edge': '끝까지',
+  'ui.editor.piece.summary.reach.mixed': '방향마다 다르게',
   'ui.editor.piece.summary.hop': '{moves}곳으로 뛴다. 잡을 수 있는 곳은 {takes}곳.',
   'ui.editor.piece.summary.slide': '{dirs}갈래로 {reach} 쭉 간다. 잡을 수 있는 곳은 {takes}곳.',
   'ui.editor.piece.summary.both': '{dirs}갈래로 {reach} 쭉 가고, {moves}곳으로 뛴다. 잡을 수 있는 곳은 {takes}곳.',
-  'ui.editor.piece.preview': '이렇게 움직여요',
-  'ui.editor.piece.preview-hint': '가운데가 이 기물이에요. 초록 칸은 갈 수 있는 곳, 빨간 칸은 잡을 수 있는 곳. 위쪽에 상대 기물, 오른쪽에 내 편 기물을 놓아 봤어요.',
-  'ui.editor.piece.preview.move': '갈 수 있어요',
-  'ui.editor.piece.preview.capture': '잡을 수 있어요',
-  'ui.editor.piece.preview.none': '갈 수 없어요',
-  'ui.editor.piece.preview-broken': '지금은 움직임을 보여줄 수 없어요. 아래 빨간 글씨를 먼저 고쳐 주세요.',
-  'ui.editor.piece.dex-preview': '도감에는 이렇게 적혀요',
-  'ui.editor.piece.use-summary': '이 설명 쓰기',
+  'ui.editor.piece.mode.move': '움직이기',
+  'ui.editor.piece.mode.capture': '잡기',
+  'ui.editor.piece.clear-capture': '잡는 자리 지우기',
+  'ui.editor.piece.capture-follows': '따로 안 정하면 움직이는 대로 잡아요. 지금 잡는 자리가 켜져 있어요.',
   'ui.editor.piece.no-moves': '갈 수 있는 칸이 하나도 없어요. 이동 칸을 적어도 하나 골라 주세요.',
   // Omitting `attack` means captures fall back to the movement — so "moves but
   // never captures" is not something the schema can say, and pretending

@@ -9,30 +9,30 @@ import { officialIds } from '@content/provenance'
 import { bundledContentSource } from '@content/sets/bundled'
 import { DEFAULT_LOCALE, makeTranslate, useTranslate } from './i18n'
 import { recordLabel, recordLabels } from './recordLabel'
-import { resolveMark } from './art/resolve'
+import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
+import { PlacementPainter, type PaintedSquare, type Placed, paintSquare, togglePlacement } from './PlacementPainter'
 import { MarkBody } from './art/MarkBody'
 import { PIXEL_SPRITES, isSpriteName } from './art/pixels'
 import { Pix } from './art/Pix'
 import {
   Cell,
   DIRECTIONS,
-  GRID_RANGE,
-  REACH_VALUES,
   type Dir8,
-  type PieceGrid,
-  type Reach,
-  cycle,
   describeGrid,
+  GRID_RANGE,
+  type PieceGrid,
   hasMoves,
   hasTakes,
+  cycleAt,
+  paintAt,
+  rayOf,
   readGrid,
   writeGrid,
 } from './PieceMoves'
 import { readSentence } from './CardRecipe'
 import { SentenceEditor, describeRecord, sentenceText } from './SentenceSlot'
 import { RecordGrade } from './RecordGrade'
-import { PiecePreview } from './PiecePreview'
 import { MakerGallery, type Picked } from './MakerGallery'
 
 /**
@@ -306,6 +306,16 @@ export function RecordForm({
   const [paintType, setPaintType] = useState('')
   const [pendingPair, setPendingPair] = useState<string | null>(null)
   const [pairHint, setPairHint] = useState(false)
+  /**
+   * Which of the two things a board is gets painted right now.
+   *
+   * The room maker has always split these into two steps — `ui.editor.step.board`
+   * and `ui.editor.step.place`; this screen used to do both at once, two tiny
+   * buttons per square. One question at a time is the whole reason for the split.
+   */
+  const [boardMode, setBoardMode] = useState<'place' | 'paint'>('place')
+  /** Which of a piece's two questions the one grid is currently answering (ADR-003). */
+  const [moveMode, setMoveMode] = useState<'move' | 'capture'>('move')
   const [placePiece, setPlacePiece] = useState('')
   const [placeSide, setPlaceSide] = useState<'white' | 'black'>('white')
 
@@ -442,45 +452,50 @@ export function RecordForm({
     return rows
   }
 
-  const paint = (square: string) => {
-    if (!paintType) return
-    if (pairedTypes.has(paintType)) {
-      if (pendingPair === null) {
-        setPendingPair(square)
-        setPairHint(true)
-        return
-      }
-      const partner = pendingPair
-      setPendingPair(null)
-      setPairHint(false)
-      update((d) => {
-        const list = (d.squares as Draft[] | undefined) ?? []
-        const without = list.filter((s) => s.square !== partner && s.square !== square)
-        without.push({ square: partner, typeId: paintType, pairedWith: square })
-        without.push({ square, typeId: paintType, pairedWith: partner })
-        d.squares = without
-      })
-      return
-    }
-    update((d) => {
-      const list = (d.squares as Draft[] | undefined) ?? []
-      const at = list.findIndex((s) => s.square === square)
-      if (at >= 0 && list[at]!.typeId === paintType) list.splice(at, 1)
-      else if (at >= 0) list[at] = { square, typeId: paintType }
-      else list.push({ square, typeId: paintType })
-      d.squares = list
+  /**
+   * The mark a record draws with, for the painter's cells and its palette.
+   * Same resolution the room maker uses — the two screens must not disagree
+   * about what a piece looks like.
+   */
+  const markOfRecord = (collection: 'pieces' | 'squareTypes', id: string, side?: 'white' | 'black'): Mark => {
+    const record = (source[collection] as Array<Record<string, unknown>>).find((r) => r.id === id)
+    return resolveMark(t, record as { artKey?: string; iconKey?: string } | undefined, {
+      registry: artRegistry,
+      side,
+      fallback: 'none',
     })
   }
 
+  const paint = (square: string) => {
+    // Shared with the room (see `paintSquare`). This used to be its own reducer
+    // and the two had drifted in two ways that both produced documents the
+    // loader refuses: painting over one half of a portal pair replaced that
+    // entry in place and left the other half pointing at a square that no
+    // longer paired back, and tapping the same square twice while arming a pair
+    // wrote two entries for one square, each paired with itself.
+    const list = ((draft.squares as Draft[] | undefined) ?? []) as unknown as PaintedSquare[]
+    const result = paintSquare(list, square, paintType, (id) => pairedTypes.has(id), pendingPair)
+    setPendingPair(result.pendingPair)
+    setPairHint(result.pendingPair !== null)
+    if (result.squares) {
+      const squares = result.squares
+      update((d) => {
+        d.squares = squares as unknown as Draft[]
+      })
+    }
+  }
+
   const place = (square: string) => {
-    if (!placePiece) return
+    // Shared with the room, deliberately — see `togglePlacement`. This used to
+    // be its own reducer that replaced on a piece mismatch where the room
+    // cleared, so one tap meant two different things on two screens.
     update((d) => {
-      const list = (d.placements as Draft[] | undefined) ?? []
-      const at = list.findIndex((p) => p.square === square)
-      if (at >= 0 && list[at]!.pieceId === placePiece && list[at]!.side === placeSide) list.splice(at, 1)
-      else if (at >= 0) list[at] = { square, pieceId: placePiece, side: placeSide }
-      else list.push({ square, pieceId: placePiece, side: placeSide })
-      d.placements = list
+      d.placements = togglePlacement(
+        ((d.placements as Draft[] | undefined) ?? []) as unknown as Placed[],
+        square,
+        placePiece,
+        placeSide,
+      ) as unknown as Draft[]
     })
   }
 
@@ -803,6 +818,20 @@ export function RecordForm({
    * for what a record does — so it cannot drift from either.
    */
   function summaryLine(): string {
+    /*
+     * The movement clause stays here, and only here.
+     *
+     * Dropping it was tried, on the reading that AC-001's "top-of-form summary"
+     * was a fifth derived view of the drawing. An e2e caught what that actually
+     * produced: a fully authored piece whose sticky anchor read "you have not
+     * decided anything yet". The anchor is form chrome for every record kind —
+     * it exists because this form is several screens tall on a 390x844 phone, so
+     * what you are making has to stay reachable — and a chrome element that lies
+     * is worse than the redundancy AC-001 is aimed at.
+     *
+     * What DID go is `piece-summary`, the dex line inside the movement fieldset,
+     * which retold the drawing to someone already looking at it.
+     */
     const parts: string[] = []
     if (kind === 'piece') {
       const grid = readGrid(draft)
@@ -851,6 +880,17 @@ export function RecordForm({
           // validator the save button uses (ADR-033). An unsaveable draft that
           // says so is a state an author can leave; an ignored click is not.
           d.movement = []
+          // `attack` goes with it, and keeping it was tried and reverted.
+          //
+          // The appeal is obvious — clearing the movement half to start over
+          // should not throw away authored capture squares. What defeats it is
+          // that the remaining `attack` cannot be told apart from an artefact:
+          // an omitted `attack` means captures follow the movement, so the
+          // moment the two axes diverge the promotion is MATERIALISED into a
+          // real capture set. Cycling the seeded cell off therefore leaves a
+          // capture square nobody asked for, and holding it suppresses the
+          // promotion for every square the author paints next — a piece that
+          // quietly stopped capturing where it walks.
           delete d.attack
           return
         }
@@ -874,11 +914,35 @@ export function RecordForm({
      * promoted by the time this renders — asking it would be asking the answer.
      */
     const capturesFollowMovement = (draft as { attack?: unknown }).attack === undefined
+    const moveAxis = moveMode === 'move' ? Cell.Move : Cell.Capture
 
     return (
       <fieldset className="piece-moves" data-testid="editor-moves">
         <legend>{t('ui.editor.piece.how')}</legend>
         <p className="hint">{t('ui.editor.piece.how-hint')}</p>
+        {/* One question on screen at a time (ADR-003). A cell answers "how does
+            it get there"; this answers "which of the two am I drawing". Leaving
+            the capture side unpainted means captures follow the movement, which
+            is what the schema means by omitting `attack`. */}
+        <div className="move-modes" data-testid="piece-modes">
+          {(['move', 'capture'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              data-testid={`piece-mode-${m}`}
+              data-selected={moveMode === m}
+              aria-pressed={moveMode === m}
+              onClick={() => setMoveMode(m)}
+            >
+              {t(`ui.editor.piece.mode.${m}`)}
+            </button>
+          ))}
+        </div>
+        {moveMode === 'capture' && capturesFollowMovement && (
+          <p className="hint" data-testid="piece-capture-follows">
+            {t('ui.editor.piece.capture-follows')}
+          </p>
+        )}
         {/* One map, not two (PLAN Phase 8, ADR-007).
             The cells and the eight slide directions used to be two separate pictures of the
             same thing, and reading them together was the author's job. They are now one
@@ -899,104 +963,86 @@ export function RecordForm({
                   </span>
                 )
               }
+              /*
+               * No ghosting, and the reason is worth keeping: the plan expected
+               * an empty capture grid and a "first tap silently narrows capture
+               * to only here" cliff, and neither exists. An omitted `attack`
+               * means captures follow the movement, and `readGrid` PROMOTES every
+               * move square to both — so the capture grid already shows the
+               * squares this record captures on, truthfully, and a tap ADDS to
+               * them rather than replacing them. Drawing a faded copy of the
+               * movement axis instead would have made the picture disagree with
+               * what a tap does, which is the bug the ghost was invented to
+               * prevent.
+               */
+              const paint = paintAt(grid, moveAxis, df, dr)
               return (
                 <button
                   key={`${df},${dr}`}
                   type="button"
                   className="move-cell"
                   data-testid={`piece-cell-${df},${dr}`}
-                  data-value={value}
+                  /* Scoped to the axis being drawn, so the existing cell-state
+                     colours mean "painted for THIS question" rather than showing
+                     a movement square as lit while the capture grid is open. */
+                  data-value={paint.kind === 'leap' ? moveAxis : Cell.None}
+                  data-cells={value}
+                  data-paint={paint.kind}
+                  data-tip={paint.kind === 'ray' ? paint.tip : false}
+                  data-endless={paint.kind === 'ray' ? paint.endless : false}
+                  data-ray={rayOf(df, dr)?.dir ?? ''}
                   aria-label={`${df},${dr}`}
-                  aria-pressed={value !== Cell.None}
-                  onClick={() => {
-                    const cells = { ...grid.cells }
-                    const next = cycle(value)
-                    if (next === Cell.None) delete cells[`${df},${dr}`]
-                    else cells[`${df},${dr}`] = next
-                    commit({ ...grid, cells })
-                  }}
+                  aria-pressed={paint.kind !== 'none'}
+                  onClick={() => commit(cycleAt(grid, moveAxis, df, dr))}
                 />
               )
             }),
           )}
           </div>
 
-        {/* Sliding is still asked SEPARATELY from hopping (ADR-027) and still MEANS something
-            different — a slide stops at the first piece in the way, a lit cell jumps over
-            whatever is there. What changed in Phase 8 is only where it is drawn: the dial sits
-            on the ring of the same map rather than in a second one. The difference between the
-            two is now said in words below, because it was never said anywhere and it is what
-            made some settings look like they disagreed with the preview. */}
-        <div className="slide-dial">
-            {DIRECTIONS.map((dir: Dir8) => {
-              const value = grid.slides[dir]
-              return (
-                <button
-                  key={dir}
-                  type="button"
-                  className={`slide-dir slide-${dir}`}
-                  data-testid={`piece-slide-${dir}`}
-                  data-value={value}
-                  aria-label={t(`ui.editor.piece.dir.${dir}`)}
-                  aria-pressed={value !== Cell.None}
-                  onClick={() => commit({ ...grid, slides: { ...grid.slides, [dir]: cycle(value) } })}
-                />
-              )
-            })}
-          </div>
         </div>
 
-        {/* The two things the map cannot say by itself, said in words.
-            The leap-versus-slide difference was never stated anywhere, and it is exactly what
-            made a setting look like it disagreed with the preview once a blocker was in the
-            way. The second line is ADR-008: a piece with nowhere to capture takes wherever it
-            walks, so `readGrid` shows its move cells as capture cells too — correct, already
-            implemented, and until now unexplained, which made a tap on the move-only state look
-            like it did something the author had not asked for. */}
-        <p className="hint" data-testid="piece-travel-note">{t('ui.editor.piece.travel-note')}</p>
-        {capturesFollowMovement && (
-          <p className="hint" data-testid="piece-takes-note">{t('ui.editor.piece.takes-note')}</p>
-        )}
+        {/* What survives the deletion, and why each one had to be moved rather
+            than dropped with the container it lived in.
 
-        <div className="slide-row">
-          <span className="kicker">{t('ui.editor.piece.slides')}</span>
-          <p className="hint">{t('ui.editor.piece.slides-hint')}</p>
-
-          <div className="reach-picker">
-            {REACH_VALUES.map((reach: Reach) => (
-              <button
-                key={String(reach)}
-                type="button"
-                data-testid={`piece-reach-${reach}`}
-                data-selected={grid.reach === reach}
-                aria-pressed={grid.reach === reach}
-                onClick={() => commit({ ...grid, reach })}
-              >
-                {t(`ui.editor.piece.reach.${reach}`)}
-              </button>
-            ))}
-          </div>
-
-          {/* The forward mirror, on the grid at last (PLAN Phase 7).
-              `grid.forward` has been in this model since ADR-027 and `readGrid`
-              has always read it back — it simply had no control here, so the only
-              way to author it was the indexed pattern editor this phase deletes.
-              Deleting that without this would orphan a parameter the ADR-006 gate
-              measures, which is the same shape as `jump` and the opposite answer:
-              a mirror is observable in play (it is what makes a pawn a pawn),
-              where `step` and `jump` are not. */}
-          {/* Clear-all, restored onto the grid (PLAN Phase 7).
-              `editor-clear-movement` belonged to the indexed form, and deleting it
-              left no way to start a piece's movement over: every lit cell cycles
-              None -> Move -> Capture -> Both, so wiping a shipped piece's eight
-              directions meant twenty-four taps. The deletion created that gap; this
-              closes it rather than leaving it for someone to rediscover. */}
+            Both were affordances that existed ONLY inside the block this phase
+            removes, which is the exact shape of a recorded loss: `grid.forward`
+            sat in the model since ADR-027 with no control on the grid, and
+            clear-all vanished with the indexed form and left a shipped piece
+            needing twenty-four taps to reset. `piece-use-summary` was the third
+            such affordance and is deliberately NOT rehoused — it copied the
+            generated movement prose into the record's description, and there is
+            no prose to copy once the dex line is gone. That is a decision on the
+            record rather than a loss nobody noticed. */}
+        <div className="move-tools">
+          {/*
+            * Clear empties the question ON SCREEN, not both of them.
+            *
+            * In movement mode that leaves the record with nowhere to walk, which
+            * the schema refuses — and it should: `piece-no-moves` appears and the
+            * save says so through the same validator, which is a state an author
+            * can see and leave. In capture mode it empties only the capture
+            * squares, and an empty capture set equals the movement set, so
+            * `attack` is omitted and the piece captures wherever it walks again.
+            * That is the schema's own default, reached by a control rather than
+            * only by never having touched it.
+            */}
           <button
             type="button"
             data-testid="piece-clear"
-            onClick={() => commit({ ...grid, cells: {}, slides: emptySlides() })}
+            onClick={() => {
+              const keep = moveMode === 'move' ? Cell.Capture : Cell.Move
+              const cells: Record<string, Cell> = {}
+              for (const [k, v] of Object.entries(grid.cells)) {
+                const next = (v & keep) as Cell
+                if (next !== Cell.None) cells[k] = next
+              }
+              const slides = { ...grid.slides }
+              for (const d of DIRECTIONS) slides[d] = (slides[d] & keep) as Cell
+              commit({ ...grid, cells, slides })
+            }}
           >
-            {t('ui.editor.piece.clear')}
+            {t(moveMode === 'move' ? 'ui.editor.piece.clear' : 'ui.editor.piece.clear-capture')}
           </button>
 
           <label className="grid-forward">
@@ -1009,30 +1055,6 @@ export function RecordForm({
             />
           </label>
           <p className="hint">{t('ui.editor.piece.forward-hint')}</p>
-        </div>
-
-        {/* The engine answers "where does it go", not this form (ADR-032). It
-            re-runs on every edit, which is also what pulls validation forward
-            off the save button. */}
-        <PiecePreview source={source} draft={draft} t={t} />
-
-        <div className="note-box">
-          <span className="kicker">{t('ui.editor.piece.dex-preview')}</span>
-          <p data-testid="piece-summary">{describeGrid(t, grid)}</p>
-          {HAS_TEXT.includes(kind) && (
-            <button
-              type="button"
-              data-testid="piece-use-summary"
-              onClick={() => {
-                setBodyText(describeGrid(t, grid))
-                setTextTyped(true)
-                setSaved(null)
-                onDirtyChange?.(true)
-              }}
-            >
-              {t('ui.editor.piece.use-summary')}
-            </button>
-          )}
         </div>
 
         {noMoves && (
@@ -1324,6 +1346,14 @@ export function RecordForm({
           The field stays optional in the schema so older documents still load. */}
 
 
+
+      {/* The indexed effects palette is GONE (PLAN Phase 7): the effect index
+          cursor, the action index cursor, the five palettes and their parameter
+          blocks. Everything it authored is in the sentence, which the ADR-006
+          gate now measures directly — and the shape it authored that nothing
+          uses, a record with several effects, falls to the read-only path rather
+          than to a second form. */}
+
       {kind === 'piece' && (
         <>
           <label>
@@ -1389,47 +1419,8 @@ export function RecordForm({
               retired (ADR-006) or moved onto the grid, where the model already
               held it. `fieldError('movement')` moves to the grid, which is now the
               only thing that writes `movement`. */}
-
-          <fieldset>
-            <legend>{t('ui.editor.attack.legend')}</legend>
-            {/* No `jump`, matching `MOVEMENT_KINDS` (ADR-006). An attack pattern
-                is a movement pattern, so offering a distinction here that the
-                movement axis just retired would be the same unobservable choice
-                wearing a different label. */}
-            {(['slide', 'step'] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                data-testid={`attack-kind-${k}`}
-                onClick={() => {
-                  update((d) => {
-                    const list = (d.attack as Draft[] | undefined) ?? []
-                    list.push({ kind: k, vectors: [] })
-                    d.attack = list
-                  })
-                  setAttackIndex(attacks.length)
-                }}
-              >
-                {t(`ui.editor.vocab.movement.${k}`)}
-              </button>
-            ))}
-            {attacks[attackIndex] &&
-              vectorGrid('attack-cell', (attacks[attackIndex]!.vectors as number[][] | undefined) ?? [], (df, dr) =>
-                update((d) => {
-                  const p = (d.attack as Draft[])[attackIndex]!
-                  p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
-                }),
-              )}
-          </fieldset>
         </>
       )}
-
-      {/* The indexed effects palette is GONE (PLAN Phase 7): the effect index
-          cursor, the action index cursor, the five palettes and their parameter
-          blocks. Everything it authored is in the sentence, which the ADR-006
-          gate now measures directly — and the shape it authored that nothing
-          uses, a record with several effects, falls to the read-only path rather
-          than to a second form. */}
 
       {kind === 'board' && (
         <fieldset>
@@ -1444,69 +1435,100 @@ export function RecordForm({
               d.height = n ?? 6
             }),
           )}
-          <label>
-            {t('ui.editor.board.paint')}
-            <select data-testid="paint-type" value={paintType} onChange={(e) => setPaintType(e.target.value)}>
-              <option value="">{t('ui.editor.board.none')}</option>
-              {named(source.squareTypes).map(([id, nameKey]) => (
-                <option key={id} value={id}>
-                  {recordLabel(t, 'squareType', id, nameKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t('ui.editor.board.place')}
-            <select data-testid="place-piece" value={placePiece} onChange={(e) => setPlacePiece(e.target.value)}>
-              <option value="">{t('ui.editor.board.none')}</option>
-              {ctx.pieceIds.map((id) => (
-                <option key={id} value={id}>
-                  {pieceLabel(id)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t('ui.editor.param.side')}
-            <select
-              data-testid="place-side"
-              value={placeSide}
-              onChange={(e) => setPlaceSide(e.target.value as 'white' | 'black')}
-            >
-              <option value="white">{t('ui.side.white')}</option>
-              <option value="black">{t('ui.side.black')}</option>
-            </select>
-          </label>
-          {pairHint && <p data-testid="editor-pair-hint">{t('ui.editor.board.pair-hint')}</p>}
+          {/* Two modes rather than two buttons per square, matching the room's
+              own two steps. The painter itself is the room's — see
+              `PlacementPainter`'s header for why its ids are prefixed here. */}
+          <div className="build-steps" data-testid="board-modes">
+            {(['place', 'paint'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                data-testid={`board-mode-${m}`}
+                data-selected={boardMode === m}
+                aria-pressed={boardMode === m}
+                onClick={() => setBoardMode(m)}
+              >
+                {t(`ui.editor.step.${m === 'place' ? 'place' : 'board'}`)}
+              </button>
+            ))}
+          </div>
 
-          {boardSquares().map((row) => (
-            <div key={row[0]} className="board-row">
-              {row.map((sq) => {
-                const painted = ((draft.squares as Draft[] | undefined) ?? []).find((s) => s.square === sq)
-                const placed = ((draft.placements as Draft[] | undefined) ?? []).find((p) => p.square === sq)
-                return (
-                  <span key={sq} className="board-cell">
-                    <button
-                      type="button"
-                      data-testid={`paint-${sq}`}
-                      data-square-type={painted ? String(painted.typeId) : ''}
-                      onClick={() => paint(sq)}
-                    >
-                      {sq}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid={`place-${sq}`}
-                      data-piece={placed ? String(placed.pieceId) : ''}
-                      onClick={() => place(sq)}
-                    >
-                      {placed ? String(placed.side)[0] : '·'}
-                    </button>
-                  </span>
-                )
-              })}
-            </div>
-          ))}
+          {boardMode === 'paint' ? (
+            <PlacementPainter
+              mode="paint"
+              testIdPrefix="board-"
+              width={Number(draft.width ?? 6)}
+              height={Number(draft.height ?? 6)}
+              hint={t('ui.editor.step.board-hint')}
+              t={t}
+              cellOf={(square) => {
+                const hit = ((draft.squares as Draft[] | undefined) ?? []).find((s) => s.square === square)
+                return {
+                  mark: hit ? markOfRecord('squareTypes', String(hit.typeId)) : null,
+                  painted: Boolean(hit),
+                  arming: pendingPair === square,
+                }
+              }}
+              onSquare={paint}
+              paletteHeading={t('ui.editor.paint.palette')}
+              includeErase
+              palette={named(source.squareTypes).map(([id, nameKey]) => ({
+                id,
+                label: recordLabel(t, 'squareType', id, nameKey),
+                mark: markOfRecord('squareTypes', id),
+              }))}
+              selected={paintType}
+              onSelect={(id) => {
+                setPaintType(id)
+                setPendingPair(null)
+                setPairHint(false)
+              }}
+              afterGrid={pairHint && <p data-testid="editor-pair-hint">{t('ui.editor.board.pair-hint')}</p>}
+            />
+          ) : (
+            <PlacementPainter
+              mode="place"
+              testIdPrefix="board-"
+              width={Number(draft.width ?? 6)}
+              height={Number(draft.height ?? 6)}
+              hint={t('ui.editor.step.place-hint')}
+              t={t}
+              cellOf={(square) => {
+                const here = ((draft.placements as Draft[] | undefined) ?? []).find((p) => p.square === square)
+                const hit = ((draft.squares as Draft[] | undefined) ?? []).find((s) => s.square === square)
+                return {
+                  mark: here
+                    ? markOfRecord('pieces', String(here.pieceId), here.side as 'white' | 'black')
+                    : hit
+                      ? markOfRecord('squareTypes', String(hit.typeId))
+                      : null,
+                  painted: Boolean(hit),
+                  side: (here?.side as 'white' | 'black' | undefined) ?? '',
+                }
+              }}
+              onSquare={place}
+              side={placeSide}
+              onSide={setPlaceSide}
+              counts={{
+                white: ((draft.placements as Draft[] | undefined) ?? []).filter((p) => p.side === 'white').length,
+                black: ((draft.placements as Draft[] | undefined) ?? []).filter((p) => p.side === 'black').length,
+              }}
+              /* Every piece the source has, not a room's subset — a board record
+                 stands alone and has no room to scope by (ADR-004). */
+              palette={ctx.pieceIds.map((id) => ({
+                id,
+                label: pieceLabel(id),
+                mark: markOfRecord('pieces', id, placeSide),
+              }))}
+              selected={placePiece}
+              onSelect={setPlacePiece}
+              onClear={() =>
+                update((d) => {
+                  d.placements = []
+                })
+              }
+            />
+          )}
         </fieldset>
       )}
 

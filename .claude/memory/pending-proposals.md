@@ -302,6 +302,8 @@ of a count that implies the binding was attempted and succeeded. Anything
 stronger — resolving a vitest node id — is a real feature and should be priced
 as one.
 
+**2026-08-10 (count 4):** fourth instance, wrapup Step 3.5 again — 13 of 13 ACs rejected by rule-3, machine SPEC left reading pending_test: true for a suite that is entirely green. Four instances is enough to say the mechanism is not "occasionally inconvenient" but structurally unusable on this repo; the proposal should be a non-pytest collector (vitest/Playwright node ids) rather than better reporting of the rejection.
+
 ## Proposal: grep the call sites when one rule has more than one caller (2026-08-10)
 **Triggered by:** [fail:design] shared-vocabulary-unshared-code-path (count: 3)
 **Proposed mechanism:** rule update (review checklist item) + a per-task grep step
@@ -328,3 +330,5 @@ phase scope list every caller rather than the module. The alternative — an aut
 check — is not obviously buildable: no linter knows that two orderings of the same two
 calls are semantically different.
 
+
+**2026-08-10 (count 4):** now seen in the EDITOR, not just the engine — two hand-written reducers over one board model drifted on what a tap does, and extracting the shared MARKUP left both reducers duplicated. A guard would compare the reducers, not the components: any two call sites writing one schema path should be one function, and a lint or gate that flags a schema path with more than one writer would have caught all four instances.

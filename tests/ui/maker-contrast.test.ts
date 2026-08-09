@@ -28,7 +28,9 @@ const TOKENS = readFileSync(join(ROOT, 'src/ui/tokens.css'), 'utf8')
 const STYLES = readFileSync(join(ROOT, 'src/ui/styles.css'), 'utf8')
 
 /** Files this task added or rewrote the visuals of. */
-const NEW_COMPONENTS = ['src/ui/PiecePreview.tsx', 'src/ui/MakerGallery.tsx']
+// `PiecePreview.tsx` was here until the maker went down to one drawing; the
+// grid it duplicated is covered by the same rule through `RecordForm`.
+const NEW_COMPONENTS = ['src/ui/MakerGallery.tsx']
 
 const PAIR_MIN = 2.75
 

@@ -94,3 +94,50 @@ describe('AC-005: the move region is total', () => {
     expect(notice?.textContent).not.toContain('ui.piece-info')
   })
 })
+
+/**
+ * A piece may now slide a different distance in each direction (ADR-001), and
+ * this card is where a player finds that out mid-match.
+ *
+ * The previous renderer printed ONE reach word for the whole slide list, which
+ * was true only while the model held one shared cap. Under a per-direction cap
+ * it would have printed one of the two facts over the other — on the surface a
+ * player consults precisely to decide whether a move is legal. That is a wrong
+ * answer, not a missing one, which is why this is asserted here rather than left
+ * to the editor's own tests.
+ */
+describe('a piece whose directions have different caps', () => {
+  const t = makeTranslate()
+
+  const mixed = {
+    id: 'piece.probe-mixed',
+    nameKey: 'piece.probe-mixed.name',
+    textKey: 'piece.probe-mixed.text',
+    movement: [
+      { kind: 'slide', vectors: [[0, 1]], maxDistance: 2 },
+      { kind: 'slide', vectors: [[1, 0]] },
+    ],
+  }
+
+  it('says both caps rather than one of them', () => {
+    const { queryAllByTestId } = render(<PieceMoveRegion piece={mixed as never} t={t} />)
+    const lines = queryAllByTestId('move-slides')
+    expect(lines.length, 'two different caps must produce two clauses').toBe(2)
+
+    const caps = lines.map((el) => el.getAttribute('data-reach'))
+    expect(caps, 'capped first, unbounded last').toEqual(['2', 'edge'])
+
+    // Not a count check dressed up: the WORDS must differ, because two clauses
+    // that read identically would be the same failure with extra markup.
+    const said = lines.map((el) => el.textContent ?? '')
+    expect(said[0]).not.toBe(said[1])
+    expect(said[0]).toContain(t('ui.piece-info.reach.2'))
+    expect(said[1]).toContain(t('ui.piece-info.reach.edge'))
+  })
+
+  it('still renders the grid, not the undrawable notice', () => {
+    const { queryByTestId } = render(<PieceMoveRegion piece={mixed as never} t={t} />)
+    expect(queryByTestId('move-undrawable'), 'a mixed-cap piece is drawable now').toBeNull()
+    expect(queryByTestId('move-grid')).toBeTruthy()
+  })
+})

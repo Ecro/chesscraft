@@ -48,33 +48,38 @@ function openPiece(id: string) {
 afterEach(cleanup)
 
 describe('the maker says how travel works (PLAN Phase 8)', () => {
-  it('states the difference between jumping to a cell and sliding a direction', () => {
+  /**
+   * The leap-versus-slide sentence is GONE, and its removal is the point.
+   *
+   * It existed because the two were drawn as separate pictures with no rule
+   * between them, so the difference had to be said in words. The drawing now
+   * says it: a leap is a mark on one square, a slide is a trail through the
+   * squares it passes and an arrow where it keeps going. A sentence explaining a
+   * distinction the picture already makes is the eighth surface, not the fix.
+   *
+   * What survives is the half the picture CANNOT make on its own — that an
+   * unpainted capture grid means "captures wherever it walks" — and that moved
+   * onto the capture mode itself, where the author is when the question arises.
+   */
+  it('the leap-versus-slide sentence is gone, because the drawing makes the distinction', () => {
     openPiece('piece.king')
-    const note = screen.getByTestId('piece-travel-note').textContent ?? ''
-    // Not an exact-string assertion — the wording will be edited. What must survive is that
-    // both halves of the distinction are stated, because saying only one is what left the
-    // author comparing two pictures with no rule between them.
-    expect(note, 'the note does not mention jumping over').toMatch(/넘어가|뛰어가/)
-    expect(note, 'the note does not mention stopping').toMatch(/멈춰|막/)
+    expect(screen.queryByTestId('piece-travel-note')).toBeNull()
+    expect(screen.queryByTestId('piece-takes-note')).toBeNull()
   })
 
-  it('explains the promotion exactly when a record captures wherever it walks', () => {
-    // `piece.king` in the slice set has no separate attack, so it takes on its movement and the
-    // promotion is in effect.
+  it('says captures follow the movement exactly while they do', () => {
+    // `piece.king` in the slice set has no separate attack, so it takes on its
+    // movement and the note belongs.
     openPiece('piece.king')
-    expect(screen.queryByTestId('piece-takes-note'), 'no note for a piece that takes as it walks').not.toBeNull()
-    cleanup()
+    fireEvent.click(screen.getByTestId('piece-mode-capture'))
+    expect(screen.queryByTestId('piece-capture-follows'), 'no note for a piece that takes as it walks').not.toBeNull()
 
-    // `piece.archer` is the slice set's piece with a separate attack — its capture squares are
-    // authored, nothing is promoted, and the note would be false.
-    openPiece('piece.archer')
-    const takes = screen.queryByTestId('piece-takes-note')
-    // The archer opens through the read-only path (its two effects cannot be drawn), so the
-    // grid may be absent entirely; the claim is only that the note is not shown when the
-    // promotion is not happening.
-    if (screen.queryByTestId('editor-moves')) {
-      expect(takes, 'the promotion note appeared for a piece with its own attack set').toBeNull()
-    }
+    // One tap makes the capture set differ, and the claim stops being true.
+    fireEvent.click(screen.getByTestId('piece-cell-2,0'))
+    expect(
+      screen.queryByTestId('piece-capture-follows'),
+      'the note outlived the condition it asserts',
+    ).toBeNull()
   })
 
   it('shows the same squares in the grid and in the preview', () => {
@@ -83,16 +88,31 @@ describe('the maker says how travel works (PLAN Phase 8)', () => {
     // capture, one of them is lying. With the promotion in effect both must say "both".
     openPiece('piece.king')
 
-    const lit = [...document.querySelectorAll('[data-testid^="piece-cell-"]')].filter(
-      (el) => (el.getAttribute('data-value') ?? '0') !== '0',
-    )
-    // The premise: this piece has lit cells at all.
-    expect(lit.length, 'the king has no lit cells to compare').toBeGreaterThan(0)
+    const painted = () =>
+      [...document.querySelectorAll('[data-testid^="piece-cell-"]')].filter(
+        (el) => (el.getAttribute('data-paint') ?? 'none') !== 'none',
+      )
 
-    // Every lit cell of a piece that captures on its movement reads as BOTH (`data-value` 3),
-    // which is what the preview will paint. A cell left at move-only here would be the
-    // disagreement.
-    const moveOnly = lit.filter((el) => el.getAttribute('data-value') === '1')
-    expect(moveOnly.map((el) => el.getAttribute('data-testid'))).toEqual([])
+    const inMovement = painted()
+    // The premise: this piece has lit cells at all.
+    expect(inMovement.length, 'the king has no lit cells to compare').toBeGreaterThan(0)
+
+    // The record still means BOTH on every one of them — an omitted `attack` is
+    // the schema saying captures follow the movement, and `data-cells` carries
+    // what the record means as opposed to which question is on screen.
+    expect(
+      inMovement.filter((el) => el.getAttribute('data-cells') !== '3').map((el) => el.getAttribute('data-testid')),
+      'a cell reads move-only while the preview will paint it as a capture',
+    ).toEqual([])
+
+    // And the capture side lights the SAME squares, with a line saying why —
+    // which is where a child finds out that not painting anything there does not
+    // mean "cannot capture". A blank capture grid would be the disagreement this
+    // test exists to catch, wearing the mode toggle's clothes.
+    fireEvent.click(screen.getByTestId('piece-mode-capture'))
+    expect(screen.getByTestId('piece-capture-follows')).toBeTruthy()
+    expect(painted().map((el) => el.getAttribute('data-testid')).sort()).toEqual(
+      inMovement.map((el) => el.getAttribute('data-testid')).sort(),
+    )
   })
 })
