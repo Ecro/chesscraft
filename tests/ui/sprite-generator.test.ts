@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import * as gates from '@ui/art/gates'
 import { GATES, generate, mirror } from '../../scripts/gen-sprites.ts'
-import { upscale } from '../../scripts/upscale-sprites.ts'
 
 /**
  * The generator refuses exactly what the suite refuses (AC-012, ADR-005).
  *
  * The assertion that matters here is **module identity**, not equivalent
- * behaviour. A generator that reimplements "a fixed grid, palette-only, a fixed rect
+ * behaviour. A generator that reimplements "12x12, palette-only, at most 60
  * rects" passes a behavioural test on the day it is written and drifts from the
  * suite silently afterwards; the first sign is a committed sprite failing CI.
  * Sharing the module makes the drift impossible, so that is what is pinned.
@@ -18,7 +17,7 @@ import { upscale } from '../../scripts/upscale-sprites.ts'
  * `npm test`, since it guards the pipeline that produces committed source.
  */
 
-const SOLID = (ch: string) => Array<string>(GATES.SPRITE_SIZE).fill(ch.repeat(GATES.SPRITE_SIZE))
+const SOLID = (ch: string) => Array<string>(12).fill(ch.repeat(12))
 
 /**
  * A stand-in for `tokens.css`, so the SURFACE decides what a candidate is
@@ -59,11 +58,11 @@ describe('generate', () => {
     // is the EMPTY accepted list: a generator that emits its best-effort output
     // and warns is how a broken sprite reaches a commit.
     const batch = [
-      { name: 'short', surface: 'card' as const, rows: SOLID('S').slice(0, GATES.SPRITE_SIZE - 1) },
+      { name: 'short', surface: 'card' as const, rows: SOLID('S').slice(0, 11) },
       { name: 'ragged', surface: 'card' as const, rows: [...SOLID('S').slice(0, 11), 'SSS'] },
       { name: 'typo', surface: 'card' as const, rows: SOLID('Q') },
       { name: 'blank', surface: 'card' as const, rows: SOLID('.') },
-      { name: 'dither', surface: 'card' as const, rows: upscale(Array<string>(12).fill('oyoyoyoyoyoy'), GATES.SPRITE_SIZE / 12) },
+      { name: 'dither', surface: 'card' as const, rows: Array<string>(12).fill('oyoyoyoyoyoy') },
     ]
     const out = generate(batch, CTX)
     expect(out.accepted).toEqual([])
@@ -93,12 +92,7 @@ describe('generate', () => {
     const noisy = {
       name: 'noisy',
       surface: 'card' as const,
-      // UPSCALED, not re-authored at 24. This fixture's whole point is line 97 below: it must
-      // sit UNDER the per-sprite rect cap while breaking the sheet aggregate in bulk. A native
-      // rebuild at 24 wide is 12 runs per row x 24 rows = 288 against a cap of 120, so line 97
-      // fails and the test's premise inverts. Upscaled it is 96 runs — still under — and the
-      // crowded case still trips the floor.
-      rows: upscale([...Array<string>(8).fill('S.S.S.S.S.S.'), ...Array<string>(4).fill('............')], GATES.SPRITE_SIZE / 12),
+      rows: [...Array<string>(8).fill('S.S.S.S.S.S.'), ...Array<string>(4).fill('............')],
     }
     expect(GATES.rectCount(noisy.rows)).toBeLessThanOrEqual(GATES.RECT_CAP)
 
@@ -119,20 +113,19 @@ describe('generate', () => {
 })
 
 describe('mirror', () => {
-  it('turns a half-width column into a symmetric full width', () => {
+  it('turns six authored columns into a symmetric twelve', () => {
     // Half the authoring, and symmetry that reads as intentional rather than as
     // a wobble — most of what this sheet depicts (shields, crowns, gates, urns)
     // is symmetric anyway.
-    const half = upscale(Array<string>(12).fill('oSS...'), GATES.SPRITE_SIZE / 12)
+    const half = Array<string>(12).fill('oSS...')
     const full = mirror(half)
-    expect(full).toHaveLength(GATES.SPRITE_SIZE)
-    expect(full[0]).toBe(half[0] + [...half[0]!].reverse().join(''))
+    expect(full).toHaveLength(12)
+    expect(full[0]).toBe('oSS...' + '...SSo')
     expect(GATES.spriteErrors('mirrored', full)).toEqual([])
   })
 
-  it('refuses a half that is not half the grid wide', () => {
-    const wrong = 'oS$'.repeat(GATES.SPRITE_SIZE / 2 - 1)
-    expect(() => mirror(Array<string>(GATES.SPRITE_SIZE).fill(wrong))).toThrow(String(GATES.SPRITE_SIZE / 2))
+  it('refuses a half that is not six columns', () => {
+    expect(() => mirror(Array<string>(12).fill('oS$....'))).toThrow(/6/)
   })
 })
 

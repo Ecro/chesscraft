@@ -1,4 +1,3 @@
-import { SPRITE_SIZE } from './gates'
 import { type PixelSprite, DEFAULT_TINT } from './pixels'
 import { layersOf } from './smooth'
 
@@ -35,13 +34,7 @@ export function Pix({ sprite, tint }: { sprite: PixelSprite; tint?: string | und
   return (
     <svg
       className="pix"
-      // Derived from `SPRITE_SIZE`, never a literal. Nothing about the RENDERED size
-      // depends on this — the `1em` below owns that — so a stale viewBox is invisible to
-      // every geometric assertion in the suite and shows up only as each mark being drawn
-      // as its own top-left quadrant, scaled up. `tests/ui/pix-render.test.tsx` overrides
-      // the constant to a value the source could not have hardcoded, which is the only
-      // way to tell a derived box from a literal that happens to agree.
-      viewBox={`0 0 ${SPRITE_SIZE} ${SPRITE_SIZE}`}
+      viewBox="0 0 12 12"
       width="1em"
       height="1em"
       aria-hidden="true"

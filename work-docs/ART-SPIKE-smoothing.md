@@ -106,7 +106,29 @@ marks did not render offline". Neither was a contrast or an offline regression; 
 naming an element instead of a shape. Both now match `rect, path`. The first grep for this missed
 the second one because it did not include `e2e-pwa/` in its search path.
 
-## C — built (PLAN-art-grid-resolution)
+## C — built, shipped, and REVERTED (PLAN-art-grid-resolution)
+
+> **Verdict: the author looked at the finished 24x24 board and rejected it** — *"이번에 고친
+> 해상도 높힌 작업은 너무 별로다"*. The whole change was reverted from `master` in the commit
+> that follows `f75dded`; the two images the decision was made on are kept at
+> `work-docs/art-baseline/final-compare-{desktop,mobile-portrait}.png`.
+>
+> **What that settles.** All three approaches have now been measured against the actual
+> report ("너무 픽셀아트 느낌"), and only **B** survived: A could not move the geometry, C
+> moved it and the author liked the result less than what it replaced. The grid is 12x12 and
+> should stay there unless something changes the size a mark is drawn at — which is the real
+> constraint, spelled out below.
+>
+> **Do not re-attempt C without new information.** The reason it disappointed is measured,
+> not aesthetic guesswork: at the size this board draws a mark, a 24-grid cell is **1.42
+> device pixels**, so most of the extra resolution has to be spent thickening the outline
+> just to hold the legibility floor. What is left over buys very little visible detail. The
+> thing that would change that answer is a larger rendered mark, not a finer grid.
+>
+> The account below is kept as written, because the cost findings are what make the verdict
+> reusable.
+
+### The record of what was built
 
 C was the re-plan ADR-006 called for, and it happened: the grid is **24×24**, reached by a
 lossless 2× block expansion of all 209 committed tables, after which the 12 piece sprites a
@@ -162,4 +184,7 @@ clears a floor of 1.8 and is caught only by 3.6. The divisor is written as a fra
 
 ## Still open
 
-Nothing from this spike. A and C are measured and closed; B shipped.
+Nothing. A was eliminated on evidence, B shipped, and C was built, measured, shipped and
+rejected by the author on sight. The spike is closed with one approach in the product and two
+recorded as dead ends — both dead for reasons that are written down and checkable, which is
+the only form in which a dead end is worth anything.

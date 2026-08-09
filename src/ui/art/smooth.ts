@@ -29,46 +29,8 @@ import { PIXEL_PALETTE, type PixelSprite } from './pixels'
  * separation. Do not delete it on the grounds that the unit test already covers contrast.
  */
 
-/**
- * How far a corner is pulled back, in grid units (one cell = 1).
- *
- * **0.3 -> 0.6 when the grid went 12 -> 24 (PLAN-art-grid-resolution ADR-004).** This is
- * measured in CELLS, and the migration halved the size of a cell — so leaving it at 0.3
- * would have halved the absolute radius and made every mark *sharper*, which is the exact
- * opposite of the report that started this work. 0.6 is the only value that holds the
- * rendered result still, and holding it still is what makes the migration's "this changed
- * nothing" claim checkable rather than rhetorical.
- *
- * **The constant is not the effective radius.** `pathOf` clamps each corner to a third of
- * its shorter adjoining edge, so a one-cell feature rounds at 0.333 no matter what this
- * says. On uniformly upscaled art every edge doubled too, so the clamp relaxed by the same
- * factor and 0.6 is reachable wherever 0.3 was; on hand-refined art with genuine one-cell
- * detail it is not, and a sweep over 0.6 / 0.9 / 1.2 would print three identical rows for
- * exactly that detail. Any re-derivation has to report the distribution of *effective*
- * radii next to the contrast figure, or it reports an average of two unrelated behaviours.
- *
- * **Re-derived against the finished sheet, and the sweep really is flat — for a reason
- * worth writing down rather than an inconclusive result.** Measured by raising the rendered
- * probe's floor to an unreachable value and reading what it reports:
- *
- * | radius | worst rendered mark | margin over 3.30 | corners clamped below the constant |
- * |--------|--------------------|------------------|------------------------------------|
- * | 0.30   | 3.55:1             | +0.25            | 0.0%                               |
- * | 0.45   | 3.55:1             | +0.25            | 17.8%                              |
- * | 0.60   | 3.55:1             | +0.25            | 17.8%                              |
- * | 0.90   | 3.55:1             | +0.25            | 90.8%                              |
- *
- * The worst mark does not move because it is not this constant's to move: it is a PAINTED
- * SQUARE at 27px (`sq-a3`, `sq-a4`, `sq-b3`, `sq-e4`), whose ratio is set by its palette
- * tone rather than by any edge. Rounding cannot change a fill. The clamp column is the
- * other half of the story — 0.45 and 0.60 are indistinguishable in clamp count because the
- * corners that clamp are the one-cell features, and past 0.667 nearly everything clamps.
- *
- * So 0.60 ships: it is the value that holds the absolute radius steady across the 12 -> 24
- * migration, it is very nearly unclamped (82.2% of corners take it in full), and nothing
- * above it buys anything the clamp does not immediately take back.
- */
-export const CORNER_RADIUS = 0.6
+/** How far a corner is pulled back, in grid units (one cell = 1). */
+export const CORNER_RADIUS = 0.3
 
 type Cell = `${number},${number}`
 const key = (x: number, y: number): Cell => `${x},${y}`

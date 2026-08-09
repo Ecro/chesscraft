@@ -1,7 +1,7 @@
 ---
 type: plan
 task_slug: art-grid-resolution
-status: complete
+status: reverted
 created: 2026-08-09
 tags: [chess-craft, plan, typescript, react, svg, pixel-art, gates]
 interview_rounds: 3
@@ -39,6 +39,19 @@ summary: "Raise the sprite grid 12->24 by lossless 2x migration, then hand-refin
 
 
 # PLAN — art grid resolution (approach C of the smoothing spike)
+
+> ## ⛔ REVERTED
+>
+> Every phase of this plan was executed, verified and landed as `f75dded`, and then **reverted
+> in full** on the same day: shown the finished 24x24 board, the author judged it worse than
+> what it replaced. The code, the sprite data and the tooling are gone from `master`; this
+> document, the REVIEW, the memory entries and the two comparison images are kept because the
+> cost findings are the durable part.
+>
+> **The one-line reason, measured rather than felt:** a mark renders at 34px, so a 24-grid
+> cell is 1.42 device pixels — most of the added resolution had to go into a thicker outline
+> to hold the 3.30:1 legibility floor, leaving little for the detail the change was for.
+> `work-docs/ART-SPIKE-smoothing.md` carries the full account.
 
 ## 🎯 Executive Summary
 

@@ -7,7 +7,7 @@ import { PIXEL_PALETTE, type PixelSprite, runsOf } from './pixels.ts'
  * These used to live as assertions inside `pixels.test.ts` and
  * `art-contrast.test.ts`, which was fine while every sprite was drawn by hand.
  * It stops being fine the moment a script produces candidates: a generator
- * carrying its own copy of "a fixed grid, palette-only, a fixed rect cap" drifts from
+ * carrying its own copy of "12x12, palette-only, at most 60 rects" drifts from
  * the suite's copy, and the drift is invisible until a sprite the generator
  * accepted fails CI. Sharing the module makes the drift impossible rather than
  * unlikely, which is why `sprite-generator.test.ts` asserts module IDENTITY and
@@ -19,60 +19,20 @@ import { PIXEL_PALETTE, type PixelSprite, runsOf } from './pixels.ts'
  * named (ADR-021), and the two callers each read it their own way.
  */
 
-/**
- * Every sprite is exactly this many rows of exactly this many characters.
- *
- * Raised 12 -> 24 by PLAN-art-grid-resolution. The migration was a lossless 2x block
- * expansion of all 209 committed tables (`scripts/upscale-sprites.ts`), so the silhouettes
- * were unchanged by it and only the detail BUDGET moved; the drawings that use that budget
- * are hand-refined separately. Every constant below that depends on the grid is derived
- * from this one rather than restated, because restating a value at six sites is an
- * edit that misses a site — which it did, three times, during that plan's review.
- */
-export const SPRITE_SIZE = 24
+/** Every sprite is exactly this many rows of exactly this many characters. */
+export const SPRITE_SIZE = 12
 
 /**
- * The most rects one sprite may compress to — a NOISE budget, five per row.
+ * The most rects one sprite may compress to.
  *
- * **Its original justification is dead and the number outlived it.** This used to read "a
- * DOM cost per sprite: the board draws up to 36 of these at once", and that was true while
- * `Pix.tsx` emitted one `<rect>` per horizontal run. Since PLAN-capture-rules-and-art-fixes
- * Phase 7 it emits one rounded `<path>` per distinct colour, so a sprite's DOM cost is
- * bounded by the palette (at most 25 nodes) and has nothing to do with run count. What the
- * cap still measures, and measures well, is how BUSY a drawing is: a sprite that dithers
- * blows past it, and should have to argue for itself.
- *
- * Kept rather than retired (ADR-006 of PLAN-art-grid-resolution) because it is the only
- * per-sprite defence, and it would otherwise be dropped at the exact moment the grid gains
- * four times the room to be noisy in. The `5` is inherited from the 12x12 era rather than
- * re-derived from what noise costs today — recorded as debt; the trigger to revisit it is a
- * hand-refined sprite hitting the cap.
- *
- * **Derived from `SPRITE_SIZE`, not restated (ADR-002).** `runsOf` is row-wise, so a
- * k-times upscale multiplies runs by exactly k — the runs within a row are unchanged,
- * there are simply k times as many rows. A cap that stayed at 60 while the grid doubled
- * would reject 82 of the 125 committed sprites for getting no busier.
+ * What `pixels.ts` promises is a DOM cost per sprite, not a compression ratio:
+ * the board draws up to 36 of these at once. A sprite drawn as dither blows past
+ * this and should have to argue for itself rather than quietly triple the cost.
  */
-export const RECT_CAP = 5 * SPRITE_SIZE
+export const RECT_CAP = 60
 
-/**
- * The sheet-wide compression floor: `runs < pixels / SHEET_DIVISOR`.
- *
- * **Also derived, and for a sharper reason than symmetry (ADR-002).** A k-upscale takes
- * runs to k times and drawn pixels to k squared times, so the pixels-per-run ratio scales
- * by k and the floor has to scale with it. Left at the 12x12 value of 1.8, this gate does
- * not merely weaken at 24x24 — it dies: the upscaled form of the suite's own dither
- * fixture is 288 runs for 576 pixels, which clears a floor of 576/1.8 = 320 and is
- * rejected only by 576/3.6 = 160. The gate would admit the exact artefact it exists to
- * refuse.
- *
- * Written `(SPRITE_SIZE * 3) / 20` rather than the algebraically identical
- * `0.15 * SPRITE_SIZE` because the two are NOT identical in binary: `0.15 * 12` is
- * 1.7999999999999998, a hair below the literal `1.8` this replaces, which makes the floor
- * a hair stricter and the refactor no longer behaviour-preserving. `(12 * 3) / 20` is
- * bit-identical to `1.8`, and `(24 * 3) / 20` to `3.6`.
- */
-export const SHEET_DIVISOR = (SPRITE_SIZE * 3) / 20
+/** The sheet-wide compression floor: `runs < pixels / SHEET_DIVISOR`. */
+export const SHEET_DIVISOR = 1.8
 
 /** The two side tints must stay this far apart in luminance. */
 export const PAIR_MIN = 2.75
@@ -110,13 +70,7 @@ export function isBlank(rows: readonly string[]): boolean {
   return drawnPixels(rows) === 0
 }
 
-/**
- * How many horizontal runs this sprite merges to — a measure of how busy it is.
- *
- * Not a DOM cost any more: `Pix.tsx` draws one path per colour, not one rect per run. The
- * name is kept because `runsOf` is still what produces the number and renaming it would
- * churn every call site to no benefit. See `RECT_CAP` for the full story.
- */
+/** How many rects this sprite costs the DOM once runs are merged. */
 export function rectCount(rows: readonly string[]): number {
   return runsOf(rows as PixelSprite).length
 }
