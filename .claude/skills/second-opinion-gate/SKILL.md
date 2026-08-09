@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.50.1
+harness_maker_version: 0.51.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/second-opinion-gate/SKILL.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Procedure /hm:review follows for the auto-fix loop's round-state co
   and additionally for the cross-model second-opinion acceptance gate (oracle gathering,
   PIDA dispositions, the frozen finding set) when harness.yaml second_opinion.models
   is non-empty.
-content_hash: 758ab39352639a451c0f7f7d41c9445c92039ef7a1a45564cf2911d0bad8e38e
+content_hash: 6f976f8b723b2e694d1d75f3e1aac6323284110122af7f84cb67735e99322a85
 ---
 
 # second-opinion-gate
@@ -35,7 +35,7 @@ hand-derived id changes between rounds and the round-2 merge matches nothing. Pi
 findings through the stamper:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm codex_adapter stamp-ids < <the temp path you wrote>
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm codex_adapter stamp-ids < <the temp path you wrote>
 ```
 
 **`Write` the payload to a file; never embed it in argv.** A single apostrophe in any finding
@@ -71,7 +71,7 @@ never refute anything. This step is independent of that key.
 call the gatherer, which owns every rule below:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_oracle --findings-file <path> --root .
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_oracle --findings-file <path> --root .
 ```
 
 The `cd` is load-bearing: `--root .` resolved at the base repo gives an empty
@@ -84,7 +84,8 @@ oracle is less evidence, never a reason to fail the review.
 
 **Why this is not a shell line with `<paths>` substituted in.** Those paths come from an
 external model's `file` field, which has no schema constraint (`validate_payload` checks only
-`severity` and `message`, and antigravity has no CLI-level schema at all), and the shipped
+`severity` and `message`, and antigravity's `--json-schema` enforcement is
+best-effort — `structured_output` can be absent on a SUCCESS reply), and the shipped
 settings pre-approve `Bash(uv run pytest:*)` as a **prefix** rule — arbitrary trailing arguments,
 no prompt. A value beginning with `-` is then consumed as an **option**, not a path, with no
 shell metacharacter needed (`pytest --basetemp=<dir>` removes that directory). Putting the
@@ -160,7 +161,7 @@ argv-embedded (shell quoting, `ARG_MAX`, and finding text must not be shell-expa
 one call:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
 ```
 
 - The invoker resolves the **base** repo root, so rows survive `task-land`. A row written

@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.50.1
+harness_maker_version: 0.51.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/health.md.j2
 provenance: official
 description: Two-layer harness audit — structural integrity plus personalization drift.
-content_hash: 0b0e680bf10175a77cd11e3c84a1277b8d947ebaeea596da594635a4310bfe17
+content_hash: b75ebcd5d7edb363e469b8035081badd67008840b5efc66acb3d8b42de34f155
 ---
 # /hm:health
 
@@ -43,7 +43,7 @@ flipping the ADR-012 kill-switch (`llm_inference_enabled: false`).
 ## Run
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm cli health . --session-id "$HM_SESSION_ID" --json-output .claude/observability/.health.tmp.json
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm cli health . --session-id "$HM_SESSION_ID" --json-output .claude/observability/.health.tmp.json
 ```
 
 Then read `.claude/observability/dashboard.md` to inspect the two sections.
@@ -57,7 +57,7 @@ and never deletes unmerged work — preserved branches surface as a count only.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree drain .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree drain .
 ```
 
 
@@ -72,19 +72,12 @@ warn-and-proceed failure policy makes a broken CLI (missing/removed binary, expi
 rate-limit / subscription cap, schema/flag drift) look identical to "model agreed / nothing to
 add". A silently-degraded model means every *mandatory* review/plan second opinion is running
 without that voice and nobody notices.
-> **Same entrypoint as the stage recipe.** The smoke below calls
-> `harness_maker.second_opinion_invoke` — the *identical* code path `/hm:review` and `/hm:plan`
-> use. The previous smoke was a hand-copied duplicate of the raw CLI command, and it drifted from
-> the original in the one dimension that mattered: it ran from the base repo where a cwd-relative
-> `--output-schema` resolves, while the real recipe runs inside `.worktrees/<slug>/` where it does
-> not. It reported green for months against a dead codex vote.
->
-> **What a green smoke does and does NOT prove.** `/hm:health` has no worktree preflight, so it
-> still runs at the base, where base-root resolution hits its identity case. A pass means the
-> shared invocation path works *from the base*; it does not exercise the worktree branch of
-> base-root or config resolution. That branch is carried by the unit tests and by the manual
-> from-inside-a-worktree check. Do not read a green `/hm:health` as proof the Production path
-> works — that inference is exactly what hid the last bug.
+> **Same entrypoint, base-only.** The smoke calls `harness_maker.second_opinion_invoke` — the
+> identical path `/hm:review` and `/hm:plan` use. A hand-copied duplicate drifted before and
+> reported green for months against a dead codex vote. But `/hm:health` has no worktree
+> preflight, so a pass proves the shared path works *from the base* only; the worktree branch of
+> base-root/config resolution is carried by unit tests and the manual check. Never read green
+> here as proof the Production path works — that inference hid the last two bugs.
 
 > **Sandbox escape (ADR-003).** These calls need outbound network, which Claude Code's Bash
 > sandbox blocks. Run each with the Bash tool parameter **`dangerouslyDisableSandbox: true`** —
@@ -97,20 +90,27 @@ the Step 4 filter cannot consume). The `reason` field names which.
 ### codex
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_invoke --model codex --smoke --slug health-smoke --stage health
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_invoke --model codex --smoke --slug health-smoke --stage health
 ```
+
+> **Relay the budget advisory verbatim; never judge latency yourself.** If stderr has a
+> `[second-opinion] budget advisory:` line, surface it as a Layer 1 ActionItem; no line means
+> the margin is fine. The threshold is `exceeds_budget_fraction`, Python with boundary tests —
+> an LLM-judged "feels slow?" is a check with no execution surface. Why: the binary outcome
+> lies — on 2026-08-08 the trivial smoke ate 117s of a 240s cap while every real-sized
+> call timed out.
 
 Cross-ref the ledger `.claude/observability/second-opinion.jsonl`: rows are one per
 **invocation**. Keep `finding_ref == "n/a"` (disposition rows inflate the denominator), drop
 `stage: "health"` rows (smoke is biased toward `invoked`), then report
 **`(skipped + failed) / total` per model** as its own Layer 1 ActionItem.
 
-`failed` means that voice was missing from the review exactly as if skipped, so counting
-`skipped` alone reports a fraction of the loss; and a healthy model dilutes a broken one.
-2026-08-06: `skipped/total` read 10.3% against a true 20.7% — one model's whole loss sat in
-`failed`, and the aggregate described neither model (2.4% / 37.8%). A green smoke beside a
-double-digit rate is the signature failure: read that model's `skip_reason` (it names the
-fail-closed rule) and treat its "agreed" outcomes as untrusted until diagnosed.
+`failed` means that voice was missing exactly as if skipped, so counting `skipped` alone
+reports a fraction of the loss, and a healthy model hides a broken one. 2026-08-06:
+`skipped/total` read 10.3% against a true 20.7% — one model's whole loss sat in `failed`, and
+the aggregate described neither model (2.4% / 37.8%). A green smoke beside a double-digit rate
+is the signature failure: read that model's `skip_reason` (it names the fail-closed rule) and
+treat its "agreed" outcomes as untrusted until diagnosed.
 
 
 
@@ -122,7 +122,7 @@ autopilot (a broken boundary CLI, a marker that never gets written, a chain that
 kill-switches) looks identical to "the user just never turned it on". Run the degradation probe:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_ledger smoke --root . --level auto_safe
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot_ledger smoke --root . --level auto_safe
 ```
 
 Report the JSON as a Layer 1 ActionItem:
@@ -141,7 +141,7 @@ looks exactly like "this project has no history". Measures the INSTRUMENT, never
 — it must never carry a cost threshold, and it feeds no readiness dimension.
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm economics doctor --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm economics doctor --root .
 ```
 
 Report the JSON as a Layer 1 ActionItem:
@@ -159,7 +159,7 @@ Report the JSON as a Layer 1 ActionItem:
 ## Delivery-metrics narrative (1-2 lines, no score impact)
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm delivery_metrics trend --root . --limit 1
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm delivery_metrics trend --root . --limit 1
 ```
 
 Surface ONE narrative line from the newest snapshot: CFR as raw `failed/total`

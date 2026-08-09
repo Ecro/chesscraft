@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.50.1
+harness_maker_version: 0.51.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/review.md.j2
 provenance: official
-content_hash: 1f25a474a5b6bb595f7aa647a98677a2ffc328159c63e07cfd5dc641a1da111a
+content_hash: 96aa4cd5461b85ebddbb4d97f9f3514cc2ec2840fcdcbdd9377b42b230e77ad6
 ---
 # Stage: review
 
@@ -51,8 +51,8 @@ them to recognize known-good patterns and repeated failure modes:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<changed area or task slug>' --type failure
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_brain search '<changed area or task slug>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_brain search '<changed area or task slug>' --type failure
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_brain search '<changed area or task slug>' --type preference
 ```
 
 
@@ -82,7 +82,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -91,7 +91,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -209,7 +209,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 4. Merge the two passes via the harness CLI:
    
    ```bash
-   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm two_pass_review merge
+   echo '{"pass1": [...], "pass2": [...]}' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm two_pass_review merge
    ```
    
    Pass 2 is authoritative — Pass 1 findings absent from Pass 2 are
@@ -221,8 +221,9 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 `Write` the merged findings to a temp path (never argv — skill §1), then:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm codex_adapter stamp-ids < <the literal temp path>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm codex_adapter stamp-ids < <the literal temp path>
 ```
+
 
 **Then persist the round's finding payload (ADR-006 part 2).** Run this **exactly once per
 round**, against the merged temp file you already wrote, with the literal reviewer label
@@ -244,7 +245,7 @@ round**, against the merged temp file you already wrote, with the literal review
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
 ```
 
 
@@ -262,6 +263,7 @@ round**, against the merged temp file you already wrote, with the literal review
 > `review-*.jsonl` holds only counts, so there was no artifact to replay against. Every round
 > that skips this line is a round no future pipeline change can be tested on. It writes to the
 > **base** root, so it survives `task-land`.
+
 ### Step 3.5 — Cross-model heterogeneous voters (ADR-001/006, PLAN-second-opinion-multi-model)
 
 `second_opinion.models` is set (codex), so each
@@ -280,7 +282,7 @@ never a rising bar.
   note `HEAD` (the post-execute diff is staged, so a bare `git diff` would see nothing) and
   `--numstat` for the added-line count that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm high_diff classify --added-lines "$added"
   ```
   Invoke when `is_high` (or `boundary` and your judgment, reusing the When-to-Run
   criteria, says high). Otherwise skip all models this round (no extra voters).
@@ -322,7 +324,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -500,7 +502,11 @@ IF grade ≥ grade_threshold:
        emit the loud callout:
        "⚠️ Grade {grade} but {N} unverified severe finding(s) present
         (manual-only / weak-consensus P0/P1) — human review required."
-       • Interactive / autopilot path: STOP for human review before wrapup.
+       • Interactive path: STOP for human review before wrapup.
+       • Autopilot path: this is the JUDGMENT half of the gate — carry it to Step 2 as
+         `--judgment-gate pending`. `gated`/`auto_safe` stop, exactly as before;
+         `auto_full` clears it and records the passed-over finding ids. Do NOT stop
+         here on your own: the level decides.
        • Loop mode: proceed — the flag is persisted in the committed
          REVIEW-{slug}.md (a durable record the operator reads when reviewing
          loop output). No per-iter halt and no active loop-close gate — the flag
@@ -602,8 +608,17 @@ ran out **while still progressing** — the only exit that says a higher cap wou
 `auto-fix-disabled`. Never report `cap-exhausted` for a `no-progress` stop.
 
 - `APPROVED` **and `human_review_needed=false`** → ready for wrapup.
-- `APPROVED` **but `human_review_needed=true`** (unverified `manual-only`/`weak-consensus` P0/P1 present) → the letter cleared, but real severe findings were not consensus-verified. **Interactive / autopilot: STOP for human review before wrapup.** **Loop mode: proceed** — the flag is persisted in the committed REVIEW report only (no per-iter halt, no active loop-close reader — accepted limitation, ADR-003); the operator sees it when reviewing loop output.
-- `CHANGES_REQUESTED` (autoloop policy) → list remaining issues, set `human_review_needed=true`, **proceed to wrapup** (do NOT halt the loop on D/F — wrapup will surface the flag).
+- `APPROVED` **but `human_review_needed=true`** (unverified `manual-only`/`weak-consensus` P0/P1 present) → the letter cleared, but real severe findings were not consensus-verified. **Interactive: STOP for human review before wrapup. Autopilot: `--judgment-gate pending` —
+`gated`/`auto_safe` stop, `auto_full` clears it and records the passed-over finding ids
+(the one behaviour that distinguishes the two auto levels on the review side).**
+**Loop mode: proceed** — the flag is persisted in the committed REVIEW report only (no per-iter halt, no active loop-close reader — accepted limitation, ADR-003); the operator sees it when reviewing loop output.
+- `CHANGES_REQUESTED` **(autoloop policy ONLY)** → list remaining issues, set
+  `human_review_needed=true`, **proceed to wrapup** (do NOT halt the loop on D/F — wrapup
+  will surface the flag).
+  **Under autopilot this bullet does not apply.** A failed grade is the `blocked` verdict
+  of the Step 1 gate and must never be reported as `clear` or `pending`. Nothing in code
+  can tell a failed grade from a passing one — the boundary acts only on the value you
+  type — so this line is the whole of ADR-010's guarantee on the review side.
 
 ## Telemetry Emit (always, per round)
 
@@ -622,7 +637,7 @@ leakage — see `test_telemetry_no_leak`).
 
 
 ```bash
-echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm review_telemetry emit
+echo '<record_json>' | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm review_telemetry emit
 ```
 
 
@@ -647,7 +662,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm iter_receipts write \
        --iter "$ITER" --stage review --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -686,14 +701,23 @@ no active marker, or loop-mode is on for THIS session (a `.claude/.hm-loop-*` ma
 matches `$HM_SESSION_ID`, or a legacy `.hm-loop-active` exists).**
 
 **Step 1 — mandatory gate FIRST (absent-case = STOP).** Evaluate THIS stage's gate
-*before* anything else: If the REVIEW Status is CHANGES_REQUESTED (grade < threshold) or human_review_needed is true, STOP — never auto-advance past unresolved findings.
-If the gate is pending/unresolved → record it on the ledger, then **STOP** (print the
-banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
-advance:
+*before* anything else: Two predicates, and the flag value is what separates them. (1) CHANGES_REQUESTED (grade < threshold) → pass --judgment-gate blocked: that halts at EVERY level, auto_full included, and records the stop. A failed threshold is not a question, so never send pending for it. (2) Else human_review_needed on an APPROVED review → pass --judgment-gate pending: that is the judgment half, and auto_full may clear it, recording the passed-over finding ids in the REVIEW document. (3) Neither → clear.
+Do NOT stop here and do NOT run `gate-blocked`. Classify the gate and carry the verdict into
+Step 2, which records the stop for you. Exactly one of:
+- **`clear`** — nothing pending.
+- **`pending`** — a genuine judgment is unresolved: a question with a defensible answer.
+  Stops at `gated`/`auto_safe`; `auto_full` answers it.
+- **`blocked`** — the failing half is a **quality threshold**, not a question (a failed grade,
+  a failed check). **No level clears it, `auto_full` included.**
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps gate-blocked --root . --stage review --session-id "$HM_SESSION_ID"
+**Unsure at any boundary → pick the more restrictive value.** The ladder is
+`clear` < `pending` < `blocked`. That direction is deliberate: `pending` is the one value
+`auto_full` clears, so resolving uncertainty downward routes a possible failure past the gate.
 
-**Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
+Omitting the flag entirely is **not** `pending` — it halts at every level, including
+`auto_full`, and reports a stale render. Say nothing only when you mean "I did not classify".
+
+**Step 2 — boundary check.** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
 authorizes — so it must run only after Step 1 clears):
 
@@ -701,7 +725,13 @@ If this stage has a slug, **append** it to the command below in single quotes �
 ` --slug 'my-task'`. Never a shell expression or a bracketed placeholder. Omit it
 otherwise; the marker keeps the earlier stage's slug.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.50.1 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+**Also append your Step 1 verdict** — exactly one of ` --judgment-gate clear`,
+` --judgment-gate pending`, or ` --judgment-gate blocked`. A literal word, never a
+placeholder. **Omitting it is not a way to say `pending`**: an absent verdict halts at every
+level, `auto_full` included, and reports a stale render.
+
+
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/
@@ -710,6 +740,9 @@ Read the JSON:
   merge/land — the marker was cleared, so invoke `/hm:wrapup` manually); `unknown_stage` =
   `--current` not in the pipeline; `pipeline_complete: true` = the pipeline finished and
   the marker was cleared.
+  `judgment_gate` = the gate was `pending` at a level that does not
+  clear it, or `blocked` (which no level clears). The marker was **preserved** and the stop
+  was recorded; resolve the gate and re-run.
   **`bad_slug` is yours to undo**: the `--slug` you passed is invalid; nothing was
   authorized. Do NOT print the banner — re-run with a corrected slug, or no flag.
 - `proceed: true` → **auto-advance**: invoke `Skill(hm:<next_stage from the JSON>)` with
@@ -718,6 +751,11 @@ Read the JSON:
   gated path, and `proceed: true` IS the authorization it asks for. `task_slug_source:
   "persisted"` means the slug came from an earlier stage — name it before invoking, so
   another task's slug cannot advance silently.
+- `judgment_auto_answered: true` → the level cleared a judgment gate for you. **Do what
+  `judgment_directive` says before advancing.** An auto-answer that is not written down is
+  an unauditable skip of a human decision — the record is the only thing that makes this
+  level reviewable after the fact.
+
 <!-- @hm:/autopilot-advance -->
 
 ## Stage summary — print before you STOP
