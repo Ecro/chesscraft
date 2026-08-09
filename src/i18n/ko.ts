@@ -350,6 +350,22 @@ export const ko: Record<string, string> = {
   'ui.editor.room.deleted': '이 방은 지워졌어요. 방 목록으로 돌아가 주세요.',
   'ui.editor.room.missing-entry': '지워진 것',
   'ui.editor.delete.label': '지우기',
+  // Official content is tucked away, not destroyed (ADR-004). Different word
+  // from 지우기 on purpose: the two controls do different things to the child's
+  // work, and one word for both would make that invisible.
+  'ui.home.manage-rooms': '방 정리하기',
+  'ui.editor.hide.label': '숨기기',
+  'ui.editor.hide.restore-legend': '숨긴 것 되돌리기',
+  'ui.editor.hide.restore-hint': '숨긴 것은 없어지지 않아요. 누르면 다시 나와요.',
+  'ui.editor.hide.restore-unknown': '지금은 없는 것',
+  // Two headings rather than a per-item badge (interview round 2, Q6). A child
+  // reads a heading; a badge has to be decoded. Generic across all six kinds —
+  // the list already says which kind you are looking at.
+  'ui.editor.section.official': '처음부터 들어 있는 것',
+  'ui.editor.section.authored': '내가 만든 것',
+  'ui.editor.section.official-empty': '지금은 하나도 없어요.',
+  'ui.editor.section.authored-empty': '아직 만든 게 없어요.',
+  'ui.editor.delete.authored': '이건 내가 만든 거예요. 숨기는 대신 지울 수 있어요.',
   'ui.editor.delete.confirm': '정말 지울까요? 되돌릴 수 없어요.',
   // Names the rooms, because the room is the thing the child can go and
   // change. "참조되고 있습니다" is true and tells them nothing.
@@ -365,6 +381,17 @@ export const ko: Record<string, string> = {
   'ui.editor.kind.skillCard': '스킬 카드',
   'ui.editor.kind.board': '판',
   'ui.editor.kind.preset': '방',
+
+  // What a record is called when its name will not resolve (ADR-002). The id
+  // used to be shown here, which is developer output. Same vocabulary as
+  // `ui.editor.kind.*` above, so the two never drift into different words for
+  // the same thing.
+  'ui.record.unnamed.piece': '이름 없는 기물',
+  'ui.record.unnamed.squareType': '이름 없는 칸',
+  'ui.record.unnamed.ruleCard': '이름 없는 규칙 카드',
+  'ui.record.unnamed.skillCard': '이름 없는 스킬 카드',
+  'ui.record.unnamed.board': '이름 없는 판',
+  'ui.record.unnamed.preset': '이름 없는 방',
 
   'ui.editor.form.new': '새로 만들기',
   'ui.editor.form.summary': '지금 만드는 것',

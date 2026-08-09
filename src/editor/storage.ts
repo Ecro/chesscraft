@@ -1,5 +1,6 @@
 import type { ContentSource, ValidationError } from '@content/load'
 import type { BundleStamp } from '@content/merge'
+import { HIDDEN_KEY } from './hidden'
 import { importContent } from './io'
 
 /**
@@ -141,10 +142,10 @@ export function saveStamp(storage: Storage, stamp: BundleStamp): void {
  * The escape hatch. The merge decides what an install receives from a stamp and
  * a saved document, and both of those are inferences about what the author
  * meant — when they are wrong, or when a device is simply stuck, there has to be
- * one action a person can take that is not an inference. This is it: drop both
- * keys and the app falls back to the shipped set, whole.
+ * one action a person can take that is not an inference. This is it: drop all
+ * three keys and the app falls back to the shipped set, whole.
  *
- * BOTH keys, and that is the load-bearing part. Clearing the content while
+ * ALL of them, and that is the load-bearing part. Clearing the content while
  * leaving the stamp behind would be worse than doing nothing: the next save
  * would write a fresh document under an old stamp, and every record the stamp
  * names and the document lacks reads as a deletion the author never made. A
@@ -164,6 +165,14 @@ export function clearStoredContent(storage: Storage): void {
   } catch {
     // Separate try so a failure on the first key cannot skip the second — that
     // asymmetry is exactly the stamp-without-content state described above.
+  }
+  try {
+    storage.removeItem(HIDDEN_KEY)
+  } catch {
+    // Third key, third try, same reason (ADR-006). Clearing the document and the
+    // stamp while leaving this one behind hands the child a "fresh start" with
+    // some of the shipped rooms still tucked away and nothing on screen to
+    // explain why — which is the one state a reset exists to make unreachable.
   }
 }
 

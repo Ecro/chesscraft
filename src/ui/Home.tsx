@@ -30,6 +30,8 @@ export function Home({
   onPlay,
   onEditRoom,
   onNewRoom,
+  onManageRooms,
+  hidden,
 }: {
   content: ContentSet
   presetId: string
@@ -41,9 +43,31 @@ export function Home({
    *  two buttons sit side by side and "edit" and "create" landing on the same
    *  screen with different intents is exactly the pair that gets confused. */
   onNewRoom: () => void
+  /**
+   * Go to the editor's ROOM LIST — the one screen where a room can be tidied
+   * away or deleted.
+   *
+   * A route, not a control. Doing it here would put the same confirm flow on two
+   * screens, and the carousel would then need the last-room rule too (interview
+   * round 2, question 7).
+   */
+  onManageRooms?: () => void
+  /** Rooms this browser has tucked away. Filtered from the carousel (ADR-005). */
+  hidden?: ReadonlySet<string>
 }) {
   const t = useTranslate()
-  const presets = [...content.presets.entries()]
+  /*
+   * Hidden rooms leave the carousel and its dot count. `App` filters the same
+   * set before choosing the active room, so the two cannot disagree.
+   *
+   * Unless the filter would empty the screen. The editor refuses to hide the
+   * last VISIBLE room, so this needs a hand-edited or corrupted key to reach —
+   * and reaching it must not strand a child on a screen with nothing on it. A
+   * tidy-up is not a way to make the product unusable, so the filter yields.
+   */
+  const all = [...content.presets.entries()]
+  const visible = all.filter(([id]) => !(hidden?.has(id) ?? false))
+  const presets = visible.length > 0 ? visible : all
   // Clamped rather than assumed: `App` already falls back when the active preset
   // was deleted, and reading -1 here would index past the end of the list.
   const index = Math.max(
@@ -99,7 +123,7 @@ export function Home({
         <div className="room-card" data-testid="room-card" data-room={id} role="group" aria-live="polite">
           <MiniBoard content={content} boardId={preset.boardId} />
           <div className="room-meta">
-            <strong className="room-name">{recordLabel(t, id, preset.nameKey)}</strong>
+            <strong className="room-name">{recordLabel(t, 'preset', id, preset.nameKey)}</strong>
             <span className="room-tags">
               <span className="tag">
                 {t('ui.home.tag.pieces')} {preset.pieceIds.length}
@@ -137,6 +161,12 @@ export function Home({
       <button className="primary xl" data-testid="start-match" onClick={onPlay}>
         {t('ui.action.start-match')}
       </button>
+
+      {onManageRooms && (
+        <button type="button" data-testid="manage-rooms" onClick={onManageRooms}>
+          {t('ui.home.manage-rooms')}
+        </button>
+      )}
 
       <div className="home-secondary">
         <button data-testid="room-edit" onClick={() => onEditRoom(id)}>

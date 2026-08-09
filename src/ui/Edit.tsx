@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ContentSource, ValidationError } from '@content/load'
-import type { DraftKind } from '@editor/draft'
+import { type DraftKind, EDITABLE_KINDS, openDraft } from '@editor/draft'
 import { stampOf } from '@content/merge'
+import { officialIds } from '@content/provenance'
 import { bundledContentSource } from '@content/sets/bundled'
+import { loadHidden, saveHidden } from '@editor/hidden'
+import { canHide } from '@editor/visibility'
 import { exportContent, importContent } from '@editor/io'
 import { browserStorage, clearStoredContent, saveContent, saveStamp } from '@editor/storage'
 import { EditorLibrary, type LibraryOpen } from './EditorLibrary'
 import { EditorRooms } from './EditorRooms'
+import { recordLabel } from './recordLabel'
 import { useTranslate } from './i18n'
 
 /**
@@ -44,13 +48,36 @@ export function Edit({
   onCommit,
   onPlay,
   initialRoom,
+  bundle = bundledContentSource,
+  hidden: hiddenProp,
+  official: officialProp,
+  onHiddenChange,
 }: {
   source: ContentSource
   onCommit: (next: ContentSource) => void
+  /**
+   * What counts as ours (ADR-003). A parameter rather than a bare import for the
+   * same reason `Storage` is one throughout this area: it makes "official" a
+   * fact a test can state, instead of whatever the shipped catalogue happens to
+   * hold on the day the test runs.
+   */
+  bundle?: ContentSource
   /** Take the child from a room they just saved straight into a match in it. */
   onPlay?: ((roomId: string) => void) | undefined
   /** A room to open straight away, threaded from the title screen's two buttons. */
   initialRoom?: { id: string | null } | undefined
+  /**
+   * Which records this browser has tucked away, and the way to change it.
+   *
+   * Owned by `App`, because the title screen's carousel reads the same set: a
+   * copy in here would let the carousel keep offering a room the editor had just
+   * hidden. Both are optional so a test can mount this panel on its own; when
+   * they are absent the panel keeps its own state and reads the key itself,
+   * which is the behaviour it had before the lift.
+   */
+  hidden?: ReadonlySet<string>
+  official?: ReadonlySet<string>
+  onHiddenChange?: (next: ReadonlySet<string>) => void
 }) {
   const t = useTranslate()
   const [tab, setTab] = useState<'rooms' | 'library'>('rooms')
@@ -63,6 +90,83 @@ export function Edit({
   // destroy it, and a flag that only ever goes true would confirm-prompt after
   // every successful save.
   const [libraryDirty, setLibraryDirty] = useState(false)
+
+  /**
+   * Which records this browser has tucked away (ADR-004).
+   *
+   * Owned HERE, not in either panel: both panels hide, both must see the same
+   * set, and the persistence is one key. Read once on mount — a browser that
+   * denies storage yields an empty set and every hide is then session-local,
+   * which is the same graceful degrade the rest of this file already makes.
+   */
+  const [ownHidden, setOwnHidden] = useState<ReadonlySet<string>>(() => {
+    const storage = browserStorage()
+    return storage ? loadHidden(storage) : new Set()
+  })
+  const hidden = hiddenProp ?? ownHidden
+  const setHidden = (next: ReadonlySet<string>) => {
+    setOwnHidden(next)
+    onHiddenChange?.(next)
+  }
+  const derivedOfficial = useMemo(() => officialIds(bundle), [bundle])
+  const official = officialProp ?? derivedOfficial
+
+  /**
+   * Tuck an official record away, or say why not.
+   *
+   * Deliberately NOT confirmed. A confirm exists to stand between a tap and an
+   * irreversible loss, and this is the one destructive-looking control in the
+   * editor that loses nothing — the record stays in the document and comes back
+   * from the transfer panel. Asking anyway would teach the child that the
+   * confirms on the controls that DO lose work mean no more than this one.
+   */
+  const hide = (kind: DraftKind, id: string): { ok: true } | { ok: false; reason: string } => {
+    const check = canHide(source, kind, id, hidden, official)
+    if (!check.ok) return check
+    const next = new Set(hidden)
+    next.add(id)
+    setHidden(next)
+    const storage = browserStorage()
+    if (storage) saveHidden(storage, next)
+    return { ok: true }
+  }
+
+  /**
+   * What is currently tucked away, named for the screen.
+   *
+   * Walks all six collections, because ADR-004 applies to all six kinds — a
+   * restore list that only knew about rooms would leave a hidden piece with no
+   * way back, which is the black hole hiding exists to avoid.
+   *
+   * An id the document NO LONGER HOLDS still gets a row. That happens when the
+   * document is replaced by an import after something was hidden, and without a
+   * row the id would sit in the key forever with nothing but a full reset able
+   * to clear it.
+   */
+  const hiddenRows = useMemo(() => {
+    const rows: Array<{ id: string; label: string }> = []
+    for (const id of hidden) {
+      let label: string | null = null
+      for (const kind of EDITABLE_KINDS) {
+        const record = openDraft(source, kind, id)
+        if (record !== null) {
+          label = recordLabel(t, kind, id, record['nameKey'])
+          break
+        }
+      }
+      rows.push({ id, label: label ?? t('ui.editor.hide.restore-unknown') })
+    }
+    return rows
+  }, [hidden, source, t])
+
+  /** Put back everything this browser has tucked away. */
+  const restore = (id: string) => {
+    const next = new Set(hidden)
+    next.delete(id)
+    setHidden(next)
+    const storage = browserStorage()
+    if (storage) saveHidden(storage, next)
+  }
 
   const persist = (next: ContentSource) => {
     const storage = browserStorage()
@@ -176,6 +280,10 @@ export function Edit({
     setErrors([])
     setJson('')
     setLibraryDirty(false)
+    // `clearStoredContent` drops the key; this drops the copy React is holding.
+    // Without both, a reset repaints the shipped catalogue with some of it still
+    // tucked away and nothing on screen to explain why (ADR-006).
+    setHidden(new Set())
     onCommit(structuredClone(bundledContentSource))
     setStatus(t('ui.editor.transfer.reset-done'))
   }
@@ -217,6 +325,10 @@ export function Edit({
           onCreateRecord={createFromRoom}
           onPlay={onPlay}
           initialOpen={initialRoom}
+          hidden={hidden}
+          official={official}
+          bundle={bundle}
+          onHide={hide}
         />
       </div>
 
@@ -229,6 +341,10 @@ export function Edit({
           commit={commit}
           errors={errors}
           setErrors={setErrors}
+          hidden={hidden}
+          official={official}
+          bundle={bundle}
+          onHide={hide}
         />
       </div>
 
@@ -240,6 +356,22 @@ export function Edit({
             <li key={`${e.path}-${i}`}>{e.message}</li>
           ))}
         </ul>
+      )}
+
+      {hiddenRows.length > 0 && (
+        <fieldset className="hidden-restore" data-testid="hidden-restore">
+          <legend>{t('ui.editor.hide.restore-legend')}</legend>
+          <p className="hint">{t('ui.editor.hide.restore-hint')}</p>
+          <ul>
+            {hiddenRows.map(({ id, label }) => (
+              <li key={id}>
+                <button type="button" data-testid={`hidden-restore-${id}`} onClick={() => restore(id)}>
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
       )}
 
       <fieldset className="transfer">

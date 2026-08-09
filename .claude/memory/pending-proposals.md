@@ -66,7 +66,7 @@ fix here is `expect(SOURCES.length).toBe(3)` beside the sweep, so a fourth sourc
 join silently. That is the data-side twin of "enumerate the callers", and it is cheap.
 
 ## Proposal: derive phase scope from reachability, not prose (2026-08-06)
-**Triggered by:** [fail:design] phase-scope-omits-wiring (count: 3)
+**Triggered by:** [fail:design] phase-scope-omits-wiring (count: 4)
 **Proposed mechanism:** rule update to `/hm:plan` + a check in `/hm:execute` Step 1
 
 **Rationale:** Five phases of one PLAN have now come back `scope_violation`, and not
@@ -200,7 +200,7 @@ live. Related: [[rule-checked-where-it-was-announced]], which is why reading is
 structurally the wrong instrument here.
 
 ## Proposal: revert the fix and watch the regression test go red (2026-08-09)
-**Triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 1) — filed
+**Triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 2) — filed
 below the count>=3 bar deliberately, because the mechanism is nearly free and this
 instance was caught only by accident.
 **Proposed mechanism:** rule update — one step in `/hm:execute` Phase D, for any phase
@@ -221,7 +221,7 @@ required Phase D line whenever a phase's exit criterion names a regression test,
 pre-fix red output recorded next to it.
 
 ## Proposal: check the comment against the code it justifies (2026-08-07)
-**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 8)
+**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 9)
 **Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
 for the `code-reviewer` agent
 **Rationale:** Three instances, and the third landed *inside the fix for the
@@ -237,7 +237,7 @@ within ten lines of each other and a human reviewer found it in seconds once
 looking for it.
 
 ## Proposal: flag a spec whose setup makes the asserted branch unreachable (2026-08-08)
-**Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 4)
+**Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 6)
 **Proposed mechanism:** rule update — a review-stage checklist item, plus a `/hm:execute` Phase A.5 prompt line
 **Rationale:** All three instances share one shape and none was caught by running the suite,
 because in every case the suite was GREEN. A clipboard spec granted the permission whose
@@ -252,7 +252,7 @@ fallback ran — rather than only asserting the outcome, since the outcome is us
 without the mechanism.
 
 ## Proposal: fail a browser run that did not start its own server (2026-08-08)
-**Triggered by:** [fail:test] suite-attached-to-a-foreign-server (count: 3)
+**Triggered by:** [fail:test] suite-attached-to-a-foreign-server (count: 6)
 **Proposed mechanism:** hook (pre-e2e) — or a `playwright.config.ts` `globalSetup`
 
 **Rationale:** Three times now a browser suite has reported on a checkout nobody was
@@ -301,3 +301,30 @@ is not a vitest collector — it is honesty in the report: when the project's
 of a count that implies the binding was attempted and succeeded. Anything
 stronger — resolving a vitest node id — is a real feature and should be priced
 as one.
+
+## Proposal: grep the call sites when one rule has more than one caller (2026-08-10)
+**Triggered by:** [fail:design] shared-vocabulary-unshared-code-path (count: 3)
+**Proposed mechanism:** rule update (review checklist item) + a per-task grep step
+**Rationale:** Three instances, and the third shows extraction is not the cure. The
+first two were one vocabulary reaching two code paths (`apply` routing card plays
+past the lifecycle; `spawn_piece` skipping entry). The third had the rule ALREADY
+extracted into one module (`src/editor/fork.ts`) and still diverged, because what
+differed was the ORDER each caller invoked it in: `RecordForm` forked then folded the
+typed name onto the copy's key, `RoomDetail` folded first onto the ORIGINAL's key, and
+renaming a shipped room while changing its rules renamed the shipped room too. A shared
+function still has N call sites and the sequencing around each is per-site, so "we
+factored it out" is not evidence.
+
+What would have caught it is cheap and mechanical: when a rule gains a second caller,
+`rg` the callers and write the test matrix over the CROSS PRODUCT of the actions each
+site can perform in one operation — not one test per action. Here the room-fork test
+changed composition and never renamed, the rename test changed no rule, and the
+combination that broke it is one ordinary save for a child. Both per-action tests were
+green and a cross-model reviewer found it by reading.
+
+Concretely: add to the review checklist "does this change give an existing rule a second
+call site? if so, name the call sites and the per-site sequencing", and make the PLAN's
+phase scope list every caller rather than the module. The alternative — an automated
+check — is not obviously buildable: no linter knows that two orderings of the same two
+calls are semantically different.
+

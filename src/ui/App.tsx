@@ -4,6 +4,8 @@ import { type BundleStamp, COLLECTIONS, mergeBundled } from '@content/merge'
 import { BASELINE_STAMP_IDS } from '@content/sets/baseline-stamp'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStamp, loadStoredContent } from '@editor/storage'
+import { loadHidden } from '@editor/hidden'
+import { officialIds } from '@content/provenance'
 import { Boot } from './Boot'
 import { Edit } from './Edit'
 import { Home } from './Home'
@@ -389,10 +391,33 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [route, matchInProgress, t])
 
+  /**
+   * Which records this browser has tucked away (ADR-004).
+   *
+   * Owned HERE rather than in `Edit`, because two screens read it: the editor's
+   * lists and the title screen's carousel. One state, one storage key — a mirror
+   * in each screen would let the carousel keep offering a room the editor had
+   * just hidden.
+   */
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => {
+    const storage = browserStorage()
+    return storage ? loadHidden(storage) : new Set()
+  })
+  const official = useMemo(() => officialIds(bundledContentSource), [])
+
   const loaded = useMemo(() => loadContentSet(source), [source])
-  const presetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
-  // A preset the author deleted must not leave the board pointing at nothing.
-  const activePreset = presetIds.includes(presetId) ? presetId : (presetIds[0] ?? BUNDLED_PRESET_ID)
+  const allPresetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
+  // Hidden rooms leave the CAROUSEL, never the document (ADR-005).
+  const presetIds = allPresetIds.filter((id) => !hidden.has(id))
+  /*
+   * A preset the author deleted — or hid — must not leave the board pointing at
+   * nothing. The fallback walks the VISIBLE list, so hiding the active room
+   * moves the carousel to a room that is actually on it rather than blanking the
+   * screen (risk R5).
+   */
+  const activePreset = presetIds.includes(presetId)
+    ? presetId
+    : (presetIds[0] ?? allPresetIds[0] ?? BUNDLED_PRESET_ID)
 
   return (
     <TranslateContext.Provider value={t}>
@@ -471,6 +496,7 @@ export function App() {
         {loaded.ok && route === 'home' && (
           <Home
             content={loaded.set}
+            hidden={hidden}
             presetId={activePreset}
             onPresetChange={setPresetId}
             onPlay={() => setRoute('lobby')}
@@ -480,6 +506,14 @@ export function App() {
             }}
             onNewRoom={() => {
               setEditorTarget({ id: null })
+              setRoute('edit')
+            }}
+            onManageRooms={() => {
+              // Deliberately WITHOUT a target: the editor opens on its room
+              // list, which is the one place a room can be hidden or deleted.
+              // Implementing either here would put the same confirm flow on two
+              // screens (interview round 2, question 7).
+              setEditorTarget(undefined)
               setRoute('edit')
             }}
           />
@@ -541,6 +575,9 @@ export function App() {
             key={editorTarget === undefined ? 'list' : `room:${editorTarget.id ?? 'new'}`}
             initialRoom={editorTarget}
             source={source}
+            hidden={hidden}
+            official={official}
+            onHiddenChange={setHidden}
             onCommit={(next) => {
               setSource(next)
               setRevision((r) => r + 1)

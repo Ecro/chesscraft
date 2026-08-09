@@ -1,7 +1,8 @@
 import type { ContentSource } from '@content/load'
 import type { DeleteResult } from '@editor/draft'
 import type { Translate } from './i18n'
-import { recordLabel } from './recordLabel'
+import { namedRecords, recordLabels } from './recordLabel'
+import { unnamedLabel } from './unnamed'
 
 /**
  * Turns a refused delete into a sentence the child can act on (PLAN Phase 9b).
@@ -23,10 +24,13 @@ export function deleteRefusal(
   result: Extract<DeleteResult, { ok: false }>,
 ): string {
   if (result.reason === 'referenced') {
-    const names = result.rooms.map((id) => {
-      const room = source.presets.find((p) => (p as { id?: unknown }).id === id) as { nameKey?: unknown } | undefined
-      return recordLabel(t, id, room?.nameKey)
-    })
+    // Labelled against the WHOLE room list, not just the referring rooms, so an
+    // unnamed room is numbered the same here as on the list the child will go
+    // and look at. Numbering the subset would give a room a different number
+    // here than the list gives it, and the refusal's entire purpose is to send
+    // them to the right one (ADR-002).
+    const labels = recordLabels(t, 'preset', namedRecords(source.presets))
+    const names = result.rooms.map((id) => labels.get(id) ?? unnamedLabel(t, 'preset'))
     return `${t('ui.editor.delete.referenced')} ${names.join(', ')}`
   }
   return t(`ui.editor.delete.${result.reason}`)

@@ -238,7 +238,7 @@ export function Lobby({
             <MiniBoard content={content} boardId={preset.boardId} />
             <span className="lobby-room-meta">
               <span className="label">{t('ui.lobby.room')}</span>
-              <strong>{recordLabel(t, presetId, preset.nameKey)}</strong>
+              <strong>{recordLabel(t, 'preset', presetId, preset.nameKey)}</strong>
             </span>
             <button type="button" data-testid="lobby-change-room" onClick={onBack}>
               {t('ui.lobby.change-room')}

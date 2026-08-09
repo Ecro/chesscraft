@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { ContentSource, ValidationError } from '@content/load'
 import { type DraftKind, commitDraft, openDraft } from '@editor/draft'
+import { forkOnEdit } from '@editor/fork'
+import { visibleIds } from '@editor/visibility'
+import { officialIds } from '@content/provenance'
+import { bundledContentSource } from '@content/sets/bundled'
 import { roomsReferencing } from '@editor/references'
 import { clearString, deriveKey, rekeyStrings, writeString } from '@editor/strings'
 import { type RecordSnapshot, sameSnapshot, snapshotOf } from './RecordForm'
@@ -9,7 +13,7 @@ import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
 import { PIXEL_SPRITES } from './art/pixels'
 import { Pix } from './art/Pix'
-import { namedRecords, recordLabel } from './recordLabel'
+import { namedRecords, recordLabel, recordLabels } from './recordLabel'
 import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i18n'
 import { type Costs, contentOf, starText, useCosts } from './useGrades'
 
@@ -124,6 +128,8 @@ function seedRoom(source: ContentSource, boardId: string): Draft {
   }
 }
 
+const EMPTY_HIDDEN: ReadonlySet<string> = new Set()
+
 const STEPS = ['board', 'pieces', 'place', 'cards', 'name'] as const
 type Step = (typeof STEPS)[number]
 
@@ -137,8 +143,17 @@ export function RoomDetail({
   onBack,
   onCreateRecord,
   onPlay,
+  bundle = bundledContentSource,
+  official,
+  hidden,
 }: {
   source: ContentSource
+  /** What counts as ours (ADR-003). Injected so a test can state it. */
+  bundle?: ContentSource
+  /** Ids the bundle ships. Derived here when the caller does not supply it. */
+  official?: ReadonlySet<string>
+  /** Records this browser has tucked away (ADR-005 surface 5). */
+  hidden?: ReadonlySet<string>
   /** The room being edited, or null to create one. */
   roomId: string | null
   commit: (next: ContentSource) => void
@@ -149,6 +164,7 @@ export function RoomDetail({
   onPlay?: () => void
 }) {
   const t = useTranslate()
+  const officialSet = useMemo(() => official ?? officialIds(bundle), [official, bundle])
 
   const [step, setStep] = useState<Step>('board')
 
@@ -208,7 +224,7 @@ export function RoomDetail({
    * through; the typed value wins because that is the edit in progress.
    */
   const displayName = (draft: Draft) =>
-    nameText.trim() || recordLabel(t, String(draft.id ?? ''), draft.nameKey) || t('ui.editor.room.unnamed')
+    nameText.trim() || recordLabel(t, 'preset', String(draft.id ?? ''), draft.nameKey)
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [saved, setSaved] = useState(false)
   const [lastPieceRefused, setLastPieceRefused] = useState(false)
@@ -228,9 +244,32 @@ export function RoomDetail({
   const [placeSide, setPlaceSide] = useState<'white' | 'black'>('white')
   const [placePiece, setPlacePiece] = useState<string>('')
 
-  const pieces = useMemo(() => namedRecords(source.pieces), [source])
-  const rules = useMemo(() => namedRecords(source.ruleCards), [source])
-  const skills = useMemo(() => namedRecords(source.skillCards), [source])
+  /*
+   * The four picker sources, with the hidden set applied (ADR-005 surface 5).
+   *
+   * `keepSelected` is this room's OWN choices, and it is not optional. These
+   * arrays feed `VanishedRows` and `ChipList`, which decide "this reference is
+   * broken" by asking whether the id is in the array they were handed — so
+   * filtering without the exemption does not hide a tile, it relabels the
+   * child's own piece as a broken reference and drops it on the next save.
+   */
+  const hiddenSet = hidden ?? EMPTY_HIDDEN
+  const chosenIn = (field: string): string[] => {
+    const value = draft[field]
+    return Array.isArray(value) ? (value.filter((v) => typeof v === 'string') as string[]) : []
+  }
+  const pieces = useMemo(
+    () => visibleIds(namedRecords(source.pieces), hiddenSet, chosenIn('pieceIds')),
+    [source, hiddenSet, draft],
+  )
+  const rules = useMemo(
+    () => visibleIds(namedRecords(source.ruleCards), hiddenSet, chosenIn('ruleCardIds')),
+    [source, hiddenSet, draft],
+  )
+  const skills = useMemo(
+    () => visibleIds(namedRecords(source.skillCards), hiddenSet, chosenIn('skillCardIds')),
+    [source, hiddenSet, draft],
+  )
 
   /**
    * The loaded content, and the grades for whatever this room can put in a
@@ -245,9 +284,35 @@ export function RoomDetail({
   const content = useMemo(() => contentOf(source), [source])
   const savedPreset = content?.presets.get(String(draft.id ?? '')) ?? undefined
 
-  const squareTypes = useMemo(() => namedRecords(source.squareTypes), [source])
+  // Painted squares name their type, so a hidden type still in use stays offered.
+  const squareTypes = useMemo(
+    () =>
+      visibleIds(
+        namedRecords(source.squareTypes),
+        hiddenSet,
+        (Array.isArray(board['squares']) ? (board['squares'] as Array<{ typeId?: unknown }>) : [])
+          .map((sq) => sq.typeId)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    [source, hiddenSet, board],
+  )
 
   const costs = useCosts(content, savedPreset)
+
+  /*
+   * Labels for the picker lists, built per LIST rather than per row.
+   *
+   * `recordLabels` is what numbers two unnamed siblings apart; `recordLabel`
+   * called per row inside a `.map` cannot, because the ordinal is a position
+   * among siblings and a single row has none. `recordLabel.ts` says every
+   * surface rendering more than one record goes through the former — these are
+   * the surfaces that were not, so two unnamed pieces both read as the same
+   * three words on every grid and select in this screen.
+   */
+  const pieceLabels = useMemo(() => recordLabels(t, 'piece', pieces), [t, pieces])
+  const ruleLabels = useMemo(() => recordLabels(t, 'ruleCard', rules), [t, rules])
+  const skillLabels = useMemo(() => recordLabels(t, 'skillCard', skills), [t, skills])
+  const squareLabels = useMemo(() => recordLabels(t, 'squareType', squareTypes), [t, squareTypes])
 
   const list = (field: string): string[] => (draft[field] as string[] | undefined) ?? []
   const painted = (board.squares as PaintedSquare[] | undefined) ?? []
@@ -435,24 +500,18 @@ export function RoomDetail({
       next.nameKey = `${id}${next.nameKey.slice(openedId!.length)}`
     }
 
+    /*
+     * The typed name is NOT folded here. It is folded after the fork, below.
+     *
+     * Folding first is what `RecordForm` deliberately does not do, and doing it
+     * here was a real defect: the name landed on the SHIPPED room's key, and the
+     * fork then copied that already-overwritten value onto the copy's key — so
+     * renaming an official room while also changing its rules renamed the
+     * original too, and the child saw two rooms with the same name. Found by a
+     * cross-model reviewer, confirmed by `tests/ui/fork-on-edit.test.tsx`'s
+     * rename-and-change case.
+     */
     let strings = renaming ? rekeyStrings(source.strings, openedId!, id) : source.strings
-    if (id !== '' && nameTyped) {
-      // The room's own key when it has one — same rule as `RecordForm`'s
-      // `slotFor`: a shipped room's name is keyed `preset.slice.name`, and
-      // overriding THAT key is what renaming means.
-      const existing = next.nameKey
-      const key = typeof existing === 'string' && existing !== '' ? existing : deriveKey(id, 'name')
-      const value = nameText.trim()
-      if (value === '' && makeTranslate()(key) === key) {
-        // A room with no name is a blank card in the title screen's carousel —
-        // the one control the whole product funnels through.
-        setErrors([{ contentId: id, path: 'nameKey', message: t('ui.editor.form.name-needed') }])
-        setSaved(false)
-        return null
-      }
-      next.nameKey = key
-      strings = value === '' ? clearString(strings, DEFAULT_LOCALE, key) : writeString(strings, DEFAULT_LOCALE, key, value)
-    }
     // Narrowed rather than spread blindly: `strings` is exactly-optional, so a
     // document with `strings: undefined` is a DIFFERENT document from one that
     // omits the field, and the schema tells the two apart.
@@ -462,7 +521,27 @@ export function RoomDetail({
     // board's commit returned. The other order fails whenever the board is new:
     // a preset naming a board the document does not have yet is a dangling
     // reference, and `commitDraft` runs the whole document through the loader.
-    const boardToSave = forkBoard(base, board, id)
+    /*
+     * A board we shipped forks the moment its rules change (ADR-001), and that
+     * runs BEFORE `forkBoard`'s shared-board check: a board that has just been
+     * copied is referenced by nobody, so the second fork correctly declines and
+     * the room does not end up with two fresh boards.
+     */
+    const boardFork = forkOnEdit(
+      base,
+      'board',
+      board,
+      openedBoardId === '' ? null : openedBoardId,
+      bundle,
+      officialSet,
+      makeTranslate(base.strings),
+      DEFAULT_LOCALE,
+    )
+    const forkedBase =
+      boardFork.strings !== undefined && boardFork.strings !== base.strings
+        ? { ...base, strings: boardFork.strings }
+        : base
+    const boardToSave = boardFork.forked ? boardFork.draft : forkBoard(forkedBase, board, id)
     const boardId = String(boardToSave.id ?? '')
 
     /*
@@ -489,7 +568,12 @@ export function RoomDetail({
       return null
     }
 
-    const boardResult = commitDraft(base, 'board', boardToSave, openedBoardId === boardId ? openedBoardId : undefined)
+    const boardResult = commitDraft(
+      forkedBase,
+      'board',
+      boardToSave,
+      openedBoardId === boardId ? openedBoardId : undefined,
+    )
     if (!boardResult.ok) {
       setErrors(boardResult.errors)
       setSaved(false)
@@ -497,17 +581,68 @@ export function RoomDetail({
     }
     next.boardId = boardId
 
-    const result = commitDraft(boardResult.source, 'preset', next, openedId ?? undefined)
+    /*
+     * And the room itself (ADR-001). Compared against `boardResult.source` so a
+     * board that just forked is already in the document the room is checked
+     * against — otherwise the room's own commit would see a dangling `boardId`.
+     */
+    const roomFork = forkOnEdit(
+      boardResult.source,
+      'preset',
+      next,
+      openedId,
+      bundle,
+      officialSet,
+      makeTranslate(boardResult.source.strings),
+      DEFAULT_LOCALE,
+    )
+    const roomBase =
+      roomFork.strings !== undefined && roomFork.strings !== boardResult.source.strings
+        ? { ...boardResult.source, strings: roomFork.strings }
+        : boardResult.source
+    const roomDraft = roomFork.forked ? roomFork.draft : next
+    const roomId = roomFork.forked ? String(roomDraft['id'] ?? '') : id
+
+    /*
+     * NOW the typed name, onto whichever room this save is actually writing.
+     *
+     * After the fork, so a rename lands on the COPY's key when one was made and
+     * on the room's own key when it was not. `roomDraft.nameKey` is already the
+     * copy's key by this point (`forkOnEdit` re-derived it), so "the record's
+     * own key" resolves correctly in both branches — the same rule `slotFor`
+     * states for `RecordForm`.
+     */
+    let roomStrings = roomBase.strings
+    if (roomId !== '' && nameTyped) {
+      const existing = roomDraft['nameKey']
+      const key = typeof existing === 'string' && existing !== '' ? existing : deriveKey(roomId, 'name')
+      const value = nameText.trim()
+      if (value === '' && makeTranslate()(key) === key) {
+        // A room with no name is a blank card in the title screen's carousel —
+        // the one control the whole product funnels through.
+        setErrors([{ contentId: roomId, path: 'nameKey', message: t('ui.editor.form.name-needed') }])
+        setSaved(false)
+        return null
+      }
+      roomDraft['nameKey'] = key
+      roomStrings =
+        value === '' ? clearString(roomStrings, DEFAULT_LOCALE, key) : writeString(roomStrings, DEFAULT_LOCALE, key, value)
+    }
+    const namedBase =
+      roomStrings !== undefined && roomStrings !== roomBase.strings ? { ...roomBase, strings: roomStrings } : roomBase
+
+    // A fork APPENDS: passing `openedId` would replace the room we ship.
+    const result = commitDraft(namedBase, 'preset', roomDraft, roomFork.forked ? undefined : (openedId ?? undefined))
     if (!result.ok) {
       setErrors(result.errors)
       setSaved(false)
       return null
     }
     setErrors([])
-    setDraft(next)
+    setDraft(roomDraft)
     setBoard(boardToSave)
-    setOpenedId(id)
-    setOpenedSnapshot(snapshotOf(result.source, 'preset', id))
+    setOpenedId(roomId)
+    setOpenedSnapshot(snapshotOf(result.source, 'preset', roomId))
     setOpenedBoardSnapshot(snapshotOf(result.source, 'board', boardId))
     setNameTyped(false)
     setSaved(true)
@@ -614,7 +749,7 @@ export function RoomDetail({
                     }}
                   >
                     {mark.kind !== 'none' && <MarkBody mark={mark} />}
-                    <span>{recordLabel(t, id, nameKey)}</span>
+                    <span>{squareLabels.get(id)}</span>
                   </button>
                 )
               })}
@@ -657,7 +792,7 @@ export function RoomDetail({
                     onClick={() => toggle('pieceIds', id)}
                   >
                     {mark.kind !== 'none' && <MarkBody mark={mark} />}
-                    <span>{recordLabel(t, id, nameKey)}</span>
+                    <span>{pieceLabels.get(id)}</span>
                   </button>
                 )
               })}
@@ -740,7 +875,7 @@ export function RoomDetail({
                       onClick={() => setPlacePiece(id)}
                     >
                       {mark.kind !== 'none' && <MarkBody mark={mark} />}
-                      <span>{recordLabel(t, id, nameKey)}</span>
+                      <span>{pieceLabels.get(id)}</span>
                     </button>
                   )
                 })}
@@ -765,6 +900,8 @@ export function RoomDetail({
             <p className="hint">{t('ui.editor.step.rules-hint')}</p>
             <ChipList
               field="ruleCardIds"
+              kind="ruleCard"
+              labels={ruleLabels}
               prefix="room-rule"
               entries={rules}
               chosen={list('ruleCardIds')}
@@ -780,6 +917,8 @@ export function RoomDetail({
             <p className="hint">{t('ui.editor.step.skills-hint')}</p>
             <ChipList
               field="skillCardIds"
+              kind="skillCard"
+              labels={skillLabels}
               prefix="room-skill"
               entries={skills}
               chosen={list('skillCardIds')}
@@ -797,6 +936,7 @@ export function RoomDetail({
               draft={draft}
               source={source}
               costs={costs}
+              hidden={hiddenSet}
               t={t}
               onChange={(mutate) => {
                 setDraft((d) => {
@@ -938,7 +1078,7 @@ function VanishedRows({
             aria-pressed
             onClick={() => onToggle(field, id)}
           >
-            <span>{`${id} (${t('ui.editor.room.missing-entry')})`}</span>
+            <span>{t('ui.editor.room.missing-entry')}</span>
           </button>
         ))}
     </>
@@ -948,6 +1088,8 @@ function VanishedRows({
 /** Which cards this room draws from, as toggles. */
 function ChipList({
   field,
+  kind,
+  labels,
   prefix,
   entries,
   chosen,
@@ -956,6 +1098,9 @@ function ChipList({
   t,
 }: {
   field: string
+  kind: DraftKind
+  /** Prepared per LIST, so two unnamed cards are numbered apart. */
+  labels: Map<string, string>
   prefix: string
   entries: Array<[string, unknown]>
   chosen: string[]
@@ -980,7 +1125,7 @@ function ChipList({
             onClick={() => onToggle(field, id)}
           >
             {mark.kind !== 'none' && <MarkBody mark={mark} />}
-            {recordLabel(t, id, nameKey)}
+            {labels.get(id) ?? recordLabel(t, kind, id, nameKey)}
           </button>
         )
       })}
@@ -996,7 +1141,7 @@ function ChipList({
             aria-pressed
             onClick={() => onToggle(field, id)}
           >
-            {`${id} (${t('ui.editor.room.missing-entry')})`}
+            {t('ui.editor.room.missing-entry')}
           </button>
         ))}
       {entries.length === 0 && chosen.length === 0 && <p className="empty">{t('ui.editor.library.empty')}</p>}
@@ -1020,7 +1165,7 @@ function SelectedTypeNote({ source, typeId, t }: { source: ContentSource; typeId
   const textKey = typeof record.textKey === 'string' ? record.textKey : ''
   return (
     <div className="note-box" data-testid="paint-note">
-      <strong>{recordLabel(t, typeId, nameKey)}</strong>
+      <strong>{recordLabel(t, 'squareType', typeId, nameKey)}</strong>
       <p>{textKey ? t(textKey) : ''}</p>
       {Boolean(record.paired) && <p className="hint">{t('ui.editor.paint.paired-hint')}</p>}
     </div>
@@ -1044,12 +1189,23 @@ function LoadoutSection({
   draft,
   source,
   costs,
+  hidden,
   t,
   onChange,
 }: {
   draft: Draft
   source: ContentSource
   costs: Costs
+  /**
+   * Records this browser has tucked away (ADR-005 surface 5).
+   *
+   * The loadout selects were the last unfiltered list in this file, and the gap
+   * was invisible from the outside: a hidden piece stayed selectable as a side's
+   * loadout piece while the grid two steps earlier had already stopped offering
+   * it. Same helper, same exemption — whatever a slot ALREADY names stays on
+   * offer, or opening a saved room would silently clear its loadout.
+   */
+  hidden: ReadonlySet<string>
   t: Translate
   onChange: (mutate: (next: Draft) => void) => void
 }) {
@@ -1072,12 +1228,25 @@ function LoadoutSection({
   const pieceIds = (draft.pieceIds as string[] | undefined) ?? []
   const pool = (draft.skillCardIds as string[] | undefined) ?? []
 
+  /** Ids this slot already names — exempt from hiding, per ADR-005. */
+  const chosenHere = [slot?.pieceId, slot?.replaces, slot?.skillCardId].filter(
+    (id): id is string => typeof id === 'string' && id !== '',
+  )
+
   /** Cards the room does not already deal — the only ones a side may own. */
-  const ownable = namedRecords(source.skillCards).filter(([id]) => !pool.includes(id))
+  const ownable = visibleIds(
+    namedRecords(source.skillCards).filter(([id]) => !pool.includes(id)),
+    hidden,
+    chosenHere,
+  )
   const royal = new Set(
     (source.pieces as Array<Record<string, unknown>>).filter((p) => p.royal === true).map((p) => String(p.id)),
   )
-  const replaceable = pieceIds.filter((id) => !royal.has(id))
+  const replaceable = visibleIds(
+    pieceIds.filter((id) => !royal.has(id)).map((id) => [id, null] as [string, unknown]),
+    hidden,
+    chosenHere,
+  ).map(([id]) => id)
 
   const costOf = (id: string | undefined): number | null => (id ? costs.of(id) : null)
   const label = (id: string | undefined): string => {
@@ -1147,11 +1316,13 @@ function LoadoutSection({
         onChange={(e) => setSlot('pieceId', e.target.value)}
       >
         <option value="">{t('ui.editor.loadout.none')}</option>
-        {namedRecords(source.pieces)
-          .filter(([id]) => !royal.has(id))
-          .map(([id, nameKey]) => (
+        {visibleIds(
+          namedRecords(source.pieces).filter(([id]) => !royal.has(id)),
+          hidden,
+          chosenHere,
+        ).map(([id, nameKey]) => (
             <option key={id} value={id}>
-              {`${recordLabel(t, id, nameKey)} — ${label(id)}`}
+              {`${recordLabel(t, 'piece', id, nameKey)} — ${label(id)}`}
             </option>
           ))}
       </select>
@@ -1166,7 +1337,7 @@ function LoadoutSection({
         <option value="">{t('ui.editor.loadout.none')}</option>
         {replaceable.map((id) => (
           <option key={id} value={id}>
-            {`${recordLabel(t, id, keyOf(source.pieces, id))} — ${label(id)}`}
+            {`${recordLabel(t, 'piece', id, keyOf(source.pieces, id))} — ${label(id)}`}
           </option>
         ))}
       </select>
@@ -1198,7 +1369,7 @@ function LoadoutSection({
         <option value="">{t('ui.editor.loadout.none')}</option>
         {ownable.map(([id, nameKey]) => (
           <option key={id} value={id}>
-            {`${recordLabel(t, id, nameKey)} — ${label(id)}`}
+            {`${recordLabel(t, 'skillCard', id, nameKey)} — ${label(id)}`}
           </option>
         ))}
       </select>

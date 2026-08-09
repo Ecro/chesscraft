@@ -3,7 +3,12 @@ import type { ContentSource, ValidationError } from '@content/load'
 import type { ContentStrings } from '@content/schema'
 import { type DraftKind, blankDraft, commitDraft, editorContext, openDraft, validateDraft } from '@editor/draft'
 import { type StringField, clearString, deriveKey, readString, rekeyStrings, writeString } from '@editor/strings'
+import { forkOnEdit, isPristineOfficial } from '@editor/fork'
+import { visibleIds } from '@editor/visibility'
+import { officialIds } from '@content/provenance'
+import { bundledContentSource } from '@content/sets/bundled'
 import { DEFAULT_LOCALE, makeTranslate, useTranslate } from './i18n'
+import { recordLabel, recordLabels } from './recordLabel'
 import { resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
@@ -184,9 +189,22 @@ export function RecordForm({
   onOpenedIdChange,
   errors,
   setErrors,
+  bundle = bundledContentSource,
+  official,
+  hidden,
 }: {
   source: ContentSource
   kind: DraftKind
+  /** What counts as ours (ADR-003). Injected so a test can state it. */
+  bundle?: ContentSource
+  /**
+   * Ids the bundle ships. Passed in rather than derived here so the shell
+   * computes it once — and so a test can hand this form a document where
+   * nothing is official without also having to fake a bundle.
+   */
+  official?: ReadonlySet<string>
+  /** Records this browser has tucked away (ADR-005 surface 4). */
+  hidden?: ReadonlySet<string>
   /** The record this form opened on, or null for a blank one. */
   initialId: string | null
   commit: (next: ContentSource) => void
@@ -211,6 +229,9 @@ export function RecordForm({
 
 }) {
   const t = useTranslate()
+  // The shell computes this once and passes it down; deriving it here when it is
+  // absent keeps every existing call site working unchanged.
+  const officialSet = useMemo(() => official ?? officialIds(bundle), [official, bundle])
 
   // Read ONCE, at mount. The caller remounts (via `key`) to open a different
   // record, so there is no prop-to-state sync to get wrong — and a save that
@@ -354,18 +375,21 @@ export function RecordForm({
     </label>
   )
 
-  /** A record's own name if it has one, otherwise its id — never a bare key. */
-  const label = (id: string, nameKey?: unknown): string => {
-    if (typeof nameKey === 'string' && nameKey !== '') {
-      const resolved = t(nameKey)
-      if (resolved !== nameKey) return resolved
-    }
-    return id
-  }
-
+  /**
+   * A record's name for the screen.
+   *
+   * This used to be a PRIVATE copy of `recordLabel` — same shape, same raw-id
+   * fallback, importing nothing — and it backed the room composition picker
+   * below. ADR-002's guarantee is a required `kind` argument on `recordLabel`,
+   * which the compiler enforces only for call sites that go through it, so a
+   * lookalike here was invisible to that guarantee and kept rendering
+   * a bare id at a child. It is now one function; `tests/ui/no-raw-ids.test.tsx`
+   * mounts this form specifically because a test scoped to the browse lists
+   * passed against the defect.
+   */
   const pieceLabel = (id: string) => {
     const found = source.pieces.find((p) => (p as { id?: unknown }).id === id) as { nameKey?: unknown } | undefined
-    return label(id, found?.nameKey)
+    return recordLabel(t, 'piece', id, found?.nameKey)
   }
 
   // --- movement / attack grids ---------------------------------------------
@@ -471,7 +495,27 @@ export function RecordForm({
       d[field] = list
     })
 
-  const checkboxList = (field: string, legendKey: string, testidPrefix: string, entries: Array<[string, unknown]>) => (
+  /**
+   * One picker, with the hidden set applied (ADR-005) and its exemption.
+   *
+   * `keepSelected` is what the record ALREADY holds for this field. Without it a
+   * hidden-but-selected record simply vanishes from the list with its box
+   * unticked, and the next save writes the record back without it — a silent
+   * deletion caused by a display preference.
+   */
+  const checkboxList = (
+    field: string,
+    entryKind: DraftKind,
+    legendKey: string,
+    testidPrefix: string,
+    allEntries: Array<[string, unknown]>,
+  ) => {
+    const chosen = (draft[field] as string[] | undefined) ?? []
+    const entries = visibleIds(allEntries, hidden ?? new Set(), chosen)
+    // Per LIST, not per row: two unnamed records must be numbered apart, and an
+    // ordinal is a position among siblings that a single row does not have.
+    const labels = recordLabels(t, entryKind, entries)
+    return (
     <fieldset>
       <legend>{t(legendKey)}</legend>
       {entries.map(([id, nameKey]) => (
@@ -482,12 +526,13 @@ export function RecordForm({
             checked={((draft[field] as string[] | undefined) ?? []).includes(id)}
             onChange={() => toggleInList(field, id)}
           />
-          {label(id, nameKey)}
+          {labels.get(id)}
         </label>
       ))}
       {fieldError(field)}
     </fieldset>
-  )
+    )
+  }
 
   const named = (records: unknown[]): Array<[string, unknown]> =>
     records.map((r) => [String((r as { id?: unknown }).id ?? ''), (r as { nameKey?: unknown }).nameKey])
@@ -523,7 +568,9 @@ export function RecordForm({
    * every half-finished record and teach the child to ignore red text. Two
    * derivations would have drifted; one has nothing to drift from.
    */
-  const prepared = (): { base: ContentSource; next: Draft; id: string } | { slot: string; id: string } => {
+  const prepared = ():
+    | { base: ContentSource; next: Draft; id: string; forked: boolean }
+    | { slot: string; id: string } => {
     const next = structuredClone(draft)
     const id = String(next.id ?? '')
     const renaming = openedId !== null && id !== '' && id !== openedId
@@ -537,9 +584,40 @@ export function RecordForm({
       }
     }
 
-    let strings = renaming ? rekeyStrings(source.strings, openedId!, id) : source.strings
+    /*
+     * Editing what we shipped gives the child their own copy (ADR-001).
+     *
+     * Here rather than inside `commitDraft` for two reasons. The record half
+     * could live either place; the TEXT half cannot — the words are resolved
+     * through `t`, which only this layer has, and a copy that kept the
+     * original's keys would rename the original the next time the child renamed
+     * the copy. And `commitDraft` is the single save path for all six kinds, so
+     * leaving it untouched is the cheaper risk.
+     *
+     * `officialSet` empty means nothing forks, which is exactly what a document
+     * with no bundle behind it should do.
+     */
+    // Resolved through `makeTranslate(source.strings)` rather than the component's
+    // `t`: the copy's words must come from the OVERLAY first and the locale
+    // bundle second, and a context-provided `t` is not guaranteed to have been
+    // handed this document's overlay. Getting that wrong is silent — the copy is
+    // simply born nameless.
+    const fork = forkOnEdit(
+      source,
+      kind,
+      next,
+      openedId,
+      bundle,
+      officialSet,
+      makeTranslate(source.strings),
+      DEFAULT_LOCALE,
+    )
+    const forkedDraft = fork.forked ? fork.draft : next
+    const forkedId = fork.forked ? String(forkedDraft['id'] ?? '') : id
 
-    const folded = foldText(strings, next, id, [
+    let strings = renaming ? rekeyStrings(fork.strings, openedId!, id) : fork.strings
+
+    const folded = foldText(strings, forkedDraft, forkedId, [
       { field: 'name', slot: 'nameKey', typed: nameTyped, value: nameText, active: id !== '' },
       {
         field: 'text',
@@ -549,13 +627,13 @@ export function RecordForm({
         active: id !== '' && HAS_TEXT.includes(kind),
       },
     ])
-    if (!folded.ok) return { slot: folded.slot, id }
+    if (!folded.ok) return { slot: folded.slot, id: forkedId }
     strings = folded.strings
 
     // Assigned only when there IS an overlay: `strings` is exactly-optional, so
     // writing `undefined` into it is a different document from omitting it.
     const base = strings !== undefined && strings !== source.strings ? { ...source, strings } : source
-    return { base, next, id }
+    return { base, next: forkedDraft, id: forkedId, forked: fork.forked }
   }
 
   const save = () => {
@@ -579,9 +657,12 @@ export function RecordForm({
       setSaved(null)
       return
     }
-    const { base, next, id } = ready
+    const { base, next, id, forked } = ready
 
-    const result = commitDraft(base, kind, next, openedId ?? undefined)
+    // A fork APPENDS. Passing `openedId` would make `commitDraft` replace the
+    // record at that slot — which is the shipped original, and losing it is the
+    // one thing ADR-001 exists to prevent.
+    const result = commitDraft(base, kind, next, forked ? undefined : (openedId ?? undefined))
     if (!result.ok) {
       setErrors(result.errors)
       setSaved(null)
@@ -610,12 +691,13 @@ export function RecordForm({
    * Rendering both would put two nodes under one test id, which is a broken
    * selector rather than redundancy.
    */
-  const textField = (field: string, testid: string, labelKey: string, anchor = true) => (
+  const textField = (field: string, testid: string, labelKey: string, anchor = true, readOnly = false) => (
     <label>
       {t(labelKey)}
       <input
         data-testid={testid}
         value={String(draft[field] ?? '')}
+        readOnly={readOnly}
         onChange={(e) =>
           update((d) => {
             d[field] = e.target.value
@@ -625,6 +707,28 @@ export function RecordForm({
       {anchor && fieldError(field)}
     </label>
   )
+
+  /**
+   * An official record's id is not editable (ADR-007).
+   *
+   * This was a live data-loss path, not a tidiness question. Typing in the id
+   * field re-derives `nameKey`/`textKey`/`iconKey` to follow the new id, and
+   * `commitDraft` then REPLACES the record sitting at `openedId` — so a child
+   * who renamed our king's id overwrote the shipped king and it was gone.
+   *
+   * Locking it also makes ADR-001's fork comparison unambiguous: with the id
+   * fixed, `draft.id === openedId === the bundled id` on every commit that
+   * reaches the fork branch, so there is no question of which shipped record the
+   * copy is being compared against. A record the child forked is theirs, and its
+   * id unlocks again.
+   *
+   * Asked through `isPristineOfficial`, the SAME predicate the fork uses. Keying
+   * on id membership alone disagreed with the fork exactly where it matters: an
+   * imported set carrying its own record under one of our ids would have that id
+   * locked with no shipped original to protect, taking away the tidy-up ADR-007
+   * explicitly meant to keep.
+   */
+  const idLocked = isPristineOfficial(source, kind, openedId, bundle, officialSet)
 
 
   // --- the simple views (Chess Craft redesign) -------------------------------
@@ -1086,7 +1190,7 @@ export function RecordForm({
 
   return (
     <section className="record-form" data-testid="record-form">
-      {choosing && <MakerGallery source={source} kind={kind} t={t} onPick={takePick} />}
+      {choosing && <MakerGallery source={source} kind={kind} t={t} onPick={takePick} hidden={hidden} />}
 
       <div className="form-body" hidden={choosing}>
       {/* The grade describes the record being edited, so it belongs INSIDE the
@@ -1135,7 +1239,7 @@ export function RecordForm({
           but the id is also required for a save, so hiding it means a blank
           save fails with an error anchored to a control the child cannot see.
           A hint carries the format instead. */}
-      {textField('id', 'editor-id', 'ui.editor.field.id')}
+      {textField('id', 'editor-id', 'ui.editor.field.id', true, idLocked)}
       <p className="hint">{t('ui.editor.field.id-hint')}</p>
 
       {/* The `editor-advanced` disclosure and its two raw KEY slots are gone (PLAN
@@ -1346,7 +1450,7 @@ export function RecordForm({
               <option value="">{t('ui.editor.board.none')}</option>
               {named(source.squareTypes).map(([id, nameKey]) => (
                 <option key={id} value={id}>
-                  {label(id, nameKey)}
+                  {recordLabel(t, 'squareType', id, nameKey)}
                 </option>
               ))}
             </select>
@@ -1423,15 +1527,15 @@ export function RecordForm({
               <option value="">{t('ui.editor.board.none')}</option>
               {named(source.boards).map(([id, nameKey]) => (
                 <option key={id} value={id}>
-                  {label(id, nameKey)}
+                  {recordLabel(t, 'board', id, nameKey)}
                 </option>
               ))}
             </select>
             {fieldError('boardId')}
           </label>
-          {checkboxList('pieceIds', 'ui.editor.room.pieces', 'preset-piece', named(source.pieces))}
-          {checkboxList('ruleCardIds', 'ui.editor.room.rules', 'preset-rule', named(source.ruleCards))}
-          {checkboxList('skillCardIds', 'ui.editor.room.skills', 'preset-skill', named(source.skillCards))}
+          {checkboxList('pieceIds', 'piece', 'ui.editor.room.pieces', 'preset-piece', named(source.pieces))}
+          {checkboxList('ruleCardIds', 'ruleCard', 'ui.editor.room.rules', 'preset-rule', named(source.ruleCards))}
+          {checkboxList('skillCardIds', 'skillCard', 'ui.editor.room.skills', 'preset-skill', named(source.skillCards))}
         </fieldset>
       )}
 

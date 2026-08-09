@@ -3,6 +3,8 @@ import { type DraftKind, type EditorContext, blankDraft, editorContext, openDraf
 import { deriveKey, readString } from '@editor/strings'
 import { applyTemplate, templatesFor } from '@editor/templates'
 import { DEFAULT_LOCALE, type Translate } from './i18n'
+import { recordLabel } from './recordLabel'
+import { visibleIds } from '@editor/visibility'
 
 /**
  * What a new record starts from.
@@ -76,6 +78,11 @@ function stemOf(id: string): string {
   return dot < 0 ? id : id.slice(dot + 1)
 }
 
+/** The `nameKey` a record declares, for the label chain to resolve. */
+function keyOf(source: ContentSource, kind: DraftKind, id: string): unknown {
+  return openDraft(source, kind, id)?.['nameKey']
+}
+
 function textFor(source: ContentSource, record: Record<string, unknown> | null, slot: 'nameKey' | 'textKey'): string {
   const key = String(record?.[slot] ?? '')
   if (key === '') return ''
@@ -117,16 +124,24 @@ export interface MakerGalleryProps {
   kind: DraftKind
   t: Translate
   onPick: (picked: Picked) => void
+  /** Records this browser has tucked away (ADR-005 surface 6). */
+  hidden?: ReadonlySet<string> | undefined
 }
 
-export function MakerGallery({ source, kind, t, onPick }: MakerGalleryProps) {
+export function MakerGallery({ source, kind, t, onPick, hidden }: MakerGalleryProps) {
   const ctx = editorContext(source)
   const templates = templatePicks(source, kind, ctx)
 
-  const existing = (source[COLLECTION[kind]] as unknown[]).flatMap((r) => {
-    const id = (r as { id?: unknown }).id
-    return typeof id === 'string' && id !== '' ? [id] : []
-  })
+  // A browse surface (ADR-005 surface 6): hidden records leave it, and nothing
+  // here is "already selected", so the exemption is empty.
+  const existing = visibleIds(
+    (source[COLLECTION[kind]] as unknown[]).flatMap((r) => {
+      const id = (r as { id?: unknown }).id
+      return typeof id === 'string' && id !== '' ? ([[id, null]] as Array<[string, unknown]>) : []
+    }),
+    hidden ?? new Set(),
+    [],
+  ).map(([id]) => id)
 
   return (
     <section className="maker-gallery" data-testid="maker-gallery">
@@ -160,7 +175,14 @@ export function MakerGallery({ source, kind, t, onPick }: MakerGalleryProps) {
                 if (picked) onPick(picked)
               }}
             >
-              {textFor(source, openDraft(source, kind, id), 'nameKey') || id}
+              {/* The overlay's answer first — a remix the author renamed shows the
+                  new name — then `recordLabel`, which reaches the locale bundle.
+                  This used to fall back to `id`, and because bundled names live in
+                  `src/i18n/ko.ts` rather than in `source.strings`, `textFor` returned
+                  '' for EVERY shipped record, so the gallery rendered a bare id for
+                  every one of them on a fresh install (ADR-002). */}
+              {textFor(source, openDraft(source, kind, id), 'nameKey') ||
+                recordLabel(t, kind, id, keyOf(source, kind, id))}
             </button>
           ))}
         </div>
