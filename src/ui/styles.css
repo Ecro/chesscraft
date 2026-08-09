@@ -2724,6 +2724,13 @@ details.advanced summary {
 
 .move-cell {
   aspect-ratio: 1;
+  /* The containing block for the ray. Without it the absolutely-positioned
+     `::before` trail and `::after` arrow resolve against the initial containing
+     block instead of the cell, so `width: calc((100% + 2px) * 1.4143)` becomes
+     1.41x the VIEWPORT and a slide paints a bar across the whole page. Shipped
+     that way once: the spike's throwaway HTML carried `position: relative` and
+     this rule never got it. */
+  position: relative;
   padding: 0;
   display: flex;
   align-items: center;

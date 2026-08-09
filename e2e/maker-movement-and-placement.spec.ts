@@ -78,14 +78,33 @@ test('a ray is drawn through the squares it reaches, diagonals included', async 
     )
   }
 
-  // The trail is actually painted, not merely attributed. `::before` is what
-  // draws it, so its computed width is the thing that would be zero if the CSS
-  // never landed.
-  const barWidth = await page
-    .getByTestId('piece-cell-2,2')
-    .evaluate((el) => getComputedStyle(el, '::before').width)
-  expect(barWidth, 'the diagonal trail has no bar').not.toBe('auto')
-  expect(Number.parseFloat(barWidth), 'the diagonal bar has zero width').toBeGreaterThan(0)
+  /*
+   * The trail is painted, AND it is painted inside its cell.
+   *
+   * The first version of this check asserted only that the bar's computed width
+   * was greater than zero, and that passed while the bar spanned the entire
+   * page: `.move-cell` had no `position`, so the absolutely-positioned
+   * `::before` resolved against the initial containing block and
+   * `calc((100% + 2px) * 1.4143)` measured 1.41x the VIEWPORT. A non-zero width
+   * is exactly what a full-screen blue bar has. The bar's size relative to its
+   * CELL is the thing that distinguishes the two.
+   */
+  const cell = page.getByTestId('piece-cell-2,2')
+  const box = await cell.boundingBox()
+  expect(box, 'the cell has no box').not.toBeNull()
+  const bar = await cell.evaluate((el) => ({
+    width: getComputedStyle(el, '::before').width,
+    height: getComputedStyle(el, '::before').height,
+  }))
+  expect(bar.width, 'the diagonal trail has no bar').not.toBe('auto')
+
+  const w = Number.parseFloat(bar.width)
+  expect(w, 'the diagonal bar has zero width').toBeGreaterThan(0)
+  // A diagonal spans its cell corner to corner plus the gap: about 1.41x the
+  // cell. Two cell-widths is generous for rounding and still an order of
+  // magnitude below a viewport-wide bar.
+  expect(w, `bar is ${w}px against a ${box!.width}px cell — it is not inside the cell`).toBeLessThan(box!.width * 2)
+  expect(Number.parseFloat(bar.height), 'the bar is thicker than its own cell').toBeLessThan(box!.height)
 })
 
 test('the board record places pieces without ever showing a coordinate', async ({ page }) => {
