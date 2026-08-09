@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { type ContentSource, type LoadResult as LoadSetResult, type ValidationError, loadContentSet } from '@content/load'
-import { type BundleStamp, COLLECTIONS, mergeBundled, stampOf } from '@content/merge'
+import { type BundleStamp, COLLECTIONS, mergeBundled } from '@content/merge'
+import { BASELINE_STAMP_IDS } from '@content/sets/baseline-stamp'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStamp, loadStoredContent } from '@editor/storage'
 import { Boot } from './Boot'
@@ -112,7 +113,10 @@ export function mergeWithRepair(
  * `bundle` is a parameter so a test can play a release forward against a document
  * saved under an earlier one; production always uses the default.
  */
-export function initialSource(bundle: ContentSource = bundledContentSource): {
+export function initialSource(
+  bundle: ContentSource = bundledContentSource,
+  baseline: readonly string[] = BASELINE_STAMP_IDS,
+): {
   source: ContentSource
   failedToLoad: boolean
   /** Additions ADR-004 gave up on. Its own flag: `failedToLoad` means the author's work did not load. */
@@ -122,11 +126,17 @@ export function initialSource(bundle: ContentSource = bundledContentSource): {
   if (storage) {
     const stored = loadStoredContent(storage)
     if (stored.ok) {
-      // No stamp is the case EVERY install alive today is in. Synthesising one
-      // from the current bundle is the whole of the absent-case behaviour:
-      // nothing is new relative to it, so nothing is added and no deletion is
-      // resurrected. The backlog is forgone once, and every release after is exact.
-      const stamp = loadStamp(storage) ?? stampOf(bundle)
+      // No stamp is the case every install had on the day this shipped, and the
+      // synthesised value decides what those installs receive ONCE.
+      //
+      // Synthesising from the CURRENT bundle — the first version of this — is
+      // correct and useless: every bundled record becomes "already known", so
+      // nothing is added, and the records that motivated the whole fix stayed
+      // invisible on exactly the devices that reported them missing. The
+      // baseline is a real past release instead, so the backlog between it and
+      // now arrives once; the first accepted save then writes a real stamp and
+      // this path is never taken on that device again.
+      const stamp = loadStamp(storage) ?? { ids: [...baseline] }
       const repaired = mergeWithRepair(stored.source, bundle, stamp)
       return { source: repaired.source, failedToLoad: false, mergeFailed: repaired.declined }
     }
