@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { ContentSource, ValidationError } from '@content/load'
 import type { DraftKind } from '@editor/draft'
+import { stampOf } from '@content/merge'
+import { bundledContentSource } from '@content/sets/bundled'
 import { exportContent, importContent } from '@editor/io'
-import { browserStorage, saveContent } from '@editor/storage'
+import { browserStorage, saveContent, saveStamp } from '@editor/storage'
 import { EditorLibrary, type LibraryOpen } from './EditorLibrary'
 import { EditorRooms } from './EditorRooms'
 import { useTranslate } from './i18n'
@@ -69,6 +71,13 @@ export function Edit({
       return
     }
     const result = saveContent(storage, next)
+    // The stamp advances here and nowhere else, and ONLY on the ok branch
+    // (PLAN-bundled-content-merge ADR-003). `saveContent` refuses on quota
+    // rather than throwing, so an unconditional write would leave the stamp
+    // ahead of content that was never stored — and every record in this save
+    // would read as one the author had deleted on the next load, and disappear.
+    // The invariant is one-directional: the stamp may lag the content, never lead it.
+    if (result.ok) saveStamp(storage, stampOf(bundledContentSource))
     setStatus(result.ok ? t('ui.editor.storage.saved') : result.message)
   }
 

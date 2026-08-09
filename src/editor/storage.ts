@@ -1,4 +1,5 @@
 import type { ContentSource, ValidationError } from '@content/load'
+import type { BundleStamp } from '@content/merge'
 import { importContent } from './io'
 
 /**
@@ -69,6 +70,68 @@ export function loadStoredContent(storage: Storage): LoadResult {
     reason: 'invalid',
     message: 'saved content no longer validates against this build',
     errors: result.errors,
+  }
+}
+
+/**
+ * Which bundled ids existed when the author last saved
+ * (PLAN-bundled-content-merge ADR-002).
+ *
+ * Its own key, deliberately. The obvious home is a field on the saved document
+ * and it does not survive one round trip: `loadStoredContent` below reads through
+ * `importContent`, which rebuilds the source field by field, so an unknown
+ * top-level field is silently dropped on the very next read.
+ */
+export const STAMP_KEY = 'strange-chess.bundle-stamp.v1'
+
+/**
+ * The stored stamp, or null when there isn't a usable one.
+ *
+ * Every failure — absent, corrupt, wrong shape, storage denied — resolves to
+ * null, and the caller then synthesises a stamp from the current bundle
+ * (ADR-003), which adds nothing. That direction is the safe one. The unsafe
+ * direction is a stamp read too permissively: a stamp naming ids the saved
+ * document does not have makes records the author can still see look like
+ * records they deleted (ADR-001 row 6), and they vanish. Hence the shape check
+ * rather than a cast — the stamp may lag the content, never lead it.
+ */
+export function loadStamp(storage: Storage): BundleStamp | null {
+  let raw: string | null
+  try {
+    raw = storage.getItem(STAMP_KEY)
+  } catch {
+    return null
+  }
+  if (raw === null) return null
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const ids = (parsed as { ids?: unknown }).ids
+  if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) return null
+  return { ids: ids as string[] }
+}
+
+/**
+ * Advance the stamp. Never throws.
+ *
+ * The one call site is the editor's save path, and only on the branch where
+ * `saveContent` returned ok — so this write is always the second of a pair whose
+ * first half already succeeded. Letting it throw would turn a full quota into a
+ * crash on a save that had just worked, and losing a stamp write costs the author
+ * nothing: the merge recomputes from a stale stamp safely (the affected ids
+ * become ADR-001 row 5, so the saved records are kept) and the next accepted save
+ * re-synchronises.
+ */
+export function saveStamp(storage: Storage, stamp: BundleStamp): void {
+  try {
+    storage.setItem(STAMP_KEY, JSON.stringify(stamp))
+  } catch {
+    // Intentionally silent — see above. The content is already stored.
   }
 }
 

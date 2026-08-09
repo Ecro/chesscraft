@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STORAGE_KEY, loadStoredContent, saveContent } from '@editor/storage'
+import { STAMP_KEY, STORAGE_KEY, loadStamp, loadStoredContent, saveContent, saveStamp } from '@editor/storage'
 import { sliceContentSource } from '@content/sets/slice'
 
 /**
@@ -138,5 +138,88 @@ describe('browser-local content storage', () => {
     expect(loaded.ok).toBe(false)
     if (loaded.ok) return
     expect(loaded.reason).toBe('unavailable')
+  })
+})
+
+/**
+ * The bundle stamp (PLAN-bundled-content-merge ADR-002, ADR-003).
+ *
+ * A SECOND key beside the content, holding which bundled ids existed when the
+ * author last saved. It is deliberately not a field on the document: the read
+ * path goes through `importContent`, which rebuilds the source field by field,
+ * so an extra top-level field is silently dropped on the very next read.
+ *
+ * Everything here is a variation on one invariant — **the stamp may lag the
+ * content, never lead it.** A lagging stamp is self-healing (the affected id is
+ * ADR-001 row 5, so the saved record, already the newer copy, is kept, and the
+ * next successful save re-synchronises). A LEADING stamp makes a record the
+ * author can see look like one they deleted, and it disappears. So every failure
+ * mode here — corrupt, absent, denied, quota — must resolve toward "no stamp",
+ * never toward "a stamp we guessed at".
+ */
+describe('the bundle stamp', () => {
+  it('round-trips through its own key, leaving the content key alone', () => {
+    const storage = new FakeStorage()
+    saveContent(storage, structuredClone(sliceContentSource))
+    const before = storage.getItem(STORAGE_KEY)
+
+    saveStamp(storage, { ids: ['piece.king', 'preset.classic'] })
+    expect(loadStamp(storage)).toEqual({ ids: ['piece.king', 'preset.classic'] })
+    expect(STAMP_KEY).not.toBe(STORAGE_KEY)
+    expect(storage.getItem(STORAGE_KEY)).toBe(before)
+  })
+
+  it('reads as absent on a first run', () => {
+    expect(loadStamp(new FakeStorage())).toBeNull()
+  })
+
+  it('reads a corrupt stamp as absent rather than throwing', () => {
+    const storage = new FakeStorage()
+    storage.setItem(STAMP_KEY, '{ not json')
+    expect(loadStamp(storage)).toBeNull()
+  })
+
+  it.each([
+    ['an array', '[]'],
+    ['a bare string', '"piece.king"'],
+    ['null', 'null'],
+    ['no ids field', '{}'],
+    ['ids that is not an array', '{"ids":"piece.king"}'],
+    ['ids holding non-strings', '{"ids":["piece.king",7]}'],
+  ])('reads a stamp shaped like %s as absent', (_label, json) => {
+    // Absent, not "partially usable". A stamp read too permissively is a stamp
+    // that can lead the content, which is the one direction that loses records.
+    const storage = new FakeStorage()
+    storage.setItem(STAMP_KEY, json)
+    expect(loadStamp(storage)).toBeNull()
+  })
+
+  it('reads as absent when the browser denies storage, rather than throwing', () => {
+    const denied: Storage = {
+      length: 0,
+      key: () => null,
+      getItem: () => {
+        throw new Error('SecurityError')
+      },
+      setItem: () => {
+        throw new Error('SecurityError')
+      },
+      removeItem: () => {},
+      clear: () => {},
+    }
+    expect(loadStamp(denied)).toBeNull()
+    // And the write is not allowed to take the app down with it: the stamp is a
+    // nicety, the content save it accompanies is not.
+    expect(() => saveStamp(denied, { ids: ['piece.king'] })).not.toThrow()
+  })
+
+  it('swallows a quota failure on the stamp write, keeping the previous stamp', () => {
+    const stamp = { ids: ['piece.king'] }
+    const storage = new FakeStorage(JSON.stringify(stamp).length + 20)
+    saveStamp(storage, stamp)
+    expect(loadStamp(storage)).toEqual(stamp)
+
+    expect(() => saveStamp(storage, { ids: Array.from({ length: 200 }, (_, i) => `piece.p${i}`) })).not.toThrow()
+    expect(loadStamp(storage)).toEqual(stamp)
   })
 })

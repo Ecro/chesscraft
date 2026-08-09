@@ -169,8 +169,8 @@ consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 `-webkit-text-stroke` are all silently inert on `<img>`, `<canvas>`, `<svg>` and
 `<iframe>`.
 
-## Proposal: mutate every new guard once before believing it (2026-08-07)
-**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 4)
+## Proposal: mutate every new guard once before believing it (2026-08-07, re-evidenced 2026-08-09)
+**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 6)
 **Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
 **Rationale:** All three instances are a test whose assertion is satisfied by the
 state the code is already in, so no implementation could fail it. Reading the
@@ -182,6 +182,43 @@ The rule would be "a new guard is not done until you have seen it fail", with th
 mutant and its red output recorded in the PR body. Three of this session's
 guards were validated exactly this way and two of them were vacuous until the
 mutant proved it.
+
+**2026-08-09 — this proposal's own non-ingestion is now the evidence for it.**
+`bundled-content-merge` ran the Phase A.5 `test-reviewer` gate four times, once per
+PLAN phase. All four returned PASS with zero blocking issues, and **not one of them
+mutated anything** — the gate reads tests, which is exactly the method this proposal
+says cannot work. Two of the tests it certified could not fail. They were caught by a
+cross-model voter, and then *confirmed* by mutation (`stampOf → { ids: [] }`, and
+injecting the stamp-write-when-absent regression); both mutations were survived by the
+originals and are killed by the rewrites. So the gate that exists to catch this class
+has now passed it six times while a mechanism costing one command per guard sat
+unadopted in this file for two days. Concrete ask, narrower than "add mutation
+testing": make Phase A.5 require, for each authored guard, ONE named mutant and its red
+output pasted into the gate's own JSON — a reviewer that cannot run code should be asked
+for the mutant the AUTHOR ran, not for its own opinion about whether the assertion looks
+live. Related: [[rule-checked-where-it-was-announced]], which is why reading is
+structurally the wrong instrument here.
+
+## Proposal: revert the fix and watch the regression test go red (2026-08-09)
+**Triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 1) — filed
+below the count>=3 bar deliberately, because the mechanism is nearly free and this
+instance was caught only by accident.
+**Proposed mechanism:** rule update — one step in `/hm:execute` Phase D, for any phase
+whose deliverable is described as a regression test
+**Rationale:** A PLAN that says "this is the only test that would have failed before the
+fix" is making a checkable claim, and nothing in the pipeline checks it. In
+`bundled-content-merge` the claim was checked by hand — `initialSource` was reverted to
+its pre-fix body and the file re-run — and it came back **3 of 4 failing**, with the one
+passing test vacuous for a reason no gate could see: the fixture removed records without
+pruning, so the document failed validation, execution took the `failedToLoad` fallback,
+and that fallback returns the WHOLE current bundle, satisfying every "the new record is
+present" assertion with the merge never invoked. Four green gates, a green typecheck, and
+a passing test-quality review all held while that test proved nothing. The mechanism is
+three commands: stash the fix, run the named test file, confirm it is red, restore. It
+subsumes nothing that mutation testing does — it is cheaper and it targets the one claim
+that matters for a regression gate — and unlike mutation it needs no tooling. Make it a
+required Phase D line whenever a phase's exit criterion names a regression test, with the
+pre-fix red output recorded next to it.
 
 ## Proposal: check the comment against the code it justifies (2026-08-07)
 **Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 8)

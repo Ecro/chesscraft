@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { type ContentSource, loadContentSet } from '@content/load'
+import { type ContentSource, type LoadResult as LoadSetResult, type ValidationError, loadContentSet } from '@content/load'
+import { type BundleStamp, COLLECTIONS, mergeBundled, stampOf } from '@content/merge'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
-import { browserStorage, loadStoredContent } from '@editor/storage'
+import { browserStorage, loadStamp, loadStoredContent } from '@editor/storage'
 import { Boot } from './Boot'
 import { Edit } from './Edit'
 import { Home } from './Home'
@@ -18,27 +19,126 @@ import { TranslateContext, makeTranslate } from './i18n'
 import { applyUpdate, registerServiceWorker } from './sw-update'
 
 /**
- * Content the author saved in this browser, or the shipped set on a first run.
+ * Which additions to give up on, given the errors the merged document produced
+ * (PLAN-bundled-content-merge ADR-004).
  *
- * Stored content that no longer validates is DISCARDED rather than loaded: a
- * build whose schema moved on must still start, and a half-loaded set is the
- * boundary AC-011 exists to hold. The author's work is not silently deleted —
- * it stays in storage until the next save overwrites it.
+ * An addition can dangle: this release ships a new room, the room needs a skill
+ * card, and this author deleted that card. `loadContentSet` Pass 2 then rejects
+ * the WHOLE document — and failing to start is far worse than not merging.
+ *
+ * Attribution is the difficulty. Pass 2 has error classes that do not name the
+ * record that changed: the loadout `replaces` check reports against a preset, the
+ * paired-square symmetry check against a board. So "the candidate the error
+ * names" can be nothing at all, and a loop that only ever declines that would
+ * make no progress and never terminate. Hence the second clause, and hence the
+ * caller's decline-everything fallback when this returns empty.
+ *
+ * The reference side is a substring scan over the named records rather than a
+ * per-schema reference table. Deliberate: the table is the part that rots — it
+ * has to be extended every time a record gains a field that names another record
+ * — and being over-broad here costs at most a declined addition, which ADR-004
+ * accepts by name ("correctness beats completeness").
  */
-function initialSource(): { source: ContentSource; failedToLoad: boolean } {
+function additionsToDecline(errors: ValidationError[], merged: ContentSource, candidates: string[]): string[] {
+  const named = new Set(errors.map((e) => e.contentId))
+  const namedRecords: string[] = []
+  for (const name of COLLECTIONS) {
+    for (const record of merged[name]) {
+      const id = (record as { id?: unknown }).id
+      if (typeof id === 'string' && named.has(id)) namedRecords.push(JSON.stringify(record))
+    }
+  }
+  return candidates.filter((id) => named.has(id) || namedRecords.some((text) => text.includes(id)))
+}
+
+/**
+ * The merged document, repaired to something that validates (ADR-004).
+ *
+ * Terminates because every round strictly shrinks the candidate set: an addition
+ * declined is never a candidate again, and when attribution names none of them
+ * they are ALL declined, which empties the set outright. The worst fixed point is
+ * therefore the saved document — and the saved document is valid by construction,
+ * since `loadStoredContent` reaches its ok branch only through `importContent`,
+ * which runs `loadContentSet` and fails closed. So repair always converges on
+ * something that starts.
+ *
+ * `validate` is injected so the attribution-failure round is reachable in a test.
+ * No real bundle produces one, which is exactly why it cannot be left unproven.
+ */
+export function mergeWithRepair(
+  saved: ContentSource,
+  bundle: ContentSource,
+  stamp: BundleStamp,
+  validate: (source: ContentSource) => LoadSetResult = loadContentSet,
+): { source: ContentSource; declined: string[] } {
+  const declined = new Set<string>()
+  for (;;) {
+    const { source, added } = mergeBundled(saved, bundle, stamp, declined)
+    // Nothing to add is the ordinary load, and it skips Pass 2 entirely: the
+    // saved document already validated on its way out of storage.
+    if (added.length === 0) return { source, declined: [...declined] }
+
+    const result = validate(source)
+    if (result.ok) return { source, declined: [...declined] }
+
+    const next = additionsToDecline(result.errors, source, added)
+    // Empty attribution — decline all remaining. This is the progress rule, and
+    // without it the loop can spin on an error that names no candidate.
+    for (const id of next.length > 0 ? next : added) declined.add(id)
+  }
+}
+
+/**
+ * Content the author saved in this browser, or the shipped set on a first run —
+ * plus whatever this release has added since they last saved.
+ *
+ * The bug that made the merge necessary: `STORAGE_KEY` holds the whole document,
+ * and this function used to return it whenever it validated, so the first editor
+ * save froze that browser's catalogue permanently. New presets and boards
+ * appeared on a fresh install and nowhere else.
+ *
+ * **Nothing is written here** (ADR-003), and that is load-bearing rather than
+ * tidy. Writing the stamp at load would make the next load see the additions in
+ * the stamp and not in the saved set — ADR-001 row 6, "the author deleted it" —
+ * so the merge would classify its own additions as deletions and drop them. It
+ * would have worked once per session and reverted on reload. The stamp advances
+ * only in `Edit.tsx`, only on an accepted save.
+ *
+ * Stored content that no longer validates is still DISCARDED rather than loaded:
+ * a build whose schema moved on must still start, and a half-loaded set is the
+ * boundary AC-011 exists to hold. The author's work is not silently deleted — it
+ * stays in storage until the next save overwrites it.
+ *
+ * `bundle` is a parameter so a test can play a release forward against a document
+ * saved under an earlier one; production always uses the default.
+ */
+export function initialSource(bundle: ContentSource = bundledContentSource): {
+  source: ContentSource
+  failedToLoad: boolean
+  /** Additions ADR-004 gave up on. Its own flag: `failedToLoad` means the author's work did not load. */
+  mergeFailed: string[]
+} {
   const storage = browserStorage()
   if (storage) {
     const stored = loadStoredContent(storage)
-    if (stored.ok) return { source: stored.source, failedToLoad: false }
+    if (stored.ok) {
+      // No stamp is the case EVERY install alive today is in. Synthesising one
+      // from the current bundle is the whole of the absent-case behaviour:
+      // nothing is new relative to it, so nothing is added and no deletion is
+      // resurrected. The backlog is forgone once, and every release after is exact.
+      const stamp = loadStamp(storage) ?? stampOf(bundle)
+      const repaired = mergeWithRepair(stored.source, bundle, stamp)
+      return { source: repaired.source, failedToLoad: false, mergeFailed: repaired.declined }
+    }
     // `absent` is a first run, not a failure. Every other reason means the
     // author HAS saved something and it did not come back — which until now was
     // handled by silently starting on the shipped set, so a child whose content
     // failed a schema bump simply found their work gone with no explanation.
     if (stored.reason !== 'absent') {
-      return { source: structuredClone(bundledContentSource), failedToLoad: true }
+      return { source: structuredClone(bundle), failedToLoad: true, mergeFailed: [] }
     }
   }
-  return { source: structuredClone(bundledContentSource), failedToLoad: false }
+  return { source: structuredClone(bundle), failedToLoad: false, mergeFailed: [] }
 }
 
 /**
@@ -289,7 +389,18 @@ export function App() {
       {/* The route is on the shell so CSS can size and frame each screen without
           a second wrapper per screen — and so the phone-shaped body can drop its
           chrome on the two screens (`boot`, `play`) that fill it edge to edge. */}
-      <main data-route={route}>
+      {/*
+        Which newly shipped records could not be added (ADR-004). An attribute
+        rather than a notice, on purpose: ADR-003 rules out announcing content
+        that is not coming, and a child cannot act on "one room needed a card you
+        deleted" anyway. But a field report is a DOM capture, and a merge that
+        silently declined something is precisely what one needs to say — so the
+        ids are here, where the person debugging the device will find them and the
+        player never will. (No content id appears in this file as a literal — that
+        is the ADR-001 structure gate, and it caught the first draft of this very
+        comment.)
+      */}
+      <main data-route={route} {...(initial.mergeFailed.length > 0 ? { 'data-merge-declined': initial.mergeFailed.join(' ') } : {})}>
         {/*
           The phone body. Everything the app draws lives inside it, INCLUDING the
           tab bar — which is why it is a wrapper rather than each screen sizing
