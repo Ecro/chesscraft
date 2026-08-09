@@ -135,6 +135,38 @@ export function saveStamp(storage: Storage, stamp: BundleStamp): void {
   }
 }
 
+/**
+ * Forget everything this browser has saved, so the next load is a first run.
+ *
+ * The escape hatch. The merge decides what an install receives from a stamp and
+ * a saved document, and both of those are inferences about what the author
+ * meant — when they are wrong, or when a device is simply stuck, there has to be
+ * one action a person can take that is not an inference. This is it: drop both
+ * keys and the app falls back to the shipped set, whole.
+ *
+ * BOTH keys, and that is the load-bearing part. Clearing the content while
+ * leaving the stamp behind would be worse than doing nothing: the next save
+ * would write a fresh document under an old stamp, and every record the stamp
+ * names and the document lacks reads as a deletion the author never made. A
+ * stamp without its content is the one state the invariant forbids.
+ *
+ * Never throws — a browser that denies storage has nothing to clear anyway, and
+ * this is the button a person presses when things are already going wrong.
+ */
+export function clearStoredContent(storage: Storage): void {
+  try {
+    storage.removeItem(STORAGE_KEY)
+  } catch {
+    // Nothing to report: the caller's next load reads storage directly.
+  }
+  try {
+    storage.removeItem(STAMP_KEY)
+  } catch {
+    // Separate try so a failure on the first key cannot skip the second — that
+    // asymmetry is exactly the stamp-without-content state described above.
+  }
+}
+
 /** `localStorage`, or null when the browser refuses to hand it over. */
 export function browserStorage(): Storage | null {
   try {

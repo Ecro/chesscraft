@@ -282,6 +282,10 @@ export const ko: Record<string, string> = {
   'ui.editor.transfer.export': '내 것 꺼내기',
   'ui.editor.transfer.import': '받은 것 넣기',
   'ui.editor.transfer.hint': '아래 글자를 복사해서 친구에게 보내면, 친구도 똑같이 만들 수 있어요.',
+  'ui.editor.transfer.reset': '처음 상태로 되돌리기',
+  'ui.editor.transfer.reset-confirm':
+    '이 기기에 저장한 내가 만든 것이 모두 사라지고, 처음 들어 있던 방과 조각만 남아요. 되돌릴 수 없어요. 남기고 싶으면 먼저 「내 것 꺼내기」로 글자를 복사해 두세요. 그래도 되돌릴까요?',
+  'ui.editor.transfer.reset-done': '처음 상태로 되돌렸어요.',
 
   'ui.editor.rooms.title': '내가 만든 방',
   'ui.editor.rooms.intro': '방마다 판과 기물, 나오는 카드가 달라요. 하나 골라서 고치거나 새로 만들어요.',

@@ -4,7 +4,7 @@ import type { DraftKind } from '@editor/draft'
 import { stampOf } from '@content/merge'
 import { bundledContentSource } from '@content/sets/bundled'
 import { exportContent, importContent } from '@editor/io'
-import { browserStorage, saveContent, saveStamp } from '@editor/storage'
+import { browserStorage, clearStoredContent, saveContent, saveStamp } from '@editor/storage'
 import { EditorLibrary, type LibraryOpen } from './EditorLibrary'
 import { EditorRooms } from './EditorRooms'
 import { useTranslate } from './i18n'
@@ -149,6 +149,37 @@ export function Edit({
     commit(result.source)
   }
 
+  /**
+   * Throw this browser's saved content away and go back to the shipped set.
+   *
+   * The escape hatch, and the only control here that is not an inference. What
+   * a device shows is decided by a saved document and a stamp, and both are
+   * guesses about what the author meant; when the guess is wrong — or when a
+   * device is simply stuck on a catalogue that will not move — someone has to be
+   * able to say "start over" without a developer.
+   *
+   * Deliberately does NOT write. It clears both keys and hands the app the
+   * shipped set in memory, so storage is left in the state a browser that has
+   * never been here is in, and the next load takes the genuine first-run path.
+   * Writing the bundle back would look identical today and diverge on the next
+   * release — a saved copy of this build's bundle, with a stamp, receives
+   * nothing new, which is the exact bug this whole feature exists to fix.
+   *
+   * Confirmed, and the confirm names the loss rather than asking "are you sure":
+   * this destroys work a child may have spent hours on, and the export button is
+   * two rows up.
+   */
+  const doReset = () => {
+    if (!window.confirm(t('ui.editor.transfer.reset-confirm'))) return
+    const storage = browserStorage()
+    if (storage) clearStoredContent(storage)
+    setErrors([])
+    setJson('')
+    setLibraryDirty(false)
+    onCommit(structuredClone(bundledContentSource))
+    setStatus(t('ui.editor.transfer.reset-done'))
+  }
+
   return (
     <section className="editor" data-testid="editor">
       <nav className="editor-tabs">
@@ -219,6 +250,9 @@ export function Edit({
         </button>
         <button type="button" data-testid="editor-import" onClick={doImport}>
           {t('ui.editor.transfer.import')}
+        </button>
+        <button type="button" className="danger" data-testid="editor-reset" onClick={doReset}>
+          {t('ui.editor.transfer.reset')}
         </button>
         <textarea data-testid="editor-json" value={json} onChange={(e) => setJson(e.target.value)} rows={4} />
       </fieldset>
