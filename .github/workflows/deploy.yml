@@ -1,14 +1,35 @@
-# Verify, then publish — in that order, with no way to reach the second without the first.
+# Check, then publish — in that order, with no way to reach the second without the first.
 #
-# The repository had no CI at all before this, which meant `npm run verify` — the script
-# that chains typecheck, build, unit tests, build-output tests and both Playwright suites —
-# ran wherever someone remembered to run it. That is a gate in name only. Here the deploy
-# step is a separate job that `needs: verify`, so a red suite does not produce a partial
-# deploy or a deploy at all; GitHub simply never starts the second job.
+# The repository had no CI at all before this, which meant the checks ran wherever someone
+# remembered to run them. That is a gate in name only. Here the deploy step is a separate
+# job that `needs: check`, so a red suite does not produce a partial deploy or a deploy at
+# all; GitHub simply never starts the second job.
 #
-# Two jobs rather than two steps in one, deliberately. In a single job a `continue-on-error`
-# left on a test step, or a later refactor that reorders steps, silently reconnects the two.
-# `needs:` is a dependency the workflow file cannot express incorrectly by accident.
+# Two jobs rather than two steps in one, deliberately. In a single job a
+# `continue-on-error` left on a test step, or a later refactor that reorders steps,
+# silently reconnects the two. `needs:` is a dependency the workflow file cannot express
+# incorrectly by accident.
+#
+# ## What this gate does NOT run, and what that costs
+#
+# It runs `npm run verify:ci` — typecheck, build, unit tests, build-output tests — and
+# NOT the two Playwright suites, which `npm run verify` still runs locally. That is a
+# deliberate narrowing for CI speed (the browser install plus both suites is roughly 5
+# minutes of the 6), and the cost is specific rather than theoretical:
+#
+#   jsdom does not enforce visibility and Playwright does. A control moved behind a
+#   `hidden` container keeps every unit test green while being unreachable to a real
+#   user — four regressions shipped that way in this repo before the e2e suite existed
+#   (`[fail:test] jsdom-visibility-blind-spot`). Nothing in this workflow can catch that
+#   class any more.
+#
+# So the e2e suites are now a LOCAL gate, not a deploy gate. Run `npm run verify` before
+# pushing anything that touches UI reachability, layout, service-worker behaviour, or a
+# `data-testid` some spec drives. If you want the browser gate back in CI, restore the
+# `npx playwright install --with-deps chromium webkit` step and swap `verify:ci` for
+# `verify` — that pairing is the whole change, and the install list is coupled to the
+# `projects` in `playwright.config.ts` (a project naming an engine that is not installed
+# fails as dozens of broken tests rather than one missing download).
 name: deploy
 
 on:
@@ -21,7 +42,7 @@ on:
   # Re-deploy what is already on master, without inventing a commit to do it.
   #
   # This DOES reach the deploy job — see the `if` below — and that is the point. A
-  # dispatch that only ran `verify` would be the more cautious-looking choice and would
+  # dispatch that only ran the checks would be the more cautious-looking choice and would
   # test strictly less: the deploy job is where the Cloudflare credentials are used, so a
   # button that skips it can be green with a wrong or absent token. The cases this exists
   # for are re-running a deploy after rotating a secret, and re-publishing after a
@@ -38,7 +59,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,40 +71,18 @@ jobs:
 
       - run: npm ci
 
-      # Both Playwright suites are part of `verify`, and neither can run without a
-      # browser. `--with-deps` because the runner image does not carry the shared
-      # libraries these engines need.
-      #
-      # **This list is coupled to the `projects` in playwright.config.ts and must be
-      # updated with them.** It said "chromium only" and justified itself with "both
-      # configs declare a single `mobile-portrait` project" — true when it was written,
-      # and false the moment a `mobile-webkit` project on `devices['iPhone 13']` was
-      # added without touching this line. Every webkit test then failed with
-      # `browserType.launch: Executable doesn't exist`, which reads as 60-odd broken
-      # tests rather than as one missing download.
-      #
-      # Nothing enforces the coupling: a Playwright project names a device, the device
-      # implies an engine, and no check compares that against this argument. So the
-      # engines are listed explicitly rather than derived, and the config is where you
-      # look when a launch fails here. `playwright.pwa.config.ts` still declares only
-      # `mobile-portrait` (chromium) and needs nothing of its own.
-      - run: npx playwright install --with-deps chromium webkit
+      # A SCRIPT, not a list of steps here. CI listing its own steps is how CI and the
+      # local gate drift, and the one that drifts is always the one nobody runs by hand.
+      # `verify:ci` sits directly beneath `verify` in package.json so the narrowing is
+      # visible in one place rather than inferred by diffing this file against that one.
+      - run: npm run verify:ci
 
-      # The authoritative gate, unchanged and unsplit. If this script grows a step, CI
-      # gets it for free; if CI listed the steps itself the two would drift, and the one
-      # that drifts is always the one nobody runs locally.
-      - run: npm run verify
-
-      # `verify` already built. Handing `dist/` to the deploy job means the bytes that get
-      # published are the exact bytes the suite passed against, rather than the output of a
-      # second build that nothing verified.
+      # `verify:ci` already built. Handing `dist/` to the deploy job means the bytes that
+      # get published are the exact bytes the checks passed against, rather than the
+      # output of a second build that nothing checked.
       #
-      # That is only true because `verify` runs `test:build` LAST. It used to run it fourth,
-      # before `e2e:pwa` — and `playwright.pwa.config.ts` rebuilds `dist/` from scratch to
-      # serve a real build, so the artifact uploaded here was the output of a second `vite
-      # build` that the build-output assertions had never seen. Two builds from the same
-      # source are near-certainly identical, but "near-certainly" is not what this comment
-      # was claiming, and the fix was an ordering change rather than a caveat.
+      # That is only true because `verify:ci` runs `test:build` LAST, after `build`. Keep
+      # that order: the build-output assertions must see the artifact this uploads.
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -91,7 +90,7 @@ jobs:
           retention-days: 1
 
   deploy:
-    needs: verify
+    needs: check
     # Pull requests run the gate and stop here. Only `master` publishes — whether it got
     # here from a push or from the manual button, both of which can only be on `master`
     # anyway (the `push` trigger is branch-filtered, and a dispatch runs on the branch it
@@ -114,7 +113,7 @@ jobs:
           path: dist/
 
       # `npx wrangler deploy`, not `npm run deploy` — that script rebuilds first, which
-      # would discard the verified artifact downloaded above and publish something no
+      # would discard the checked artifact downloaded above and publish something no
       # suite has seen. The script exists for a human deploying from a laptop, where
       # rebuilding IS the safe default.
       #
