@@ -5,7 +5,7 @@ import { PIXEL_PALETTE, PIXEL_SPRITES, type PixelSprite, runsOf } from '@ui/art/
 /**
  * The sprite sheet's own invariants (Chess Craft redesign).
  *
- * Every mark in the app is 12 rows of 12 characters in a table, which is the
+ * Every mark in the app is `SPRITE_SIZE` rows of that many characters in a table, which is the
  * cheapest possible art pipeline and the easiest one to break by eye: a row with
  * eleven characters shifts every pixel after it, and a typo'd palette character
  * silently paints magenta. Neither shows up in a typecheck.

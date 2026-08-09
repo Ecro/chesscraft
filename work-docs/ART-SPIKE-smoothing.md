@@ -106,8 +106,60 @@ marks did not render offline". Neither was a contrast or an offline regression; 
 naming an element instead of a shape. Both now match `rect, path`. The first grep for this missed
 the second one because it did not include `e2e-pwa/` in its search path.
 
+## C — built (PLAN-art-grid-resolution)
+
+C was the re-plan ADR-006 called for, and it happened: the grid is **24×24**, reached by a
+lossless 2× block expansion of all 209 committed tables, after which the 12 piece sprites a
+player actually sees were redrawn by hand. 16 was rejected on evidence — 12→16 is 4/3 with no
+lossless migration path, so nearest-neighbour would turn a one-cell outline into an
+alternating one/two-cell edge and read as *more* staircase.
+
+**Two premises in the framing were false and both were checked before planning.** There is no
+sprite generator to "regenerate" with — `scripts/gen-sprites.ts` scores candidates, it does
+not draw them, so all 209 tables are hand-authored and 84 of them exist twice. And a
+mechanical 2× upscale is a visual **no-op**: it leaves the silhouette bit-identical, and
+because `CORNER_RADIUS` is in cell units it actually makes marks *sharper* unless the constant
+is doubled alongside. The migration is the enabling step; it is not the deliverable.
+
+### What C actually cost, and what it actually bought
+
+**Raising the grid halves the physical size of every feature.** A mark renders at 34px here,
+so a 24-grid cell is **1.42 device pixels** where a 12-grid cell was 2.83. A one-cell outline
+is thinner than the display can draw at strength, and it stops being a large enough share of
+the ink for the rendered probe's 10th percentile to land on — so the mark fails the 3.30:1
+floor **as rendered** while passing the character gate that only reads the table. Nine board
+squares went red this way, and the cause was found by measurement rather than argument:
+`CORNER_RADIUS` at 0.0, 0.3 and 0.6 all produced the same worst mark and the same nine
+failures, so the rounding was not it. Outline share had fallen from 41–59% to as low as 14.5%
+on every refined sprite while the untouched controls were unchanged.
+
+The consequence for anyone raising a grid after this: **a meaningful share of the new
+resolution has to be spent on a thicker outline, not on detail.** The net gain is real but
+smaller than "four times the cells" suggests. Two metrics now hold the balance and they pull
+in opposite directions on purpose — `subBlockDetail ≥ 20%` (a doubled 12×12 sprite scores 0%)
+and `outlineShare ≥ 35%` — with `tintShare ≥ 30%` beside them so a silhouette still tells the
+two armies apart. They live in `scripts/sprite-metrics.ts` and are enforced by
+`tests/ui/art-refined-pieces.test.ts`.
+
+### The radius, re-derived
+
+`CORNER_RADIUS` 0.3 → **0.6**, the only value that holds the absolute radius steady across the
+migration. The sweep is flat — 3.55:1 worst mark at every radius from 0.30 to 0.90 — and the
+flatness is explained rather than shrugged at: the worst mark is a **painted square at 27px**
+whose ratio is set by its palette tone, and rounding cannot change a fill. `smooth.ts` carries
+the full table with the clamped-corner column beside it, because a sweep without that column
+reads as "the radius is inert" when what is really happening is that `pathOf` clamps every
+corner to a third of its shorter edge.
+
+### Gate constants
+
+`RECT_CAP` and `SHEET_DIVISOR` are now derived from `SPRITE_SIZE` rather than restated —
+`5 * SPRITE_SIZE` and `(SPRITE_SIZE * 3) / 20`. Leaving the divisor at 1.8 would not merely
+weaken the sheet-wide compression gate at 24×24, it would kill it: the upscaled dither fixture
+clears a floor of 1.8 and is caught only by 3.6. The divisor is written as a fraction, not as
+`0.15 * SPRITE_SIZE`, because those are **not** the same double — `0.15 * 12` is
+1.7999999999999998 and the refactor would not have been behaviour-preserving.
+
 ## Still open
 
-`work-docs/ART-SPIKE-smoothing.md` records that C (raising the grid to 16×16 or 24×24) remains
-unbuilt and is a re-plan trigger under ADR-006. B changes the silhouette; C would change the
-detail budget, which is a different request from the one that was made.
+Nothing from this spike. A and C are measured and closed; B shipped.

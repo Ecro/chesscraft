@@ -12,8 +12,8 @@ import * as gates from '../src/ui/art/gates.ts'
  *
  * **It refuses what the suite refuses, by importing the suite's own module.**
  * `GATES` is re-exported so `sprite-generator.test.ts` can assert module
- * IDENTITY. A generator holding its own copy of "12x12, palette-only, at most 60
- * rects" passes a behavioural test the day it is written and drifts afterwards;
+ * IDENTITY. A generator holding its own copy of "a fixed grid, palette-only, a fixed
+ * rect cap" passes a behavioural test the day it is written and drifts afterwards;
  * the first sign of the drift is a committed sprite failing CI.
  *
  * **The sheet aggregate is checked per candidate, not at the end.** `runs <
@@ -37,7 +37,7 @@ export const GATES = gates
 
 export type Surface = 'piece' | 'square' | 'card'
 
-/** A sprite offered to the gates. `rows` is 12 rows of 12 characters when valid. */
+/** A sprite offered to the gates. `rows` is `SPRITE_SIZE` rows of that many characters when valid. */
 export type Candidate = {
   name: string
   surface: Surface

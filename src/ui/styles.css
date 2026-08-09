@@ -1382,7 +1382,7 @@ hr {
  *   reader who suppresses motion still gets both ends of the move.
  * - **Destination** — a ring that snaps inward onto the square and is gone.
  *   Four hard steps, no fade and no blur, because everything here is drawn from
- *   12x12 sprites and a smooth ring would be the one soft edge on the board.
+ *   blocky sprites and a smooth ring would have been the one soft edge on the board.
  *
  * `::before` rather than `::after`: `[data-legal-kind='move']` already owns
  * `::after` for the legal-move dot, and a square can be BOTH the last

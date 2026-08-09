@@ -12,7 +12,7 @@
 export const ko: Record<string, string> = {
   // --- pieces ---
   // The `.icon` entries are gone (Chess Craft redesign). Every bundled record
-  // now carries an `artKey` into the app's own 12x12 sprite sheet, and the note
+  // now carries an `artKey` into the app's own sprite sheet, and the note
   // that used to sit on the archer is why: an emoji is drawn from a colour font
   // that ignores `color` and `font-weight`, so it inherits neither of the two
   // cues ADR-007 spends separating the armies, and both sides' archers rendered
