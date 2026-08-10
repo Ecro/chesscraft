@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/second-opinion-gate/SKILL.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Procedure /hm:review follows for the auto-fix loop's round-state co
   and additionally for the cross-model second-opinion acceptance gate (oracle gathering,
   PIDA dispositions, the frozen finding set) when harness.yaml second_opinion.models
   is non-empty.
-content_hash: 6f976f8b723b2e694d1d75f3e1aac6323284110122af7f84cb67735e99322a85
+content_hash: cb371fbcc51821525ef12a27016bf19ac6a9971c48f7bb05f35558b2f4b90a7d
 ---
 
 # second-opinion-gate
@@ -35,7 +35,7 @@ hand-derived id changes between rounds and the round-2 merge matches nothing. Pi
 findings through the stamper:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm codex_adapter stamp-ids < <the temp path you wrote>
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm codex_adapter stamp-ids < <the temp path you wrote>
 ```
 
 **`Write` the payload to a file; never embed it in argv.** A single apostrophe in any finding
@@ -71,7 +71,7 @@ never refute anything. This step is independent of that key.
 call the gatherer, which owns every rule below:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_oracle --findings-file <path> --root .
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_opinion_oracle --findings-file <path> --root .
 ```
 
 The `cd` is load-bearing: `--root .` resolved at the base repo gives an empty
@@ -92,13 +92,28 @@ shell metacharacter needed (`pytest --basetemp=<dir>` removes that directory). P
 filter in prose would have left the taint path in code and only the defence in prose.
 
 What the gatherer enforces, so you do not have to:
+<!-- @hm:oracle-command-surface -->
 
+0. **Toolchain gating** — the commands come from the project's root-level `toolchains` block
+   in `harness.yaml`, read from the **base** repo (a worktree may gitignore `.claude/`). A path
+   whose file type no entry claims gets **zero** commands run and is listed in the no-oracle
+   tail with its extension. Running a tool that cannot parse the subject does not produce a
+   degraded oracle, it produces a fabricated one — output that reads to the mode-B rubric as
+   either a false `accepted` or, once truncated, a silent `unresolved`. With no `toolchains`
+   key at all, `.py`/`.pyi` keep the historical Python checks and every other extension gets
+   nothing; a **malformed** block is fail-closed (no oracle) rather than falling back.
 1. **Path filtering** — rejects option-shaped (`-…`), absolute, `..`-traversing and
-   metacharacter-bearing paths, and anything outside `git diff --name-only HEAD`.
+   metacharacter-bearing paths, and anything outside `git diff --name-only HEAD`. Command
+   templates are tokenised **before** `{path}` is substituted, so a path containing a space
+   stays one argv element.
 2. **Budget** ≤ 4000 characters total, ≤ 1500 per command.
 3. **Visible truncation** — `[… truncated N chars …]`, so a fragment announces itself.
-4. **Association** — every block is labelled with the finding `id` it was gathered for; findings
-   that got none are listed explicitly as `unresolved` territory, not refutation.
+4. **Association** — every per-path block is labelled with the finding `id` it was gathered for
+   and the toolchain that produced it; findings that got none are listed explicitly as
+   `unresolved` territory, not refutation, **grouped by cause** (unusable path vs uncovered
+   file type — those have opposite remedies). Output from a repo-scoped command is emitted as
+   an **unlabelled** project-wide block on purpose: a repo-wide failure can come from anywhere
+   in the tree, so labelling it with every covered id would manufacture corroboration.
 5. **Redaction** — value-shaped (not keyword-shaped): API/GitHub/AWS keys, `Bearer` values,
    credentialed URLs, bare JWTs, and whole PEM blocks via a stateful mode. ANSI stripped.
    (`hm two_pass_review redact` is **not** this control — it rewrites PR metadata fields in a
@@ -161,7 +176,7 @@ argv-embedded (shell quoting, `ARG_MAX`, and finding text must not be shell-expa
 one call:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
 ```
 
 - The invoker resolves the **base** repo root, so rows survive `task-land`. A row written

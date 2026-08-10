@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/test-reviewer.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Phase A.5 gate for /hm:execute. Critiques RED-stage tests for SPEC 
   Read-only.
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: ac455fa1acbc0ef1212e2ee9560a80dbd5c3c75cb3322d54f18354e974987c13
+content_hash: d43a14ea6ff1d0b2b0409da1a084502c5527707812ccb4ff47dfb9635ea09d32
 ---
 
 # test-reviewer
@@ -124,7 +124,7 @@ Return ONLY this JSON. No prose preamble. No markdown.
   - `PASS` → zero blocking_issues AND zero scenarios_missing AND every per_scenario.quality == "PASS".
   - `FAIL` → otherwise.
 - `per_scenario[].covered_by`: list of test function names from the test file(s) that target this scenario.
-- `passing_tests[]`: list of test function names that survived all rubric checks. These are FROZEN — Phase A retry only rewrites tests in `blocking_issues[].test_function` (do NOT re-author passing tests).
+- `passing_tests[]`: list of test function names that survived all rubric checks. **Advisory — it decides nothing.** The retry's scope is `blocking_issues[].test_function` plus one new test per `scenarios_missing[]`, and nothing else is re-authored. These are bare function names with no `test_file`, so the list cannot identify a test on its own; when several lenses run, the caller intersects it for reporting only.
 - Suggestions / nice-to-haves DO NOT change `overall_assessment`.
 
 ## Hard Rules
@@ -133,7 +133,7 @@ Return ONLY this JSON. No prose preamble. No markdown.
 - **Do not propose implementation code.** You critique tests; the implementation is Phase C's job.
 - **Do not mock-test test infrastructure.** Configuration (pytest.ini, vitest.config) is not in scope unless it directly suppresses test discovery for an in-scope scenario.
 - **Cite, don't paraphrase.** `line:` must point at a real line number in the test file you were given.
-- **Banned-patterns list is authoritative.** Do not invent new categories at runtime — if a violation does not match one of the 8 categories, downgrade to a `suggestion` (which does not block) or accept the test.
+- **Banned-patterns list is authoritative.** Do not invent new categories at runtime. But do NOT silently drop a blocking observation because no category fits — there is no `suggestions` field in the schema above, so "downgrade to a suggestion" would delete it, and `overall_assessment` would then read PASS over a defect you found. Route it into a field the schema has: a scenario with no test → `scenarios_missing[]`; a scenario covered twice, or covered by a test aimed at a different scenario → a `per_scenario` entry for that scenario with `quality: "FAIL"` and the reason named (this blocks — PASS requires every `per_scenario.quality` to be PASS); a test that would also pass a wrong implementation → the closest banned pattern (1, 6 or 8) with the mismatch explained in `reasoning`. Only a genuine nice-to-have — one whose absence costs nothing at Phase D — is dropped.
 
 <!-- @hm:user:extensions -->
 <!-- Project-specific test-reviewer rules (e.g., test naming conventions, fixture patterns). Preserved across harness-maker upgrades. -->

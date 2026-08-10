@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/configure.md.j2
 provenance: official
 description: Change one harness dimension without re-running the full interview.
-content_hash: 8381e6e7489c7d5c300ba2da620a67eec3e5e8ef703eddc6f6f71291594e9a62
+content_hash: cb421517c20f27d533cf4783890d09e7c9a6457a9740b08fa7bf6fdff6619267
 ---
 # /hm:configure
 
@@ -80,7 +80,7 @@ Options (multi-select):
   the list. A missing or unauthenticated CLI warns and skips.
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm cli detect-tools --json
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli detect-tools --json
 ```
 
 - **Autopilot** — `autonomy.level`: `ask` (choose per session — the default) / `gated` (off) / `auto_safe` / `auto_full`, and whether it
@@ -126,7 +126,7 @@ For **Second Brain**: first inspect current state via the CLI subcommand
 time — they MUST delegate state inspection to the CLI per CLAUDE.md §4):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm cli \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli \
   configure-second-brain "$(pwd)" --check
 ```
 
@@ -148,7 +148,7 @@ which prompts to surface:
    non-skip answer, dispatch the folder add through the CLI:
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm cli \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli \
      configure-second-brain "$(pwd)" --add-folder "$SB_FOLDER"
    ```
 
@@ -172,7 +172,7 @@ which prompts to surface:
 Run the CLI with only the changed flags:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm cli make "$(pwd)" \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli make "$(pwd)" \
   --grade-threshold "$GRADE" --domains "$DOMAINS" --mechanical-checks "$CHECKS" \
   --default-model "$MODEL" --focus "$FOCUS" --wrapup-docs "$WRAPUP_DOCS" \
   --ref-folders "$REF_FOLDERS" --sibling-repos "$SIBLING_REPOS" \

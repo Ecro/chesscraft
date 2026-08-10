@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: harness-yaml/Side.yaml.j2
 provenance: official
-content_hash: 504e0dedf1861126d07837c855de3703ad32ec0a1d62465296042ec816967bf7
+content_hash: 7e15d795eb90ae30917e47d11304942ed3fccb8c8940a9a73fc6810597b1258c
 ---
 preset: Side
 locale: ko
@@ -48,6 +48,19 @@ second_brain:
 sibling_repos:
 
 wrapup_docs:
+
+toolchains:
+  - name: "node"
+    extensions:
+      - ".ts"
+      - ".tsx"
+      - ".js"
+      - ".jsx"
+      - ".mjs"
+      - ".cjs"
+    commands:
+      test: "npx --no-install vitest run {path}"
+      types: "npx --no-install tsc --noEmit"
 
 reviewers:
   consensus: single

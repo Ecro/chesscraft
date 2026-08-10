@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/targeted-test-selection/SKILL.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: targeted-test-selection
 description: Procedure for turning a set of changed files into the tests that actually
   cover them, instead of running the whole suite. Followed by /hm:review's auto-fix
   loop on every fix round; mirrors what /hm:execute Phase D does inline.
-content_hash: 7bda1302ad18d7ba974d87a02b222d7870f844feac28b173efa6f1e82c293729
+content_hash: 3dd2a7135806356e84f383d598a5b56550d1fae0c0aa2b6ef3ea96e7b2ce8061
 ---
 
 # targeted-test-selection
@@ -46,7 +46,7 @@ Run this inside **the task worktree** you were given — not the base repo. `git
 invocation returns the base's state and selects tests for changes that are not there.
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
 ```
 
 **Both details of that argument form are load-bearing, and §1's care is wasted without

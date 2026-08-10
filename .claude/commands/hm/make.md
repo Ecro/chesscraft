@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/make.md.j2
 provenance: official
 description: Re-render this project's harness after a plugin update.
-content_hash: 15f30f8e7f1f14ff552b3e3191a0056638e274790844fcc8d5fd53ad079093f2
+content_hash: bee237b45e226e6884cc809ea5a82085173a337011a6c556b0dbbe358f7cbcbf
 ---
 # /hm:make
 
@@ -47,7 +47,7 @@ disambiguates between scopes/projects.
 persist between Bash calls):
 
 ```bash
-!HM=$(ls -1d "$HOME"/.claude/plugins/cache/harness-maker*/harness-maker/[0-9]*.[0-9]*.[0-9]* 2>/dev/null | while read -r p; do printf '%s %s\n' "${p##*/}" "$p"; done | sort -V | tail -1 | cut -d' ' -f2-); HM=$(uv run --with "${HM:-'$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0'}" python -m harness_maker.cli locate --plain 2>/dev/null || echo "${HM:-'$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0'}"); echo "HM=$HM"
+!HM=$(ls -1d "$HOME"/.claude/plugins/cache/harness-maker*/harness-maker/[0-9]*.[0-9]*.[0-9]* 2>/dev/null | while read -r p; do printf '%s %s\n' "${p##*/}" "$p"; done | sort -V | tail -1 | cut -d' ' -f2-); HM=$(uv run --with "${HM:-'$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1'}" python -m harness_maker.cli locate --plain 2>/dev/null || echo "${HM:-'$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1'}"); echo "HM=$HM"
 ```
 
 **Step 2 — preview (ONLY when `.claude/` already exists and is non-empty).** Show

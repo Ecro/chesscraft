@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/code-verifier.md.j2
 provenance: official
@@ -13,7 +13,7 @@ tools: Read, Grep, Glob
 model: sonnet
 review_scope:
 - verifier
-content_hash: ec6bd066a156ac4efbccba2c494ac5dbe37827672ce96a79546f932174e13769
+content_hash: e4068a0dd153fc341559dc9f26061d8e0ff78ce8924e779260ffab03ac95cb38
 ---
 
 # code-verifier
@@ -139,9 +139,19 @@ filtering at all. Your verdict decides whether each one gets a vote.
   produce them. Do NOT drop a finding merely for lacking them; that is a property of the
   vendor contract, not a defect in the finding.
 - `full_context`: the **non-redacted** diff context (Pass 2 state).
-- `oracle_blocks`: zero or more blocks of real command output (`pytest` / `ruff` / `mypy`)
-  gathered for the paths these findings name. Each block is labelled with the finding
-  `id`(s) it was gathered for and may carry a `[… truncated N chars …]` marker.
+- `oracle_blocks`: zero or more blocks of real command output, gathered for the paths these
+  findings name by **the project's own configured toolchain** — whatever that is; do not
+  assume a language. Each per-path block is labelled with the finding `id`(s) it was gathered
+  for, names the toolchain that produced it, and may carry a `[… truncated N chars …]` marker.
+  A block headed **project-wide context** is deliberately unlabelled: it came from a
+  repo-scoped command and adjudicates no individual finding.
+  A path whose file type no configured toolchain understands gets **no block at all** — the
+  gatherer runs nothing rather than emitting output from a tool that never parsed the subject.
+  <!-- @hm:oracle-command-surface -->
+  <!-- Anchor for tests/structural/test_no_hardcoded_toolchain_claim.py. Discovery keys on
+       this marker, NOT on the claim being removed — keying on the claim would empty the
+       population the moment the fix lands and fail the non-vacuity guard. -->
+
 
 ### Mode B — Decision rubric (per finding)
 
@@ -180,10 +190,15 @@ finding, and treating it as one would refute every cross-model finding by constr
   cut.
 - **Absent oracle is not refutation.** No oracle block for a finding means you have less
   evidence, not evidence against. That case is `unresolved` unless the diff alone settles it.
-- **Read the `[exit=N]` tag, not just the text.** `pytest` on a non-test source file collects
-  nothing and prints "no tests ran" at `exit=5`; that is an absent oracle, **not** a passing
-  one, and treating it as evidence for `rejected` would refute findings on every source file.
-  Only `exit=0` with tests actually run is a pass.
+- **Read the `[exit=N]` tag, not just the text.** A **non-zero exit is evidence only when the
+  tool actually parsed and exercised the subject.** A tool that collected nothing, could not
+  parse the file, or was never handed the file is an **absent** oracle, not a failing one —
+  and an absent oracle is `unresolved`, never `rejected`. The worked example is `pytest` on a
+  non-test source file: it collects nothing and prints "no tests ran" at `exit=5`, and reading
+  that as a pass would refute findings on every source file. The rule is not specific to
+  `pytest`; apply it to whichever tool the project's toolchain declared. The gatherer no
+  longer emits blocks from tools that cannot consume the file at all, so what reaches you here
+  is the residual in-toolchain case.
 
 ### Mode B — Output Schema
 

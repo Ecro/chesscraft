@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/stuck.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Escalation analyst — invoked when /hm:execute, /hm:review, or /hm
   escalation note. Read-only.
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: 1717ca0df764aec53d9a56084089e1271d1c7c6987b0df608d456c8781fbe86f
+content_hash: 7b5010b337e04843119653879e059dcff9ddba6ea9beabc8256e23f0e02fa9ad
 ---
 
 # stuck
@@ -37,7 +37,9 @@ Last-resort escalation agent. When a workflow stage cannot make progress on its 
 
 ## Triggers
 
-- `/hm:execute` Phase A.5: test-reviewer FAIL retry budget (2 attempts) exhausted.
+- `/hm:execute` Phase A.5: test-reviewer FAIL retry budget (2 **rounds**, three lens-scoped
+  dispatches per round) exhausted. One round yields three JSON outputs, so a "last 3 outputs"
+  sample is a single round — read across rounds when you need the history.
 - `/hm:execute` Phase D: lint/type/test failure that cannot be fixed without changing the PLAN's scope.
 - `/hm:execute` ADR conflict: the implementation needs to violate a binding ADR to proceed.
 - `/hm:review` consensus deadlock: 3 reviewers produced 3 incompatible CONCLUDEs on the same critical issue.

@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.0
+harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Implement a PLAN's phases TDD-first. Stages, never commits.
-content_hash: d2c6fab429de562ad40e90f7fb511161c96090c19e251be02bafdf3f01628a86
+content_hash: d3c831fb3a83853c6a61aa69616eddb7bf1fd6ccb47680940c8870a4c17721d6
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -38,7 +38,7 @@ content_hash: d2c6fab429de562ad40e90f7fb511161c96090c19e251be02bafdf3f01628a86
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -52,7 +52,7 @@ content_hash: d2c6fab429de562ad40e90f7fb511161c96090c19e251be02bafdf3f01628a86
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -81,7 +81,7 @@ content_hash: d2c6fab429de562ad40e90f7fb511161c96090c19e251be02bafdf3f01628a86
 - Be direct. No flattery, no preamble.
 - If a PLAN phase is under-specified, surface it before writing tests — don't guess.
 - Don't hide test failures. Compiler/test errors go in the response verbatim.
-- When Phase A.5 returns FAIL, treat the test-reviewer's reasoning as authoritative — rewrite, don't argue.
+- When Phase A.5 returns FAIL, treat the merged verdict of its lenses as authoritative — rewrite, don't argue.
 
 ## Purpose
 
@@ -134,7 +134,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -143,7 +143,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -296,46 +296,103 @@ machine SPEC exist, author tests from the PLAN phase's exit-criterion instead.
 
 #### Phase A.5 — test-reviewer gate (skipped when `tdd_active == false`)
 
-Invoke the `test-reviewer` agent on the just-authored test files:
+Dispatch **three** `test-reviewer` calls **in one message**, one per lens. One reviewer retried
+serially surfaces one category per round, so the two-round budget gets spent on defects that were
+all present from the start.
+
+| Lens | Asks |
+|---|---|
+| `red-correctness` | Does each test fail, and for the intended reason? |
+| `discrimination` | Would this assertion also pass against a plausibly WRONG implementation? |
+| `coverage` | Does the set cover the criterion — no missing scenario, no duplicate? |
+
+`<brief>` below is the same for all three: `<SPEC body + bindable mechanical AC list (id +
+predicate, when present) + Phase A test file paths + test_framework name>\n\nThe AC list lets you
+adjudicate the scenario∪AC union for duplication / coverage holes. Two other lenses run
+concurrently. You are ACCOUNTABLE for the lens named below.\n\nA defect you notice OUTSIDE your
+lens must still be reported — never dropped — but it has to travel in a field the schema actually
+has, because there is no suggestions field and your Hard Rules forbid inventing a category. Route
+it: a test that would also pass a WRONG implementation is a banned pattern (category 1 tautology,
+6 magic values, or 8 private state) and goes in blocking_issues; a scenario with no test goes in
+scenarios_missing; a scenario covered twice, or covered by a test aimed at another scenario, is a
+per_scenario entry for that scenario with quality FAIL and the duplication named in reason — which
+blocks, because PASS requires every per_scenario.quality to be PASS. Only a genuine nice-to-have is
+dropped.\n\nReturn ONLY the JSON output as specified in your instructions.`
 
 ```
-Task(
-  subagent_type="test-reviewer",
-  description="Phase A.5 test-quality gate: {slug}",
-  prompt="<SPEC body + bindable mechanical AC list (id + predicate, when present) + Phase A test file paths + test_framework name>\n\nThe AC list lets you adjudicate the scenario∪AC union for duplication / coverage holes.\n\nReturn ONLY the JSON output as specified in your instructions."
-)
+Task(subagent_type="test-reviewer", description="A.5 red-correctness: {slug}", prompt="<brief>\n\nYour lens: red-correctness — does each test fail, and for the intended reason?")
+Task(subagent_type="test-reviewer", description="A.5 discrimination: {slug}", prompt="<brief>\n\nYour lens: discrimination — would this assertion also pass against a plausibly WRONG implementation?")
+Task(subagent_type="test-reviewer", description="A.5 coverage: {slug}", prompt="<brief>\n\nYour lens: coverage — does the set cover the criterion, with no missing scenario and no duplicate?")
 ```
+
+**Merge all three before judging** — a lens passing its own rubric does not end the round:
+
+| Field | Rule |
+|---|---|
+| `overall_assessment` | PASS iff **every lens dispatched in THIS round** returned PASS **and** the merged `blocking_issues[]`, `scenarios_missing[]` and `per_scenario[]` are all clean. **Recompute — do not take a lens's own header on trust.** That is the agent's own definition of PASS, so a compliant lens agrees; an inconsistent one (PASS while reporting a defect) is parseable, and trusting the header would silently drop the defect it reported. Any FAIL, dead dispatch, or unparseable JSON → round FAIL. Round 1 dispatches all three; a retry dispatches fewer (see below), and a round-1 PASS is **never** reused to satisfy this. |
+| `blocking_issues[]` | Union, deduped on `test_file:test_function:category`, **carrying the union of the `line`s**. Not keyed on `line`: two lenses seeing one defect anchor on whatever line their OBSERVE step cited (the `assert`, the `def`, a decorator), so a line-keyed dedupe almost never merges them and the rewrite list gets the same defect twice. Not line-blind either: two genuinely different bad assertions in one function share file, function and category, and collapsing them would drop one — that is what the line **list** preserves. Keep the `title`/`reasoning` of the earliest lens in table order. **Authoritative** — the retry rewrites exactly these. |
+| `scenarios_missing[]` | Union by scenario id. |
+| `per_scenario[]` | By `scenario_id`: `quality` = worst, `covered_by` = union, `reason` = from the worst-quality lens (ties → table order). |
+| `passing_tests[]` | Intersection, **advisory — it decides nothing.** Bare function names with no `test_file` cannot identify a test; `blocking_issues` entries can. |
 
 Resolution:
-- `overall_assessment: PASS` → proceed to Phase B.
-- `overall_assessment: FAIL` → for each entry in `blocking_issues[]`, rewrite the offending test (the `passing_tests[]` list is FROZEN — do not re-author them). For each `scenarios_missing[]`, author a new test. **Re-invoke test-reviewer** until PASS. Retry budget: **2 attempts**. After 2 FAILs in a row, surface the latest verdict and stop — escalate to user.
+- Round PASS → proceed to Phase B.
+- Round FAIL → three repair actions, one per carrier. Rewrite the functions named in the merged
+  `blocking_issues[]`. Author one test per `scenarios_missing[]`. And for a `per_scenario[]` entry
+  whose `quality` is FAIL with **no** matching `blocking_issues` entry — duplicate coverage, or a
+  test aimed at another scenario — **retarget or delete the offending test named in its
+  `covered_by`**. If that entry's `covered_by` is **empty** it is a no-coverage report that
+  arrived in the wrong carrier (the schema's own example does exactly this): treat it as a
+  `scenarios_missing[]` item and author a test. If `covered_by` lists several tests, the
+  offending one is whichever the `reason` names; when `reason` does not disambiguate, treat every
+  listed test as in scope rather than guessing. That third arm is not optional: without a repair for it, the same lens
+  re-dispatches against an unchanged file, fails identically, and the two-round budget is spent
+  with nothing having changed.
+  **If you repaired anything, re-dispatch ALL THREE lenses.** One rule, not a list of triggers.
+  A rewrite changes a file the other two lenses already judged — turning a tautology into a
+  concrete assertion is a *discrimination*-class edit even when the discrimination lens passed —
+  and a test authored for `scenarios_missing[]` has never been seen by `red-correctness` or
+  `discrimination` at all, neither of which the coverage lens that asked for it checks. A
+  per-lens trigger list cannot express that without contradicting "no verdict carries": an
+  earlier draft tried, and its "supplied a `blocking_issues` entry even if it returned PASS"
+  clause was **unreachable** — the agent's own PASS requires zero `blocking_issues`, so such a
+  lens had already returned FAIL. Re-dispatch a lens unchanged when its dispatch died. Worst case
+  is 3 + 3 = 6 dispatches, which is the ceiling this budget already assumed.
+
+  Hand the re-dispatched lenses **two arms**: the
+  before/after of every function you rewrote, keyed by the acted-on `blocking_issues[].test_file`
+  + `.test_function`, **and** the after-only text of every test you authored for a
+  `scenarios_missing[]` entry — after-only because an authored test has no before, and implying
+  one invites a fabricated diff. Ask them what those edits newly made reachable, and whether any
+  of it breaks a property they had already cleared. Use no `git` command here — Phase A's files are usually untracked, so `git diff`
+  shows nothing for exactly the tests in question. Budget: **2 rounds**. No verdict carries
+  between rounds; a retired lens's PASS describes the pre-fix file. After 2 failing rounds,
+  surface the merged verdict and stop — escalate to user.
 
 
-**Record every attempt (ADR-004).** One row per dispatch — including each retry, and
-including the case where the dispatch never ran. Run this immediately after each attempt
-resolves, with `<run-id>` stable across the retries of one Phase A.5 (use the task slug plus
-the phase number):
+**Record every round (ADR-004).** One row per **round**, emitted after the merge — not one per
+lens dispatch. Three dispatches share a round, so per-dispatch rows would collide on
+`(agent, stage, run-id, pass)` and leave `--terminal` unowned. `--pass` is the round number.
+Run this as each round resolves, with `<run-id>` stable across the rounds of one Phase A.5
+(use the task slug plus the phase number):
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <attempt-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
-- Omit `--terminal` on an attempt that will be retried; pass it on the one that ends the gate.
-- If the dispatch **failed to launch or was skipped**, emit `--verdict dispatch-failed` or
-  `--verdict dispatch-skipped` with `--reason '<why>'` — **single quotes, and strip
-  apostrophes / backticks / `$` from the text first**; a double-quoted reason leaves `$(...)`
-  live and the text is often tool output you did not author. **`--terminal` follows the same
-  rule as any other attempt** (the bullet above): omit it when a retry will follow, since the
-  retry is what ends the gate. A terminal sentinel plus a terminal retry is two terminal rows
-  in one group. `dispatch-skipped` with no retry does end the run, so it keeps `--terminal`. The CLI rejects
-  those verdicts without a reason — a sentinel row with a null reason is undiagnosable, which
-  is the exact state `delegation_ledger` is in today.
-- `--duration-ms` is wall-clock for the dispatch. **Omit it if you did not measure it** —
+- Omit `--terminal` on a round that will be retried; pass it on the one that ends the gate.
+  Two terminal rows in one group leave the run with no single ending.
+- If **no lens dispatched at all**, emit `--verdict dispatch-failed` or `dispatch-skipped` with
+  `--reason '<why>'` — **single quotes, and strip apostrophes / backticks / `$` first**; a
+  double-quoted reason leaves `$(...)` live and the text is often tool output you did not author.
+  Same `--terminal` rule: omit it when a retry follows. The CLI rejects those verdicts without a
+  reason — a sentinel row with a null reason is undiagnosable. A round where *some* lens returned
+  is a normal `PASS`/`FAIL` row (fail-closed), not a sentinel.
+- `--duration-ms` is wall-clock for the round. **Omit it if you did not measure it** —
   do not pass `0`. Zero reads as "measured, instantly", and these rows are append-only.
-- `--barrier-index` is which serial segment of the stage this dispatch sat in (A.5 is its own
-  barrier, so `1` unless the stage layout changed).
+- `--barrier-index` is the serial segment this round sat in (A.5 is its own barrier, so `1`).
 
 
 #### Phase B — RED gate (skipped when `tdd_active == false`)
@@ -364,7 +421,7 @@ Select what to run, then run it as ONE call. `mode: full` → run everything and
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm test_dep_map --root . --changed-file <f1> …
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm test_dep_map --root . --changed-file <f1> …
 !cd <WT> && <lint> && <type> && <test> <nodes-or-empty>
 ```
 
@@ -380,7 +437,7 @@ when this PLAN phase authored bindable-mechanical-AC tests and the machine SPEC 
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
 ```
 
 
@@ -462,7 +519,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm iter_receipts write \
        --iter "$ITER" --stage execute --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -494,12 +551,12 @@ Pick **exactly one** finalize command. Substitute `<WT>` with the absolute path 
 ```bash
 # All phases GREEN — stage-merge the branch back (NO commit) + cleanup the worktree.
 # /hm:wrapup will create the single user-facing commit (with proper message + Co-Authored-By).
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree finalize <WT> stage-only
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree finalize <WT> stage-only
 ```
 
 ```bash
 # Stage halted on a blocker — preserve the worktree for inspection:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree finalize <WT> fail
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree finalize <WT> fail
 ```
 
 
@@ -513,7 +570,7 @@ so a fresh or recovered wrapup still works). Substitute `<slug>` (this `/hm:exec
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree wt-uuid <WT>)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree wt-uuid <WT>)"
 ```
 
 
@@ -529,7 +586,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 
 
 ```bash
-!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm worktree post-commit-pop "$(pwd)"
+!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree post-commit-pop "$(pwd)"
 ```
 
 
@@ -566,7 +623,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -577,7 +634,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/
