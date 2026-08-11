@@ -1322,6 +1322,32 @@ export function RecordForm({
             }),
           )}
 
+        {kind === 'skillCard' && (
+          <label>
+            {t('ui.editor.field.royal-follow-up')}
+            <select
+              data-testid="editor-royal-follow-up"
+              value={draft.royalFollowUp === 'preserve-existing' ? 'preserve-existing' : 'preserve'}
+              onChange={(e) => update((d) => { d.royalFollowUp = e.target.value })}
+            >
+              <option value="preserve">{t('ui.editor.royal-follow-up.preserve')}</option>
+              <option value="preserve-existing">{t('ui.editor.royal-follow-up.preserve-existing')}</option>
+            </select>
+          </label>
+        )}
+
+        {kind === 'skillCard' && (
+          <label>
+            {t('ui.editor.field.protect-relocated')}
+            <input
+              type="checkbox"
+              data-testid="editor-protect-relocated"
+              checked={draft.protectRelocatedAfterPlay === true}
+              onChange={() => update((d) => { d.protectRelocatedAfterPlay = d.protectRelocatedAfterPlay !== true })}
+            />
+          </label>
+        )}
+
         {kind === 'squareType' && (
           <label>
             {t('ui.editor.field.paired')}

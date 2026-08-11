@@ -46,6 +46,8 @@ function withLoadout(): ContentSource {
     nameKey: 'skill.custom-guard.name',
     textKey: 'skill.custom-guard.text',
     uses: 1,
+    royalFollowUp: 'preserve',
+    protectRelocatedAfterPlay: false,
     effects: [
       {
         trigger: 'on_play',
@@ -76,12 +78,15 @@ describe('PLAN Phase 1 (a) — a v7 document still loads under a v8 build', () =
     expect(result.ok, result.ok ? '' : JSON.stringify(result.errors.slice(0, 5), null, 2)).toBe(true)
   })
 
-  it('round-trips the v7 document through export/import unchanged', () => {
+  it('migrates a v7 document to the current writer shape on import', () => {
     const doc = v7Document()
     const imported = importContent(exportContent(doc))
     expect(imported.ok, imported.ok ? '' : JSON.stringify(imported.errors.slice(0, 5), null, 2)).toBe(true)
     if (!imported.ok) return
-    expect(imported.source).toEqual(doc)
+    expect(imported.source.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(imported.source.skillCards).toEqual(
+      doc.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false })),
+    )
   })
 
   it('carries no loadout on a v7 preset — absent, not an empty object', () => {

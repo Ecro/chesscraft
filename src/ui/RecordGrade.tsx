@@ -82,6 +82,10 @@ export function RecordGrade({
     // placeholders that do not parse are placeholders that do nothing.
     const identity = { id: `${kind === 'skillCard' ? 'skill' : 'piece'}.draft`, nameKey: 'draft.name', textKey: 'draft.text' }
     const out: Record<string, unknown> = { ...draft }
+    if (kind === 'skillCard') {
+      out.royalFollowUp ??= 'preserve'
+      out.protectRelocatedAfterPlay ??= false
+    }
     for (const [key, placeholder] of Object.entries(identity)) {
       if (typeof out[key] !== 'string' || (out[key] as string).length === 0) out[key] = placeholder
     }

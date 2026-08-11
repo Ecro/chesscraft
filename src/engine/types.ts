@@ -102,6 +102,8 @@ export interface GameState {
    * terminal state with a pending card would describe a turn nobody can finish.
    */
   readonly turnCard: string | null
+  /** Exact `from>to` royal captures legal before the pending card, if guarded. */
+  readonly royalCaptureBaseline: readonly string[] | null
   readonly drafts: Readonly<Record<Side, DraftState>>
   readonly result: MatchResult | null
   /** 0 when the ply was a card play — AC-007's "no board move" observable. */

@@ -74,17 +74,14 @@ describe('a condition on the effect narrows what the card may be aimed at', () =
 describe('what the filter must NOT narrow', () => {
   const mixed: Place[] = [K_W, at('c2', 'piece.pawn'), at('b1', 'piece.rook'), K_B]
 
-  it('an unconditional card still reaches every friendly piece', () => {
+  it('an unconditional card still reaches every ordinary friendly piece', () => {
     // `skill.veil` is `condition: always`. Over-filtering here would be the
     // mirror-image defect: a card the player can no longer aim where it works.
-    expect(offers('skill.veil', mixed)).toEqual(['a1', 'b1', 'c2'])
+    expect(offers('skill.veil', mixed)).toEqual(['b1', 'c2'])
   })
 
   it('a card aimed at the enemy is unaffected by a friendly-side condition', () => {
-    expect(offers('skill.leash', [K_W, at('c2', 'piece.pawn'), at('e5', 'piece.rook', 'black'), K_B])).toEqual([
-      'e5',
-      'f6',
-    ])
+    expect(offers('skill.leash', [K_W, at('c2', 'piece.pawn'), at('e5', 'piece.rook', 'black'), K_B])).toEqual(['e5'])
   })
 
   it('a QUANTIFIED card keeps every offer — its subject is bound, not chosen', () => {

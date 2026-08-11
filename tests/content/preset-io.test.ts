@@ -4,6 +4,7 @@ import { bundledContentSource } from '@content/sets/bundled'
 import { SLICE_PRESET_ID, sliceContentSource } from '@content/sets/slice'
 import { exportContent, importContent } from '@editor/io'
 import { commitDraft } from '@editor/draft'
+import { SCHEMA_VERSION } from '@content/schema'
 import { createMatch, currentState } from '@engine/match'
 
 /**
@@ -28,7 +29,10 @@ describe('preset export / import', () => {
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.source).toEqual(original)
+    expect(result.source.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(result.source.skillCards).toEqual(
+      original.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false })),
+    )
   })
 
   it('round-trips the bundled set, which is the largest thing an author can export', () => {
@@ -106,7 +110,11 @@ describe('preset export / import', () => {
     const loaded = loadContentSet(imported.source)
     expect(loaded.ok).toBe(true)
     if (!loaded.ok) return
-    expect(loaded.set.skillCards.get('skill.smokescreen')).toEqual(draft)
+    expect(loaded.set.skillCards.get('skill.smokescreen')).toEqual({
+      ...draft,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
+    })
   })
 
   it('refuses an import that is not valid content, naming the offending field', () => {

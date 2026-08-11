@@ -101,7 +101,7 @@ const CAMEL: Array<[number, number]> = [
 ]
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 10,
+  schemaVersion: 11,
 
   pieces: [
     {
@@ -723,6 +723,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.warp',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -738,6 +740,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.arrows',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -753,6 +757,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.sprout',
       cost: 6,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -770,6 +776,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.ice',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -785,6 +793,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.trap',
       cost: 2,
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -800,6 +810,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.crown',
       cost: 5,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -815,6 +827,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.horse-leap',
       cost: 3,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -832,6 +846,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.horn',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -855,6 +871,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.wall',
       cost: 3,
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -870,6 +888,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.chain',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -885,6 +905,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.homeward',
       cost: 3,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -900,6 +922,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.fist',
       cost: 3,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -917,6 +941,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.plus',
       cost: 4,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -932,6 +958,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.arrow',
       cost: 6,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -947,6 +975,8 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.dagger',
       cost: 5,
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -965,6 +995,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.leash.text',
       artKey: 'art.leash',
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -995,6 +1027,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.blink.text',
       artKey: 'art.blink',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1025,6 +1059,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.mend.text',
       artKey: 'art.mend',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1047,6 +1083,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.quake.text',
       artKey: 'art.quake',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: true,
       effects: [
         {
           trigger: 'on_play',
@@ -1062,6 +1100,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.veil.text',
       artKey: 'art.veil',
       uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1077,6 +1117,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.dart.text',
       artKey: 'art.dart',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1094,6 +1136,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.tide.text',
       artKey: 'art.tide',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1116,6 +1160,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.brand.text',
       artKey: 'art.brand',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1131,6 +1177,8 @@ export const bundledContentSource: ContentSource = {
       textKey: 'skill.echo.text',
       artKey: 'art.echo',
       uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',

@@ -27,6 +27,8 @@ function roomWithLoadout(): ContentSource {
     nameKey: 'skill.probe-own.name',
     textKey: 'skill.probe-own.text',
     uses: 1,
+    royalFollowUp: 'preserve',
+    protectRelocatedAfterPlay: false,
     effects: [
       {
         trigger: 'on_play',

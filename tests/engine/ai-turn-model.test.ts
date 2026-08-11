@@ -164,6 +164,23 @@ describe('the transposition key separates a pending turn from a fresh one', () =
     expect(legalActions(pending, content).some((a) => a.kind === 'play_card')).toBe(false)
     expect(positionKey(pending)).not.toBe(positionKey(fresh))
   })
+
+  it('separates pending states whose exact royal-capture baselines differ', () => {
+    const base = position({
+      held: { white: ['skill.volley'] },
+      placements: [
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'f1', pieceId: 'piece.rook', side: 'white' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
+      ],
+    })
+    const blocked: GameState = { ...base, turnCard: 'skill.volley', royalCaptureBaseline: [] }
+    const allowed: GameState = { ...blocked, royalCaptureBaseline: ['f1>f6'] }
+
+    expect(legalActions(blocked, content).some((a) => a.kind === 'move' && a.from === 'f1' && a.to === 'f6')).toBe(false)
+    expect(legalActions(allowed, content).some((a) => a.kind === 'move' && a.from === 'f1' && a.to === 'f6')).toBe(true)
+    expect(positionKey(blocked)).not.toBe(positionKey(allowed))
+  })
 })
 
 describe('the draft boundary follows the turn, not the action', () => {
@@ -215,20 +232,18 @@ describe('the draft boundary follows the turn, not the action', () => {
      * `legalActions` then offers.
      */
     const start = position({
-      sideToMove: 'black',
-      held: { white: ['skill.bulwark'], black: ['skill.freeze'] },
+      sideToMove: 'white',
+      held: { white: ['skill.freeze'], black: [] },
       placements: [
         { square: 'a1', pieceId: 'piece.king', side: 'white' },
         { square: 'f6', pieceId: 'piece.king', side: 'black' },
         { square: 'e6', pieceId: 'piece.rook', side: 'black' },
       ],
     })
-    const freeze = legalActions(start, content).find(
-      (a) => a.kind === 'play_card' && a.cardId === 'skill.freeze' && a.targets[0] === 'a1',
-    )!
-    const frozen = apply(start, freeze, content)
-    const blackClose = legalActions(frozen, content).find((a) => a.kind === 'move' && a.from === 'e6')!
-    const blackMoved = apply(frozen, blackClose, content)
+    const blackMoved: GameState = {
+      ...start,
+      frozenUntil: { a1: { untilPly: start.plyCount + 2, sourceId: 'fixture.rule', layer: 'rule' } },
+    }
 
     // Put white one completed turn short of its second draft, then let it spend
     // the card it cannot follow with a move.

@@ -92,7 +92,7 @@ import { z } from 'zod'
  * honest outcome: it declares a scale this build no longer has, and silently
  * ignoring it would let an author believe their room still sets one.
  */
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 11
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -431,6 +431,8 @@ export const skillCardDef = z.strictObject({
   /** @deprecated since v8 — see the note on `ruleCardDef.cost`. */
   cost: z.number().int().nonnegative().optional(),
   uses: z.number().int().positive(),
+  royalFollowUp: z.enum(['preserve', 'preserve-existing']),
+  protectRelocatedAfterPlay: z.boolean(),
   effects: z.array(skillEffect),
 })
 export type SkillCardDef = z.infer<typeof skillCardDef>

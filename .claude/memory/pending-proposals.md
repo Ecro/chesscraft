@@ -346,3 +346,8 @@ rendered during the sweep would have caught it before review did. Cheaper interm
 every sweep assert a per-target "was this actually rendered at least once" counter, so the
 absent case is a failure instead of a silent zero — the same shape as the `expect(count > 3)`
 guards that were added by hand to this task's two new tests after the fact.
+
+## Proposal: re-evaluate persistent state at consumption (2026-08-11)
+**Triggered by:** [fail:design] rule-keyed-to-event-not-state (count: 3)
+**Proposed mechanism:** rule update
+**Rationale:** Three failures came from enforcing an invariant only at the event that normally creates a state, while alternate routes later reached or consumed that state without the guard. Require persistent effects to re-check their invariant at consumption time and add a transfer-path regression whenever state can outlive or change occupants.

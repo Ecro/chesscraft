@@ -5,6 +5,10 @@ import { loadContentSet } from '../../src/content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '../../src/content/sets/bundled'
 import { MatchHost } from '../../src/ui/MatchHost'
 import { ko } from '../../src/i18n/ko'
+import { apply, legalActions } from '../../src/engine/engine'
+import { createPosition } from '../../src/engine/match'
+import { Rules } from '../../src/ui/Rules'
+import { TranslateContext, makeTranslate } from '../../src/ui/i18n'
 
 /**
  * PLAN Phase 4 — a refused MOVE says something, in the player's language.
@@ -40,6 +44,65 @@ function pastDraft(container: HTMLElement) {
 }
 
 describe('a refused move explains itself (PLAN Phase 4)', () => {
+  it('omits a royal skill target and explains a deliberate tap', () => {
+    const initialState = createPosition({
+      content,
+      presetId: BUNDLED_PRESET_ID,
+      seed: 11,
+      sideToMove: 'white',
+      held: { white: ['skill.volley'], black: [] },
+      placements: [
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
+        { square: 'e5', pieceId: 'piece.rook', side: 'black' },
+      ],
+    })
+    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} initialState={initialState} />)
+    fireEvent.click(container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.volley"]')!)
+    expect(screen.getByTestId('sq-f6').getAttribute('data-legal')).not.toBe('true')
+    expect(screen.getByTestId('sq-e5').getAttribute('data-legal')).toBe('true')
+    fireEvent.click(screen.getByTestId('sq-f6'))
+    const rejection = screen.getByTestId('rejection')
+    expect(rejection.getAttribute('data-reason')).toBe('royal-skill-immune')
+    expect(rejection.textContent).toContain(ko['ui.match.reject.royal-skill-immune'])
+  })
+
+  it('omits a newly granted royal capture and explains a deliberate tap', () => {
+    const before = createPosition({
+      content,
+      presetId: BUNDLED_PRESET_ID,
+      seed: 13,
+      sideToMove: 'white',
+      held: { white: ['skill.knight-leap'], black: [] },
+      placements: [
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'c3', pieceId: 'piece.rook', side: 'white' },
+        { square: 'd5', pieceId: 'piece.king', side: 'black' },
+      ],
+    })
+    const play = legalActions(before, content).find(
+      (action) => action.kind === 'play_card' && action.cardId === 'skill.knight-leap' && action.targets[0] === 'c3',
+    )!
+    const initialState = apply(before, play, content)
+    render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} initialState={initialState} />)
+    fireEvent.click(screen.getByTestId('sq-c3'))
+    expect(screen.getByTestId('sq-d5').getAttribute('data-legal')).not.toBe('true')
+    fireEvent.click(screen.getByTestId('sq-d5'))
+    const rejection = screen.getByTestId('rejection')
+    expect(rejection.getAttribute('data-reason')).toBe('royal-followup-blocked')
+    expect(rejection.textContent).toContain(ko['ui.match.reject.royal-followup-blocked'])
+  })
+
+  it('shows both royal restrictions in the rules help', () => {
+    render(
+      <TranslateContext.Provider value={makeTranslate()}>
+        <Rules content={content} onClose={() => {}} />
+      </TranslateContext.Provider>,
+    )
+    expect(screen.getByTestId('rules').textContent).toContain('왕은 스킬의 영향을 받지 않아요')
+    expect(screen.getByTestId('rules').textContent).toContain('새로 열린 왕 포획은 같은 차례에 할 수 없어요')
+  })
+
   it('answers a reach for an enemy piece with a reason, in Korean', () => {
     const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 7} />)
     pastDraft(container)
@@ -137,12 +200,14 @@ describe('a refused move explains itself (PLAN Phase 4)', () => {
       'card-spent',
       'card-already-played',
       'card-bad-targets',
+      'royal-skill-immune',
       'card-not-offered',
       'empty-square',
       'not-your-piece',
       'piece-frozen',
       'piece-forbidden',
       'target-protected',
+      'royal-followup-blocked',
       'unreachable',
       'move-owed',
       'card-owed',

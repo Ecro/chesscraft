@@ -71,6 +71,7 @@ describe('skill.swap', () => {
     sideToMove: 'white' as Side,
     placements: [
       { square: 'a1', pieceId: 'piece.king', side: 'white' as Side },
+      { square: 'b2', pieceId: 'piece.pawn', side: 'white' as Side },
       { square: 'c3', pieceId: 'piece.rook', side: 'white' as Side },
       { square: 'f6', pieceId: 'piece.king', side: 'black' as Side },
     ],
@@ -78,14 +79,14 @@ describe('skill.swap', () => {
   }
 
   it('exchanges two friendly pieces that are both occupied', () => {
-    const after = play(position(base), 'skill.swap', ['a1', 'c3'])
-    expect(after.board.get('a1')).toEqual({ pieceId: 'piece.rook', side: 'white' })
-    expect(after.board.get('c3')).toEqual({ pieceId: 'piece.king', side: 'white' })
+    const after = play(position(base), 'skill.swap', ['b2', 'c3'])
+    expect(after.board.get('b2')).toEqual({ pieceId: 'piece.rook', side: 'white' })
+    expect(after.board.get('c3')).toEqual({ pieceId: 'piece.pawn', side: 'white' })
   })
 
   it('leaves the piece count untouched — a swap creates and destroys nothing', () => {
     const before = position(base)
-    const after = play(before, 'skill.swap', ['a1', 'c3'])
+    const after = play(before, 'skill.swap', ['b2', 'c3'])
     expect(after.board.size).toBe(before.board.size)
     expect(after.captured.white).toEqual([])
   })

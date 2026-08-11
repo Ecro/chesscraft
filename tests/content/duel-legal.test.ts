@@ -33,6 +33,8 @@ function document(mutate: (preset: Record<string, unknown>, source: ContentSourc
     nameKey: 'skill.probe-own.name',
     textKey: 'skill.probe-own.text',
     uses: 1,
+    royalFollowUp: 'preserve',
+    protectRelocatedAfterPlay: false,
     effects: [
       { trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }] },
     ],

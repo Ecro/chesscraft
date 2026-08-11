@@ -185,8 +185,8 @@ describe('same-turn effect application', () => {
  * at the start of the action, and after a card destroys a king the follow-up
  * move's "before" board is already royal-less.
  */
-describe('a card that ends the match', () => {
-  it('returns a terminal state from the card branch itself', () => {
+describe('royal-safe skill turns', () => {
+  it('does not offer a direct card target on a royal', () => {
     const before = createPosition({
       content: shipped,
       presetId: BUNDLED_PRESET_ID,
@@ -202,45 +202,41 @@ describe('a card that ends the match', () => {
     const play = legalActions(before, shipped).find(
       (a) => a.kind === 'play_card' && a.cardId === 'skill.volley' && a.targets[0] === 'f6',
     )
-    expect(play, 'volley should be able to name the enemy king').toBeDefined()
-
-    const after = apply(before, play!, shipped)
-    expect(after.result, 'destroying the last royal ends the match immediately').toEqual({
-      kind: 'win',
-      winner: 'white',
-      reason: 'king_capture',
-    })
-    expect(after.turnCard, 'a terminal state carries no pending turn').toBeNull()
-    expect(legalActions(after, shipped)).toHaveLength(0)
+    expect(play).toBeUndefined()
+    expect(describeRejection(before, { kind: 'play_card', cardId: 'skill.volley', targets: ['f6'] }, shipped)).toBe(
+      'royal-skill-immune',
+    )
   })
 
-  it('clears the pending turn when the follow-up move captures a royal', () => {
+  it('clears the pending turn when a pre-existing royal capture follows a card', () => {
     const before = createPosition({
       content: shipped,
       presetId: BUNDLED_PRESET_ID,
       seed: 1,
       sideToMove: 'white',
-      held: { white: ['skill.knight-leap'], black: [] },
+      held: { white: ['skill.volley'], black: [] },
       placements: [
         { square: 'a1', pieceId: 'piece.king', side: 'white' },
-        { square: 'c3', pieceId: 'piece.rook', side: 'white' },
-        { square: 'd5', pieceId: 'piece.king', side: 'black' },
+        { square: 'f1', pieceId: 'piece.rook', side: 'white' },
+        { square: 'b4', pieceId: 'piece.pawn', side: 'black' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
       ],
     })
     const play = legalActions(before, shipped).find(
-      (a) => a.kind === 'play_card' && a.cardId === 'skill.knight-leap' && a.targets[0] === 'c3',
+      (a) => a.kind === 'play_card' && a.cardId === 'skill.volley' && a.targets[0] === 'b4',
     )
-    expect(play, 'the leap should be playable on the rook').toBeDefined()
+    expect(play, 'the ordinary enemy should be a legal volley target').toBeDefined()
     const mid = apply(before, play!, shipped)
-    const capture = legalActions(mid, shipped).find((a) => a.kind === 'move' && a.from === 'c3' && a.to === 'd5')
-    expect(capture, 'the granted leap should reach the enemy king').toBeDefined()
+    const capture = legalActions(mid, shipped).find((a) => a.kind === 'move' && a.from === 'f1' && a.to === 'f6')
+    expect(capture, 'the exact capture that existed before the card should remain').toBeDefined()
     const after = apply(mid, capture!, shipped)
 
     // The royal-capture short-circuit returns early and enumerates its own
     // overrides, so it is the one close-out that can ship a stale turnCard.
     expect(after.result).toEqual({ kind: 'win', winner: 'white', reason: 'king_capture' })
     expect(after.turnCard).toBeNull()
-    expect(after.drafts.white.used).toContain('skill.knight-leap')
+    expect(after.royalCaptureBaseline).toBeNull()
+    expect(after.drafts.white.used).toContain('skill.volley')
   })
 })
 
@@ -253,14 +249,14 @@ describe('a card that ends the match', () => {
  * never be used to skip a turn voluntarily.
  */
 describe('end_turn — the forced pass', () => {
-  /** White reduced to one king, frozen by black, holding a card that moves nothing. */
+  /** White reduced to one king, frozen by a non-skill layer, holding a usable enemy debuff. */
   function whiteFrozenToMove(opts: { plyCount?: number; ruleCardId?: string | null } = {}) {
     const before = createPosition({
       content: shipped,
       presetId: BUNDLED_PRESET_ID,
       seed: 3,
-      sideToMove: 'black',
-      held: { white: ['skill.bulwark'], black: ['skill.freeze'] },
+      sideToMove: 'white',
+      held: { white: ['skill.freeze'], black: [] },
       placements: [
         { square: 'a1', pieceId: 'piece.king', side: 'white' },
         { square: 'f6', pieceId: 'piece.king', side: 'black' },
@@ -269,18 +265,10 @@ describe('end_turn — the forced pass', () => {
       ...(opts.plyCount !== undefined ? { plyCount: opts.plyCount } : {}),
       ...(opts.ruleCardId !== undefined ? { ruleCardId: opts.ruleCardId } : {}),
     })
-    const freeze = legalActions(before, shipped).find(
-      (a) => a.kind === 'play_card' && a.cardId === 'skill.freeze' && a.targets[0] === 'a1',
-    )
-    expect(freeze, 'black should be able to freeze the white king').toBeDefined()
-    const frozen = apply(before, freeze!, shipped)
-    const blackMove = legalActions(frozen, shipped).find((a) => a.kind === 'move' && a.from === 'e6')
-    expect(blackMove, 'black should have a rook move to close its turn').toBeDefined()
-    const white = apply(frozen, blackMove!, shipped)
-    // The fixture spends one ply of its own closing black's turn. A caller that
-    // gets the arithmetic wrong would otherwise hand this back already finished,
-    // and every assertion downstream would fail on an unrelated crash three
-    // lines later instead of here, where the mistake is.
+    const white = {
+      ...before,
+      frozenUntil: { a1: { untilPly: before.plyCount + 2, sourceId: 'fixture.rule', layer: 'rule' as const } },
+    }
     expect(white.result, 'the fixture must hand back a live match').toBeNull()
     expect(white.sideToMove).toBe('white')
     expect(legalActions(white, shipped).some((a) => a.kind === 'move'), 'the white king should be frozen').toBe(false)
@@ -343,11 +331,7 @@ describe('end_turn — the forced pass', () => {
     // The cap is evaluated in the close-out. A forced pass that skipped it would
     // let a match walk past PLY_CAP with no result — AC-003's bound, broken by
     // the one ply nobody scripts.
-    // Two ply-closing actions stand between here and the cap: black's move
-    // inside the fixture, then white's own forced pass. `PLY_CAP - 2` is what
-    // makes the SECOND of them the one that crosses it — at `PLY_CAP - 1` the
-    // match ends during setup and the pass under test never happens.
-    const white = whiteFrozenToMove({ plyCount: PLY_CAP - 2 })
+    const white = whiteFrozenToMove({ plyCount: PLY_CAP - 1 })
     expect(white.plyCount).toBe(PLY_CAP - 1)
     const play = legalActions(white, shipped).find((a) => a.kind === 'play_card')!
     const mid = apply(white, play, shipped)

@@ -112,6 +112,7 @@ function bareState(
     // No card is mid-resolution: this is a scratch position built to ask where
     // one piece may go, not a turn anybody is taking.
     turnCard: null,
+    royalCaptureBaseline: null,
     drafts: { white: { ...emptyDraft }, black: { ...emptyDraft } },
     result: null,
     movesMadeLastPly: 0,

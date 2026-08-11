@@ -51,6 +51,8 @@ function generationModifiers(state: GameState, content: ContentSet): GenerationM
   // rather than one silently replacing the other.
   for (const grant of state.grants) {
     if (grant.untilPly <= state.plyCount) continue
+    const occupant = state.board.get(grant.square)
+    if (grant.layer === 'skill' && occupant && content.pieces.get(occupant.pieceId)?.royal === true) continue
     if (grant.kind === 'block_capture') mods.protectedSquares.add(grant.square)
     else if (grant.kind === 'forbid_movement') mods.forbidden.add(grant.square)
     else if (grant.pattern) mods.granted.set(grant.square, [...(mods.granted.get(grant.square) ?? []), grant.pattern])
@@ -144,7 +146,9 @@ function movesFor(state: GameState, content: ContentSet, mods: GenerationModifie
   for (const [from, piece] of state.board) {
     if (piece.side !== state.sideToMove) continue
     if (mods.forbidden.has(from)) continue
-    if ((state.frozenUntil[from]?.untilPly ?? -1) > state.plyCount) continue
+    const frozen = state.frozenUntil[from]
+    const skillImmune = content.pieces.get(piece.pieceId)?.royal === true && frozen?.layer === 'skill'
+    if ((frozen?.untilPly ?? -1) > state.plyCount && !skillImmune) continue
 
     const def = pieceDefOf(content, piece)
     const granted = mods.granted.get(from) ?? []
@@ -165,6 +169,24 @@ function movesFor(state: GameState, content: ContentSet, mods: GenerationModifie
     for (const to of [...targets].sort()) actions.push({ kind: 'move', from, to })
   }
   return actions
+}
+
+function royalCaptureKey(action: Extract<Action, { kind: 'move' }>): string {
+  return `${action.from}>${action.to}`
+}
+
+function isRoyalCapture(state: GameState, action: Action, content: ContentSet): action is Extract<Action, { kind: 'move' }> {
+  if (action.kind !== 'move') return false
+  const target = state.board.get(action.to)
+  return target !== undefined && content.pieces.get(target.pieceId)?.royal === true
+}
+
+/** Exact royal captures available from the board, before pending-card filtering. */
+export function royalCaptureKeys(state: GameState, content: ContentSet): string[] {
+  return movesFor(state, content, generationModifiers(state, content))
+    .filter((action) => isRoyalCapture(state, action, content))
+    .map(royalCaptureKey)
+    .sort()
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +277,7 @@ export function choiceSlots(content: ContentSet, cardId: string): Array<'friendl
   return slots
 }
 
-function candidatesFor(state: GameState, slot: 'friendly' | 'enemy' | 'empty'): SquareId[] {
+function candidatesFor(state: GameState, content: ContentSet, slot: 'friendly' | 'enemy' | 'empty'): SquareId[] {
   const out: SquareId[] = []
   if (slot === 'empty') {
     for (let f = 0; f < state.width; f += 1) {
@@ -268,7 +290,7 @@ function candidatesFor(state: GameState, slot: 'friendly' | 'enemy' | 'empty'): 
   }
   for (const [sq, piece] of state.board) {
     const wanted = slot === 'friendly' ? state.sideToMove : otherSide(state.sideToMove)
-    if (piece.side === wanted) out.push(sq)
+    if (piece.side === wanted && content.pieces.get(piece.pieceId)?.royal !== true) out.push(sq)
   }
   return out.sort()
 }
@@ -313,7 +335,7 @@ function firstChoiceCandidates(
   cardId: string,
   slot: 'friendly' | 'enemy' | 'empty',
 ): SquareId[] {
-  const options = candidatesFor(state, slot)
+  const options = candidatesFor(state, content, slot)
   const card = content.skillCards.get(cardId)
   if (!card || slot === 'empty') return options
   if (card.effects.some((effect) => effect.forEach)) return options
@@ -355,12 +377,17 @@ function cardResolves(state: GameState, content: ContentSet, cardId: string): bo
     // have no pawns left. Same contract as the checks below, asked of the
     // quantifier rather than of a destination.
     const base: BoundEffect = { layer: 'skill', ownerSquare: null, ownerSide: mover, effect, sourceId: cardId }
-    if (bindEffect(state, mover, base).length === 0) return false
+    const bindings = bindEffect(state, mover, base).filter(
+      (bound) => !bound.boundSubject || content.pieces.get(bound.boundSubject.piece.pieceId)?.royal !== true,
+    )
+    if (bindings.length === 0) return false
 
     for (const act of effect.actions) {
       if (act.kind === 'revive_piece') {
         const side = act.side === 'mover' ? mover : otherSide(mover)
-        const pool = state.captured[side].filter((id) => !(act.except ?? []).includes(id))
+        const pool = state.captured[side].filter(
+          (id) => !(act.except ?? []).includes(id) && content.pieces.get(id)?.royal !== true,
+        )
         if (pool.length === 0) return false
         if (act.at.kind === 'own_back_rank' && backRankVacancies(state, side).length === 0) return false
       }
@@ -399,7 +426,7 @@ function cardPlays(state: GameState, content: ContentSet): Action[] {
     const slots = choiceSlots(content, cardId)
     let combos: SquareId[][] = [[]]
     for (const [index, slot] of slots.entries()) {
-      const options = index === 0 ? firstChoiceCandidates(state, content, cardId, slot) : candidatesFor(state, slot)
+      const options = index === 0 ? firstChoiceCandidates(state, content, cardId, slot) : candidatesFor(state, content, slot)
       combos = combos.flatMap((prefix) => options.filter((o) => !prefix.includes(o)).map((o) => [...prefix, o]))
       if (combos.length === 0) break
     }
@@ -466,7 +493,16 @@ export function legalActions(state: GameState, content: ContentSet): TrustedActi
   // card and skip your move, and a pass available with no card pending is a way
   // to skip your turn outright.
   if (state.turnCard !== null) {
-    return (moves.length > 0 ? moves : [{ kind: 'end_turn' }]) as TrustedAction[]
+    const card = content.skillCards.get(state.turnCard)
+    const allowed =
+      card?.royalFollowUp === 'preserve-existing'
+        ? moves.filter(
+            (action) =>
+              !isRoyalCapture(state, action, content) ||
+              (state.royalCaptureBaseline ?? []).includes(royalCaptureKey(action as Extract<Action, { kind: 'move' }>)),
+          )
+        : moves
+    return (allowed.length > 0 ? allowed : [{ kind: 'end_turn' }]) as TrustedAction[]
   }
   return [...moves, ...cardPlays(state, content)] as TrustedAction[]
 }
@@ -510,12 +546,14 @@ export type RejectionReason =
   | 'card-spent'
   | 'card-already-played'
   | 'card-bad-targets'
+  | 'royal-skill-immune'
   | 'card-not-offered'
   | 'empty-square'
   | 'not-your-piece'
   | 'piece-frozen'
   | 'piece-forbidden'
   | 'target-protected'
+  | 'royal-followup-blocked'
   | 'unreachable'
   | 'move-owed'
   | 'card-owed'
@@ -536,6 +574,12 @@ export function describeRejection(state: GameState, action: Action, content: Con
     // wrong when the real answer is "move now" sends them back to the board
     // looking for a square that does not exist.
     if (state.turnCard !== null) return 'card-already-played'
+    const slots = choiceSlots(content, action.cardId)
+    if (action.targets.some((square, index) => {
+      if (slots[index] !== 'friendly' && slots[index] !== 'enemy') return false
+      const piece = state.board.get(square)
+      return piece !== undefined && content.pieces.get(piece.pieceId)?.royal === true
+    })) return 'royal-skill-immune'
     return 'card-bad-targets'
   }
   if (action.kind === 'move') {
@@ -545,12 +589,23 @@ export function describeRejection(state: GameState, action: Action, content: Con
 
     // The mover's own two blockers first: they explain why NOTHING of its is offered, which
     // is a different sentence from anything about the destination.
-    if ((state.frozenUntil[action.from]?.untilPly ?? -1) > state.plyCount) return 'piece-frozen'
+    const frozen = state.frozenUntil[action.from]
+    const skillImmune = content.pieces.get(piece.pieceId)?.royal === true && frozen?.layer === 'skill'
+    if ((frozen?.untilPly ?? -1) > state.plyCount && !skillImmune) return 'piece-frozen'
     const mods = generationModifiers(state, content)
     if (mods.forbidden.has(action.from)) return 'piece-forbidden'
 
-    // Then: could it have taken there, and was protection the thing that stopped it?
     const occupant = state.board.get(action.to)
+    const pendingCard = state.turnCard ? content.skillCards.get(state.turnCard) : undefined
+    if (
+      occupant &&
+      content.pieces.get(occupant.pieceId)?.royal === true &&
+      pendingCard?.royalFollowUp === 'preserve-existing' &&
+      !(state.royalCaptureBaseline ?? []).includes(royalCaptureKey(action)) &&
+      movesFor(state, content, mods).some((candidate) => sameAction(candidate, action))
+    ) return 'royal-followup-blocked'
+
+    // Then: could it have taken there, and was protection the thing that stopped it?
     if (occupant && occupant.side !== piece.side && mods.protectedSquares.has(action.to)) {
       const def = pieceDefOf(content, piece)
       const hasSeparateAttack = def.attack !== undefined
@@ -649,6 +704,11 @@ function executeActions(
   let movedTo: SquareId | null = null
   {
     const cursor = { i: 0 }
+    const mayAffect = (square: SquareId): boolean => {
+      if (bound.layer !== 'skill') return true
+      const piece = m.board.get(square)
+      return piece === undefined || content.pieces.get(piece.pieceId)?.royal !== true
+    }
     /** First vacancy on `side`'s home rank, reading the live board. */
     const homeRankVacancy = (side: Side): SquareId | null => {
       const rank = side === 'white' ? 0 : working.height - 1
@@ -662,10 +722,11 @@ function executeActions(
     for (const act of actions) {
       switch (act.kind) {
         case 'destroy_piece':
-          for (const sq of resolveTarget(act.target, bound, ctx, cursor)) removePiece(m, sq)
+          for (const sq of resolveTarget(act.target, bound, ctx, cursor)) if (mayAffect(sq)) removePiece(m, sq)
           break
         case 'teleport_piece': {
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
+            if (!mayAffect(sq)) continue
             const piece = m.board.get(sq)
             if (!piece) continue
             let dest: SquareId | null = null
@@ -704,6 +765,7 @@ function executeActions(
         }
         case 'promote_piece':
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
+            if (!mayAffect(sq)) continue
             const piece = m.board.get(sq)
             if (piece) m.board.set(sq, { ...piece, pieceId: act.to })
           }
@@ -729,7 +791,13 @@ function executeActions(
           const side = act.side === 'mover' ? mover : otherSide(mover)
           const pool = m.captured[side]
           // Last lost, first back — the piece the player is still smarting over.
-          const index = [...pool].reverse().findIndex((id) => !(act.except ?? []).includes(id))
+          const index = [...pool]
+            .reverse()
+            .findIndex(
+              (id) =>
+                !(act.except ?? []).includes(id) &&
+                (bound.layer !== 'skill' || content.pieces.get(id)?.royal !== true),
+            )
           if (index < 0) break
           const at = pool.length - 1 - index
 
@@ -754,6 +822,7 @@ function executeActions(
           const pa = m.board.get(a)
           const pb = m.board.get(b)
           if (!pa || !pb) break
+          if (!mayAffect(a) || !mayAffect(b)) break
           m.board.set(a, pb)
           m.board.set(b, pa)
           break
@@ -765,6 +834,7 @@ function executeActions(
           // them, and E1 already consumed them there.
           if (act.duration === undefined) break
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
+            if (!mayAffect(sq)) continue
             m.grants.push({
               kind: act.kind,
               square: sq,
@@ -781,6 +851,7 @@ function executeActions(
         }
         case 'freeze_piece':
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
+            if (!mayAffect(sq)) continue
             m.frozenUntil[sq] = { untilPly: plyCount + act.plies, sourceId: bound.sourceId, layer: bound.layer }
           }
           break
@@ -895,6 +966,8 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
   }
   let movesMade = 0
   let subjectSquare: SquareId | null = null
+  let royalCaptureBaseline: readonly string[] | null = null
+  let relocatedProtectionSource: string | null = null
 
   if (action.kind === 'move') {
     const piece = m.board.get(action.from)!
@@ -927,6 +1000,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
           // a terminal state carrying a card nobody can follow with a move is
           // the stale-field bug this branch is shaped to produce.
           turnCard: null,
+          royalCaptureBaseline: null,
           drafts: bumpTurns(state, content, mover),
         }
       }
@@ -953,6 +1027,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     // displacement. Since ADR-001 it no longer ends the turn either; the branch
     // that closes the ply for it is below.
     const card = content.skillCards.get(action.cardId)!
+    royalCaptureBaseline = card.royalFollowUp === 'preserve-existing' ? royalCaptureKeys(state, content) : null
     const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
     let relocatedTo: SquareId | null = null
     // The first chosen square is what an unquantified card is "about" — the
@@ -970,6 +1045,10 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       // the card was a silent no-op. `bindEffect` returns the single unbound
       // effect when there is no quantifier, so the unquantified path is unchanged.
       for (const bound of bindEffect(working, mover, base)) {
+        if (
+          bound.boundSubject &&
+          content.pieces.get(bound.boundSubject.piece.pieceId)?.royal === true
+        ) continue
         const ctx: EvalCtx = {
           state: working,
           content,
@@ -988,6 +1067,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     // onto a hostile square unharmed — a hole in the content vocabulary that
     // no card author could see, and one no rule card could patch.
     if (relocatedTo) subjectSquare = cascadeEnter(state, content, m, relocatedTo, mover)
+    if (card.protectRelocatedAfterPlay) relocatedProtectionSource = card.id
   }
   // `end_turn` has no branch of its own on purpose: it contributes no board
   // change and no subject, and everything it DOES do — the check tally, E7, the
@@ -1020,6 +1100,19 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
   runEvent(state, content, m, 'on_remove', null, null, mover, subjectSquare)
 
+  // Protected card relocation is settled last, after every entry cascade and
+  // follow-on lifecycle effect. The grant belongs to the final surviving
+  // square; a piece removed anywhere in that pipeline leaves no stale marker.
+  if (action.kind === 'play_card' && relocatedProtectionSource && subjectSquare && m.board.has(subjectSquare)) {
+    m.grants.push({
+      kind: 'block_capture',
+      square: subjectSquare,
+      untilPly: state.plyCount + 1,
+      sourceId: relocatedProtectionSource,
+      layer: 'skill',
+    })
+  }
+
   /*
    * The card branch stops here (ADR-001).
    *
@@ -1047,6 +1140,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       // A finished match has no follow-up move to wait for, so it carries no
       // pending turn either.
       turnCard: result ? null : action.cardId,
+      royalCaptureBaseline: result ? null : royalCaptureBaseline,
       movesMadeLastPly: 0,
       // Consumption is recorded HERE, where the card id is in hand. The
       // close-out used to do it, and the close-out no longer sees a card —
@@ -1112,6 +1206,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     result,
     // The turn is over, whatever it contained.
     turnCard: null,
+    royalCaptureBaseline: null,
     drafts: bumpTurns(state, content, mover),
   }
 }

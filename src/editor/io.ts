@@ -57,10 +57,18 @@ export function importContent(text: string): ImportResult {
   const result = loadContentSet(parsed)
   if (!result.ok) return { ok: false, errors: result.errors }
 
-  const source: ContentSource = { schemaVersion: raw.schemaVersion, pieces: [], squareTypes: [], ruleCards: [], skillCards: [], boards: [], presets: [] }
+  const source: ContentSource = { schemaVersion: SCHEMA_VERSION, pieces: [], squareTypes: [], ruleCards: [], skillCards: [], boards: [], presets: [] }
   for (const collection of COLLECTIONS) {
     const list = raw[collection]
-    source[collection] = Array.isArray(list) ? (list as unknown[]) : []
+    source[collection] = Array.isArray(list)
+      ? collection === 'skillCards' && raw.schemaVersion <= 10
+        ? list.map((record) =>
+            record && typeof record === 'object'
+              ? { ...record, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false }
+              : record,
+          )
+        : (list as unknown[])
+      : []
   }
   // The result is rebuilt field by field rather than passed through, so a field
   // missing from this function round-trips as `undefined` while every schema

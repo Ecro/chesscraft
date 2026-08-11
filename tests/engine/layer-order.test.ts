@@ -29,6 +29,13 @@ import type { Action, GameState } from '@engine/types'
 
 const WARP: Action = { kind: 'play_card', cardId: 'skill.warp', targets: ['e5', 'c3'] }
 
+function fourLayerContent() {
+  const content = loadSliceContent()
+  const archer = content.pieces.get('piece.archer')!
+  content.pieces.set('piece.layer-dummy', { ...archer, id: 'piece.layer-dummy', effects: [] })
+  return content
+}
+
 function positionWithArcherAndBlockedBeacon(blockD4: boolean): GameState {
   return createPosition({
     content: loadSliceContent(),
@@ -70,11 +77,11 @@ describe('ADR-002 layer order, driven by the slice content', () => {
    * subject a rule card reads at end-of-ply is the piece that made the move,
    * never the card's. A four-layer ply is still reachable and still exercises
    * the same total order; the archer simply has to walk onto the beacon itself
-   * rather than be thrown onto it. The card fires layer 4 by warping the king,
-   * which touches nothing else on the board.
+   * rather than be thrown onto it. The card fires layer 4 by warping an ordinary
+   * piece, which touches nothing else on the board.
    */
   function fourLayerTurn(): { state: GameState; log: string[] } {
-    const content = loadSliceContent()
+    const content = fourLayerContent()
     const start = createPosition({
       content,
       presetId: SLICE_PRESET_ID,
@@ -82,14 +89,15 @@ describe('ADR-002 layer order, driven by the slice content', () => {
       sideToMove: 'white',
       ruleCardId: 'rule.beacon-rush',
       placements: [
-        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'a1', pieceId: 'piece.layer-dummy', side: 'white' },
+        { square: 'b1', pieceId: 'piece.king', side: 'white' },
         { square: 'c2', pieceId: 'piece.archer', side: 'white' },
         { square: 'f6', pieceId: 'piece.king', side: 'black' },
       ],
       held: { white: ['skill.warp'] },
     })
-    const warpKing: Action = { kind: 'play_card', cardId: 'skill.warp', targets: ['a1', 'b1'] }
-    const mid = apply(start, warpKing, content)
+    const warpRook: Action = { kind: 'play_card', cardId: 'skill.warp', targets: ['a1', 'b2'] }
+    const mid = apply(start, warpRook, content)
     const close = legalActions(mid, content).find((a) => a.kind === 'move' && a.from === 'c2' && a.to === 'c3')
     if (!close) throw new Error('the archer cannot step onto the beacon')
     const after = apply(mid, close, content)
@@ -115,7 +123,7 @@ describe('ADR-002 layer order, driven by the slice content', () => {
     expect(next.board.get('d4')).toEqual({ pieceId: 'piece.archer', side: 'white' })
     expect(next.board.has('c3')).toBe(false)
     expect(next.board.has('c2')).toBe(false)
-    expect(next.board.get('b1')).toEqual({ pieceId: 'piece.king', side: 'white' })
+    expect(next.board.get('b2')).toEqual({ pieceId: 'piece.layer-dummy', side: 'white' })
     // ...and the rule card, resolving last, saw the archer standing on d4.
     expect(next.result).toEqual({ kind: 'win', winner: 'white', reason: 'win_action' })
   })

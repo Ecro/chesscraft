@@ -60,8 +60,8 @@ function position(content: ReturnType<typeof referenceContent>, held: string[] =
   })
 }
 
-describe('a royal removed by an effect ends the match', () => {
-  it('ends the match when a card destroys the enemy royal', () => {
+describe('royal removal paths', () => {
+  it('does not let a skill destroy the enemy royal', () => {
     const content = withAssassin()
     const state = position(content, ['skill.assassin'])
     expect(state.result).toBeNull()
@@ -69,11 +69,8 @@ describe('a royal removed by an effect ends the match', () => {
     const play = legalActions(state, content).find(
       (a) => a.kind === 'play_card' && a.cardId === 'skill.assassin' && a.targets[0] === 'f6',
     )
-    expect(play, 'the card could not target the enemy king').toBeDefined()
-
-    const after = apply(state, play!, content)
-    expect(after.result).toEqual({ kind: 'win', winner: 'white', reason: 'king_capture' })
-    expect(legalActions(after, content)).toEqual([])
+    expect(play).toBeUndefined()
+    expect(state.board.get('f6')).toEqual({ pieceId: 'piece.king', side: 'black' })
   })
 
   it('leaves an ordinary destruction alone, so the rule is about ROYALTY', () => {

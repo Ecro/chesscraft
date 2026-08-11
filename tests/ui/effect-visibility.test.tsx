@@ -58,7 +58,7 @@ function playCardAtFirstTarget(container: HTMLElement, cardId: string) {
 }
 
 /**
- * White reduced to one frozen king, holding a card that moves nothing.
+ * White reduced to one king frozen by a non-skill layer, holding an enemy debuff.
  *
  * Built rather than dealt: a card that strands its own owner is exactly what
  * ADR-003 exists for and no opening produces it. Black spends its freeze on the
@@ -70,20 +70,18 @@ function strandedWhite() {
     content,
     presetId: BUNDLED_PRESET_ID,
     seed: 3,
-    sideToMove: 'black',
-    held: { white: ['skill.bulwark'], black: ['skill.freeze'] },
+    sideToMove: 'white',
+    held: { white: ['skill.freeze'], black: [] },
     placements: [
       { square: 'a1', pieceId: 'piece.king', side: 'white' },
       { square: 'f6', pieceId: 'piece.king', side: 'black' },
       { square: 'e6', pieceId: 'piece.rook', side: 'black' },
     ],
   })
-  const freeze = legalActions(start, content).find(
-    (a) => a.kind === 'play_card' && a.cardId === 'skill.freeze' && a.targets[0] === 'a1',
-  )!
-  const frozen = apply(start, freeze, content)
-  const close = legalActions(frozen, content).find((a) => a.kind === 'move' && a.from === 'e6')!
-  const white = apply(frozen, close, content)
+  const white = {
+    ...start,
+    frozenUntil: { a1: { untilPly: start.plyCount + 2, sourceId: 'fixture.rule', layer: 'rule' as const } },
+  }
   expect(legalActions(white, content).some((a) => a.kind === 'move'), 'the fixture must really strand white').toBe(false)
   return white
 }
@@ -184,7 +182,7 @@ describe('the turn continues after the card', () => {
     const { container } = render(
       <MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} initialState={strandedWhite()} />,
     )
-    fireEvent.click(container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.bulwark"]')!)
+    fireEvent.click(container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.freeze"]')!)
     const target = container.querySelector<HTMLElement>('[data-legal="true"]')
     fireEvent.click(target!)
 

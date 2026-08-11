@@ -29,6 +29,17 @@ function v6Document(): ContentSource {
   return source
 }
 
+function currentDocument(): ContentSource {
+  const source = structuredClone(sliceContentSource) as ContentSource
+  source.schemaVersion = SCHEMA_VERSION
+  source.skillCards = source.skillCards.map((card) => ({
+    ...(card as object),
+    royalFollowUp: 'preserve',
+    protectRelocatedAfterPlay: false,
+  }))
+  return source
+}
+
 describe('schema v7 artKey', () => {
   it('is available — the axis landed in v7 and the build has not regressed below it', () => {
     // A statement about the artKey axis, not about today's version number.
@@ -39,13 +50,13 @@ describe('schema v7 artKey', () => {
     expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(7)
   })
 
-  it('loads a v6 document unchanged — artKey absent is the common case, not an edge', () => {
+  it('loads a v6 document without inventing art while migrating the writer shape', () => {
     const doc = v6Document()
     const result = importContent(exportContent(doc))
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.source).toEqual(doc)
+    expect(result.source.schemaVersion).toBe(SCHEMA_VERSION)
     // Not merely "it imported": nothing may have acquired an artKey by default.
     for (const piece of result.source.pieces) {
       expect(piece).not.toHaveProperty('artKey')
@@ -53,8 +64,7 @@ describe('schema v7 artKey', () => {
   })
 
   it('round-trips artKey on all four content kinds', () => {
-    const doc = structuredClone(sliceContentSource) as ContentSource
-    doc.schemaVersion = SCHEMA_VERSION
+    const doc = currentDocument()
     // Each kind is asserted separately because `strictObject` rejects an unknown
     // key per-shape — adding the field to `pieceDef` alone would pass a
     // pieces-only test while every card still refused its own art.
@@ -82,8 +92,7 @@ describe('schema v7 artKey', () => {
 
 describe('artKey is not a text key', () => {
   it('textKeysOf ignores artKey', () => {
-    const doc = structuredClone(sliceContentSource) as ContentSource
-    doc.schemaVersion = SCHEMA_VERSION
+    const doc = currentDocument()
     ;(doc.pieces[0] as Record<string, unknown>).artKey = 'art.king'
 
     const loaded = loadContentSet(doc)
@@ -97,8 +106,7 @@ describe('artKey is not a text key', () => {
   })
 
   it('artKeysOf collects declared art ids across all four kinds', () => {
-    const doc = structuredClone(sliceContentSource) as ContentSource
-    doc.schemaVersion = SCHEMA_VERSION
+    const doc = currentDocument()
     ;(doc.pieces[0] as Record<string, unknown>).artKey = 'art.king'
     ;(doc.squareTypes[0] as Record<string, unknown>).artKey = 'art.bomb'
 

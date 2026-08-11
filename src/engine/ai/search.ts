@@ -237,6 +237,7 @@ export function positionKey(state: GameState): number {
   // but not for a card whose effects changed nothing the key observes, and TT
   // hits depend on traversal order, so the corruption would be nondeterministic.
   fold(state.turnCard ?? '-')
+  fold(state.royalCaptureBaseline?.join(',') ?? '-')
   for (const side of ['white', 'black'] as const) {
     const draft = state.drafts[side]
     fold(`${side}h${[...draft.held].sort().join(',')}`)

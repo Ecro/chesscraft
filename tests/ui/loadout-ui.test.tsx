@@ -27,6 +27,8 @@ function documentWithOwnCard(): ContentSource {
     nameKey: 'skill.probe-own.name',
     textKey: 'skill.probe-own.text',
     uses: 1,
+    royalFollowUp: 'preserve',
+    protectRelocatedAfterPlay: false,
     effects: [
       { trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'freeze_piece', target: { kind: 'chosen_enemy' }, plies: 1 }] },
     ],

@@ -89,6 +89,7 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
         </button>
         <h2>{t('ui.rules.title')}</h2>
       </header>
+      <p className="intro">{t('ui.rules.intro')}</p>
 
       {/* `role="tablist"` is deliberately NOT claimed. The real pattern requires
           arrow-key roving focus and `aria-controls` onto a `tabpanel`, and a

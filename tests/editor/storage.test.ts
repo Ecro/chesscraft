@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { STAMP_KEY, STORAGE_KEY, loadStamp, loadStoredContent, saveContent, saveStamp } from '@editor/storage'
 import { sliceContentSource } from '@content/sets/slice'
+import { importContent } from '@editor/io'
 
 /**
  * Browser-local storage for authored content (PLAN Phase 5 scope).
@@ -56,7 +57,10 @@ describe('browser-local content storage', () => {
     const loaded = loadStoredContent(storage)
     expect(loaded.ok).toBe(true)
     if (!loaded.ok) return
-    expect(loaded.source).toEqual(source)
+    const migrated = importContent(JSON.stringify(source))
+    expect(migrated.ok).toBe(true)
+    if (!migrated.ok) return
+    expect(loaded.source).toEqual(migrated.source)
   })
 
   it('reports nothing stored rather than failing, on a first run', () => {

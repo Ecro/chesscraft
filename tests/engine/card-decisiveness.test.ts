@@ -155,8 +155,8 @@ describe('AC-CARDS — what each rule card does to the outcome (PLAN Phase 5)', 
  * `sudden-death` from these was never its rate — it was a measurement of its own clause.
  */
 const SUSPECTS: string[] = [
-  'rule.conscription',
-  'rule.last-stand',
   'rule.royal-bodyguard',
   'rule.knights-honour',
+  'rule.conscription',
+  'rule.fast-promotion',
 ]

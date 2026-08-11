@@ -183,10 +183,14 @@ describe('AC-013 engine invariants under random play', () => {
           expect(after.plyCount, 'a card play advanced the ply count').toBe(before.plyCount)
           expect(after.sideToMove, 'a card play handed the board over').toBe(before.sideToMove)
           expect(after.turnCard, 'a card play left no pending turn').toBe(action.cardId)
+          expect(after.royalCaptureBaseline).toEqual(
+            content.skillCards.get(action.cardId)?.royalFollowUp === 'preserve-existing' ? expect.any(Array) : null,
+          )
         } else if (!after.result) {
           sawClose = true
           expect(after.plyCount).toBe(before.plyCount + 1)
           expect(after.turnCard, 'the close-out left a stale pending card').toBeNull()
+          expect(after.royalCaptureBaseline, 'the close-out left a stale royal baseline').toBeNull()
         }
       }
     }

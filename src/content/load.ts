@@ -144,7 +144,11 @@ export function loadContentSet(source: unknown): LoadResult {
 
     list.forEach((record, index) => {
       const id = idOf(record, name, index)
-      const result = schema.safeParse(record)
+      const normalized =
+        name === 'skillCards' && schemaVersion !== null && schemaVersion <= 10 && record && typeof record === 'object'
+          ? { ...record, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false }
+          : record
+      const result = schema.safeParse(normalized)
       if (!result.success) {
         for (const issue of result.error.issues) {
           // An unrecognized-key issue points at the *object*, and carries the
@@ -181,6 +185,28 @@ export function loadContentSet(source: unknown): LoadResult {
   const skillCards = parsed.skillCards as Map<string, SkillCardDef>
   const boards = parsed.boards as Map<string, BoardDef>
   const presets = parsed.presets as Map<string, PresetDef>
+
+  for (const [id, card] of skillCards) {
+    if (!card.protectRelocatedAfterPlay) continue
+    const teleports = card.effects.flatMap((effect) =>
+      effect.actions
+        .filter((action) => action.kind === 'teleport_piece')
+        .map((action) => ({ effect, action })),
+    )
+    const valid =
+      teleports.length === 1 &&
+      !card.effects.some((effect) => effect.actions.some((action) => action.kind === 'swap_pieces')) &&
+      teleports[0]!.effect.forEach === undefined &&
+      teleports[0]!.effect.condition.kind === 'always' &&
+      (teleports[0]!.action.target.kind === 'chosen_friendly' || teleports[0]!.action.target.kind === 'chosen_enemy')
+    if (!valid) {
+      errors.push({
+        contentId: id,
+        path: `skillCards.${id}.protectRelocatedAfterPlay`,
+        message: 'requires exactly one unconditional, unquantified, single-subject teleport and no other relocation',
+      })
+    }
+  }
 
   const requireRef = (
     exists: boolean,
