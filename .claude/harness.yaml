@@ -4,11 +4,11 @@ harness_maker_version: 0.51.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: harness-yaml/Side.yaml.j2
 provenance: official
-content_hash: 7e15d795eb90ae30917e47d11304942ed3fccb8c8940a9a73fc6810597b1258c
+content_hash: ebccea259102d8a5c72de300e45e5ab5c75b69c52250f1574925353dcee456be
 ---
 preset: Side
 locale: ko
-targets: [claude-code]
+targets: [claude-code, codex]
 default_model: opus
 dev_mode: task-driven
 caching: agent-aware

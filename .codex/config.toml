@@ -1,0 +1,82 @@
+[features]
+hooks = true
+
+# ADR-008 (PLAN-model-routing-multi-ide): per-loop invocation profiles
+# (`codex -p cheap` / `codex -p deep`) live in your USER-level config —
+# `~/.codex/config.toml` — not here. Codex CLI v0.130+ rejects
+# `[profiles.*]` in project-local `.codex/config.toml` with
+# "Ignored unsupported project-local config keys ... profiles".
+# `harness-maker make` (when codex is a target) idempotently installs
+# `[profiles.cheap]` (`model_reasoning_effort = "minimal"`) and
+# `[profiles.deep]` (`"high"`) into `~/.codex/config.toml`. Per-project
+# tuning happens via `.codex/agents/<name>.toml` `model_reasoning_effort`
+# instead, which IS honored at the project level.
+
+
+[agents.autoloop-coder]
+config_file = "agents/autoloop-coder.toml"
+description = "Implementation agent for autoloop iterations \u2014 bounded scope, write-tool-only, no open-ended exploration; worktree-bounded writes"
+
+[agents.code-reviewer]
+config_file = "agents/code-reviewer.toml"
+description = "Reviews code changes for correctness, readability, maintainability, and basic security/performance hygiene"
+
+[agents.code-verifier]
+config_file = "agents/code-verifier.toml"
+description = "Reduce-only verifier. Mode B (cross-model PIDA) is the only live caller and the default: accepted/rejected/duplicate/unresolved for second-opinion findings against injected oracle output. Mode A (the Pass 1.5 KEEP/DROP/DEMOTE reduction) is retained but no longer dispatched \u2014 its call site was removed. MUST NOT introduce new findings."
+
+[agents.concurrency-reviewer]
+config_file = "agents/concurrency-reviewer.toml"
+description = "Reviews changes for race conditions, deadlocks, ISR safety, and async correctness"
+
+[agents.consensus-arbiter]
+config_file = "agents/consensus-arbiter.toml"
+description = "Aggregates findings from multiple reviewer agents via surface match + reasoning alignment + severity resolution; tags every finding consensus-passed | weak-consensus | manual-only"
+
+[agents.executor]
+config_file = "agents/executor.toml"
+description = "Workflow executor with worktree-bounded write permissions \u2014 only writes to .worktrees/, never to repo root"
+
+[agents.judgment-reviewer]
+config_file = "agents/judgment-reviewer.toml"
+description = "Independently evaluates a judgment AC\u0027s subject against its rubric and returns a per-criterion verdict with cited locators (PLAN-judgment-ac-binding ADR-006). Read-only."
+
+[agents.performance-reviewer]
+config_file = "agents/performance-reviewer.toml"
+description = "Reviews changes for hot-path regressions, allocation hotspots, and algorithmic inefficiency"
+
+[agents.plan-validator]
+config_file = "agents/plan-validator.toml"
+description = "Critiques a draft PLAN document for gaps, ambiguities, missing exit criteria, and feasibility risks before /hm:execute is invoked. Read-only."
+
+[agents.security-auditor]
+config_file = "agents/security-auditor.toml"
+description = "Deep 5-gate security audit (secrets, permissions, hook injection, dependency CVEs, prompt injection) \u2014 read-only, returns structured findings JSON"
+
+[agents.security-reviewer]
+config_file = "agents/security-reviewer.toml"
+description = "Reviews changes for secrets exposure, injection, auth flaws, and unsafe permission grants"
+
+[agents.stage-delegate]
+config_file = "agents/stage-delegate.toml"
+description = "Runs a whole pipeline stage body (wrapup or verify) from a validated brief and returns a machine receipt, cutting main-loop context carry"
+
+[agents.stuck]
+config_file = "agents/stuck.toml"
+description = "Escalation analyst \u2014 invoked when /hm:execute, /hm:review, or /hm:plan blocks. Performs root-cause analysis, proposes 2-3 unblock paths, and writes a structured escalation note. Read-only."
+
+[agents.test-reviewer]
+config_file = "agents/test-reviewer.toml"
+description = "Phase A.5 gate for /hm:execute. Critiques RED-stage tests for SPEC alignment, banned-pattern violations, and assertion quality before Phase B (RED gate) runs. Read-only."
+
+[agents.ux-reviewer]
+config_file = "agents/ux-reviewer.toml"
+description = "Reviews UI changes for accessibility, consistency, and interaction quality"
+
+
+
+# @hm:user:extensions
+# Add custom Codex configuration here ([mcp_servers."..."], [agents.NAME], etc.).
+# Content between these markers is preserved across `harness-maker make` re-renders
+# (PLAN-onboarding-backup-friction Phase 2, ADR-004/007).
+# @hm:/user:extensions

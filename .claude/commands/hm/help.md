@@ -5,7 +5,7 @@ generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/help.ko.md.j2
 provenance: official
 description: 'List the /hm: commands and what each one is for.'
-content_hash: 3d9664bc6069c1046914d213b3a1fda651391789dda473b90899091862247846
+content_hash: cbac1f1aa552d354f7ab97dd7d168403698bf6dffc4e4532be3083bbd342900c
 ---
 # /hm:help — harness-maker (ko)
 
@@ -51,9 +51,10 @@ stage 연결은 `/hm:loop` 또는 autopilot 이 담당합니다 — 융합 워�
 |---|---|
 | preset | `Side` |
 | locale | `ko` |
-| targets | `claude-code` |
+| targets | `claude-code, codex` |
 | autopilot | `auto_safe`, 매 세션 자동 재무장 |
 
+> **Codex CLI:** `@hm-*` 형식으로 호출 (예: `@hm-help`, `@hm-execute`). Skill 은 `.agents/skills/` 경로.
 
 
 ## 💡 다음 단계
