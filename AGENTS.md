@@ -1,4 +1,4 @@
-<!-- harness-maker: content_hash=7367b67f289dc1bdb7d0a818bfe656fdbd26258f343749cbd8b8e23df9863bac version=0.51.1 generated_at=2026-08-11T06:26:59.099659+00:00 -->
+<!-- harness-maker: content_hash=7367b67f289dc1bdb7d0a818bfe656fdbd26258f343749cbd8b8e23df9863bac version=0.51.1 generated_at=2026-08-11T06:32:42.679804+00:00 -->
 # AGENTS.md — harness-maker workflow guide
 
 > **Side** preset · task-driven mode
