@@ -298,7 +298,29 @@ p {
 button {
   font: inherit;
   cursor: pointer;
+  /*
+   * A button is never squeezed below the height its own text needs.
+   *
+   * Every screen is a column flex container, so every direct-child button carried the default
+   * `flex-shrink: 1`. When a column overran the shell height the browser shrank its flex items
+   * BEFORE engaging that column's own `overflow-y: auto` — so `놀러 가기` (`button.primary.xl`,
+   * natural height 70.8px) bottomed out on the 44px `min-height` below, leaving a 2px content
+   * box under a 28.8px line box, and `main`/`.phone`'s `overflow: hidden` cut the glyphs off at
+   * the bottom. `min-height` is a floor, not a guard: it is the value the squeeze stops AT.
+   *
+   * The same button on the Result screen never clipped, because `.result-actions` declares
+   * `flex: none`. This promotes that container-local fix to the whole family. A column with too
+   * much content now scrolls (`.home`, `.screen-body`, `.play` and `.editor` all already
+   * declare `overflow-y: auto`) instead of silently compressing a control.
+   */
+  flex-shrink: 0;
   min-height: 44px;
+  /*
+   * `body` sets `word-break: keep-all` so Korean does not break mid-syllable. That closes the
+   * default wrapping path, so without a valve a label wider than its button cannot wrap at all
+   * and overflows instead. This lets it wrap at 어절 boundaries and the button grow taller.
+   */
+  overflow-wrap: break-word;
   padding: var(--space-3) var(--space-4);
   border: var(--border-w) solid var(--color-outline);
   border-radius: 0;
@@ -346,7 +368,9 @@ button.primary:active:not(:disabled) {
 }
 
 button.xl {
-  padding: var(--space-6) 0;
+  /* Inline padding, not 0: the bevel is a 3px inset shadow drawn OVER the padding area, so a
+     label at the edge sits under it. Same reason on every rule that used to zero this. */
+  padding: var(--space-6) var(--space-4);
   font-size: var(--font-size-lg);
 }
 
@@ -625,7 +649,7 @@ hr {
 }
 
 .boot-actions button {
-  padding: var(--space-5) 0;
+  padding: var(--space-5) var(--space-4);
 }
 
 .boot-actions .primary {
@@ -772,7 +796,7 @@ hr {
 
 .home-secondary button {
   flex: 1;
-  padding: var(--space-4) 0;
+  padding: var(--space-4) var(--space-4);
 }
 
 /* -------------------------------------------------------------------- lobby */
@@ -1951,7 +1975,9 @@ hr {
 
 .match-tools button {
   flex: 1;
-  padding: var(--space-4) 0;
+  /* Dense tier: six 9px labels share a 390px row, so this takes the smallest padding that
+     still clears the 3px bevel rather than the 11px an ordinary button gets. */
+  padding: var(--space-4) var(--space-2);
   font-size: var(--font-size-xs);
 }
 
@@ -2334,7 +2360,7 @@ hr {
 
 .result-secondary button {
   flex: 1;
-  padding: var(--space-4) 0;
+  padding: var(--space-4) var(--space-4);
 }
 
 /* -------------------------------------------------------------- the editor */
@@ -2509,7 +2535,8 @@ details.advanced summary {
 
 .build-steps button {
   flex: 1;
-  padding: var(--space-3) 2px;
+  /* Dense tier: five 9px step labels across one strip. */
+  padding: var(--space-3) var(--space-2);
   font-size: var(--font-size-xs);
 }
 
@@ -2582,7 +2609,8 @@ details.advanced summary {
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-1);
+  /* Dense tier: 9px label under a sprite in a narrow grid cell. */
+  padding: var(--space-4) var(--space-2);
   font-size: 26px;
   line-height: 0;
   background: var(--color-sunken);
@@ -3124,7 +3152,7 @@ details.advanced summary {
 
 .dex-tabs button {
   flex: 1;
-  padding: var(--space-4) 0;
+  padding: var(--space-4) var(--space-4);
 }
 
 .dex-grid {
@@ -3143,7 +3171,8 @@ details.advanced summary {
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-1);
+  /* Dense tier: 9px label under a sprite in a narrow grid cell. */
+  padding: var(--space-4) var(--space-2);
   background: var(--color-surface);
   box-shadow:
     inset var(--bevel) var(--bevel) 0 var(--color-surface-hi),

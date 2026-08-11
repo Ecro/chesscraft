@@ -332,3 +332,17 @@ calls are semantically different.
 
 
 **2026-08-10 (count 4):** now seen in the EDITOR, not just the engine — two hand-written reducers over one board model drifted on what a tap does, and extracting the shared MARKUP left both reducers duplicated. A guard would compare the reducers, not the components: any two call sites writing one schema path should be one function, and a lint or gate that flags a schema path with more than one writer would have caught all four instances.
+
+## Proposal: derive e2e sweep coverage from the changed selectors, not from a nav affordance (2026-08-11)
+**Triggered by:** [fail:test] gate-enumerates-one-axis-blind-to-others (count: 3)
+**Proposed mechanism:** skill (a review/execute checklist item) + a reusable e2e helper
+**Rationale:** All three recurrences share one move — the gate enumerated a MECHANISM
+(`axis:kind` pairs, one-interaction pointer sequences, `.tabbar .tab` clicks) instead of the
+SUBJECT it had to cover. The third instance is the cheapest to automate against: a sweep whose
+coverage comes from clicking whatever navigation exists cannot reach a screen that navigation
+does not expose, and it reports clean rather than reporting "unvisited". A helper that takes the
+set of changed CSS selectors (or changed component files) and fails when any of them was never
+rendered during the sweep would have caught it before review did. Cheaper intermediate step: make
+every sweep assert a per-target "was this actually rendered at least once" counter, so the
+absent case is a failure instead of a silent zero — the same shape as the `expect(count > 3)`
+guards that were added by hand to this task's two new tests after the fact.
