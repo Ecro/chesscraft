@@ -18,6 +18,16 @@ const ORIGIN = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
   testDir: './e2e',
+  /*
+   * Pull the module graph through Vite once before any worker starts.
+   *
+   * Not a convenience: without it the suite is flaky at the default worker
+   * count, because `npm run dev` transforms on demand and N browsers ask for
+   * the whole graph at the same instant. See `e2e/global-setup.ts` for the
+   * measurement that separates that from CPU contention — the two look
+   * identical from the failure list and have opposite remedies.
+   */
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
