@@ -16,6 +16,10 @@ import { type Settings, DEFAULT_SETTINGS } from './settings'
 import { type SoundEvent, hapticsSupported, play } from './sound'
 import { Result } from './Result'
 import { Sheet } from './Sheet'
+import { MatchIntro } from './MatchIntro'
+import { CardBanner } from './CardBanner'
+import { type CardPlay, cardPlayBetween } from './cardPlays'
+import { MATCH_INTRO_SEEN_KEY, hasSeen, markSeen } from './onboarding'
 import { PieceMoveRegion } from './PieceDetail'
 import { usePressInspect } from './usePressInspect'
 
@@ -97,6 +101,9 @@ export function eventFor(
 ): SoundEvent {
   if (after.result) return after.result.kind === 'draw' ? 'draw' : 'win'
   if (action.kind === 'draft_pick') return 'draft'
+  // A card is the rarer thing and it now gets a banner; a card play that
+  // sounded exactly like a step was the audible half of the same defect.
+  if (action.kind === 'play_card') return 'card'
   // A move onto an occupied square is a capture, and should not sound like a step.
   if (action.kind === 'move' && before.board.has(action.to)) return 'capture'
   return 'move'
@@ -172,6 +179,17 @@ const HAND_OFF_MS = 1600
 const AI_MIN_THINK_MS = 650
 
 /**
+ * How long the card banner names the card that just fired.
+ *
+ * Exported so a test can advance exactly this far rather than guess. Longer
+ * than the hand-off's 1.6s nudge is not needed — this is one short line and a
+ * card name — but it must be long enough to read at a glance, and it doubles as
+ * the computer's beat (ADR-005): the reply it owes waits this out, so cause is
+ * on screen before effect on the one path where the player did not cause it.
+ */
+export const CARD_BANNER_MS = 1200
+
+/**
  * What the detail sheet is currently showing. Content-agnostic on purpose.
  *
  * `because` and `piece` are the two exceptions, and both are optional so that
@@ -214,6 +232,7 @@ export function MatchHost({
   aiDifficulty = 'medium',
   createAi,
   initialState,
+  storage,
 }: {
   content: ContentSet
   presetId: string
@@ -255,6 +274,21 @@ export function MatchHost({
   onHome?: () => void
   onEditRoom?: () => void
   onProgressChange?: (inProgress: boolean) => void
+  /**
+   * Where the first-board sheet records that it has been shown.
+   *
+   * Injected rather than read from `window`, for the same reason `newSeed` and
+   * `createAi` are (ADR-024) — and here the injection is load-bearing beyond
+   * testability. Roughly fifteen unit tests mount this component directly to
+   * look at a board. A component that reached for `localStorage` on its own
+   * would put every one of them behind an undismissed sheet, failing on
+   * selectors one tap away with nothing in the output naming the cause.
+   *
+   * Absent therefore means "no onboarding here", which is also the right answer
+   * for a browser that denies storage — see `onboarding.ts` on which way the
+   * storage checks fail.
+   */
+  storage?: Storage | null | undefined
 }) {
   // Bound to the ACTIVE document's overlay (ADR-020), not to the shipped bundle:
   // a piece a child renamed must render under the name they gave it.
@@ -298,6 +332,22 @@ export function MatchHost({
   const [handOff, setHandOff] = useState<Side | null>(null)
   /** The rule drawn for this match, shown once and then dismissed on a timer. */
   const [banner, setBanner] = useState(true)
+  /**
+   * The first-board sheet, open until this browser has been shown it once.
+   *
+   * Resolved in the initialiser rather than in an effect: an effect would paint
+   * one frame of the board first, and a sheet that slides in over a screen the
+   * player has already started reading is a sheet they dismiss without reading.
+   * With no storage it is simply never open — see the note on the prop.
+   */
+  const [introOpen, setIntroOpen] = useState(() => Boolean(storage) && !hasSeen(storage!, MATCH_INTRO_SEEN_KEY))
+  const closeIntro = () => {
+    setIntroOpen(false)
+    // Any dismissal counts — the button, the scrim, Escape. `Sheet` routes all
+    // three through `onClose`, so recording here covers them without three
+    // call sites that could disagree.
+    if (storage) markSeen(storage, MATCH_INTRO_SEEN_KEY)
+  }
   /**
    * The move that produced the current state, for the landing animation.
    *
@@ -354,6 +404,17 @@ export function MatchHost({
     return new Set(effects.filter((e) => !was.has(key(e, state.plyCount))).map((e) => e.square))
   })()
 
+  /**
+   * The card played on the LAST transition, if one was — derived, not stored.
+   *
+   * `[fail:design] rule-keyed-to-event-not-state` is at count:3 here, once in
+   * this component. Four routes reach "a card was played": the human commit
+   * path, the commit button for a card that names no square, the computer's
+   * `push`, and `undo` stepping back across one. A `setState` in each handler
+   * is the shape that has failed three times; this asks the history instead.
+   */
+  const cardPlay = match.states.length < 2 ? null : cardPlayBetween(match.states[match.states.length - 2]!, state)
+
   /** The player's name if they gave one, else the side's own word. */
   const nameOf = (side: Side) => names[side].trim() || t(`ui.side.${side}`)
 
@@ -386,6 +447,68 @@ export function MatchHost({
   }, [banner, seed])
 
   /**
+   * The card banner's own lifetime, held rather than derived.
+   *
+   * The identity comes from the derivation (`cardPlay`); the VISIBILITY is a
+   * flag on a timer, and the distinction is the whole of ADR-002's amendment.
+   * Rendering straight off `cardPlay` would make the banner last exactly as
+   * long as the player took to act next — it vanishes the moment
+   * `match.states` grows past the pair that shows the play, so a fast player
+   * gets 200ms and a slow one gets however long they sat there.
+   *
+   * Keyed on the history length as well as the card, so playing the same card
+   * twice restarts the countdown instead of inheriting the remainder of the
+   * first one's — the same reasoning that puts the absolute expiry in
+   * `effectKey`, and the same reason the hand-off effect depends on `plyCount`.
+   *
+   * The play itself is LATCHED, not read live, and that is the load-bearing
+   * part: `cardPlay` is null again the moment the owed move lands, so a banner
+   * rendered from it would blink out mid-sentence for the player who moves
+   * quickly. What the latch holds is what was true when the card resolved.
+   */
+  const playKey = cardPlay ? `${match.states.length}:${cardPlay.cardId}` : null
+  const [cardNotice, setCardNotice] = useState<{ key: string; play: CardPlay } | null>(null)
+  useEffect(() => {
+    if (playKey && cardPlay) setCardNotice({ key: playKey, play: cardPlay })
+    // `cardPlay` is derived fresh each render; `playKey` is the value that
+    // actually changes when a NEW card is played, so it alone drives the latch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playKey])
+  useEffect(() => {
+    if (!cardNotice) return
+    const id = setTimeout(() => setCardNotice(null), CARD_BANNER_MS)
+    return () => clearTimeout(id)
+  }, [cardNotice])
+  /**
+   * The announced card's record, or absent when the set no longer defines it.
+   *
+   * Resolved here rather than at the render, and `cardBannerUp` depends on it,
+   * so an unknown card takes the card banner OUT of the ordered pick entirely
+   * (ADR-004) instead of winning the slot and then drawing nothing — which
+   * would blank the notice stack and swallow the hand-off behind it.
+   */
+  const cardRecord = cardNotice ? content.skillCards.get(cardNotice.play.cardId) : undefined
+  const cardBannerUp = cardNotice !== null && cardRecord !== undefined
+  /**
+   * The squares the announced card touched, for as long as it is announced.
+   *
+   * Gated on `cardBannerUp`, not merely on the latch: the ring and the words
+   * are the same event, and two lifetimes for one event is how a ring outlives
+   * the sentence explaining it.
+   *
+   * The `cardBannerUp` half was missed once. When the record lookup was made to
+   * suppress the banner, this line still read the latch alone — so an unknown
+   * card would have drawn rings on the board with no banner to explain them,
+   * while some other notice held the slot. The comment above already claimed
+   * the shared lifetime; only the code did not. Review caught it.
+   *
+   * Empty under reduced motion — the banner still says everything the ring
+   * does, in words.
+   */
+  const impacted: ReadonlySet<SquareId> =
+    cardBannerUp && cardNotice && !prefersReducedMotion() ? cardNotice.play.impacted : new Set<SquareId>()
+
+  /**
    * The hand-off banner clears itself.
    *
    * On a timer rather than on the next interaction, because the thing it marks
@@ -393,12 +516,18 @@ export function MatchHost({
    * curtain did, and the tap was the problem. Keyed on the side so a second
    * hand-off restarts the countdown rather than inheriting the remainder of the
    * first one's.
+   *
+   * Its countdown does not start while a card banner is up (ADR-004). The
+   * hand-off is displaced by the card, not dropped — running the timer under a
+   * banner that outranks it would spend the whole 1.6s hidden and the player
+   * would never learn whose turn it is. This is the one notice that queues
+   * rather than yields.
    */
   useEffect(() => {
-    if (!handOff) return
+    if (!handOff || cardBannerUp) return
     const id = setTimeout(() => setHandOff(null), HAND_OFF_MS)
     return () => clearTimeout(id)
-  }, [handOff, state.plyCount])
+  }, [handOff, cardBannerUp, state.plyCount])
 
   const toggle = (key: 'sound' | 'haptics') => applySettings({ ...live, [key]: !live[key] })
 
@@ -418,6 +547,8 @@ export function MatchHost({
     setPeek(null)
     setRuleOpen(false)
     setBanner(true)
+    // A new deal has nothing to announce; the previous match's card is not it.
+    setCardNotice(null)
   }
 
   const push = (action: Action) => {
@@ -506,7 +637,23 @@ export function MatchHost({
       // The floor. Waiting AFTER the search rather than before it means a slow
       // search is never made slower — the remainder is whatever is left of
       // `AI_MIN_THINK_MS`, and at the hardest level that is usually nothing.
-      const remaining = AI_MIN_THINK_MS - (Date.now() - startedAt)
+      /*
+       * The floor, and which floor (ADR-005).
+       *
+       * `state.turnCard !== null` means the search that just answered is the
+       * MOVE this turn's card still owes — so the card is already on the board
+       * and its banner is up. Waiting out the banner rather than the ordinary
+       * beat is what puts cause before effect on the one path where the player
+       * did not cause it: without it the card and the reply land inside one
+       * perceptual event and the position appears to change by itself, which is
+       * the symptom this floor was introduced for in the first place, never
+       * extended to cards.
+       *
+       * Still the same `dwell` variable and the same `clearTimeout` in the
+       * cleanup — a second timer would be a second thing to leak.
+       */
+      const floor = state.turnCard !== null ? CARD_BANNER_MS : AI_MIN_THINK_MS
+      const remaining = floor - (Date.now() - startedAt)
       if (remaining <= 0) land()
       else dwell = setTimeout(land, remaining)
     })
@@ -535,6 +682,11 @@ export function MatchHost({
     play('undo', live)
     // The highlight describes a move that no longer happened.
     setLastMove(null)
+    // And so does the banner. The latch deliberately outlives the history pair
+    // that produced it — that is what keeps it up when a fast player moves
+    // straight away — so it has to be released here explicitly, or an undone
+    // card goes on being announced for the rest of its second.
+    setCardNotice(null)
     setPlay((p) => ({ seed: p.seed, match: undo(p.match) }))
     setSelected(null)
     setPendingCard(null)
@@ -853,6 +1005,32 @@ export function MatchHost({
   // Resolved once and reused for both the presence test and the body. Calling it
   // twice was correct (the function is pure) but says the two could differ.
   const ruleMark = iconMark(t, rule)
+
+  /**
+   * Which notice the stack shows, decided in ONE place (ADR-004).
+   *
+   * There were four notices, each suppressed by an ad-hoc condition naming the
+   * others (`handOff && !banner && !aiSide`), and adding a fifth that way is a
+   * fifth clause on each of the existing four. The comment beside the hand-off
+   * records what that shape already cost once: two announcements at the same
+   * coordinates is how the notice stack bug happened one screen over.
+   *
+   * `ai-degraded` is deliberately NOT in this list. It is persistent and about
+   * the MATCH — the seed no longer replays it (AC-011) — rather than transient
+   * and about the ply, and it renders away from these coordinates, so it may
+   * legitimately stand beside whichever notice is showing. Absent by decision,
+   * not by oversight; `tests/ui/card-banner.test.tsx` pins the coexistence so
+   * the two readings cannot be confused later.
+   */
+  const notice: 'card' | 'rule' | 'handoff' | 'thinking' | null = cardBannerUp
+    ? 'card'
+    : banner && rule
+      ? 'rule'
+      : handOff && !aiSide
+        ? 'handoff'
+        : aiThinking && !state.result
+          ? 'thinking'
+          : null
   const legendTypes = [...new Map([...painted.values()].map((p) => [p.type.id, p.type])).values()]
   /** The selected piece's own entry, for the strip and for its opener. */
   const selectedInfo = selected ? inspectPeek(selected) : null
@@ -1048,6 +1226,7 @@ export function MatchHost({
                       data-square-type={type?.id ?? ''}
                       {...(badge ? { 'data-effect': badge.kind, 'data-effect-plies': String(badge.remaining) } : {})}
                       {...(badge && arrived.has(sq) ? { 'data-effect-new': 'true' } : {})}
+                      {...(impacted.has(sq) ? { 'data-impact': 'true' } : {})}
                       data-parity={parity}
                       data-last={lastMove?.from === sq ? 'from' : lastMove?.to === sq ? 'to' : undefined}
                       style={
@@ -1104,6 +1283,14 @@ export function MatchHost({
                           top-right, so the two armies differ by a mark you can
                           LOCATE without resolving its colour. */}
                       {piece && <span className="side-tag" data-side={piece.side} aria-hidden="true" />}
+                      {/* Where the card landed. An element of its own rather
+                          than a pseudo-element, because both of this square's
+                          are already spoken for — `[data-last]` has `::before`
+                          and the legal-move dot has `::after` — and the ring
+                          first borrowed the dot's, silently replacing the move
+                          affordance during the exact window ADR-005 leaves the
+                          player free to move in. */}
+                      {impacted.has(sq) && <span className="impact-ring" aria-hidden="true" />}
                       {/* The effect standing here, with the plies it has left.
                           Its own hit area, and it swallows the click: the square
                           body means "select / move" and always will, so opening
@@ -1423,7 +1610,36 @@ export function MatchHost({
       {/* The rule this match drew, said once and loudly. It is the one thing
           about a match that a player did not choose, and it used to arrive as a
           line of text in a card that was already on screen. */}
-      {banner && rule && (
+      {/* The card that just fired, named while it is still news. First in the
+          ordered pick — it is the only notice carrying information the player
+          cannot recover from the board a moment later. */}
+      {/*
+          The record is resolved ONCE and its absence suppresses the banner.
+
+          The first version fell back to `?? cardId`, and both reviewers caught
+          the same thing: on a miss that hands a raw `skill.*` id straight to a
+          player, which is the one rule (AC-009) this screen may not break. The
+          branch is unreachable as the app is wired — the engine only ever puts
+          a validated id in `turnCard`, and `App.tsx` remounts on a content
+          change — but a defensive path that breaks a guarantee when it fires is
+          worse than no path.
+
+          Suppressing rather than substituting a placeholder, because a
+          placeholder key would be reachable from nowhere:
+          `[fail:design] declared-but-inert-vocabulary` is at count:7 here. If
+          there is no record, there is nothing to name.
+      */}
+      {notice === 'card' && cardNotice && cardRecord && (
+        <CardBanner
+          mark={iconMark(t, cardRecord)}
+          name={t(cardRecord.nameKey)}
+          text={t(cardRecord.textKey)}
+          side={cardNotice.play.side}
+          by={nameOf(cardNotice.play.side)}
+        />
+      )}
+
+      {notice === 'rule' && rule && (
         <div className="rule-banner" data-testid="rule-banner" role="status">
           <span className="banner-icon" aria-hidden="true">
             <MarkBody mark={ruleMark} />
@@ -1459,7 +1675,7 @@ export function MatchHost({
         two unrelated things, and the thinking indicator below says the one that
         is actually true — wait, something is happening.
       */}
-      {handOff && !banner && !aiSide && (
+      {notice === 'handoff' && handOff && (
         <div className="turn-toast" data-testid="hand-off" data-side={handOff} role="status" aria-live="polite">
           <span className="turn-chip" data-side={handOff} aria-hidden="true" />
           <span>{t('ui.status.whose-turn').replace('{name}', nameOf(handOff))}</span>
@@ -1474,7 +1690,7 @@ export function MatchHost({
         — which is the observable half of "the interface stays alive". The search
         itself is on another thread, so this is a label rather than a promise.
       */}
-      {aiThinking && !state.result && (
+      {notice === 'thinking' && (
         <div className="turn-toast" data-testid="ai-thinking" data-side={aiSide} role="status" aria-live="polite">
           <span className="turn-chip" data-side={aiSide} aria-hidden="true" />
           <span>{t('ui.ai.thinking').replace('{name}', nameOf(aiSide!))}</span>
@@ -1510,6 +1726,11 @@ export function MatchHost({
       )}
 
       {peek && <PeekSheet peek={peek} onClose={() => setPeek(null)} />}
+
+      {/* Last in the tree so it sits over everything — including the draft
+          offer, which is the first thing this sheet is explaining how to do.
+          Read first, then act. */}
+      {introOpen && <MatchIntro rule={rule} ruleMark={ruleMark} onClose={closeIntro} />}
     </section>
   )
 }

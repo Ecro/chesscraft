@@ -526,6 +526,20 @@ export const ko: Record<string, string> = {
   'ui.boot.skip': '건너뛰기',
   'ui.boot.done': '시작하기',
 
+  // The first board a player opens. `Boot` says what the app is; this says what
+  // a turn is, next to the board it is talking about.
+  'ui.intro.title': '이렇게 두면 돼요',
+  'ui.intro.rule.label': '이번 판의 규칙',
+  'ui.intro.turn.title': '카드를 써도 한 수는 그대로',
+  'ui.intro.turn.body': '스킬 카드를 쓰고 나서도 기물을 한 번 움직입니다.\n카드만 쓰고 차례를 넘길 수는 없어요.',
+  'ui.intro.opponent.title': '상대가 쓴 카드는 알려줘요',
+  'ui.intro.opponent.body': '누가 어떤 카드를 썼는지 화면 위에 잠깐 뜨고,\n카드가 닿은 칸이 함께 반짝입니다.',
+  'ui.intro.start': '알겠어요',
+
+  // The card that just fired. `{name}` is the player, not the card — the card
+  // has the line below it, where it can be read.
+  'ui.card.played.by': '{name} 카드 사용!',
+
   // --- title screen ---
   'ui.home.prev-room': '이전 방',
   'ui.home.next-room': '다음 방',

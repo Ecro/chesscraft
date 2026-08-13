@@ -169,8 +169,8 @@ consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 `-webkit-text-stroke` are all silently inert on `<img>`, `<canvas>`, `<svg>` and
 `<iframe>`.
 
-## Proposal: mutate every new guard once before believing it (2026-08-07, re-evidenced 2026-08-09)
-**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 6)
+## Proposal: mutate every new guard once before believing it (2026-08-07, re-evidenced 2026-08-13)
+**Triggered by:** [fail:test] assertion-equals-its-own-default (count: 7)
 **Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
 **Rationale:** All three instances are a test whose assertion is satisfied by the
 state the code is already in, so no implementation could fail it. Reading the
@@ -220,8 +220,8 @@ that matters for a regression gate — and unlike mutation it needs no tooling. 
 required Phase D line whenever a phase's exit criterion names a regression test, with the
 pre-fix red output recorded next to it.
 
-## Proposal: check the comment against the code it justifies (2026-08-07)
-**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 9)
+## Proposal: check the comment against the code it justifies (2026-08-07, re-evidenced 2026-08-13)
+**Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 10)
 **Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
 for the `code-reviewer` agent
 **Rationale:** Three instances, and the third landed *inside the fix for the
@@ -351,3 +351,29 @@ guards that were added by hand to this task's two new tests after the fact.
 **Triggered by:** [fail:design] rule-keyed-to-event-not-state (count: 3)
 **Proposed mechanism:** rule update
 **Rationale:** Three failures came from enforcing an invariant only at the event that normally creates a state, while alternate routes later reached or consumed that state without the guard. Require persistent effects to re-check their invariant at consumption time and add a transfer-path regression whenever state can outlive or change occupants.
+
+<!-- appended 2026-08-13, wrapup of skill-legibility-and-onboarding -->
+
+**Re-evidence for `assertion-equals-its-own-default` (count 7).** One work unit produced
+five instances in a single gate, which is new information about the mechanism: they were
+not careless one-offs but the *default* outcome of writing an assertion before the
+implementation exists. With nothing to observe, the nearest available expected-value is
+whatever the test itself can compute — which is the same thing the subject will compute.
+The five were caught only by a reviewer asked the explicit question *"would this also pass
+against a plausibly wrong implementation?"*, and two of them by that reviewer reading the
+test's own COMMENT against what the assertion could observe. That is a cheaper trigger than
+mutation testing and it belongs in the same checklist item: when a test's comment claims it
+discriminates something, name the wrong implementation it would fail against, in the
+comment. Where no such implementation can be named, the honest form is to say the property
+is unobservable from there rather than to ship the claim.
+
+**Re-evidence for `comment-claims-unbuilt-safeguard` (count 10).** The tenth instance
+sharpens the detection heuristic: the comment argued unreachability from a *different
+subsystem* than the one that decides it (a CSS rule claimed a square could never be both
+impacted and a legal move target "because the ordered notice pick makes it unreachable" —
+but legality is computed from the selected piece and knows nothing about notices), and the
+feature's own ADR guaranteed the overlap it denied. Concrete, greppable form for a reviewer
+prompt: **an unreachability claim that names a mechanism living outside the module it
+constrains is a hope, not an invariant.** Both this and the `assertion-equals` cluster above
+were found by the same review question, which argues for one checklist item covering both
+rather than two.

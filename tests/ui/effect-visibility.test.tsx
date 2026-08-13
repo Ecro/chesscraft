@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { apply, legalActions } from '@engine/engine'
 import { createPosition } from '@engine/match'
-import { MatchHost } from '../../src/ui/MatchHost'
+import { CARD_BANNER_MS, MatchHost } from '../../src/ui/MatchHost'
 import { makeTranslate } from '../../src/ui/i18n'
 
 /**
@@ -233,21 +233,40 @@ describe('the turn continues after the card', () => {
     ).toBe('false')
   })
 
-  it('announces the hand-off on the move, and not on the card', () => {
+  it('announces the hand-off on the move, and not on the card', async () => {
     // The classification gained a third case (ADR-007): an action that neither
     // passes the phone nor is an undo. Announcing the card would tell a player
     // to hand over a board they are still holding.
-    const { container } = frozenBoard()
-    expect(container.querySelectorAll('[data-testid="hand-off"]')).toHaveLength(0)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { container } = frozenBoard()
+      expect(container.querySelectorAll('[data-testid="hand-off"]')).toHaveLength(0)
 
-    for (const cell of container.querySelectorAll<HTMLElement>('[data-side="white"]')) {
-      fireEvent.click(cell)
-      const to = container.querySelector<HTMLElement>('[data-legal="true"]')
-      if (!to) continue
-      fireEvent.click(to)
-      break
+      for (const cell of container.querySelectorAll<HTMLElement>('[data-side="white"]')) {
+        fireEvent.click(cell)
+        const to = container.querySelector<HTMLElement>('[data-legal="true"]')
+        if (!to) continue
+        fireEvent.click(to)
+        break
+      }
+
+      /*
+       * The hand-off is QUEUED behind the card banner now, not dropped
+       * (ADR-004 of PLAN-skill-legibility-and-onboarding). This fixture plays a
+       * card and then the move it owes, so the banner naming that card is still
+       * up at the instant the move lands and the hand-off waits its turn —
+       * which is the point: whose-turn-is-it must not be lost to a card play,
+       * and it must not be stacked on top of one either.
+       *
+       * What this test is about is unchanged: the announcement belongs to the
+       * MOVE, not to the card. Only when it becomes visible has moved.
+       */
+      expect(screen.queryByTestId('hand-off'), 'the card outranks it for now').toBeNull()
+      await vi.advanceTimersByTimeAsync(CARD_BANNER_MS + 10)
+      await waitFor(() => expect(screen.getByTestId('hand-off')).toBeTruthy())
+    } finally {
+      vi.useRealTimers()
     }
-    expect(screen.getByTestId('hand-off')).toBeTruthy()
   })
 })
 

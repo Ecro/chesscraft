@@ -151,3 +151,16 @@ test('a piece can be dragged to its destination (#12)', async ({ page }) => {
   await expect(page.getByTestId('sq-e3')).not.toHaveAttribute('data-piece', '')
   await expect(page.getByTestId('sq-e2')).toHaveAttribute('data-piece', '')
 })
+
+/*
+ * The impact ring's motion check lives in `e2e/turn-shape.spec.ts`, not here.
+ *
+ * It needs a card that can actually be played, and this file reaches the board
+ * through `startMatch`, which deals from a RANDOM seed — so the card in hand
+ * varies per run and on some runs cannot be played at all. A first version did
+ * live here and passed in isolation, then failed the full suite on two of three
+ * projects: flaky by construction, and the kind that looks like a real
+ * regression. `turn-shape.spec.ts` has the seeded slice content and the
+ * card-to-square table that make a card play deterministic, so the
+ * motion-enabled describe was moved next to them.
+ */

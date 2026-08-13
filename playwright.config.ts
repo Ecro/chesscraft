@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { ONBOARDING_KEYS } from './src/ui/onboarding'
 
 // Portrait mobile web is the primary layout target (PLAN Constraints), so the
 // default project is a portrait viewport rather than a desktop one.
@@ -52,10 +53,16 @@ export default defineConfig({
      * worktrees, two dev servers). The failure is maximally confusing: every
      * spec lands on the onboarding screen and times out looking for a control
      * one tap away, with nothing pointing at the port.
+     *
+     * The KEY LIST comes from `ONBOARDING_KEYS` for the same class of reason.
+     * There are two onboarding surfaces now — the home-screen tour and the
+     * first-board sheet — and a third added without a line here would reproduce
+     * that same signature-less timeout. `tests/ui/match-intro.test.tsx` asserts
+     * this list still matches the registry.
      */
     storageState: {
       cookies: [],
-      origins: [{ origin: ORIGIN, localStorage: [{ name: 'strange-chess.coach.seen.v1', value: '1' }] }],
+      origins: [{ origin: ORIGIN, localStorage: ONBOARDING_KEYS.map((name) => ({ name, value: '1' })) }],
     },
   },
   projects: [

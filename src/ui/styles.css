@@ -1466,6 +1466,49 @@ hr {
   }
 }
 
+/*
+ * Where a card landed.
+ *
+ * Its own element, not a pseudo-element, and the reason is a bug review caught
+ * here. Both of a square's pseudo-elements are already spoken for:
+ * `[data-last]` owns `::before` for the move marks, and
+ * `[data-legal-kind='move']` owns `::after` for the legal-move dot. This rule
+ * first took `::after`, with a comment arguing the overlap was unreachable
+ * because "the ring belongs to the ply that just ended".
+ *
+ * That argument was wrong, and wrong against this feature's own design.
+ * ADR-005 deliberately does NOT gate the human path: the player picks the move
+ * their card still owes while the banner — and so the ring — is on screen. A
+ * square that a card just freed is exactly the kind of square the next move
+ * targets, and at equal specificity the later rule won, so the move dot was
+ * silently replaced by a ring during the one moment this feature exists for.
+ * `[fail:design] comment-claims-unbuilt-safeguard`.
+ *
+ * A child element contends with neither. Invisible at rest, so zeroing the
+ * duration for reduced motion leaves nothing behind — and the component also
+ * stops emitting it, because an attribute the stylesheet silently ignores is
+ * behaviour nothing can test.
+ */
+.impact-ring {
+  position: absolute;
+  inset: 0;
+  border: var(--border-w) solid var(--color-note-hi);
+  pointer-events: none;
+  opacity: 0;
+  animation: impact var(--motion-impact-duration) var(--motion-impact-steps);
+}
+
+@keyframes impact {
+  from {
+    inset: 42%;
+    opacity: 1;
+  }
+  to {
+    inset: -6%;
+    opacity: 0;
+  }
+}
+
 @keyframes pop {
   from {
     transform: scale(0.5);
@@ -2163,6 +2206,128 @@ hr {
   color: var(--color-text-dim);
   font-size: var(--font-size-sm);
   line-height: 1.9;
+}
+
+/*
+ * The first-board sheet.
+ *
+ * Rides on `.sheet`, so it inherits the surface, the safe-area padding and the
+ * enter animation — this block only lays out the three blocks inside it. The
+ * bodies carry authored newlines (`ui.intro.turn.body` is two lines on purpose),
+ * so `pre-line` is load-bearing rather than decorative: without it the two
+ * sentences run together into a wall a child skips.
+ */
+.intro-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.intro-title {
+  margin: 0;
+  font-weight: 400;
+  font-size: var(--font-size-lg);
+  color: var(--color-heading);
+  text-shadow: 2px 2px 0 var(--color-heading-shadow);
+}
+
+.intro-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+}
+
+.intro-rule {
+  padding: var(--space-4);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-sunken);
+  box-shadow: inset var(--bevel) var(--bevel) 0 var(--color-sunken-hi);
+}
+
+.intro-rule-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.intro-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.intro-rule p,
+.intro-point p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-size-sm);
+  line-height: 1.9;
+  white-space: pre-line;
+}
+
+.intro-point strong {
+  font-weight: 400;
+  color: var(--color-heading);
+}
+
+/*
+ * The card that just fired.
+ *
+ * Same coordinates as the rule banner — they are alternatives, never neighbours
+ * (ADR-004), which is what the single ordered pick in `MatchHost` guarantees.
+ * `pointer-events: none` because it is not something to dismiss: the player who
+ * spent the card must be able to move straight through it, and the one who did
+ * not has nothing to do about it either.
+ */
+.card-banner {
+  position: absolute;
+  top: 96px;
+  left: var(--space-5);
+  right: var(--space-5);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  pointer-events: none;
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-note);
+  box-shadow: inset var(--bevel) var(--bevel) 0 var(--color-surface-hi);
+}
+
+.card-banner-body {
+  min-width: 0;
+}
+
+.card-banner-head {
+  display: block;
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+}
+
+.card-banner strong {
+  display: block;
+  font-weight: 400;
+  font-size: var(--font-size-md);
+  color: var(--color-heading);
+}
+
+.card-banner-text {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  /* Two lines at most: this is a glance, and the full text is one tap away in
+     the peek sheet the badge already opens. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .rule-banner {
@@ -3214,6 +3379,7 @@ details.advanced summary {
     --motion-idle-duration: 0ms;
     --motion-ready-duration: 0ms;
     --motion-arrive-duration: 0ms;
+    --motion-impact-duration: 0ms;
   }
 }
 

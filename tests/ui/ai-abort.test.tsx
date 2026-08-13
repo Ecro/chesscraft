@@ -6,6 +6,8 @@ vi.setConfig({ testTimeout: 60_000 })
 
 import { BUNDLED_PRESET_ID } from '@content/sets/bundled'
 import type { AiClient, AiMove } from '@engine/ai/client'
+import { legalActions } from '@engine/engine'
+import { createPosition } from '@engine/match'
 import { MatchHost } from '@ui/MatchHost'
 import { shippedContent } from '../helpers/shipped'
 
@@ -195,5 +197,116 @@ describe('AC-008 — leaving mid-search ends the search', () => {
     // reproducibility, and the seed control is still on screen offering a share
     // that would now produce a different game (AC-011).
     await waitFor(() => expect(screen.getByTestId('ai-degraded')).toBeTruthy())
+  })
+
+  it('cancels a search that is waiting out the longer post-card beat', async () => {
+    /*
+     * PLAN Phase 3 (ADR-005) raises the dwell floor from `AI_MIN_THINK_MS` to
+     * `CARD_BANNER_MS` for the move a card still owes, so the computer's reply
+     * lands after the card has been named rather than on top of it.
+     *
+     * That makes the pending-timer window roughly twice as long, and this file
+     * exists because "the AI is thinking" is a MODE that owes a way out. The
+     * three cases above all unmount during the ORIGINAL floor; none of them
+     * would notice a card-path dwell wired outside the existing
+     * `clearTimeout(dwell)` cleanup — a leaked timer that fires on an unmounted
+     * tree. So this one unmounts inside the new, longer window specifically.
+     */
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      /*
+       * Built rather than dealt, and black to move with a card already in hand:
+       * the opening deals no card to the side on strike, so the ordinary
+       * `renderMatch` path cannot reach a computer turn that CONTAINS a card
+       * without playing several plies first.
+       */
+      const start = createPosition({
+        content,
+        presetId: BUNDLED_PRESET_ID,
+        seed: 7,
+        sideToMove: 'black',
+        held: { white: [], black: ['skill.freeze'] },
+        placements: [
+          { square: 'a1', pieceId: 'piece.king', side: 'white' },
+          { square: 'b1', pieceId: 'piece.rook', side: 'white' },
+          { square: 'c3', pieceId: 'piece.pawn', side: 'white' },
+          { square: 'f6', pieceId: 'piece.king', side: 'black' },
+          { square: 'e6', pieceId: 'piece.rook', side: 'black' },
+          { square: 'd4', pieceId: 'piece.pawn', side: 'black' },
+        ],
+      })
+      const stub = stubClient()
+      const view = render(
+        <MatchHost
+          content={content}
+          presetId={BUNDLED_PRESET_ID}
+          newSeed={() => 7}
+          initialState={start}
+          aiSide="black"
+          createAi={() => stub.client}
+        />,
+      )
+      await waitFor(() => expect(stub.requests).toBeGreaterThan(0))
+
+      const card = legalActions(start, content).find((a) => a.kind === 'play_card')
+      expect(card, 'the computer must have a card here, or this tests the ordinary floor again').toBeTruthy()
+      stub.deliver({ action: card!, nodes: 1, depthReached: 1, valveTripped: false })
+
+      // Past the old floor so the card has landed and the SECOND search — the
+      // one carrying the longer dwell — is the one now in flight.
+      await vi.advanceTimersByTimeAsync(700)
+      await waitFor(() => expect(stub.requests).toBeGreaterThan(1))
+      const move = legalActions(start, content).find((a) => a.kind === 'move')
+      expect(move, 'the fixture must leave the computer a move to owe').toBeTruthy()
+      stub.deliver({ action: move!, nodes: 1, depthReached: 1, valveTripped: false })
+      const boardBefore = view.container.querySelector('[data-testid="board"]')!.innerHTML
+
+      /*
+       * 900ms into the second search's wait — past the OLD floor (650) and
+       * short of the new one (1200). That window is the whole test: under the
+       * unmodified code the reply has already landed by now, so the board has
+       * moved on and this assertion fails. It is the only sampling point that
+       * distinguishes the two floors, and an earlier draft sampled at ~300ms,
+       * which is outside both and therefore passed against today's source with
+       * no implementation at all.
+       */
+      await vi.advanceTimersByTimeAsync(900)
+      expect(
+        view.container.querySelector('[data-testid="board"]')!.innerHTML,
+        'at 900ms the reply must still be waiting out the card beat',
+      ).toBe(boardBefore)
+
+      /*
+       * Leaving mid-beat, and a deliberately NARROW claim about what follows.
+       *
+       * What this checks is that unmounting inside the longer window is
+       * survivable: no throw, and the abandoned reply never reaches the board.
+       *
+       * What it does NOT check — stated because two stronger-sounding versions
+       * were written here and both were vacuous — is whether the dwell timer
+       * was hygienically cleared. `stub.cancels` rises on ANY unmount, since
+       * `client.cancel()` runs unconditionally in the cleanup
+       * (MatchHost.tsx:555). And `stub.requests` staying flat proves nothing
+       * either: `land()` opens with `if (cancelled) return` and the cleanup
+       * sets that same closure flag, so a dangling timer is already a no-op
+       * when it fires. React 18 swallows post-unmount `setState` rather than
+       * throwing, so "did not throw" is not evidence on its own.
+       *
+       * A timer-id spy would close that last gap, and it was tried: the dwell
+       * is scheduled before any spy installed here could see it, so the set
+       * came up empty and the assertion passed vacuously — the same shape as
+       * the two above. The honest position is that the timer's HYGIENE is
+       * unobserved from out here; what is observed is that the behaviour it
+       * guards is correct. The value of this case is the 900ms sample above,
+       * which is what actually pins ADR-005.
+       */
+      expect(() => view.unmount()).not.toThrow()
+      const requestsAtUnmount = stub.requests
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(stub.requests, 'no search may start after the board is gone').toBe(requestsAtUnmount)
+      expect(stub.cancels, 'and the in-flight one is cancelled, not merely ignored').toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

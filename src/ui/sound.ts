@@ -14,7 +14,7 @@ import type { Settings } from './settings'
  * off, rather than asserting that a mute flag was read somewhere.
  */
 
-export const SOUND_EVENTS = ['move', 'capture', 'draft', 'undo', 'illegal', 'win', 'draw'] as const
+export const SOUND_EVENTS = ['move', 'capture', 'draft', 'undo', 'illegal', 'win', 'draw', 'card'] as const
 export type SoundEvent = (typeof SOUND_EVENTS)[number]
 
 export interface SynthSpec {
@@ -41,6 +41,11 @@ const TABLE: Record<SoundEvent, SynthSpec> = {
   // Lower and flatter than a win. A draw ending like a victory told both
   // players the wrong thing about the match they had just played.
   draw: { frequency: 392, durationMs: 300, type: 'sine', gain: 0.18 },
+  // Higher and brighter than a move, and longer than one, because a card is
+  // the rarer thing and the banner it accompanies is asking to be looked at.
+  // Still short: a card can be played every turn, and a tail would be noise by
+  // the third one — the same constraint that keeps `move` dry.
+  card: { frequency: 740, durationMs: 130, type: 'triangle', gain: 0.19 },
 }
 
 /** Haptic pulse lengths, ms. Absent means this event does not buzz. */
@@ -51,6 +56,8 @@ const BUZZ: Partial<Record<SoundEvent, number>> = {
   illegal: 24,
   win: 40,
   draw: 30,
+  // Between a move and a capture: felt, but not the heaviest thing a turn can do.
+  card: 14,
 }
 
 export function synthFor(event: SoundEvent): SynthSpec {

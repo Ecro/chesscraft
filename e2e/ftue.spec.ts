@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { bundledContentSource } from '../src/content/sets/bundled'
+import { startMatch } from './nav'
 
 /**
  * A first visit is onboarded, a second is not.
@@ -67,6 +68,44 @@ test('a second visit is silent', async ({ page }) => {
   await page.reload()
   await expect(page.getByTestId('home')).toBeVisible()
   await expect(page.locator('[data-testid^="boot-step-"]')).toHaveCount(0)
+})
+
+test('the first board explains itself, and the second does not', async ({ page }) => {
+  /*
+   * The in-match half of onboarding, which `Boot` cannot do.
+   *
+   * Out here rather than in a component test for the same reason "a second
+   * visit is silent" is: it depends on a real `localStorage` surviving a real
+   * navigation, which is the property under test. The unit suite injects a
+   * `Storage` and can only prove the component honours what it is handed; this
+   * proves the app actually hands it one — the wiring `[fail:design]
+   * built-but-not-wired` is about.
+   */
+  await firstVisit(page)
+  await page.getByTestId('boot-skip').click()
+  await startMatch(page)
+
+  const intro = page.getByTestId('match-intro')
+  await expect(intro).toBeVisible()
+  // The rule block is the half generated from content; asserting it is present
+  // rather than asserting its WORDS, which belong to whatever set is loaded.
+  await expect(page.getByTestId('match-intro-rule')).toBeVisible()
+  // No unresolved key reaches a player. The component calls `t()` on six keys
+  // and `ko.ts` is the only thing that makes them words; a missing entry
+  // renders the dotted key itself, which no other e2e assertion would notice.
+  expect(await intro.textContent()).not.toMatch(/ui\.intro\./)
+
+  await page.getByTestId('match-intro-close').click()
+  await expect(intro).toHaveCount(0)
+  // The board is reachable behind it — a sheet that failed to unmount would
+  // leave every other spec in the suite one tap from where it means to be.
+  await expect(page.getByTestId('board')).toBeVisible()
+
+  // A second board, in the same browser, says nothing. Home and back rather
+  // than a reload, because that is the route a player takes between matches.
+  await page.getByTestId('go-home').click()
+  await startMatch(page)
+  await expect(page.getByTestId('match-intro')).toHaveCount(0)
 })
 
 test('the dex is reachable and lists the content actually loaded', async ({ page }) => {

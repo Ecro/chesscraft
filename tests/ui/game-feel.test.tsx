@@ -36,8 +36,21 @@ vi.mock('../../src/ui/sound', async (orig) => {
  * rejection needed a card in hand. Review pointed out both hands are full the
  * moment the draft ends, so clicking the opponent's card is one line away — an
  * exclusion list is only honest if every entry has been re-checked.
+ *
+ * `card` was added when the event was, and it was re-checked the same way
+ * before being listed rather than assumed: seed 7 deals the mover exactly one
+ * card, `skill.recall`, which has no legal play on turn one — clicking it is
+ * refused, which is where this sweep's `illegal` already comes from. Driving a
+ * card here would mean building a position, and a sweep that builds its own
+ * board stops being a sweep of the real opening.
+ *
+ * It is genuinely reached elsewhere, which is the bar for this list:
+ * `tests/ui/card-banner.test.tsx` ("is played when a card resolves, and not
+ * when a piece merely moves") drives a card through a mounted `MatchHost` with
+ * this same mocked `play`, and asserts both that a card sounds like one and
+ * that a move does not.
  */
-const REACHED_BY_OTHER_PATHS: SoundEvent[] = ['capture', 'win', 'draw']
+const REACHED_BY_OTHER_PATHS: SoundEvent[] = ['capture', 'win', 'draw', 'card']
 
 /**
  * PLAN Phase 5 — game feel.
@@ -224,6 +237,18 @@ describe('every declared sound is actually reached from the board', () => {
       if (!offer) break
       fireEvent.click(offer)
     }
+    /*
+     * A card play, before the move — the turn shape is `[play_card?] → move`,
+     * so a card spent here still leaves the move below reachable.
+     *
+     * Added when `card` joined `SOUND_EVENTS`. Reaching it from this sweep
+     * rather than listing it in `REACHED_BY_OTHER_PATHS` is the whole point of
+     * the exclusion list being short: an entry there is an admission that a
+     * path is undriven, and this one is one tap away. Guarded rather than
+     * assumed, because the opening deal decides what is in hand — if no card
+     * can be played from this position the sweep below fails on `card`, which
+     * is the correct outcome and not a silent skip.
+     */
     fireEvent.click(screen.getByTestId('sq-d2'))
     fireEvent.click(screen.getByTestId('sq-d3'))
     fireEvent.click(screen.getByTestId('undo'))

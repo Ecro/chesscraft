@@ -552,6 +552,10 @@ export function App() {
               setRoute('edit')
             }}
             onProgressChange={setMatchInProgress}
+            // The first-board sheet's memory. `MatchHost` never reaches for
+            // `localStorage` itself — see the note on its `storage` prop — so
+            // this is the one wiring that makes the sheet exist at all.
+            storage={browserStorage()}
             {...(opponent.kind === 'ai'
               ? {
                   // The human is white and moves first, so the computer is

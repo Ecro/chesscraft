@@ -302,4 +302,12 @@
      glow. */
   --motion-arrive-duration: 260ms;
   --motion-arrive-steps: steps(4);
+
+  /* The ring a card leaves on every square it changed. Longer than `arrive`
+     because it fires once per card rather than once per move, and it is the
+     thing a player is being asked to look at; still stepped, for the same
+     reason everything here is — a smooth ring would be the one soft edge on a
+     board drawn from 12x12 sprites. */
+  --motion-impact-duration: 420ms;
+  --motion-impact-steps: steps(5);
 }
