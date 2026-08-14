@@ -292,7 +292,7 @@ export function SentenceEditor({
     const at = (mutate: (c: Draft) => void) => mutateAt((d) => leafOf(d, index), mutate)
     const out: ReactNode[] = []
 
-    if (k === 'piece_is') {
+    if (k === 'piece_is' || k === 'piece_kind_count_at_most') {
       out.push(
         pieceSelect(`s-param-cond-pieceId${suffix}`, leaf.pieceId, (id) =>
           at((c) => {
@@ -301,7 +301,7 @@ export function SentenceEditor({
         ),
       )
     }
-    if (k === 'piece_side' || k === 'piece_count_at_most') {
+    if (k === 'piece_side' || k === 'piece_count_at_most' || k === 'piece_kind_count_at_most') {
       out.push(
         sideSelect(`s-param-cond-side${suffix}`, leaf.side, (s) =>
           at((c) => {
@@ -310,11 +310,16 @@ export function SentenceEditor({
         ),
       )
     }
-    if (k === 'check_count_at_least' || k === 'piece_count_at_most' || k === 'on_own_rank') {
+    if (k === 'check_count_at_least' || k === 'piece_count_at_most' || k === 'on_own_rank' || k === 'piece_kind_count_at_most') {
       out.push(
         numberField(`s-param-cond-n${suffix}`, 'ui.editor.param.n', leaf.n, (n) =>
           at((c) => {
-            c.n = n ?? 1
+            // The cleared-field fallback differs by condition: every other one
+            // is `positive()` in the schema, so 1 is its floor, but the
+            // kind-count is `nonnegative()` and 0 is the value it exists for —
+            // snapping a cleared field up to 1 would quietly change "none left"
+            // into "one left".
+            c.n = n ?? (k === 'piece_kind_count_at_most' ? 0 : 1)
           }),
         ),
       )

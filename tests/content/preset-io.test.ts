@@ -31,7 +31,7 @@ describe('preset export / import', () => {
     if (!result.ok) return
     expect(result.source.schemaVersion).toBe(SCHEMA_VERSION)
     expect(result.source.skillCards).toEqual(
-      original.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false })),
+      original.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false })),
     )
   })
 
@@ -114,6 +114,7 @@ describe('preset export / import', () => {
       ...draft,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
     })
   })
 

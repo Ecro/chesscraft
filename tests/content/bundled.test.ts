@@ -3,6 +3,7 @@ import { loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource, loadBundledContent } from '@content/sets/bundled'
 import { createMatch, currentState } from '@engine/match'
 import { makeTranslate, missingKeys, textKeysOf } from '@ui/i18n'
+import { withinEnvelope } from '@engine/ai/complexity'
 
 /** Bundle-only resolution — these assertions are about the SHIPPED text. */
 const translate = (key: string, _locale?: 'ko') => makeTranslate()(key)
@@ -37,7 +38,7 @@ describe('AC-010 — the bundled content set', () => {
     // rather than `SCHEMA_VERSION`: comparing the constant to itself would pass
     // for any future bump that forgot to move the shipped document with it,
     // which is the exact drift this line exists to catch.
-    expect(result.set.schemaVersion).toBe(11)
+    expect(result.set.schemaVersion).toBe(12)
     // Absent, not empty-but-declared: the shipped set names everything through
     // the built-in bundle, which is what ADR-020's absent case must keep working.
     expect(result.set.strings).toEqual({})
@@ -71,16 +72,25 @@ describe('AC-010 — the bundled content set', () => {
     expect(painted).toEqual(new Set(set.squareTypes.keys()))
   })
 
-  it('gives every preset a board that is 6x6 and a skill pool both drafts can open', () => {
+  it('gives every preset a board the AI can search and a skill pool both drafts can open', () => {
     // AC-004. G-8 of the vocabulary gaps: fewer than six skill cards and the
     // sixth-turn draft can never open, which is a deadlock rather than a
-    // shortage. The board size is ADR-001's boundary — the AI's cost at other
-    // sizes is unmeasured, so no room may quietly introduce one.
+    // shortage.
+    //
+    // The board size used to be pinned at 6x6 here, and the comment said why:
+    // "the AI's cost at other sizes is unmeasured, so no room may quietly
+    // introduce one". That was a PROXY for the real requirement, and v12's 8x8
+    // room replaces it with the requirement itself — `withinEnvelope` is the
+    // measurement the proxy was standing in for (AC-011's complexity budget,
+    // SPEC AC-009). A room of any size may ship; a room the AI cannot search
+    // may not. Note which way this moved: the guard got STRICTER on the thing
+    // it cared about, not looser.
     const set = loadBundledContent()
     for (const preset of set.presets.values()) {
       const board = set.boards.get(preset.boardId)
       expect(board, `${preset.id} points at a board that does not exist`).toBeDefined()
-      expect([board!.width, board!.height], `${preset.id} is not on a 6x6 board`).toEqual([6, 6])
+      const verdict = withinEnvelope(set, preset.id)
+      expect(verdict.ok, `${preset.id} is outside the AI's complexity envelope (${verdict.reason})`).toBe(true)
       expect(preset.skillCardIds.length, `${preset.id} cannot open both drafts`).toBeGreaterThanOrEqual(6)
     }
   })
@@ -115,7 +125,7 @@ describe('AC-010 — the bundled content set', () => {
       ruleCards: set.ruleCards.size,
       skillCards: set.skillCards.size,
       presets: set.presets.size,
-    }).toEqual({ pieces: 12, squareTypes: 8, ruleCards: 17, skillCards: 24, presets: 4 })
+    }).toEqual({ pieces: 12, squareTypes: 11, ruleCards: 18, skillCards: 24, presets: 5 })
   })
 
   it('starts a match from the bundled preset', () => {

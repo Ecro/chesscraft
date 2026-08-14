@@ -100,7 +100,7 @@ describe('describeRejection names the cause (PLAN Phase 4)', () => {
     const blocked: GameState = {
       ...base,
       grants: [
-        { kind: 'forbid_movement', square: 'd1', untilPly: base.plyCount + 2, sourceId: 'skill.shackle', layer: 'skill' },
+        { kind: 'forbid_movement', square: 'd1', untilPly: base.plyCount + 2, sourceId: 'skill.shackle', layer: 'skill', beneficiarySide: 'white' },
       ],
     }
     expect(describeRejection(blocked, { kind: 'move', from: 'd1', to: 'd4' }, content)).toBe('piece-forbidden')

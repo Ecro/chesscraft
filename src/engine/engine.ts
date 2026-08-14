@@ -15,6 +15,7 @@ import { pickDistinct, rngFor } from './rng'
 import {
   type ActiveGrant,
   type Action,
+  type EffectLayer,
   type FrozenEntry,
   type GameState,
   type MatchResult,
@@ -26,7 +27,61 @@ import {
   squareId,
 } from './types'
 
-export const PLY_CAP = 60
+/**
+ * The half-move budget every match runs under. Raised 60 -> 160 in v12.
+ *
+ * 60 was chosen for a 36-square board carrying 24 pieces, and the 8x8 room made
+ * it a decider rather than a backstop: 66% of that room's matches ended on the
+ * clock, and every rule card it deals except the fast check-counter had a median
+ * sitting exactly ON the cap. There is not enough clock in 30 moves a side to
+ * trade down 32 pieces across 64 squares.
+ *
+ * 160 measured over 300 seeds per room, against the UNCAPPED length
+ * distributions (max 282 at 6x6, 368 at 8x8, nothing unfinished at a probe cap
+ * of 400):
+ *
+ *   cap |  6x6 on the clock | 8x8 on the clock
+ *   ----+-------------------+------------------
+ *    60 |               31% |              66%
+ *   120 |                4% |              27%
+ *   160 |                1% |              12%
+ *   200 |                0% |               5%
+ *
+ * 160 is the knee: the 8x8 room is decided by play in about seven matches in
+ * eight, and the cap stays a real bound rather than a ceremonial one. 200 buys
+ * seven more points on a room already resolving and makes the cap inert at 6x6,
+ * for a quarter more search per self-play run.
+ *
+ * **This is a gameplay change to the 6x6 rooms, not only a bigger number.** The
+ * clock used to decide roughly a third of their matches through
+ * `materialResult`; it now decides one in a hundred, so games that were called
+ * on material now play to a real end. Every 6x6 baseline in the suite was
+ * re-measured against this value rather than adjusted to fit it.
+ *
+ * A size-relative cap — a function of `boardArea` — would serve both rooms
+ * better and is the obvious next step, but it is a wider change than raising a
+ * constant: `invariants.test.ts`, `grading-agent.ts` and `measure.ts` all read
+ * this as a scalar. Recorded as the alternative, not taken here.
+ */
+export const PLY_CAP = 160
+/**
+ * The most ACTIONS one match can consume, and therefore the only safe bound for
+ * a loop that drives a match to its end.
+ *
+ * Exported because it was copied three times and one copy was wrong. A turn is
+ * `[play_card?] -> move` (ADR-001), so a ply costs up to TWO actions while
+ * advancing `plyCount` by one, and the two drafts each side resolves cost four
+ * more that advance it by none. `src/engine/agent.ts` learned this the hard way
+ * — its own comment records ~1% of AC-012 seeds reported as unfinished with
+ * nothing wrong with the engine — and `src/balance/grading-agent.ts` was left
+ * budgeting one action per ply, so a grading match with card plays was silently
+ * truncated and its `result` read as null. Raising `PLY_CAP` widened that gap
+ * from ~56 actions to ~156. One vocabulary, one number.
+ */
+export const ACTIONS_PER_PLY = 2
+export const DRAFT_ACTIONS = 4
+export const MAX_MATCH_ACTIONS = ACTIONS_PER_PLY * PLY_CAP + DRAFT_ACTIONS
+
 export const DRAFT_OFFER_SIZE = 3
 export const SECOND_DRAFT_AFTER_TURNS = 5
 const MAX_CASCADE_DEPTH = 8
@@ -53,7 +108,16 @@ function generationModifiers(state: GameState, content: ContentSet): GenerationM
     if (grant.untilPly <= state.plyCount) continue
     const occupant = state.board.get(grant.square)
     if (grant.layer === 'skill' && occupant && content.pieces.get(occupant.pieceId)?.royal === true) continue
-    if (grant.kind === 'block_capture') mods.protectedSquares.add(grant.square)
+    // Protection is owned (ADR-004): it applies only while the side it was
+    // granted to is the one standing there. Without this a piece takes cover,
+    // walks away, and the ENEMY that steps onto the square inherits the shield.
+    // Deliberately NOT applied to `forbid_movement` / `grant_movement` — they
+    // carry the field unread, and the sibling case (your own pin catching a
+    // friendly piece that later steps in) is a known open instance, not this
+    // task's.
+    if (grant.kind === 'block_capture') {
+      if (occupant && occupant.side === grant.beneficiarySide) mods.protectedSquares.add(grant.square)
+    }
     else if (grant.kind === 'forbid_movement') mods.forbidden.add(grant.square)
     else if (grant.pattern) mods.granted.set(grant.square, [...(mods.granted.get(grant.square) ?? []), grant.pattern])
   }
@@ -504,7 +568,22 @@ export function legalActions(state: GameState, content: ContentSet): TrustedActi
         : moves
     return (allowed.length > 0 ? allowed : [{ kind: 'end_turn' }]) as TrustedAction[]
   }
-  return [...moves, ...cardPlays(state, content)] as TrustedAction[]
+  const plays = cardPlays(state, content)
+  // The forced pass, extended (v12). ADR-003 offered `end_turn` only while a
+  // card was pending, and its objection to anything wider was exact: "a pass
+  // available with no card pending is a way to skip your turn outright". That
+  // objection does not reach HERE — there is nothing to skip. A side with no
+  // move and no playable card has literally no action, and before this the
+  // match simply stopped: `chooseAction` returned null, `playOut` reported the
+  // game unfinished, and a human player would have been staring at a board that
+  // accepts no input.
+  //
+  // Reachable because a RULE card can immobilise a side the way a skill card
+  // can: one shipped card freezes whatever captures, and a side down to two or
+  // three frozen pieces has nothing. Three of a thousand self-play seeds hit it
+  // once the ply cap stopped killing those matches first.
+  if (moves.length === 0 && plays.length === 0) return [{ kind: 'end_turn' }] as TrustedAction[]
+  return [...moves, ...plays] as TrustedAction[]
 }
 
 function sameAction(a: Action, b: Action): boolean {
@@ -618,7 +697,15 @@ export function describeRejection(state: GameState, action: Action, content: Con
     return 'unreachable'
   }
   if (action.kind === 'end_turn') {
-    if (state.turnCard === null) return 'card-owed'
+    // Legal with no card pending ONLY when there is nothing else at all; the
+    // generator's rule and this one have to agree or `apply` rejects the very
+    // action `legalActions` just offered.
+    if (state.turnCard === null) {
+      const stuck =
+        movesFor(state, content, generationModifiers(state, content)).length === 0 &&
+        cardPlays(state, content).length === 0
+      return stuck ? null : 'card-owed'
+    }
     return 'move-owed'
   }
   return 'card-not-offered'
@@ -639,6 +726,41 @@ interface Mutable {
   /** Squares a piece appeared on this ply and has yet to enter (G-6). */
   arrived: SquareId[]
   grants: ActiveGrant[]
+  /** Square-keyed writes about the MOVER, held until its final square is known. */
+  deferred: DeferredWrite[]
+}
+
+/**
+ * A write that names the piece making the ply, parked until settlement (ADR-001).
+ *
+ * The board is keyed by square and has no piece ids, so a write about a piece
+ * that is mid-move has no square to go to yet: at `on_capture` the capturer is
+ * still standing on `action.from` (`runEvent` is handed it as `moverSquare`),
+ * and writing there freezes the square it is about to leave. The one shipped
+ * card built on that trigger was inert for four months for exactly this reason.
+ *
+ * Only `freeze_piece` defers today. The three grant kinds could — the rule is
+ * about square-keyed writes generally — but no shipped or planned content
+ * targets `mover` with one, and deferring them would ship three code paths with
+ * nothing driving them. Widening this is one line when a card needs it.
+ */
+interface DeferredWrite {
+  readonly kind: 'freeze_piece'
+  readonly untilPly: number
+  readonly sourceId: string
+  readonly layer: EffectLayer
+  /**
+   * Who the write is ABOUT, captured when it was queued.
+   *
+   * `m.board.has(square)` is not proof the named piece survived — an effect can
+   * destroy the subject and spawn or revive another piece onto the same square
+   * before settlement, and an occupancy-only guard then freezes the replacement.
+   * The board has no piece ids, so this is the closest thing to identity there
+   * is; it is not a perfect token (two same-kind pieces of one side are
+   * indistinguishable) but it separates "my piece is still here" from "somebody
+   * else's is", which is the case that was wrong.
+   */
+  readonly subject: PieceOnBoard
 }
 
 /** Removes a piece and remembers it, so a comeback card has something to read. */
@@ -660,8 +782,20 @@ function runEvent(
   /** Where the ply's moving piece stands as this event runs; see `EvalCtx`. */
   moverSquare: SquareId | null = null,
   chosen: readonly SquareId[] = [],
-): { movedTo: SquareId | null } {
+  /**
+   * True only while the mover is BETWEEN squares — the move branch's `on_leave`
+   * and `on_capture`, before the board placement. This is what gates ADR-001's
+   * deferral, and it is a parameter rather than `moverSquare != null` because
+   * that test is wrong in both directions: `cascadeEnter` passes a non-null
+   * `moverSquare` for every `on_enter` (so a swap deferred one endpoint's write
+   * onto the other endpoint's square), and `end_of_ply` passes one too — after
+   * settlement has already drained the queue, so the write vanished with no
+   * freeze and no `settle:dropped` line. Both were found in review.
+   */
+  midMove = false,
+): { movedTo: SquareId | null; relocated: SquareId[] } {
   let movedTo: SquareId | null = null
+  const relocated: SquareId[] = []
   const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
 
   for (const bound of collectEffects(working, content, trigger, focus)) {
@@ -677,10 +811,16 @@ function runEvent(
     const ctx: EvalCtx = { state: working, content, mover, subject: bound.boundSubject ?? subject, chosen, moverSquare }
     if (!evalCondition(bound.effect.condition, bound, ctx)) continue
     m.log.push(`${trigger}:${bound.layer}:${bound.sourceId}`)
-    const moved = executeActions(bound.effect.actions, bound, ctx, m, mover, chosen, working, content, state.plyCount)
-    if (moved) movedTo = moved
+    const moved = executeActions(bound.effect.actions, bound, ctx, m, mover, chosen, working, content, state.plyCount, midMove, subject)
+    if (moved.length > 0) {
+      relocated.push(...moved)
+      // `movedTo` stays the LAST endpoint: `cascadeEnter` walks a chain one
+      // square at a time and a single-relocation effect must keep its exact
+      // pre-ADR-008 behaviour.
+      movedTo = moved[moved.length - 1]!
+    }
   }
-  return { movedTo }
+  return { movedTo, relocated }
 }
 
 /**
@@ -700,8 +840,24 @@ function executeActions(
   working: GameState,
   content: ContentSet,
   plyCount: number,
-): SquareId | null {
-  let movedTo: SquareId | null = null
+  /** See `runEvent`'s parameter of the same name — gates ADR-001's deferral. */
+  midMove = false,
+  /**
+   * The EVENT's subject, straight from `runEvent` — deliberately not
+   * `ctx.subject`, which is `bound.boundSubject ?? subject` and so becomes the
+   * quantifier's pick under `forEach`. ADR-004's empty-square fallback needs the
+   * victim of an `on_capture`, and under a quantifier `ctx.subject` can be the
+   * capturer's own piece — the inversion the rule exists to prevent.
+   */
+  eventSubject: { square: SquareId; piece: PieceOnBoard } | null = null,
+): SquareId[] {
+  /**
+   * Every square a piece was relocated TO by these actions, in declaration
+   * order (ADR-008). A list rather than a single value because `swap_pieces`
+   * moves two pieces and reported neither: `relocatedTo` stayed null, so
+   * `cascadeEnter` never ran for a swap while it always ran for a teleport.
+   */
+  const relocated: SquareId[] = []
   {
     const cursor = { i: 0 }
     const mayAffect = (square: SquareId): boolean => {
@@ -759,7 +915,7 @@ function executeActions(
             m.visited.add(sq)
             m.board.delete(sq)
             m.board.set(dest, piece)
-            movedTo = dest
+            relocated.push(dest)
           }
           break
         }
@@ -825,6 +981,10 @@ function executeActions(
           if (!mayAffect(a) || !mayAffect(b)) break
           m.board.set(a, pb)
           m.board.set(b, pa)
+          // BOTH endpoints are relocations (ADR-008). Reporting neither is what
+          // made a swap onto a bomb square harmless while a teleport onto the
+          // same square was lethal — one rule for arriving, two behaviours.
+          relocated.push(a, b)
           break
         }
         case 'block_capture':
@@ -835,6 +995,28 @@ function executeActions(
           if (act.duration === undefined) break
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
             if (!mayAffect(sq)) continue
+            // Who the grant is FOR: the occupant, not the caster (ADR-004), so
+            // a card written to shield an ENEMY piece keeps working.
+            //
+            // The square can be empty at creation, and at `on_capture` it
+            // systematically is — the victim is removed before the event runs.
+            // Falling back to the acting side there would name the CAPTURER,
+            // who then moves onto that very square and would be protected by
+            // its victim's death. So the fallback is the event's own subject,
+            // taken from `runEvent`'s parameter rather than `ctx.subject`:
+            // under a `forEach` quantifier those differ, and `ctx.subject` is
+            // the bound piece, which can be the capturer's own.
+            const beneficiarySide = m.board.get(sq)?.side ?? eventSubject?.piece.side
+            if (beneficiarySide === undefined) {
+              // No occupant and no event subject — the card `on_play` path,
+              // where `ctx.subject` is the caster's first chosen target and so
+              // is exactly the wrong answer. Protection with no beneficiary
+              // protects nobody, so drop it rather than guess. Scoped to
+              // `block_capture`: the other two kinds never read the field, and
+              // deleting them over a value they ignore would be a semantic
+              // change driven by an unread field.
+              if (act.kind === 'block_capture') continue
+            }
             m.grants.push({
               kind: act.kind,
               square: sq,
@@ -844,12 +1026,36 @@ function executeActions(
               // that has both.
               sourceId: bound.sourceId,
               layer: bound.layer,
+              beneficiarySide: beneficiarySide ?? mover,
               ...(act.kind === 'grant_movement' ? { pattern: act.pattern } : {}),
             })
           }
           break
         }
         case 'freeze_piece':
+          // A freeze about the MOVER is deferred to settlement (ADR-001). The
+          // piece is mid-move: `ctx.moverSquare` is where it stands RIGHT NOW,
+          // which at `on_capture` is the square it is about to vacate. Writing
+          // there produces a card that logs its own firing and changes nothing.
+          //
+          // `ctx.moverSquare != null` is the "mid-move" test, and it is exact:
+          // the card `on_play` path builds its context without one, so a card
+          // freezing `mover` still resolves immediately.
+          if (act.target.kind === 'mover' && midMove && ctx.moverSquare != null) {
+            const subject = m.board.get(ctx.moverSquare)
+            // No subject means nothing to be about — queueing it would settle
+            // onto whoever happens to stand on the final square instead.
+            if (subject) {
+              m.deferred.push({
+                kind: 'freeze_piece',
+                untilPly: plyCount + act.plies,
+                sourceId: bound.sourceId,
+                layer: bound.layer,
+                subject,
+              })
+            }
+            break
+          }
           for (const sq of resolveTarget(act.target, bound, ctx, cursor)) {
             if (!mayAffect(sq)) continue
             m.frozenUntil[sq] = { untilPly: plyCount + act.plies, sourceId: bound.sourceId, layer: bound.layer }
@@ -865,7 +1071,7 @@ function executeActions(
       }
     }
   }
-  return movedTo
+  return relocated
 }
 
 /**
@@ -961,19 +1167,26 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     result: null,
     captured: { white: [...state.captured.white], black: [...state.captured.black] },
     arrived: [],
+    deferred: [],
     // Expired entries are dropped here rather than accumulating for the match.
     grants: state.grants.filter((g) => g.untilPly > state.plyCount),
   }
   let movesMade = 0
+  /**
+   * Every square a piece finished this ply on, in the order they settled
+   * (ADR-008). A move contributes one; a swap contributes two.
+   */
+  const subjectSquares: SquareId[] = []
   let subjectSquare: SquareId | null = null
   let royalCaptureBaseline: readonly string[] | null = null
   let relocatedProtectionSource: string | null = null
+  let relocatedLockSource: string | null = null
 
   if (action.kind === 'move') {
     const piece = m.board.get(action.from)!
 
     // E2 — origin vacated. The mover is still standing on `from`.
-    runEvent(state, content, m, 'on_leave', [action.from], { square: action.from, piece }, mover, action.from)
+    runEvent(state, content, m, 'on_leave', [action.from], { square: action.from, piece }, mover, action.from, [], true)
 
     // E3 — capture. A royal capture short-circuits the whole ply (ADR-012):
     // no later event or layer can resurrect the king, destroy the capturing
@@ -1006,7 +1219,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       }
       // The subject stays the VICTIM — "when a knight is captured" has to remain
       // sayable — and `mover` names the capturer, which is still on `from`.
-      runEvent(state, content, m, 'on_capture', [action.to], { square: action.to, piece: occupant }, mover, action.from)
+      runEvent(state, content, m, 'on_capture', [action.to], { square: action.to, piece: occupant }, mover, action.from, [], true)
     }
 
     movesMade = 1
@@ -1019,7 +1232,8 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       m.board.delete(action.from)
       m.board.set(action.to, piece)
       // E4 — destination entered, cascading through relocations.
-      subjectSquare = cascadeEnter(state, content, m, action.to, mover)
+      const landedOn = cascadeEnter(state, content, m, action.to, mover)
+      if (landedOn) subjectSquares.push(landedOn)
     }
   } else if (action.kind === 'play_card') {
     // A card makes no board move — `movesMadeLastPly` stays 0 even when the card
@@ -1029,7 +1243,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     const card = content.skillCards.get(action.cardId)!
     royalCaptureBaseline = card.royalFollowUp === 'preserve-existing' ? royalCaptureKeys(state, content) : null
     const working: GameState = { ...state, board: m.board, frozenUntil: m.frozenUntil }
-    let relocatedTo: SquareId | null = null
+    const relocatedTo: SquareId[] = []
     // The first chosen square is what an unquantified card is "about" — the
     // piece the player pointed at, which is what a condition like `piece_is`
     // reads.
@@ -1059,15 +1273,19 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
         if (!evalCondition(effect.condition, bound, ctx)) continue
         m.log.push(`on_play:skill:${card.id}`)
         const moved = executeActions(effect.actions, bound, ctx, m, mover, action.targets, working, content, state.plyCount)
-        if (moved) relocatedTo = moved
+        relocatedTo.push(...moved)
       }
     }
     // A card that puts a piece on a square enters that square, with everything
     // entering a square entails. Skipping this made a warp the one way to walk
     // onto a hostile square unharmed — a hole in the content vocabulary that
     // no card author could see, and one no rule card could patch.
-    if (relocatedTo) subjectSquare = cascadeEnter(state, content, m, relocatedTo, mover)
+    for (const origin of relocatedTo) {
+      const landedOn = cascadeEnter(state, content, m, origin, mover)
+      if (landedOn) subjectSquares.push(landedOn)
+    }
     if (card.protectRelocatedAfterPlay) relocatedProtectionSource = card.id
+    if (card.lockRelocatedAfterPlay) relocatedLockSource = card.id
   }
   // `end_turn` has no branch of its own on purpose: it contributes no board
   // change and no subject, and everything it DOES do — the check tally, E7, the
@@ -1085,20 +1303,96 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
   // E5 — promotion, from the piece's own definition. Reached the same way from
   // either branch: landing on the promotion rank is a fact about the square, not
   // about how the piece got there.
-  if (subjectSquare) {
-    const landed = m.board.get(subjectSquare)!
+  //
+  // Iterates EVERY square a piece finished on, not just the last: promoting one
+  // of two swapped pawns and not the other would contradict the rule this
+  // comment states (ADR-008).
+  //
+  // Occupancy is re-checked HERE rather than trusted from `cascadeEnter`: the
+  // second endpoint's own cascade, and the `arrived` loop above, both run after
+  // the first endpoint settled and either can empty it. The `!` assertions this
+  // replaced turned that into a TypeError inside `transition`.
+  for (const square of subjectSquares) {
+    const landed = m.board.get(square)
+    if (!landed) continue
     const def = content.pieces.get(landed.pieceId)
     if (def?.promotion) {
-      const { rank } = coords(subjectSquare)
+      const { rank } = coords(square)
       const fromMover = landed.side === 'white' ? rank : state.height - 1 - rank
       const target = def.promotion.onRank === 'last' ? state.height - 1 : def.promotion.onRank - 1
-      if (fromMover === target) m.board.set(subjectSquare, { ...landed, pieceId: def.promotion.to })
+      if (fromMover === target) m.board.set(square, { ...landed, pieceId: def.promotion.to })
     }
-    runEvent(state, content, m, 'on_promote', [subjectSquare], { square: subjectSquare, piece: m.board.get(subjectSquare)! }, mover, subjectSquare)
+    const after = m.board.get(square)
+    if (after) runEvent(state, content, m, 'on_promote', [square], { square, piece: after }, mover, square)
   }
+
+  // The single-subject value the later steps read. LAST rather than first so a
+  // single-relocation card's behaviour is bit-for-bit what it was; on a swap ply
+  // the choice is unobservable (E7 is unreachable from the card branch and E6's
+  // `on_remove` has no content), which ADR-008 records rather than pins.
+  subjectSquare = subjectSquares.filter((sq) => m.board.has(sq)).at(-1) ?? subjectSquares.at(-1) ?? null
 
   // E6 — deferred removals (none produced yet; the hook keeps the order fixed).
   runEvent(state, content, m, 'on_remove', null, null, mover, subjectSquare)
+
+  // ── SETTLEMENT (ADR-001) ──────────────────────────────────────────────────
+  //
+  // Every write that named the piece making this ply, applied now that its
+  // final square is known. The slot is after E6 and before the card branch's
+  // early return, which is the ONE position shared by both branches — the move
+  // branch continues past here to the check tally, E7 and the royal transition;
+  // the card branch returns just below.
+  //
+  // Ordering matters against E7 and only against E7: E7 can destroy or relocate
+  // the subject, so settling after it would drop the write on the guard below.
+  // It does NOT matter against the check tally — `settled` there is built
+  // without `m.grants`, so no grant made this ply is visible to it either way.
+  for (const write of m.deferred) {
+    // Occupancy AND identity. An `on_capture` effect can destroy the capturer
+    // and spawn another piece onto the same square before settlement; the board
+    // would then look occupied and the freeze would land on the replacement.
+    const occupant = subjectSquare ? m.board.get(subjectSquare) : undefined
+    const isSubject =
+      occupant !== undefined &&
+      occupant.pieceId === write.subject.pieceId &&
+      occupant.side === write.subject.side
+    if (subjectSquare && isSubject) {
+      m.frozenUntil[subjectSquare] = { untilPly: write.untilPly, sourceId: write.sourceId, layer: write.layer }
+      m.log.push(`settle:${write.kind}:${write.sourceId}`)
+    } else {
+      // The subject did not survive the ply. Recorded rather than silent: the
+      // trace's whole job is "which fired, and what was dropped" (types.ts).
+      m.log.push(`settle:dropped:${write.sourceId}`)
+    }
+  }
+
+  // The relocation lock (ADR-002): the piece this card moved may not also take
+  // the move the turn still owes.
+  //
+  // EVERY subject, not just `subjectSquare` — a swap relocates two pieces and
+  // locking one of them would be the half-rule nobody could explain. The
+  // occupancy guard is the same one the protection below uses: a subject the
+  // cascade killed leaves no marker behind.
+  //
+  // `untilPly = plyCount + 1` covers the owed move and nothing else, because the
+  // card branch returns below WITHOUT incrementing `plyCount`; the move that
+  // follows increments it and the grant expires with it.
+  if (action.kind === 'play_card' && relocatedLockSource) {
+    for (const square of subjectSquares) {
+      const locked = m.board.get(square)
+      if (!locked) continue
+      m.grants.push({
+        kind: 'forbid_movement',
+        square,
+        untilPly: state.plyCount + 1,
+        sourceId: relocatedLockSource,
+        layer: 'skill',
+        // The relocated piece's own side. Recorded for uniformity — the field is
+        // required on every grant — though `forbid_movement` does not read it.
+        beneficiarySide: locked.side,
+      })
+    }
+  }
 
   // Protected card relocation is settled last, after every entry cascade and
   // follow-on lifecycle effect. The grant belongs to the final surviving
@@ -1110,6 +1404,8 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       untilPly: state.plyCount + 1,
       sourceId: relocatedProtectionSource,
       layer: 'skill',
+      // Standing there by construction — the guard above proved it.
+      beneficiarySide: m.board.get(subjectSquare)!.side,
     })
   }
 

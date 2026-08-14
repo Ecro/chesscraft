@@ -48,6 +48,7 @@ function withLoadout(): ContentSource {
     uses: 1,
     royalFollowUp: 'preserve',
     protectRelocatedAfterPlay: false,
+    lockRelocatedAfterPlay: false,
     effects: [
       {
         trigger: 'on_play',
@@ -85,7 +86,7 @@ describe('PLAN Phase 1 (a) — a v7 document still loads under a v8 build', () =
     if (!imported.ok) return
     expect(imported.source.schemaVersion).toBe(SCHEMA_VERSION)
     expect(imported.source.skillCards).toEqual(
-      doc.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false })),
+      doc.skillCards.map((card) => ({ ...(card as object), royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false })),
     )
   })
 

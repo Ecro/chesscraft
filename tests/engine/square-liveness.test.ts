@@ -48,6 +48,27 @@ const K_W: Place = { square: 'a1', pieceId: 'piece.king', side: 'white' }
 const K_B: Place = { square: 'f6', pieceId: 'piece.king', side: 'black' }
 const at = (square: SquareId, pieceId: string, side: Side = 'white'): Place => ({ square, pieceId, side })
 
+const countIn = (state: GameState, pieceId: string, side: Side): number =>
+  [...state.board.values()].filter((p) => p.pieceId === pieceId && p.side === side).length
+
+/**
+ * A position with the mover still to move — for `generate_moves` effects, which
+ * `drive` cannot show: it applies a move, so the state it returns belongs to the
+ * OTHER side and the granted geometry has already gone out of scope.
+ */
+function standing(presetId: string, placements: Place[]): GameState {
+  return createPosition({
+    content,
+    presetId,
+    seed: 1,
+    sideToMove: 'white',
+    placements,
+    ruleCardId: null,
+    held: { white: [] },
+    captured: { white: [] },
+  })
+}
+
 /** Every square of white's home rank filled, so `own_back_rank` has no vacancy. */
 const FULL_HOME: Place[] = ['a1', 'b1', 'c1', 'd1', 'e1', 'f1'].map((square, i) =>
   at(square as SquareId, i === 0 ? 'piece.king' : 'piece.rook'),
@@ -144,6 +165,63 @@ describe('the square that promotes', () => {
   })
 })
 
+describe('the squares that change what a piece IS or can DO (v12)', () => {
+  /** A knight's leap from b4 that a rook has no other way to make. */
+  const LEAP_FROM_B4 = ['d5', 'd3', 'c6', 'a6', 'c2', 'a2']
+
+  it('square.springboard lends a knight leap while the piece stands on it', () => {
+    // `grant_movement` at `generate_moves`, so the geometry is lent for exactly
+    // as long as the occupant is there. No square type used the generation-time
+    // actions before this one.
+    const state = standing('preset.cavalry', [K_W, at('b4', 'piece.rook'), K_B])
+    const leaps = legalActions(state, content).filter(
+      (a) => a.kind === 'move' && a.from === 'b4' && LEAP_FROM_B4.includes(a.to),
+    )
+    expect(leaps.length, 'a rook on the springboard can leap like a knight').toBeGreaterThan(0)
+  })
+
+  it('square.springboard takes the leap back when the piece stands elsewhere', () => {
+    // The control that makes the first assertion mean something: the same rook,
+    // the same board, one square over. A grant with no duration must belong to
+    // the square rather than to the piece.
+    const state = standing('preset.cavalry', [K_W, at('c4', 'piece.rook'), K_B])
+    const leaps = legalActions(state, content).filter(
+      (a) => a.kind === 'move' && a.from === 'c4' && ['e5', 'e3', 'd6', 'b6', 'd2', 'b2'].includes(a.to),
+    )
+    expect(leaps.length, 'the leap belonged to the square, not to the piece').toBe(0)
+  })
+
+  it('square.levy musters a pawn WHEN the home rank has room', () => {
+    const after = drive('preset.bastion', [K_W, at('e2', 'piece.rook'), K_B], 'e2', 'e3')
+    expect(countIn(after, 'piece.pawn', 'white'), 'a new footman reported for duty').toBe(1)
+  })
+
+  it('square.levy does NOTHING when the home rank is full — and the text says so', () => {
+    // The `square.geyser` branch, pinned for the record that copied its shape.
+    // `own_back_rank` resolves through the same vacancy lookup, so a full home
+    // rank makes this square fire and change nothing — which is the OPENING
+    // state of every shipped room.
+    const after = drive('preset.bastion', [...FULL_HOME, at('e2', 'piece.pawn'), K_B], 'e2', 'e3')
+    const pawns = [...after.board.values()].filter((p) => p.pieceId === 'piece.pawn' && p.side === 'white')
+    expect(pawns.length, 'no muster is possible with a full home rank').toBe(1)
+    expect(after.board.get('e3')?.pieceId, 'and the piece that stepped on it is untouched').toBe('piece.pawn')
+  })
+
+  it('square.altar turns whatever arrives into a knight', () => {
+    const after = drive('preset.covenant', [K_W, at('f2', 'piece.rook'), K_B], 'f2', 'f3')
+    expect(after.board.get('f3')?.pieceId, 'the rook came off the altar a knight').toBe('piece.knight')
+  })
+
+  it('square.altar changes nothing for a piece that is already a knight', () => {
+    // Its inert branch: `promote_piece` writes the same id back. Pinned so the
+    // no-op is a recorded behaviour rather than an unnoticed one.
+    // Driven with a real knight move (d2 -> f3 is an L), because a knight
+    // cannot step f2 -> f3 and the fixture would be asserting nothing.
+    const after = drive('preset.covenant', [K_W, at('d2', 'piece.knight'), K_B], 'd2', 'f3')
+    expect(after.board.get('f3')?.pieceId).toBe('piece.knight')
+  })
+})
+
 describe('coverage', () => {
   it('drives every square type the bundled set ships', () => {
     // The hole this whole file exists to close: a hand-maintained list grows one
@@ -158,6 +236,9 @@ describe('coverage', () => {
       'square.portal',
       'square.geyser',
       'square.shrine',
+      'square.springboard',
+      'square.levy',
+      'square.altar',
     ])
     expect([...content.squareTypes.keys()].filter((id) => !surveyed.has(id))).toEqual([])
   })

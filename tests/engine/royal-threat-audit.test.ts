@@ -240,27 +240,27 @@ describe('bundled royal-threat audit', () => {
     const probeCards = [
       {
         id: 'skill.probe-relocate', nameKey: 'probe.name', textKey: 'probe.text', uses: 1,
-        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false,
+        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'teleport_piece', target: { kind: 'chosen_friendly' }, to: { kind: 'chosen_empty' } }] }],
       },
       {
         id: 'skill.probe-grant', nameKey: 'probe.name', textKey: 'probe.text', uses: 1,
-        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false,
+        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'grant_movement', target: { kind: 'chosen_friendly' }, pattern: { kind: 'jump', vectors: [[5, 4]] }, duration: 1 }] }],
       },
       {
         id: 'skill.probe-promote', nameKey: 'probe.name', textKey: 'probe.text', uses: 1,
-        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false,
+        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'promote_piece', target: { kind: 'chosen_friendly' }, to: 'piece.queen' }] }],
       },
       {
         id: 'skill.probe-remove-blocker', nameKey: 'probe.name', textKey: 'probe.text', uses: 1,
-        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false,
+        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }] }],
       },
       {
         id: 'skill.probe-spawn', nameKey: 'probe.name', textKey: 'probe.text', uses: 1,
-        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false,
+        royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'chosen_empty' } }] }],
       },
     ]

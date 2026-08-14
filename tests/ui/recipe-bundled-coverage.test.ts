@@ -119,8 +119,14 @@ describe('AC-003 — the bundle opens with no refusals', () => {
     // content expansion, and this guard caught it by going red. What it caught with it was
     // a real defect — one of the new pieces cannot be opened in the maker — so the two
     // expectations below are re-derived rather than restored: one names the refusal.
+    //
+    // Re-derived again on 2026-08-13: 41 -> 42 cards. `rule.democracy` was added
+    // (PLAN-movement-lock-8x8-and-rule-cards Phase 5) and this guard caught its
+    // FIRST shape, which carried two effects and therefore could not be opened
+    // as a sentence at all. The card is one clause now — see its record for the
+    // one-ply cost that buys.
     expect(source.pieces.length).toBe(12)
-    expect(cards().length).toBe(41)
+    expect(cards().length).toBe(42)
   })
 
   it('opens every piece through the move grid except the one named', () => {

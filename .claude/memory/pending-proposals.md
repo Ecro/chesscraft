@@ -90,7 +90,7 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
-**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 7)
+**Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 8)
 
 **Updated 2026-08-08 — the harness now knows the shape, and still missed a whole
 CONTENT KIND.** The per-record "play it and diff the board" harness the note below
@@ -287,7 +287,7 @@ derive the e2e port from the worktree path (or refuse `reuseExistingServer` when
 `git rev-parse --show-toplevel` differs from the running server's cwd).
 
 ## Proposal: bind non-pytest ACs, or say plainly that they are unbound (2026-08-08)
-**Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 3)
+**Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 5)
 **Proposed mechanism:** rule update — a wrapup Step 3.5 branch for non-pytest projects
 **Rationale:** `spec_machine mark-tested` validates a node id through
 `pytest --collect-only`, so on this TypeScript repo every AC keeps
@@ -305,7 +305,7 @@ as one.
 **2026-08-10 (count 4):** fourth instance, wrapup Step 3.5 again — 13 of 13 ACs rejected by rule-3, machine SPEC left reading pending_test: true for a suite that is entirely green. Four instances is enough to say the mechanism is not "occasionally inconvenient" but structurally unusable on this repo; the proposal should be a non-pytest collector (vitest/Playwright node ids) rather than better reporting of the rejection.
 
 ## Proposal: grep the call sites when one rule has more than one caller (2026-08-10)
-**Triggered by:** [fail:design] shared-vocabulary-unshared-code-path (count: 3)
+**Triggered by:** [fail:design] shared-vocabulary-unshared-code-path (count: 5)
 **Proposed mechanism:** rule update (review checklist item) + a per-task grep step
 **Rationale:** Three instances, and the third shows extraction is not the cure. The
 first two were one vocabulary reaching two code paths (`apply` routing card plays
@@ -377,3 +377,17 @@ prompt: **an unreachability claim that names a mechanism living outside the modu
 constrains is a hope, not an invariant.** Both this and the `assertion-equals` cluster above
 were found by the same review question, which argues for one checklist item covering both
 rather than two.
+
+## Proposal: revert-and-rerun as a step, not a habit (2026-08-14)
+**Triggered by:** [fail:test] green-test-that-cannot-discriminate (count: 1)
+**Proposed mechanism:** rule update — one line in `/hm:execute` Phase D
+**Rationale:** In a single unit, THREE fixes shipped with tests that stayed green when the
+fix was reverted: a settlement identity guard, an editor cleared-field fallback, and an
+AC whose fixtures all used a square type that destroys in place so pre- and post-cascade
+squares were never different. None was caught by review; all three were caught by
+reverting the change and re-running, which costs one command. The existing guidance says
+to write discriminating tests — this is the cheap mechanical check that tells you whether
+you did. Count is 1 because the entry is new, but the three instances are inside it, and
+the same shape sits under `assertion-equals-its-own-default` (count 7) and
+`test-setup-hides-the-failure-path` (count 6): both are what a revert-and-rerun would have
+surfaced at the moment the test was written.

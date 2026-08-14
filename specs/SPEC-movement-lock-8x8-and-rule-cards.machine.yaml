@@ -1,0 +1,250 @@
+schema_version: 2
+spec_slug: movement-lock-8x8-and-rule-cards
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project — no Python sources to mutate; ADR-009 3-layer adequacy applies instead."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: 88
+spec_quality_score_at: "2026-08-13"
+ac:
+  - id: AC-001
+    title: "a teleported piece cannot take the move the turn still owes"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A lock MEANS the locked square contributes no move actions — so the legal-action set after the card must equal the set the same generator produces for a position with that piece absent from consideration. That equality is a statement about what locking is, not about how the grant is stored, so it cannot be satisfied by reading the implementation."
+    oracle_independence_waiver: null
+    input_domain: "positions where a relocation card resolves and the mover has at least two mobile pieces"
+    transformation: "resolve the card, then generate legal actions"
+    expected_relation: "moves_from(locked_square) == [] and moves_from(every_other_square) == moves_from_without_lock(every_other_square)"
+    preconditions:
+      - "the card declares the relocation lock"
+      - "the relocated piece survives the on_play cascade"
+    observable_output: "the legal-action list"
+    generator_hint: null
+
+  - id: AC-002
+    title: "both halves of a swap are locked, not just one"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "A swap relocates two pieces, so the lock's own definition applies symmetrically; asserting only one square would let a half-implemented flag pass. The loader half is differential in the same test file — a card declaring the flag with a swap action must be accepted where an earlier grammar rejected it, which is observable without reading the validator."
+    oracle_independence_waiver: null
+    input_domain: "positions where two friendly pieces both have legal moves before the swap"
+    transformation: "resolve the swap card, then generate legal actions"
+    expected_relation: "moves_from(square_a) == [] and moves_from(square_b) == []"
+    preconditions:
+      - "both swapped pieces survive the cascade"
+    observable_output: "the legal-action list, and the loader's accept/reject verdict on the card"
+    generator_hint: null
+
+  - id: AC-012
+    title: "a card that would relocate a royal leaves it where it stands"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "Royal skill-immunity is total, so a relocation card naming a royal must leave the position identical to the no-card control on every observable — board, grants and legal actions alike. That equality is what immunity MEANS, and it is the pre-existing royal-skill-immunity suite's own premise, so a lock implementation that quietly widens mayAffect to make its own AC pass fails this one instead."
+    oracle_independence_waiver: null
+    input_domain: "positions where a relocation skill card's chosen target is a royal piece"
+    transformation: "resolve the card, then generate the mover's legal actions"
+    expected_relation: "board(after) == board(before) and grants(after) == grants(before) and moves_from(royal_square) == moves_from_without_card(royal_square)"
+    preconditions:
+      - "the effect's layer is 'skill'"
+      - "the named target is royal"
+    observable_output: "the board, the grants list, and the legal-action list"
+    generator_hint: null
+
+  - id: AC-013
+    title: "a swapped piece enters the square it arrives on"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The reference implementation is teleport, which already runs cascadeEnter on its destination. The claim is that swap must agree with it: the same piece, the same painted square, reached by the two relocation actions, must produce the same outcome. Teleport's behaviour predates this change and is not edited by it, so it is an independent oracle rather than a restatement of the new code."
+    oracle_independence_waiver: null
+    input_domain: "painted squares carrying an on_enter effect (bomb, portal), reachable by both a teleport and a swap"
+    transformation: "place a piece on the square by teleport, then by swap, from otherwise identical positions"
+    expected_relation: "state_after(swap_onto_square) == state_after(teleport_onto_square) for the arriving piece, and both endpoints of the swap are cascaded"
+    preconditions:
+      - "neither relocation names a royal (royal skill-immunity would refuse both)"
+    observable_output: "the resolved board and effect state"
+    generator_hint: null
+
+  - id: AC-004
+    title: "locking the last mobile piece still ends the turn"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "legal_actions == [{'kind': 'end_turn'}]"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value is fixed by ADR-003 of the earlier same-turn work, which already defines end_turn as the only action offered when a card leaves nothing mobile — a rule written down before this feature existed, not read off the new code."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-005
+    title: "a `block_capture` grant protects only the side that created it"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Protection is owned by whoever created it — so the same square, same live grant, same attacker must yield opposite capture legality depending only on which side occupies it. The two arms differ in one bit that the implementation does not currently read, so a fix that merely deletes the grant early passes one arm and fails the other."
+    oracle_independence_waiver: null
+    input_domain: "positions with a live duration-bearing block_capture grant on a square whose occupant has changed since the grant was made"
+    transformation: "generate the attacking side's moves with the grant's owner standing there, then with an enemy standing there"
+    expected_relation: "capture_legal(enemy_occupant) == True and capture_legal(owner_occupant) == False"
+    preconditions:
+      - "the grant is still within its untilPly window in both arms"
+      - "the attacker's geometry reaches the square in both arms"
+    observable_output: "whether the capture appears in the legal-action list"
+    generator_hint: null
+
+  - id: AC-006
+    title: "capturing freezes the capturing piece instead of destroying it"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The same position is played twice on the same engine, once with the replacement card in play and once with no rule card; the control's outcome comes from code paths the card does not touch, so the difference isolates the card's clause. This is the idiom card-liveness.test.ts already uses for every shipped card."
+    oracle_independence_waiver: null
+    input_domain: "positions where the mover has a legal capture"
+    transformation: "play the capture, once with the replacement rule card in play and once with no rule card"
+    expected_relation: "board(with_card) == board(without_card) and frozen_until(destination, with_card) == ply_count + 2 and frozen_until(destination, without_card) is None"
+    preconditions:
+      - "the captured piece is not royal, so the ply is not short-circuited"
+    observable_output: "the resolved board and frozenUntil map"
+    generator_hint: null
+
+  - id: AC-007
+    title: "a condition can observe that a piece kind is absent"
+    type: parametric
+    test_ids: []
+    executable_predicate: null
+    golden_table:
+      - input: { n: 0, remaining_of_kind: 0 }
+        expected: true
+      - input: { n: 0, remaining_of_kind: 1 }
+        expected: false
+      - input: { n: 1, remaining_of_kind: 1 }
+        expected: true
+      - input: { n: 1, remaining_of_kind: 2 }
+        expected: false
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The table is the definition of `at most n` over a count, fixed by arithmetic before any code exists; its provenance is the operator's own semantics, and the n=0 row is the one a forEach-based encoding provably cannot produce because zero matching subjects yield zero bindings."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-008
+    title: "the match ends when one side runs out of pawns"
+    type: parametric
+    test_ids: []
+    executable_predicate: null
+    golden_table:
+      - input: { black_pawns_before: 1, white_action: "capture the last black pawn" }
+        expected: "{kind: 'win', winner: 'white', reason: 'win_action'}"
+      - input: { black_pawns_before: 2, white_action: "capture one black pawn" }
+        expected: "null"
+      - input: { black_pawns_before: 0, white_action: "an unrelated quiet move" }
+        expected: "{kind: 'win', winner: 'white', reason: 'win_action'}"
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The boundary is the control: the identical capture with two enemy pawns on the board must produce no result, and with one it must produce the win. The negative arm runs the same card through the same trigger, so a clause that fires unconditionally fails it — which a single positive sample would not catch."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-009
+    title: "the 8x8 preset is admitted for single-player"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "within_envelope(content, new_preset_id).ok == True"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected value comes from COMPLEXITY_BOUND = 20_000, a constant fixed by AC-011 of the AI work long before this preset was authored; the preset either scores under a pre-existing number or it does not."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-010
+    title: "the 8x8 preset's match length is measured and reported"
+    type: mechanical
+    test_ids: []
+    executable_predicate: "sorted(reported_card_ids) == sorted(preset_rule_card_ids)"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "There is deliberately no correct match-length value to assert, so the checkable claim is coverage: the measured distribution's card keys must equal the preset record's own declared ruleCardIds. That list is authored content, an independent source from the self-play run, so a harness that silently samples only the cards it happened to draw fails. This is the same coverage assertion the existing 6x6 AC-012 test already makes."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-011
+    title: "each new square type does something, and its inert branch is named"
+    type: property
+    test_ids: []
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "Each new square is compared against the same ply played on an unpainted square — the control square shares the whole engine except the paint, so a square type that declares an effect and changes nothing shows up as an equality that should have been a difference. This is exactly the check square-liveness.test.ts was built for after square.geyser shipped inert."
+    oracle_independence_waiver: null
+    input_domain: "one ply that enters or stands on each new square type, in a position where the effect's condition holds, and in a position where it does not"
+    transformation: "resolve the ply on the painted square, then on an otherwise identical unpainted square"
+    expected_relation: "state(painted, applying_branch) != state(unpainted) and state(painted, inert_branch) == state(unpainted)"
+    preconditions:
+      - "the two positions differ only in the paint on the target square"
+    observable_output: "the resolved GameState"
+    generator_hint: null

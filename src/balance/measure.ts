@@ -68,7 +68,7 @@ export interface MeasureOptions {
   /**
    * Wall-clock ceiling for the whole measurement.
    *
-   * A custom record cannot loop forever — `PLY_CAP` bounds every match at 60
+   * A custom record cannot loop forever — `PLY_CAP` bounds every match at 160
    * plies — but it CAN make each ply expensive: a piece sliding along dozens of
    * vectors multiplies the legal-action set the agent has to build, on every
    * ply, in both arms. Bounding the clock covers that and every other way a

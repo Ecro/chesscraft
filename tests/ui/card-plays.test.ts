@@ -133,14 +133,21 @@ describe('a card play is read off the history, not off the click', () => {
 
   it('marks squares that only changed hands, with no effect state to read', () => {
     /*
-     * The case `liveEffects` cannot see. A swap writes no `grants` and no
-     * `frozenUntil` entry — the whole of what it did is that two squares hold
-     * different pieces than they did. A derivation built on the effect list
-     * alone returns an empty set here and the board stays silent for a card
-     * that visibly moved two pieces.
+     * The case `liveEffects` cannot see: a card whose whole effect is that
+     * squares hold different pieces than they did. A derivation built on the
+     * effect list alone returns an empty set here and the board stays silent
+     * for a card that visibly moved a piece.
+     *
+     * This used to be `skill.swap`, and it stopped being a valid fixture on
+     * 2026-08-13: the v12 relocation lock (PLAN-movement-lock-8x8-and-rule-cards
+     * ADR-002) makes swap write a `forbid_movement` grant, so it now exercises
+     * the effect-state branch as well and proves nothing about the other one.
+     * `skill.shove` relocates and declares no lock, which is what this case
+     * needs. The premise is asserted below rather than assumed, which is why
+     * the change surfaced as a failure instead of a silently weakened test.
      */
-    const before = positionHolding('skill.swap')
-    const after = playCard(before, 'skill.swap')
+    const before = positionHolding('skill.shove')
+    const after = playCard(before, 'skill.shove')
 
     const moved = [...new Set([...before.board.keys(), ...after.board.keys()])].filter((sq) => {
       const a = before.board.get(sq)
@@ -148,10 +155,10 @@ describe('a card play is read off the history, not off the click', () => {
       return a?.pieceId !== b?.pieceId || a?.side !== b?.side
     })
     expect(moved.length, 'the fixture must actually move pieces').toBeGreaterThan(0)
-    expect(after.grants.length, 'a swap must leave no grant, or this fixture proves nothing').toBe(0)
+    expect(after.grants.length, 'the fixture card must leave no grant, or it proves nothing').toBe(0)
 
     const play = cardPlayBetween(before, after)!
-    expect(play.cardId).toBe('skill.swap')
+    expect(play.cardId).toBe('skill.shove')
     for (const square of moved) expect([...play.impacted]).toContain(square)
   })
 

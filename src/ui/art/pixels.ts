@@ -326,6 +326,90 @@ export const PIXEL_SPRITES = {
     '.oooooooooo.',
     '............',
   ],
+  // --- v12 card marks (same reason as the square marks below) ---
+
+  /** Two bars: held, not gone. */
+  'recoil': [
+    '............',
+    '..oooo.oooo.',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oYYYYoYYYYo',
+    '.oooo..oooo.',
+    '............',
+    '............',
+  ],
+  /** Three of the many, standing on one floor. */
+  'democracy': [
+    '............',
+    '..o...o...o.',
+    '.oYo.oYo.oYo',
+    '.oYo.oYo.oYo',
+    '.oYo.oYo.oYo',
+    '.ooo.ooo.ooo',
+    '............',
+    '.oooooooooo.',
+    'oSSSSSSSSSSo',
+    '.oooooooooo.',
+    '............',
+    '............',
+  ],
+
+  // --- v12 square marks (PLAN-movement-lock-8x8-and-rule-cards Phase 5) ---
+  // Drawn rather than taken from the spare pool: `art-key.test.ts` requires a
+  // surplus per surface to SURVIVE a feature, and three square records would
+  // have eaten it down from 10 to 7. A surplus the next feature eats is not one.
+
+  /** A plank with a leap above it. */
+  'springboard': [
+    '.....oo.....',
+    '....oCCo....',
+    '...oCCCCo...',
+    '..oCCCCCCo..',
+    '.oCCoCCoCCo.',
+    '.ooo.CC.ooo.',
+    '.....CC.....',
+    '....oCCo....',
+    '.oooooooooo.',
+    'oSSSSSSSSSSo',
+    '.oooooooooo.',
+    '............',
+  ],
+  /** A muster banner on its pole. */
+  'levy': [
+    '..o.........',
+    '..oooooooo..',
+    '..oGGGGGGo..',
+    '..oGgggggo..',
+    '..oGGGGGGo..',
+    '..oGgggggo..',
+    '..oooooooo..',
+    '..o.........',
+    '..o.........',
+    '.ooo........',
+    'oSSSo.......',
+    '.ooo........',
+  ],
+  /** A stone block under a small flame. */
+  'altar': [
+    '.....oo.....',
+    '....oeeo....',
+    '...oeEEeo...',
+    '....oeeo....',
+    '.....oo.....',
+    '.oooooooooo.',
+    'oHHHHHHHHHHo',
+    'oHssssssssHo',
+    'oHHHHHHHHHHo',
+    '.oHHHHHHHHo.',
+    '.oooooooooo.',
+    '............',
+  ],
+
   'blood': [
     '.....oo.....',
     '....oeeo....',

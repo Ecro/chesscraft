@@ -36,6 +36,7 @@ function currentDocument(): ContentSource {
     ...(card as object),
     royalFollowUp: 'preserve',
     protectRelocatedAfterPlay: false,
+    lockRelocatedAfterPlay: false,
   }))
   return source
 }

@@ -41,6 +41,20 @@ export interface ActiveGrant extends EffectSource {
   readonly pattern?: MovePattern
   /** Exclusive: live while `plyCount < untilPly`. */
   readonly untilPly: number
+  /**
+   * The side this grant is FOR (ADR-004 of PLAN-movement-lock-8x8-and-rule-cards).
+   *
+   * Grants are keyed by square, not by piece, and that is right for a penalty:
+   * a freeze the next occupant inherits is a hazard the board carries. For
+   * `block_capture` it inverts — protection outliving the piece it was granted
+   * to hands cover to whoever walks in next, including the opponent. Read off
+   * the OCCUPANT at creation rather than off the caster, so a card written to
+   * shield an enemy piece keeps working.
+   *
+   * Required on every grant; only `block_capture` reads it today
+   * (`forbid_movement` and `grant_movement` carry it unread — Risk 6).
+   */
+  readonly beneficiarySide: Side
 }
 export type SquareId = string
 

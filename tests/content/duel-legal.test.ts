@@ -35,6 +35,7 @@ function document(mutate: (preset: Record<string, unknown>, source: ContentSourc
     uses: 1,
     royalFollowUp: 'preserve',
     protectRelocatedAfterPlay: false,
+    lockRelocatedAfterPlay: false,
     effects: [
       { trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }] },
     ],

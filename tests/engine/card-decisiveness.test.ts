@@ -81,7 +81,12 @@ const rows: Row[] = [...byCard.entries()]
     wonByCard: group.filter((s) => s.reason === 'win_action').length,
     median: median(group.map((s) => s.plies)),
   }))
-  .sort((a, b) => b.capped / b.n - a.capped / a.n)
+  // Ranked by MEDIAN, not by cap rate — changed 2026-08-13 with `PLY_CAP` 60 ->
+  // 160. The cap rate was the signal while the clock decided a third of every
+  // room's matches; it now decides 0-4% of them, so ranking on it sorts noise.
+  // Median plies still has real spread (22 to 58) and answers the same question
+  // the survey was written to ask: which card's matches drag.
+  .sort((a, b) => b.median - a.median)
 
 describe('AC-CARDS — what each rule card does to the outcome (PLAN Phase 5)', () => {
   it('finished every sampled match', () => {
@@ -103,7 +108,7 @@ describe('AC-CARDS — what each rule card does to the outcome (PLAN Phase 5)', 
     expect(missing, 'a rule card in the preset was never dealt in 600 seeds').toEqual([])
   })
 
-  it('names the cards that most often leave the clock to decide', () => {
+  it('names the cards whose matches run longest', () => {
     // Measured 2026-08-09 over 600 seeds. The four worst are pinned as an ORDERED list, so a
     // card getting worse or better moves it and this fails — which is the signal to re-measure
     // and re-play, not to edit the list. The rates themselves are deliberately not asserted:
@@ -141,22 +146,41 @@ describe('AC-CARDS — what each rule card does to the outcome (PLAN Phase 5)', 
 })
 
 /**
- * The four rule cards under whose rule a match most often ends on the clock.
+ * The four rule cards under whose rule a match runs longest.
  *
- * Measured, not chosen, on 2026-08-09 over 600 seeds AFTER the Phase 6 repair. Ordered worst
- * first. `rule.sudden-death` led this list at 47% before that repair and is no longer in it.
+ * **Re-measured 2026-08-13 with `PLY_CAP` 60 -> 160**, and the raise changed what
+ * this list can even mean. While the cap was 60 the clock decided 25-31% of
+ * matches and the ranking was "who rides to the clock"; at 160 it decides 0-4%,
+ * so that ranking became a sort over noise. The survey now ranks by MEDIAN
+ * PLIES, which still separates the set cleanly and answers the question the cap
+ * rate was a proxy for.
  *
- * These four are recorded as SUSPECTS and deliberately left alone. Their cap rates sit between
- * 31% and 41% against a set-wide 25%, on samples of 56 to 71 matches — around two to three
- * standard errors, which is suggestive and not a verdict. And the assignment is not randomised
- * against a control: which rule card is dealt correlates with which other cards are in the pool,
- * so the difference is partly a property of the company a card keeps. Changing content on that
- * signal is what `[fail:test] control-arm-is-not-a-control` is recorded here for. What separated
- * `sudden-death` from these was never its rate — it was a measurement of its own clause.
+ * | rule card | median plies | on the clock |
+ * |---|---|---|
+ * | `royal-bodyguard` | 57.5 | 3% |
+ * | `knights-honour` | 57 | 1% |
+ * | `fast-promotion` | 54 | 4% |
+ * | `blood-toll` | 53 | 0% |
+ * | `last-stand` | 50 | 0% |
+ * | `sudden-death` | 49 | 0% |
+ * | `conscription` | 45.5 | 0% |
+ * | `king-of-the-hill` | 38 | 0% |
+ * | `three-check` | 27 | 0% |
+ * | `duel` | 23 | 0% |
+ * | `blitz` | 22 | 0% |
+ *
+ * These four are recorded as SUSPECTS and deliberately left alone, for the same
+ * reason as before: the assignment is not randomised against a control — which
+ * rule card is dealt correlates with which others are in the pool — so part of
+ * any difference is the company a card keeps. Changing content on that signal is
+ * what `[fail:test] control-arm-is-not-a-control` is recorded here for.
+ *
+ * `rule.democracy` is absent on purpose: it ships on `preset.covenant` and this
+ * survey measures `BUNDLED_PRESET_ID`. Its own decisiveness is UNMEASURED.
  */
 const SUSPECTS: string[] = [
   'rule.royal-bodyguard',
   'rule.knights-honour',
-  'rule.conscription',
   'rule.fast-promotion',
+  'rule.blood-toll',
 ]

@@ -286,6 +286,23 @@ const ROWS: readonly Row[] = [
     authored: { kind: 'piece_count_at_most', side: 'mover', n: 2 },
   },
   {
+    // v12's kind-filtered sibling. Authored at n=0 on purpose: "none of this
+    // kind left" is the reading the entry exists for, and the one
+    // `piece_count_at_most` cannot express — its `n` is `positive()`. A row
+    // written at n=1 would pass without ever exercising that difference.
+    axis: 'condition',
+    kind: 'piece_kind_count_at_most',
+    host: 'ruleCard',
+    requires: EFFECT,
+    params: [
+      { testid: 'param-cond-pieceId', value: 'piece.archer' },
+      { testid: 'param-cond-side', value: 'opponent' },
+      { testid: 'param-cond-n', value: '0' },
+    ],
+    path: 'effects.0.condition',
+    authored: { kind: 'piece_kind_count_at_most', side: 'opponent', pieceId: 'piece.archer', n: 0 },
+  },
+  {
     // Authored as a toggle on the leaf it inverts, not as an option in a list:
     // "not" is not a condition a child picks, it is something they say about one.
     axis: 'condition',
@@ -861,6 +878,33 @@ describe('vocabulary-editor coverage (ADR-006)', () => {
       const id = `${PREFIX[row.host]}.probe-${axis.toLowerCase()}-${kind.replace(/_/g, '-')}`
       expect(openDraft(committed.value!, row.host, id)).toEqual({ ...authored, ...derivedKeys(id, row.host) })
     })
+  })
+
+  it('keeps a cleared count at zero for the kind-filtered condition', () => {
+    /*
+     * The numeric slot is shared by four conditions, and three of them are
+     * `positive()` in the schema — so its cleared-field fallback is 1. The
+     * kind-count is `nonnegative()` and 0 is the value it exists for: snapping a
+     * cleared field up to 1 would quietly turn "none of this kind left" into
+     * "one left", and the author would have no way to see it.
+     *
+     * Added after a mutation check: flipping the fallback back to a flat `?? 1`
+     * left all 96 tests green, so the branch was defended by nothing.
+     */
+    mount(sliceContentSource)
+    fireEvent.change(screen.getByTestId('editor-kind'), { target: { value: 'ruleCard' } })
+    clickAll([...EFFECT, TRIGGER_CLICK.ruleCard!])
+    fireEvent.click(reach('condition', 'piece_kind_count_at_most'))
+
+    const field = screen.getByTestId('s-param-cond-n')
+    fireEvent.change(field, { target: { value: '2' } })
+    expect((at(readDraft(), 'effects.0.condition') as { n: number }).n, 'the field is live').toBe(2)
+
+    fireEvent.change(field, { target: { value: '' } })
+    expect(
+      (at(readDraft(), 'effects.0.condition') as { n: number }).n,
+      'clearing it must land on 0, not on the shared positive-condition floor of 1',
+    ).toBe(0)
   })
 
   describe.each(FIELD_ROWS.map((r) => [`${r.host}.${r.what}`, r] as const))('record field %s', (label, row) => {

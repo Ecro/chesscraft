@@ -73,6 +73,14 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   'condition:on_own_rank': () => ({ kind: 'on_own_rank', n: 1 }),
   'condition:check_count_at_least': () => ({ kind: 'check_count_at_least', n: 1 }),
   'condition:piece_count_at_most': () => ({ kind: 'piece_count_at_most', side: 'mover', n: 1 }),
+  // Seeded at n:0 — "none left" is the reading this entry exists for, and the
+  // one its sibling cannot express.
+  'condition:piece_kind_count_at_most': (ctx) => ({
+    kind: 'piece_kind_count_at_most',
+    side: 'opponent',
+    pieceId: ctx.pieceIds[0] ?? '',
+    n: 0,
+  }),
   'condition:not': (_ctx, current) => ({ kind: 'not', of: current ?? { kind: 'always' } }),
   'condition:all': (_ctx, current) => ({ kind: 'all', of: [current ?? { kind: 'always' }] }),
   'condition:any': (_ctx, current) => ({ kind: 'any', of: [current ?? { kind: 'always' }] }),

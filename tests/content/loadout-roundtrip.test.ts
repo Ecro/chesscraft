@@ -29,6 +29,7 @@ function roomWithLoadout(): ContentSource {
     uses: 1,
     royalFollowUp: 'preserve',
     protectRelocatedAfterPlay: false,
+    lockRelocatedAfterPlay: false,
     effects: [
       {
         trigger: 'on_play',

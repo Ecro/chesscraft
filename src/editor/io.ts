@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION } from '@content/schema'
-import { type ContentSource, type ValidationError, loadContentSet } from '@content/load'
+import { type ContentSource, type ValidationError, loadContentSet, normalizeSkillCard } from '@content/load'
 
 /**
  * JSON export and import (AC-015).
@@ -57,16 +57,19 @@ export function importContent(text: string): ImportResult {
   const result = loadContentSet(parsed)
   if (!result.ok) return { ok: false, errors: result.errors }
 
+  // Hoisted: the guard above narrowed this to a number, but the narrowing does
+  // not survive into the closure below.
+  const declaredVersion: number = raw.schemaVersion
   const source: ContentSource = { schemaVersion: SCHEMA_VERSION, pieces: [], squareTypes: [], ruleCards: [], skillCards: [], boards: [], presets: [] }
   for (const collection of COLLECTIONS) {
     const list = raw[collection]
+    // The export re-stamps `schemaVersion` to this build's, so every record must
+    // be brought up to it — through the loader's OWN normalizer, never a copy.
+    // This branch was a copy until v12, and the copy going stale is exactly what
+    // `[fail:design] shared-vocabulary-unshared-code-path` records.
     source[collection] = Array.isArray(list)
-      ? collection === 'skillCards' && raw.schemaVersion <= 10
-        ? list.map((record) =>
-            record && typeof record === 'object'
-              ? { ...record, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false }
-              : record,
-          )
+      ? collection === 'skillCards'
+        ? list.map((record) => normalizeSkillCard(record, declaredVersion))
         : (list as unknown[])
       : []
   }

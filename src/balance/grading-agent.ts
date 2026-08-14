@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { PLY_CAP, apply, legalActions } from '@engine/engine'
+import { MAX_MATCH_ACTIONS, apply, legalActions } from '@engine/engine'
 import { createMatch, currentState } from '@engine/match'
 import { rngFor } from '@engine/rng'
 import type { Action, GameState, MatchResult, Side } from '@engine/types'
@@ -132,10 +132,9 @@ export interface GradingPlayOut {
 
 /** One match, played to its conclusion by this agent on both sides. */
 export function playOutGrading(content: ContentSet, presetId: string, seed: number): GradingPlayOut {
-  const DRAFT_ACTIONS = 4
   let match = createMatch({ content, presetId, seed })
 
-  for (let step = 0; step < PLY_CAP + DRAFT_ACTIONS; step += 1) {
+  for (let step = 0; step < MAX_MATCH_ACTIONS; step += 1) {
     const state = currentState(match)
     if (state.result) break
     const action = chooseGradingAction(state, content, seed)

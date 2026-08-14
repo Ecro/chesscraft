@@ -63,8 +63,10 @@ export const ko: Record<string, string> = {
   'rule.last-stand.text': '내 기물이 셋 이하로 줄어들면, 내 왕이 여왕처럼 쭉 움직일 수 있다.',
   'rule.conscription.name': '징집령',
   'rule.conscription.text': '내 기물이 셋 이하일 때 턴이 끝나면, 내 뒷줄 빈 칸에 병사가 한 명 나타난다.',
-  'rule.blood-toll.name': '피의 대가',
-  'rule.blood-toll.text': '기물을 잡은 기물도 함께 사라진다. 함부로 잡을 수 없게 된다.',
+  'rule.recoil.name': '반동',
+  'rule.recoil.text': '기물을 잡은 기물은 숨을 고른다. 바로 다음 자기 차례에 움직이지 못한다.',
+  'rule.democracy.name': '민주주의',
+  'rule.democracy.text': '나라를 지탱하는 건 왕이 아니라 병사다. 병사를 모두 잃은 쪽이 진다.',
   'rule.blitz.name': '속결',
   'rule.blitz.text': '상대를 두 번 체크하면 그 즉시 이긴다.',
   'rule.knights-honour.name': '기사의 명예',
@@ -125,6 +127,13 @@ export const ko: Record<string, string> = {
   'square.thorns.text': '이 칸에 들어온 병사는 사라진다. 병사가 아닌 기물은 아무렇지 않다.',
   'square.mist.name': '안개',
   'square.mist.text': '이 칸에 들어온 기물은 세 수 동안 잡히지 않는다.',
+  'square.springboard.name': '발판',
+  'square.springboard.text': '이 칸에 서 있는 동안에는 기사처럼 ㄱ자로도 뛸 수 있다. 칸을 벗어나면 원래대로 돌아간다.',
+  'square.levy.name': '징병소',
+  // The inert branch is in the text on purpose — the `square.geyser` lesson.
+  'square.levy.text': '이 칸을 밟으면 내 끝줄 빈 칸에 병사가 하나 나타난다. 끝줄이 가득 차 있으면 아무 일도 일어나지 않는다.',
+  'square.altar.name': '제단',
+  'square.altar.text': '이 칸에 들어온 기물은 무엇이든 기사가 된다. 병사에게는 이득이지만 여왕에게는 손해다.',
 
   // --- expansion rule cards ---
   'rule.beacon.name': '봉화',
@@ -162,9 +171,11 @@ export const ko: Record<string, string> = {
 
   // --- boards and presets ---
   'board.los-alamos.name': '로스앨러모스 6x6',
+  'board.grand.name': '대전장 8x8',
   'board.gate6a.name': '검증용 보드',
   'board.slice.name': '봉화 보드',
   'preset.default.name': '기본 변형 체스',
+  'preset.grand.name': '대전장 8x8',
   'board.bastion.name': '성채 6x6',
   'board.cavalry.name': '기병대 6x6',
   'board.covenant.name': '서약의 땅 6x6',
@@ -419,6 +430,7 @@ export const ko: Record<string, string> = {
   'ui.editor.royal-follow-up.preserve': '그대로 허용',
   'ui.editor.royal-follow-up.preserve-existing': '카드 전부터 가능했던 포획만',
   'ui.editor.field.protect-relocated': '옮긴 기물을 이번 차례 동안 보호',
+  'ui.editor.field.lock-relocated': '옮긴 기물은 이번 차례에 못 움직임',
   'ui.editor.field.paired': '짝이 있는 칸',
   'ui.editor.field.royal': '잃으면 지는 기물',
   'ui.editor.field.promotion-rank': '몇 번째 줄에서 승급하나요',
@@ -475,7 +487,10 @@ export const ko: Record<string, string> = {
   'ui.editor.vocab.condition.on_square': '이 칸에 있으면',
   'ui.editor.vocab.condition.on_own_rank': '자기 진영에서 몇 번째 줄에 있으면',
   'ui.editor.vocab.condition.check_count_at_least': '왕이 몇 번 넘게 위험했으면',
-  'ui.editor.vocab.condition.piece_count_at_most': '기물이 몇 개 아래면',
+  // The two counts sit next to each other in the picker, so the labels have to
+  // do the disambiguating: "기물이" (any piece) vs "이 기물이" (this kind).
+  'ui.editor.vocab.condition.piece_count_at_most': '기물이 모두 몇 개 아래면',
+  'ui.editor.vocab.condition.piece_kind_count_at_most': '이 기물이 몇 개 아래면',
   'ui.editor.vocab.condition.not': '반대면',
   'ui.editor.vocab.condition.all': '모두 맞으면',
   'ui.editor.vocab.condition.any': '하나라도 맞으면',

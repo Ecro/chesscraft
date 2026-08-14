@@ -93,7 +93,7 @@ describe('skill-layer royal immunity', () => {
 
     const skillForbidden = {
       ...whiteAgain,
-      grants: [{ kind: 'forbid_movement' as const, square: 'e5', untilPly: 9, sourceId: 'skill.probe', layer: 'skill' as const }],
+      grants: [{ kind: 'forbid_movement' as const, square: 'e5', untilPly: 9, sourceId: 'skill.probe', layer: 'skill' as const, beneficiarySide: 'white' as const }],
     }
     const ruleForbidden = {
       ...skillForbidden,
@@ -186,6 +186,7 @@ describe('skill-layer royal immunity', () => {
         uses: 1,
         royalFollowUp: 'preserve-existing',
         protectRelocatedAfterPlay: false,
+        lockRelocatedAfterPlay: false,
         effects: [{ trigger: 'on_play', condition: { kind: 'always' }, actions: [{ kind: 'win', side: 'mover' }] }],
       })
       source.presets[0]!.skillCardIds.push('skill.terminal-probe')

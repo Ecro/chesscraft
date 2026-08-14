@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { apply, legalActions } from '@engine/engine'
+import { PLY_CAP, apply, legalActions } from '@engine/engine'
 import { createPosition } from '@engine/match'
 import { contentWith, referenceContent } from '../helpers/content'
 
@@ -145,7 +145,14 @@ describe('ADR-012 additive win conditions', () => {
   })
 })
 
-/** AC-003 — the 60-ply cap ends the match by material count. */
+/**
+ * AC-003 — the ply cap ends the match by material count.
+ *
+ * Reads `PLY_CAP` rather than the number it happened to be: the constant moved
+ * 60 -> 160 in v12 and these three fixtures were the only place in the suite
+ * that had hard-coded it, which is exactly why they went red and the rest did
+ * not. A fixture that names the value cannot follow it.
+ */
 describe('AC-003 ply cap', () => {
   const capPosition = (extra: Array<{ square: string; pieceId: string; side: 'white' | 'black' }>) =>
     createPosition({
@@ -153,7 +160,7 @@ describe('AC-003 ply cap', () => {
       presetId: 'preset.default',
       seed: 1,
       sideToMove: 'white',
-      plyCount: 59,
+      plyCount: PLY_CAP - 1,
       placements: [
         { square: 'a1', pieceId: 'piece.king', side: 'white' },
         { square: 'f6', pieceId: 'piece.king', side: 'black' },
@@ -161,7 +168,7 @@ describe('AC-003 ply cap', () => {
       ],
     })
 
-  it('awards the side with more pieces when ply 60 completes', () => {
+  it('awards the side with more pieces when the capping ply completes', () => {
     const state = capPosition([{ square: 'c1', pieceId: 'piece.rook', side: 'white' }])
     const quiet = legalActions(state, content).find((a) => a.kind === 'move' && a.from === 'c1')!
     expect(apply(state, quiet, content).result).toEqual({ kind: 'win', winner: 'white', reason: 'material_cap' })
@@ -188,7 +195,7 @@ describe('AC-003 ply cap', () => {
       presetId: 'preset.default',
       seed: 1,
       sideToMove: 'white',
-      plyCount: 59,
+      plyCount: PLY_CAP - 1,
       placements: [
         { square: 'a1', pieceId: 'piece.king', side: 'white' },
         { square: 'a2', pieceId: 'piece.rook', side: 'white' },

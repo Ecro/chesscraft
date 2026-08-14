@@ -66,15 +66,50 @@ const files = ['a', 'b', 'c', 'd', 'e', 'f']
  * square under a piece at setup is neither reachable nor visible.
  */
 function openingFor(rank: readonly string[], pawnId = 'piece.pawn') {
+  return openingOn(files, 6, rank, pawnId)
+}
+
+/**
+ * The same opening on any square board (v12, for the 8x8 room).
+ *
+ * Generalised rather than copied: a second `openingFor8` would be one
+ * vocabulary with two code paths, which is `[fail:design]
+ * shared-vocabulary-unshared-code-path` — recorded four times here, once in this
+ * very task when `editor/io.ts` turned out to hold a stale copy of the loader's
+ * normalization. The 6x6 helper above is now a call into this one.
+ */
+function openingOn(
+  fileNames: readonly string[],
+  height: number,
+  rank: readonly string[],
+  pawnId = 'piece.pawn',
+) {
   const placements: Array<{ square: string; pieceId: string; side: 'white' | 'black' }> = []
-  for (const [i, file] of files.entries()) {
+  for (const [i, file] of fileNames.entries()) {
     placements.push({ square: `${file}1`, pieceId: rank[i]!, side: 'white' })
     placements.push({ square: `${file}2`, pieceId: pawnId, side: 'white' })
-    placements.push({ square: `${file}5`, pieceId: pawnId, side: 'black' })
-    placements.push({ square: `${file}6`, pieceId: rank[i]!, side: 'black' })
+    placements.push({ square: `${file}${height - 1}`, pieceId: pawnId, side: 'black' })
+    placements.push({ square: `${file}${height}`, pieceId: rank[i]!, side: 'black' })
   }
   return placements
 }
+
+const files8 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+/**
+ * Eight behind eight. `piece.lancer` rather than a bishop: on eight ranks a full
+ * diagonal slider crosses the board on move one, and the lancer's two-square cap
+ * keeps the piece a flanker instead of an opening threat.
+ */
+const grandRank = [
+  'piece.rook',
+  'piece.knight',
+  'piece.lancer',
+  'piece.queen',
+  'piece.king',
+  'piece.lancer',
+  'piece.knight',
+  'piece.rook',
+]
 
 const bastionRank = ['piece.rook', 'piece.warden', 'piece.queen', 'piece.king', 'piece.warden', 'piece.rook']
 const cavalryRank = ['piece.charger', 'piece.knight', 'piece.queen', 'piece.king', 'piece.knight', 'piece.charger']
@@ -101,7 +136,7 @@ const CAMEL: Array<[number, number]> = [
 ]
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 11,
+  schemaVersion: 12,
 
   pieces: [
     {
@@ -407,6 +442,76 @@ export const bundledContentSource: ContentSource = {
       ],
     },
     {
+      /**
+       * Stand here and you can leap (v12).
+       *
+       * `grant_movement` at `generate_moves` with no duration, so the geometry
+       * is lent for exactly as long as the piece stands on the square — the
+       * same shape `rule.siege` uses to give rooks a diagonal. No square type
+       * had used the grant actions before this one; the eight shipped before it
+       * covered four triggers and none of the generation-time three.
+       */
+      id: 'square.springboard',
+      nameKey: 'square.springboard.name',
+      textKey: 'square.springboard.text',
+      artKey: 'art.springboard',
+      paired: false,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'occupant' }, pattern: { kind: 'jump', vectors: KNIGHT } }],
+        },
+      ],
+    },
+    {
+      /**
+       * A muster point: step on it and a footman reports to your home rank.
+       *
+       * INERT WHEN THE HOME RANK IS FULL, and the card text says so — the
+       * `square.geyser` lesson, which resolved through the same `own_back_rank`
+       * vacancy lookup and quietly did nothing for the whole opening because
+       * every home rank starts full. A square effect has no `cardResolves` to
+       * gate it, so the only remedy available to CONTENT is to stop the
+       * behaviour being a surprise.
+       */
+      id: 'square.levy',
+      nameKey: 'square.levy.name',
+      textKey: 'square.levy.text',
+      artKey: 'art.levy',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
+    {
+      /**
+       * Whatever climbs onto it comes off a knight — a promotion that is also a
+       * demotion, so it is a decision rather than a reward. `square.shrine`
+       * only ever improves a pawn; this one will happily turn a queen into a
+       * knight, and the text says which way it cuts.
+       *
+       * Its inert branch is a piece that is ALREADY a knight: `promote_piece`
+       * writes the same `pieceId` and nothing observable happens.
+       */
+      id: 'square.altar',
+      nameKey: 'square.altar.name',
+      textKey: 'square.altar.text',
+      artKey: 'art.altar',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'promote_piece', target: { kind: 'entering' }, to: 'piece.knight' }],
+        },
+      ],
+    },
+    {
       /** Cover you carry with you: whatever steps in cannot be taken for a while. */
       id: 'square.mist',
       nameKey: 'square.mist.name',
@@ -554,18 +659,68 @@ export const bundledContentSource: ContentSource = {
       ],
     },
     {
+      /**
+       * Replaces `rule.blood-toll`, which destroyed the capturing piece.
+       *
+       * A NEW id rather than an edit in place: the old one names "the piece that
+       * captured disappears too", and this card does not do that. Its measured
+       * profile was never the problem — 20% of its matches ended on the clock
+       * against a 25% set baseline, mid-pack — so this is a taste change, and
+       * the taste complaint was that losing the taker made captures feel dead
+       * rather than expensive. A freeze keeps the cost and keeps the piece.
+       *
+       * `mover`, not `entering`: at `on_capture` the subject is the VICTIM, and
+       * the piece this card is about is the one that took it. The write is
+       * DEFERRED to settlement (ADR-001) because the capturer is still standing
+       * on `action.from` when this fires — writing here would freeze the square
+       * it is about to leave, which is exactly how the card it replaces spent
+       * four months inert.
+       */
       id: 'rule.blood-toll',
-      nameKey: 'rule.blood-toll.name',
-      textKey: 'rule.blood-toll.text',
-      artKey: 'art.blood',
+      nameKey: 'rule.recoil.name',
+      textKey: 'rule.recoil.text',
+      artKey: 'art.recoil',
       cost: 4,
       effects: [
         {
           trigger: 'on_capture',
           condition: { kind: 'always' },
-          // `mover`, not `entering`: at on_capture the subject is the VICTIM, and
-          // the piece this card is about is the one that took it.
-          actions: [{ kind: 'destroy_piece', target: { kind: 'mover' } }],
+          // 3, not 2. The write is deferred and settles at `state.plyCount`, so a
+          // 2-ply freeze expires exactly as the capturer's own next turn begins
+          // and costs it nothing — the card would read as a tax and charge none.
+          actions: [{ kind: 'freeze_piece', target: { kind: 'mover' }, plies: 3 }],
+        },
+      ],
+    },
+    {
+      /**
+       * The people, not the king (v12).
+       *
+       * Written with `piece_kind_count_at_most`, which exists for this clause:
+       * `piece_count_at_most` cannot filter by kind and its `n` is `positive()`,
+       * and a `forEach` over pawns cannot fire when there are none to bind.
+       *
+       * ONE clause, matching `rule.duel`. A second, mover-side clause would make
+       * it symmetric within a single ply, and a two-effect card cannot be opened
+       * by the recipe view — `readSentence` reads one effect, and every bundled
+       * card opening as a sentence is an invariant the suite enforces. The cost
+       * is a one-ply delay in the mirror case: a side that loses its own last
+       * pawn is not declared beaten until its opponent's ply evaluates the same
+       * clause from the other end. The match still ends, one half-move later.
+       *
+       * King capture still ends the match; this is an additional way to lose, not
+       * a replacement for that one.
+       */
+      id: 'rule.democracy',
+      nameKey: 'rule.democracy.name',
+      textKey: 'rule.democracy.text',
+      artKey: 'art.democracy',
+      cost: 4,
+      effects: [
+        {
+          trigger: 'end_of_ply',
+          condition: { kind: 'piece_kind_count_at_most', side: 'opponent', pieceId: 'piece.pawn', n: 0 },
+          actions: [{ kind: 'win', side: 'mover' }],
         },
       ],
     },
@@ -725,6 +880,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: true,
       effects: [
         {
           trigger: 'on_play',
@@ -742,6 +898,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: true,
       effects: [
         {
           trigger: 'on_play',
@@ -759,6 +916,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -778,6 +936,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -795,6 +954,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -812,6 +972,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -829,6 +990,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -848,6 +1010,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -873,6 +1036,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -890,6 +1054,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -907,6 +1072,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -924,6 +1090,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -943,6 +1110,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -960,6 +1128,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -977,6 +1146,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -997,6 +1167,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1029,6 +1200,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1061,6 +1233,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1085,6 +1258,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: true,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1102,6 +1276,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1119,6 +1294,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1138,6 +1314,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1162,6 +1339,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1179,6 +1357,7 @@ export const bundledContentSource: ContentSource = {
       uses: 1,
       royalFollowUp: 'preserve-existing',
       protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
@@ -1223,6 +1402,7 @@ export const bundledContentSource: ContentSource = {
         { square: 'f4', typeId: 'square.sanctuary' },
         { square: 'c3', typeId: 'square.thorns' },
         { square: 'd4', typeId: 'square.thorns' },
+        { square: 'e3', typeId: 'square.levy' },
       ],
     },
     {
@@ -1238,6 +1418,7 @@ export const bundledContentSource: ContentSource = {
         { square: 'f3', typeId: 'square.portal', pairedWith: 'a4' },
         { square: 'c4', typeId: 'square.mire' },
         { square: 'd3', typeId: 'square.mire' },
+        { square: 'b4', typeId: 'square.springboard' },
       ],
     },
     {
@@ -1253,6 +1434,37 @@ export const bundledContentSource: ContentSource = {
         { square: 'd3', typeId: 'square.bomb' },
         { square: 'b4', typeId: 'square.mist' },
         { square: 'e3', typeId: 'square.mist' },
+        { square: 'f3', typeId: 'square.altar' },
+      ],
+    },
+    {
+      /**
+       * The 8x8 room (v12). The engine needed nothing for this — `inBounds`
+       * reads `state.width`/`state.height` and the renderer sizes from them —
+       * so a bigger board is a content record, which is what this one proves.
+       *
+       * Ranks 3..6 are the empty ones at setup, so every painted square is
+       * reachable and none sits under a piece. The paint is MIRRORED across the
+       * middle: an opening where one side starts nearer a sanctuary than the
+       * other is not a fair room, and on 6x6 the four painted squares made that
+       * easy to get right by accident. Sixteen files of paint would not be.
+       */
+      id: 'board.grand',
+      nameKey: 'board.grand.name',
+      width: 8,
+      height: 8,
+      placements: openingOn(files8, 8, grandRank),
+      squares: [
+        { square: 'c3', typeId: 'square.springboard' },
+        { square: 'f6', typeId: 'square.springboard' },
+        { square: 'f3', typeId: 'square.levy' },
+        { square: 'c6', typeId: 'square.levy' },
+        { square: 'a4', typeId: 'square.sanctuary' },
+        { square: 'h5', typeId: 'square.sanctuary' },
+        { square: 'h4', typeId: 'square.altar' },
+        { square: 'a5', typeId: 'square.altar' },
+        { square: 'd4', typeId: 'square.portal', pairedWith: 'e5' },
+        { square: 'e5', typeId: 'square.portal', pairedWith: 'd4' },
       ],
     },
   ],
@@ -1336,9 +1548,41 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'preset.covenant.name',
       boardId: 'board.covenant',
       pieceIds: ['piece.king', 'piece.queen', 'piece.lancer', 'piece.acolyte', 'piece.pawn', 'piece.shade'],
-      ruleCardIds: ['rule.tribute', 'rule.conscription', 'rule.blood-toll', 'rule.sudden-death', 'rule.king-of-the-hill', 'rule.harvest'],
+      ruleCardIds: ['rule.tribute', 'rule.conscription', 'rule.blood-toll', 'rule.democracy', 'rule.sudden-death', 'rule.king-of-the-hill', 'rule.harvest'],
       loadoutBudget: 6,
       skillCardIds: ['skill.echo', 'skill.brand', 'skill.quake', 'skill.revive', 'skill.sacrifice', 'skill.coronation', 'skill.swap'],
+    },
+    {
+      /**
+       * The 8x8 room's card pool, and the exclusions are the interesting part.
+       *
+       * FOUR shipped rule cards encode 6x6 coordinates and are silently WRONG on
+       * eight ranks, so none of them is dealt here:
+       *   - `king-of-the-hill` and `harvest` name `CENTRE` = c3/c4/d3/d4, which
+       *     on this board is off-centre;
+       *   - `fast-promotion` reads `on_own_rank: 5`, one short of promotion on
+       *     six ranks and three short on eight;
+       *   - `beacon` reads `on_own_rank: 6`, the opponent's back rank on six
+       *     ranks and two short of it here.
+       * Each would still fire — just somewhere the card text does not describe,
+       * which is worse than not firing. Making them board-relative is a schema
+       * question (a rank counted from the far end) and belongs to its own unit.
+       */
+      id: 'preset.grand',
+      nameKey: 'preset.grand.name',
+      boardId: 'board.grand',
+      pieceIds: ['piece.king', 'piece.queen', 'piece.rook', 'piece.knight', 'piece.lancer', 'piece.pawn'],
+      ruleCardIds: [
+        'rule.democracy',
+        'rule.blood-toll',
+        'rule.three-check',
+        'rule.duel',
+        'rule.conscription',
+        'rule.tribute',
+        'rule.siege',
+      ],
+      loadoutBudget: 6,
+      skillCardIds: ['skill.teleport', 'skill.swap', 'skill.freeze', 'skill.bulwark', 'skill.knight-leap', 'skill.volley', 'skill.recall'],
     },
   ],
 }

@@ -92,7 +92,13 @@ import { z } from 'zod'
  * honest outcome: it declares a scale this build no longer has, and silently
  * ignoring it would let an author believe their room still sets one.
  */
-export const SCHEMA_VERSION = 11
+/*
+ * Bumped 11 -> 12 (PLAN-movement-lock-8x8-and-rule-cards ADR-002/ADR-007): the
+ * relocation lock. One bump carries both of that PLAN's additions — this flag
+ * and a new condition kind — because two bumps would mean two migration
+ * branches and two invalidations of stored author content for one release.
+ */
+export const SCHEMA_VERSION = 12
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -229,6 +235,22 @@ export type Condition =
   | { kind: 'on_own_rank'; n: number }
   | { kind: 'check_count_at_least'; n: number }
   | { kind: 'piece_count_at_most'; side: 'mover' | 'opponent'; n: number }
+  /**
+   * A side has at most `n` pieces OF ONE KIND left (v12).
+   *
+   * A separate entry rather than an optional `pieceId` on the condition above,
+   * and `n` is `nonnegative` where that one is `positive`. Both differences are
+   * the point: `piece_count_at_most` cannot filter by kind and cannot express
+   * zero, so "this side has no pawns left" was unauthorable — `forEach`
+   * iterates the pieces that EXIST, so zero matching subjects produce zero
+   * bindings and the effect never fires at all.
+   *
+   * The old condition is deliberately left untouched. Relaxing it to accept
+   * `n: 0` would mean "this side has no pieces at all", a state the royal rules
+   * already terminate, and an optional field that changes what the count means
+   * is the absent-case shape this repo has recorded eight times.
+   */
+  | { kind: 'piece_kind_count_at_most'; side: 'mover' | 'opponent'; pieceId: string; n: number }
   | { kind: 'not'; of: Condition }
   | { kind: 'all'; of: Condition[] }
   | { kind: 'any'; of: Condition[] }
@@ -245,6 +267,13 @@ export const condition: z.ZodType<Condition> = z.lazy(() =>
       kind: z.literal('piece_count_at_most'),
       side: z.enum(['mover', 'opponent']),
       n: z.number().int().positive(),
+    }),
+    z.strictObject({
+      kind: z.literal('piece_kind_count_at_most'),
+      side: z.enum(['mover', 'opponent']),
+      pieceId: contentId,
+      // Nonnegative, unlike its sibling: zero is the row this entry exists for.
+      n: z.number().int().nonnegative(),
     }),
     z.strictObject({ kind: z.literal('not'), of: condition }),
     z.strictObject({ kind: z.literal('all'), of: z.array(condition).min(1) }),
@@ -433,6 +462,23 @@ export const skillCardDef = z.strictObject({
   uses: z.number().int().positive(),
   royalFollowUp: z.enum(['preserve', 'preserve-existing']),
   protectRelocatedAfterPlay: z.boolean(),
+  /**
+   * The piece this card relocates may not take the move the turn still owes (v12).
+   *
+   * A per-card opt-in rather than an engine-wide rule, matching how
+   * `royalFollowUp` was already decided card by card: one blanket timing rule
+   * for every offensive card erases card identity, which is the objection that
+   * settled the v11 design too.
+   *
+   * Its grammar is deliberately WIDER than `protectRelocatedAfterPlay`'s. That
+   * one requires exactly one unquantified single-subject teleport; this one
+   * accepts any card carrying at least one relocation action, `swap_pieces`
+   * included — the narrow grammar would have made the flag validate and do
+   * nothing on the card this feature was asked for. The loader refuses a card
+   * declaring it with NO relocation action, so the absent case is an error
+   * rather than a silent no-op.
+   */
+  lockRelocatedAfterPlay: z.boolean(),
   effects: z.array(skillEffect),
 })
 export type SkillCardDef = z.infer<typeof skillCardDef>

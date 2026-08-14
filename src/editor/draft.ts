@@ -59,7 +59,7 @@ export function blankDraft(kind: DraftKind): Record<string, unknown> {
     case 'ruleCard':
       return { ...common }
     case 'skillCard':
-      return { ...common, uses: 1, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false }
+      return { ...common, uses: 1, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false }
     case 'board':
       return { id: '', nameKey: '', width: 6, height: 6, placements: [], squares: [] }
     case 'preset':

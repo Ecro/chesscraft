@@ -162,6 +162,17 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
       for (const piece of ctx.state.board.values()) if (piece.side === side) count += 1
       return count <= cond.n
     }
+    case 'piece_kind_count_at_most': {
+      // Reads the live board rather than `state.captured`: a revive puts a
+      // piece back, and a count of what was LOST would then disagree with
+      // what is standing there.
+      const side = cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover)
+      let count = 0
+      for (const piece of ctx.state.board.values()) {
+        if (piece.side === side && piece.pieceId === cond.pieceId) count += 1
+      }
+      return count <= cond.n
+    }
     case 'check_count_at_least':
       // Reads the mover's own tally — "I have checked you N times", which is
       // what every three-check variant means by it.
@@ -195,7 +206,13 @@ export function resolveTarget(
       // one place the distinction is worth anything — and while these two were
       // the same expression, no card could name the capturing piece.
       if (ctx.moverSquare) return ctx.state.board.has(ctx.moverSquare) ? [ctx.moverSquare] : []
-      return ctx.subject ? [ctx.subject.square] : []
+      // Guarded the same way the branch above is. `ctx.subject` on the card
+      // `on_play` path is a SNAPSHOT taken before the actions ran, so after a
+      // relocation in the same effect its `.square` names the vacated origin —
+      // "teleport this piece and freeze it there" wrote the freeze onto the
+      // square the piece had just left, and square-keyed state then immobilised
+      // whatever stood there next. Found in review.
+      return ctx.subject && ctx.state.board.has(ctx.subject.square) ? [ctx.subject.square] : []
     case 'adjacent_friendly': {
       if (!bound.ownerSquare || !bound.ownerSide) return []
       const { file, rank } = coords(bound.ownerSquare)

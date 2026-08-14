@@ -154,6 +154,9 @@ function conditionBreadth(condition: Condition): number {
     case 'piece_is':
     case 'on_square':
     case 'on_own_rank':
+    // Narrower than `piece_count_at_most` above, not equal to it: that one is
+    // satisfied by any N pieces of a side, this one by N pieces of ONE kind.
+    case 'piece_kind_count_at_most':
       return 1
     case 'not':
       // Broad by construction: it is everything the inner condition excludes.

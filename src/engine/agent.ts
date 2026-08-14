@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { PLY_CAP, apply, legalActions } from './engine'
+import { MAX_MATCH_ACTIONS, apply, legalActions } from './engine'
 import { createMatch, currentState } from './match'
 import { rngFor } from './rng'
 import type { Action, GameState, MatchResult } from './types'
@@ -80,11 +80,9 @@ export interface PlayOut {
  * wrong with the engine at all.
  */
 export function playOut(content: ContentSet, presetId: string, seed: number): PlayOut {
-  const DRAFT_ACTIONS = 4
-  const ACTIONS_PER_PLY = 2
   let match = createMatch({ content, presetId, seed })
 
-  for (let step = 0; step < ACTIONS_PER_PLY * PLY_CAP + DRAFT_ACTIONS; step += 1) {
+  for (let step = 0; step < MAX_MATCH_ACTIONS; step += 1) {
     const state = currentState(match)
     if (state.result) break
     const action = chooseAction(state, content, seed)

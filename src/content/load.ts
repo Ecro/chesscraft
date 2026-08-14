@@ -95,6 +95,32 @@ function idOf(record: unknown, collection: string, index: number): string {
   return `${collection}[${index}]`
 }
 
+/**
+ * Fills in the skill-card fields a document's declared version predates.
+ *
+ * **Exported, and there is exactly one of these.** The editor's import path used
+ * to carry its own copy of this logic, which is `[fail:design]
+ * shared-vocabulary-unshared-code-path` (count 4): the v12 bump made the copy
+ * wrong while the original was right, and the only symptom was two round-trip
+ * tests going red. One vocabulary, one code path.
+ *
+ * **Two independent predicates, not one widened predicate**, and the spread
+ * order is why: these defaults come LAST, so they override whatever the document
+ * declares. Widening `<= 10` to `<= 11` would reset every v11 card's
+ * `royalFollowUp` and `protectRelocatedAfterPlay` to the defaults — disabling
+ * shipped protection and every follow-up disposition in v11 author content —
+ * and the fields would be present and well-typed, so nothing would error. Each
+ * version's injection covers only the fields that version could not carry.
+ */
+export function normalizeSkillCard(record: unknown, schemaVersion: number | null): unknown {
+  if (schemaVersion === null || !record || typeof record !== 'object') return record
+  return {
+    ...record,
+    ...(schemaVersion <= 10 ? { royalFollowUp: 'preserve', protectRelocatedAfterPlay: false } : {}),
+    ...(schemaVersion <= 11 ? { lockRelocatedAfterPlay: false } : {}),
+  }
+}
+
 export function loadContentSet(source: unknown): LoadResult {
   const errors: ValidationError[] = []
 
@@ -145,9 +171,7 @@ export function loadContentSet(source: unknown): LoadResult {
     list.forEach((record, index) => {
       const id = idOf(record, name, index)
       const normalized =
-        name === 'skillCards' && schemaVersion !== null && schemaVersion <= 10 && record && typeof record === 'object'
-          ? { ...record, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false }
-          : record
+        name === 'skillCards' ? normalizeSkillCard(record, schemaVersion) : record
       const result = schema.safeParse(normalized)
       if (!result.success) {
         for (const issue of result.error.issues) {
@@ -204,6 +228,29 @@ export function loadContentSet(source: unknown): LoadResult {
         contentId: id,
         path: `skillCards.${id}.protectRelocatedAfterPlay`,
         message: 'requires exactly one unconditional, unquantified, single-subject teleport and no other relocation',
+      })
+    }
+  }
+
+  // The relocation lock's own grammar (v12, ADR-002) — deliberately NOT the one
+  // above. It accepts `swap_pieces`, which that grammar rejects outright, and it
+  // accepts a quantified or conditional relocation: the lock attaches to every
+  // subject the settlement step resolves, so more subjects is not a problem the
+  // way it is for a single protected square.
+  //
+  // What it refuses is the absent case: a card declaring the flag with nothing
+  // to relocate. That card would validate, draw, play and do nothing, which is
+  // this project's most-recurring failure and the reason the check exists.
+  for (const [id, card] of skillCards) {
+    if (!card.lockRelocatedAfterPlay) continue
+    const relocates = card.effects.some((effect) =>
+      effect.actions.some((action) => action.kind === 'teleport_piece' || action.kind === 'swap_pieces'),
+    )
+    if (!relocates) {
+      errors.push({
+        contentId: id,
+        path: `skillCards.${id}.lockRelocatedAfterPlay`,
+        message: 'requires at least one relocation action (teleport_piece or swap_pieces) for the lock to attach to',
       })
     }
   }

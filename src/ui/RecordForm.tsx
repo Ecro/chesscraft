@@ -1348,6 +1348,25 @@ export function RecordForm({
           </label>
         )}
 
+        {/*
+          v12's relocation lock needs its own control for the same reason the one
+          above has one: a schema field an author cannot set is a field that only
+          bundled content can ever use, which is the declared-but-inert shape one
+          layer up. This sits beside its sibling rather than opening a new
+          surface — the PLAN's non-goal is a redesign, not a checkbox.
+        */}
+        {kind === 'skillCard' && (
+          <label>
+            {t('ui.editor.field.lock-relocated')}
+            <input
+              type="checkbox"
+              data-testid="editor-lock-relocated"
+              checked={draft.lockRelocatedAfterPlay === true}
+              onChange={() => update((d) => { d.lockRelocatedAfterPlay = d.lockRelocatedAfterPlay !== true })}
+            />
+          </label>
+        )}
+
         {kind === 'squareType' && (
           <label>
             {t('ui.editor.field.paired')}

@@ -284,6 +284,23 @@ const PROBES: Probe[] = [
     run: ruleState('rule.blood-toll', [K_W, pawn('b2', 'white'), pawn('c3', 'black'), K_B], [['b2', 'c3']]),
   },
   {
+    /*
+     * v12. The card keeps the id `rule.blood-toll` and nothing else: the record
+     * is now a two-ply freeze on the capturer rather than its destruction. The
+     * id survives a total change of identity because `BASELINE_STAMP_IDS` is a
+     * FROZEN snapshot of a past release and `baseline-stamp.test.ts` refuses a
+     * stamp that names a record the bundle no longer ships.
+     *
+     * The probe is unchanged in shape and still differential, so it measures the
+     * new behaviour rather than restating it.
+     */
+    card: 'rule.democracy',
+    probe: 'the opponent loses their last pawn',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.democracy', [K_W, pawn('b2', 'white'), pawn('c3', 'black'), K_B], [['b2', 'c3']]),
+  },
+  {
     card: 'rule.blitz',
     probe: 'white delivers two checks',
     intended: 'live',

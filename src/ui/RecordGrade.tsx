@@ -85,6 +85,7 @@ export function RecordGrade({
     if (kind === 'skillCard') {
       out.royalFollowUp ??= 'preserve'
       out.protectRelocatedAfterPlay ??= false
+      out.lockRelocatedAfterPlay ??= false
     }
     for (const [key, placeholder] of Object.entries(identity)) {
       if (typeof out[key] !== 'string' || (out[key] as string).length === 0) out[key] = placeholder
