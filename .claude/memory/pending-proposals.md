@@ -1,4 +1,55 @@
+# Pending proposals
 
+Written by `/hm:wrapup` Step 5.3 when a `[fail:*]` slug reaches `count >= 3`. **Nothing reads
+this file automatically** — verified 2026-08-14 against the harness-maker plugin source: 26 files
+mention it, all of them documentation, and there is no CLI subcommand and no consumer. The README
+says "the user reviews and decides whether to ingest", so the consumer is a person and there is no
+tool to help them. harness-maker's own repo hit this first and recorded it in their CHANGELOG:
+"held 17 proposals, the oldest three months old ... the escalation machinery detects recurrence
+correctly, writes the recommendation, and **nothing ever read it**". Their fix was to sit down and
+turn four of the seventeen into mechanical guards, and to record the reasoning for one they
+implemented and then REJECTED. That is the shape of a triage pass, and this index exists so the
+next one is cheap.
+
+**Never delete an entry.** A proposal that was implemented and rejected is worth more than a
+missing one — it stops the next reader re-deriving it. Merged entries keep their text in a
+`<details>` block.
+
+## Status index — triaged 2026-08-14
+
+| Status | Proposal | Trigger count |
+|---|---|---|
+| **BUILT** | a no-caller sweep on every symbol a fix replaces — *partial* | declared-but-inert 8 |
+| OPEN | mutate every new guard once before believing it (3 merged) | **10** combined |
+| OPEN | a closed-set sweep before any fix is declared resolved | fix-scoped 7 |
+| OPEN | check the comment against the code it justifies | comment-claims 10 |
+| OPEN | grep the call sites when one rule has more than one caller | shared-vocabulary 5 |
+| OPEN | flag a spec whose setup makes the asserted branch unreachable | test-setup-hides 6 |
+| OPEN | fail a browser run that did not start its own server | foreign-server 6 |
+| OPEN | a sampling/negative-instance check in the test-review gate | all-positive-fixture 3 |
+| OPEN | derive phase scope from reachability, not prose | phase-scope-omits 4 |
+| OPEN | assert the cue's OUTCOME, not the property that usually produces it | glyph-opts-out 3 |
+| OPEN | bind non-pytest ACs, or say plainly that they are unbound | pytest-only 5 |
+| OPEN | derive e2e sweep coverage from the changed selectors | gate-enumerates 3 |
+| OPEN | re-evaluate persistent state at consumption | rule-keyed-to-event 3 |
+| MERGED | revert the fix and watch the regression test go red | → mutate-every-new-guard |
+| MERGED | revert-and-rerun as a step, not a habit | → mutate-every-new-guard |
+
+**What the 2026-08-14 triage learned, and it applies to the whole file.** The OPEN entries split
+cleanly into two kinds, and only one kind can ever be built here:
+
+- **Repo-testable** — an invariant a test in *this* repo can assert. One was built this pass (see
+  BUILT above). `bind non-pytest ACs` is also repo-adjacent but the fix belongs to the plugin.
+- **Harness edits** — a step in a stage template or a line in CLAUDE.md. `mutate every new guard`
+  (the highest-evidence entry in the file, combined count 10), `closed-set sweep`, `check the
+  comment`, `grep the call sites` are all this kind. **They have sat here since 2026-08-06 because
+  nobody can build them from inside this repo**, and that is worth saying once rather than letting
+  each one look individually neglected. Ingesting them means editing the harness.
+
+That split is the actionable output of this triage: eight of the thirteen open proposals are
+blocked on a decision nobody has been asked to make, not on effort.
+
+---
 ## Proposal: a sampling/negative-instance check in the test-review gate (2026-08-06)
 **Triggered by:** [fail:test] all-positive-fixture-hides-overcounting (count: 3)
 **Proposed mechanism:** rule update to the `test-reviewer` agent's rubric
@@ -90,6 +141,7 @@ Two concrete forms:
    the work is a 30-second check; surfacing it after is a drift verdict nobody acts on.
 
 ## Proposal: a no-caller sweep on every symbol a fix replaces (2026-08-06)
+**Status:** BUILT (partial) — see the 2026-08-14 note at the end of this entry.
 **Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 8)
 
 **Updated 2026-08-08 — the harness now knows the shape, and still missed a whole
@@ -147,6 +199,25 @@ which need the ADR-006-style coverage gates those entries already argue for —
 so this proposal is the cheap half, not the whole answer.
 
 
+**BUILT 2026-08-14 (partially) — `tests/engine/deferral-trigger-coverage.test.ts`.**
+The 2026-08-08 update above concluded that the mechanism must be keyed on an ENUM rather than a
+hand-written noun, because a harness surveying CARDS could not see a defect in a SQUARE TYPE. The
+v12 unit produced the engine-side twin of that miss: a `freeze_piece` deferral gated on
+`ctx.moverSquare != null` fired at `on_enter` (writing onto the wrong swap endpoint) and at
+`end_of_ply` (queueing into an already-drained list, so the write vanished with no freeze and no
+`settle:dropped` while the log still claimed the effect fired). Neither was caught by a suite;
+both were caught by review.
+
+The new test walks `LIFECYCLE_EVENTS` from the schema and asserts, per trigger, whether a
+mover-targeted freeze defers — so a trigger added tomorrow joins the table without anyone
+remembering to add it. It also asserts the invariant that made the `end_of_ply` bug SILENT: every
+deferral must produce a settlement line, applied or dropped, because a queued write and an applied
+write are otherwise indistinguishable from outside.
+
+**Still open**, and the reason this is "partial": the content-kind coverage the 2026-08-08 update
+asked for is still per-kind hand-written (`card-liveness`, `square-liveness`) rather than derived
+from the schema's kind list, so a fifth content kind would repeat the original miss.
+
 ## Proposal: assert the cue's OUTCOME, not the property that usually produces it (2026-08-07)
 **Triggered by:** [fail:render] glyph-opts-out-of-its-styling (count: 3)
 **Proposed mechanism:** a project e2e probe (`cue-outcome.spec.ts`) plus a note in the review rubric
@@ -169,7 +240,9 @@ consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 `-webkit-text-stroke` are all silently inert on `<img>`, `<canvas>`, `<svg>` and
 `<iframe>`.
 
-## Proposal: mutate every new guard once before believing it (2026-08-07, re-evidenced 2026-08-13)
+## Proposal: mutate every new guard once before believing it (2026-08-07, re-evidenced 2026-08-13 and 2026-08-14)
+**Status:** OPEN — highest evidence in this file (combined count 10). Needs a harness edit, not a repo test.
+**Also triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 2) · [fail:test] green-test-that-cannot-discriminate (count: 1)
 **Triggered by:** [fail:test] assertion-equals-its-own-default (count: 7)
 **Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
 **Rationale:** All three instances are a test whose assertion is satisfied by the
@@ -199,7 +272,32 @@ for the mutant the AUTHOR ran, not for its own opinion about whether the asserti
 live. Related: [[rule-checked-where-it-was-announced]], which is why reading is
 structurally the wrong instrument here.
 
+**MERGED 2026-08-14 — this entry now carries three proposals that were one idea.**
+`revert the fix and watch the regression test go red` (2026-08-09,
+`[fail:test] fixture-invalid-so-fallback-satisfies`) and `revert-and-rerun as a step,
+not a habit` (2026-08-14, `[fail:test] green-test-that-cannot-discriminate`) said the
+same thing in different words and are folded in here; their triggers are listed above.
+Keeping them apart split the evidence for one mechanism across three entries and made
+each look weaker than it is — combined count is 10, which makes this the highest-evidence
+proposal in the file.
+
+Three instances in the 2026-08-14 unit alone, all found by reverting and re-running, none
+by review: a settlement identity guard whose removal left 16 tests green; an editor
+cleared-field fallback whose removal left 96 green; and an AC whose fixtures all used a
+square type that destroys IN PLACE, so pre- and post-cascade squares were never different
+and an implementation threading the wrong one passed identically.
+
+**Why it is still not built:** this is a process step, not a testable property — there is
+nothing to assert about a suite from inside the suite. Its home is `/hm:execute` Phase D
+prose or a CLAUDE.md line, which means it is an edit to the harness rather than to this
+repo. That is the reason it has sat here since 2026-08-07 and it should be stated rather
+than left implicit.
+
 ## Proposal: revert the fix and watch the regression test go red (2026-08-09)
+**Status:** MERGED — MERGED into `mutate every new guard once before believing it` on 2026-08-14 — same mechanism, and splitting the evidence made both look weaker than the one they add up to.
+
+<details><summary>original text, kept per this file's never-delete convention</summary>
+
 **Triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 2) — filed
 below the count>=3 bar deliberately, because the mechanism is nearly free and this
 instance was caught only by accident.
@@ -219,6 +317,8 @@ subsumes nothing that mutation testing does — it is cheaper and it targets the
 that matters for a regression gate — and unlike mutation it needs no tooling. Make it a
 required Phase D line whenever a phase's exit criterion names a regression test, with the
 pre-fix red output recorded next to it.
+
+</details>
 
 ## Proposal: check the comment against the code it justifies (2026-08-07, re-evidenced 2026-08-13)
 **Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 10)
@@ -379,6 +479,10 @@ were found by the same review question, which argues for one checklist item cove
 rather than two.
 
 ## Proposal: revert-and-rerun as a step, not a habit (2026-08-14)
+**Status:** MERGED — MERGED into `mutate every new guard once before believing it` on 2026-08-14, the day it was written — the search-before-write step that should have caught the duplicate ran over `failures.md` and not over this file.
+
+<details><summary>original text, kept per this file's never-delete convention</summary>
+
 **Triggered by:** [fail:test] green-test-that-cannot-discriminate (count: 1)
 **Proposed mechanism:** rule update — one line in `/hm:execute` Phase D
 **Rationale:** In a single unit, THREE fixes shipped with tests that stayed green when the
@@ -391,3 +495,5 @@ you did. Count is 1 because the entry is new, but the three instances are inside
 the same shape sits under `assertion-equals-its-own-default` (count 7) and
 `test-setup-hides-the-failure-path` (count 6): both are what a revert-and-rerun would have
 surfaced at the moment the test was written.
+
+</details>
