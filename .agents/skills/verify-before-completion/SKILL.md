@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.0
+harness_maker_version: 0.52.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/verify-before-completion/SKILL.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: verify-before-completion
 description: Pre-wrapup gate enforcing 5 checks before any /hm:wrapup or autoloop
   iteration close. Failure on any check blocks completion and surfaces the failing
   check name + remediation hint.
-content_hash: 9a838e22283b4b740ceec3824c7964b1d7c23fa0a9a8e1db2fd800ba49d29d48
+content_hash: 228459aa35e958912b55b82798921babc88646037827a88276daf2ccff7967fe
 ---
 
 # verify-before-completion
@@ -61,12 +61,12 @@ Use the deterministic verification-cache CLI; run the full suite only when the
 cache is invalidated (ADR-007 — `relevant` mode ignores wrapup-only churn).
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.observability.verification_cache check --root . --mode relevant || (
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 python -m harness_maker.observability.verification_cache check --root . --mode relevant || (
   uv run pytest -q &&
   uv run ruff check src/ tests/ &&
   uv run ruff format --check src/ tests/ &&
   uv run mypy --strict src/ &&
-  uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
+  uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 python -m harness_maker.observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
 )
 ```
 

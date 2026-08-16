@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.0
+harness_maker_version: 0.52.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Pre-completion stop sign — deterministic regression, structure and security
   checks.
-content_hash: d6d479d8db1b43324da657179abb4bdaf804f9a9dcf292cbd59818b1013e2d87
+content_hash: b4af080184d28f00d439a4cca642af97f8a927c04db0954a93a85acf553b9874
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -32,14 +32,14 @@ content_hash: d6d479d8db1b43324da657179abb4bdaf804f9a9dcf292cbd59818b1013e2d87
 
 
 <!-- @hm:autopilot-picker -->
-> **Autopilot session start (Claude Code only).** This harness is configured for
-> autonomy (`autonomy.level: auto_safe`). If loop-mode is active for
-> this session (see above), SKIP this. Otherwise, at the first eligible stage, ask the CLI
+> **Autopilot session start.** This harness is configured for autonomy (`autonomy.level: auto_safe`).
+> **Arming works in any runtime**; only end-of-stage auto-advance needs Claude Code's `Skill`
+> tool. If loop-mode is active for this session (see above), SKIP this. Otherwise, at the first eligible stage, ask the CLI
 > whether autopilot is already active — **never decide this from whether the marker file
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -48,12 +48,12 @@ content_hash: d6d479d8db1b43324da657179abb4bdaf804f9a9dcf292cbd59818b1013e2d87
 >   guess and never `--force` on your own initiative. State it — `idle_minutes` is the owner's
 >   silence, `null` = unknown — then ask: *is another Claude session open in this project?*
 >   Only on **no**, re-run the arm command with `--force`. On yes, stay gated.
-> - `reason: "degraded-idless"` → you have no id, a peer's does (WSL2 hook failure).
->   Arming is safe; say so, then take the default branch.
+> - `reason: "degraded-idless"` → no id of your own: **NORMAL state, not a failure** in Cursor/Codex (`$CLAUDE_ENV_FILE` is Claude-Code-only), a hook failure in Claude Code.
+>   Arm either way — unset expands to `""` and arms the shared degraded marker.
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -138,7 +138,7 @@ verification script changes.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm observability.verification_cache check --root . --mode relevant
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm observability.verification_cache check --root . --mode relevant
 ```
 
 
@@ -177,7 +177,7 @@ After every selected suite command passes, write the marker:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
 ```
 
 
@@ -248,7 +248,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm iter_receipts write \
        --iter "$ITER" --stage verify --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -315,7 +315,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -324,7 +324,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -370,7 +370,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -381,7 +381,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

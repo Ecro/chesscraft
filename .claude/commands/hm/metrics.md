@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.0
+harness_maker_version: 0.52.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/metrics.md.j2
 provenance: official
 description: Delivery-metrics trend — change-failure rate and post-merge churn, with
   interpretation.
-content_hash: d7336dfec984d759563b2df0e51c8261e8560b685609887993e065891d2478f1
+content_hash: bdceb7d1378725d6005c4eae23ba476d8f6e08073e6bbbe611b31c7176d2b665
 ---
 # /hm:metrics
 
@@ -25,7 +25,7 @@ Print a one-line goal + the 4 steps below (skip in loop-mode, as usual).
 ## Step 1 — Collect pending adjudication candidates
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm delivery_metrics candidates --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm delivery_metrics candidates --root .
 ```
 
 The JSON lists ambiguous fix commits (`candidates[]`) — commits the
@@ -54,13 +54,13 @@ the subject line alone (that is exactly what the heuristics already tried).
 Record each verdict (persisted + reused on every future run — stable trends):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm delivery_metrics adjudicate --root . --commit <sha> --release <ref> --verdict <remediation|routine> --reason "<one line>"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm delivery_metrics adjudicate --root . --commit <sha> --release <ref> --verdict <remediation|routine> --reason "<one line>"
 ```
 
 ## Step 3 — Compute the snapshot
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm delivery_metrics compute --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm delivery_metrics compute --root .
 ```
 
 Exit 3 means candidates are still pending — return to Step 2 (never pass
@@ -69,7 +69,7 @@ Exit 3 means candidates are still pending — return to Step 2 (never pass
 ## Step 4 — Render the trend and interpret it
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm delivery_metrics trend --root . --limit 12
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm delivery_metrics trend --root . --limit 12
 ```
 
 Render a markdown table, newest first — ALWAYS raw counts, never a
@@ -130,7 +130,7 @@ boundaries** still awaiting a judgment — each one is the first turn of an
 unlabelled stretch:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm run_classify boundaries --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm run_classify boundaries --root .
 ```
 
 `pending` is the work list; `total_boundaries` is the denominator. An empty
@@ -165,13 +165,13 @@ Record each verdict (persisted and reused on every future run, so this cost is
 paid once per boundary):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm run_classify record --root . --boundary-uuid <uuid> --verdict <continuation|new|unknown> --reason "<one line>"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm run_classify record --root . --boundary-uuid <uuid> --verdict <continuation|new|unknown> --reason "<one line>"
 ```
 
 ### 5b — Compute the mix
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm economics report --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm economics report --root .
 ```
 
 The JSON carries `report` (spend) and `ingestion` (how much of the transcript
