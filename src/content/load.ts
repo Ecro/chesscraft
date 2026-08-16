@@ -121,6 +121,26 @@ export function normalizeSkillCard(record: unknown, schemaVersion: number | null
   }
 }
 
+/**
+ * Fills the board-relative fields introduced by schema v13.
+ *
+ * Defaults are written LAST for v12 for the same reason as the skill-card
+ * normalizer above: the declared version, not an accidental field on an old
+ * record, owns the migration. A v13 record is left byte-for-byte intact so an
+ * editor round-trip cannot erase an authored zone or depth.
+ */
+export function normalizeBoard(record: unknown, schemaVersion: number | null): unknown {
+  if (schemaVersion === null || !record || typeof record !== 'object') return record
+  const height = (record as { height?: unknown }).height
+  const defaultTerritoryDepth = typeof height === 'number' && Number.isInteger(height) ? Math.floor(height / 2) : 1
+  return {
+    ...record,
+    ...(schemaVersion <= 12
+      ? { territoryDepth: defaultTerritoryDepth, promotionDepth: 1, zones: {} }
+      : {}),
+  }
+}
+
 export function loadContentSet(source: unknown): LoadResult {
   const errors: ValidationError[] = []
 
@@ -171,7 +191,11 @@ export function loadContentSet(source: unknown): LoadResult {
     list.forEach((record, index) => {
       const id = idOf(record, name, index)
       const normalized =
-        name === 'skillCards' ? normalizeSkillCard(record, schemaVersion) : record
+        name === 'skillCards'
+          ? normalizeSkillCard(record, schemaVersion)
+          : name === 'boards'
+            ? normalizeBoard(record, schemaVersion)
+            : record
       const result = schema.safeParse(normalized)
       if (!result.success) {
         for (const issue of result.error.issues) {

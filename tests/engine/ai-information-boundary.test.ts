@@ -13,9 +13,9 @@ import { shippedContent } from '../helpers/shipped'
 /**
  * AC-009 — the AI must not see the future.
  *
- * Every draft offer is derived from `state.seed` through `rngFor`, and `apply`
- * draws the second draft as a SIDE EFFECT of ply completion. So a search that
- * expands past that boundary computes the human's future offers exactly. The
+ * Automatic skill awards are derived from `state.seed` through `rngFor`, and
+ * `apply` grants the card as a SIDE EFFECT of turn completion. A search that
+ * expands past that boundary computes the human's future hand exactly. The
  * signature of having done so is that the search answers differently when only
  * the unrevealed stream changes.
  *
@@ -48,12 +48,12 @@ function walk(seed: number, plies: number): GameState {
 }
 
 /**
- * The same observable position, one draft-completing turn away from the second
- * draft, with only the latent stream changed.
+ * The same observable position, one turn away from the next automatic award,
+ * with only the latent stream changed.
  *
  * `completedTurns` is set to one below the trigger so the boundary sits
  * immediately beyond the root's children — a search that expands even one ply
- * past it reveals offers, which is what makes this sharp rather than
+ * past it reveals a card, which is what makes this sharp rather than
  * theoretical. Everything a player could look at is byte-identical between the
  * two; `seed` is the single difference.
  */
@@ -62,8 +62,22 @@ function twinsDifferingOnlyInLatentStream(base: GameState, seedA: number, seedB:
     ...base,
     seed,
     drafts: {
-      white: { ...base.drafts.white, completedTurns: SECOND_DRAFT_AFTER_TURNS - 1, offers: null, draftIndex: 1 },
-      black: { ...base.drafts.black, completedTurns: SECOND_DRAFT_AFTER_TURNS - 1, offers: null, draftIndex: 1 },
+      white: {
+        ...base.drafts.white,
+        completedTurns: SECOND_DRAFT_AFTER_TURNS - 1,
+        nextSkillTurn: SECOND_DRAFT_AFTER_TURNS,
+        awardCount: 0,
+        offers: null,
+        draftIndex: 1,
+      },
+      black: {
+        ...base.drafts.black,
+        completedTurns: SECOND_DRAFT_AFTER_TURNS - 1,
+        nextSkillTurn: SECOND_DRAFT_AFTER_TURNS,
+        awardCount: 0,
+        offers: null,
+        draftIndex: 1,
+      },
     },
   })
   return [armed(seedA), armed(seedB)] as const
@@ -99,11 +113,11 @@ describe('AC-009 — the search does not read past an unrevealed draft boundary'
       expect(action).toBeDefined()
       return apply(s, action!, content)
     }
-    const offersA = step(a).drafts[a.sideToMove].offers
-    const offersB = step(b).drafts[b.sideToMove].offers
-    expect(offersA).not.toBeNull()
-    expect(offersB).not.toBeNull()
-    expect(offersA).not.toEqual(offersB)
+    const awardedA = step(a).drafts[a.sideToMove]
+    const awardedB = step(b).drafts[b.sideToMove]
+    expect(awardedA.awardCount).toBe(1)
+    expect(awardedB.awardCount).toBe(1)
+    expect(awardedA.held).not.toEqual(awardedB.held)
   })
 
   it('scores every root action identically despite the differing latent stream', () => {

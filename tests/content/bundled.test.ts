@@ -38,7 +38,7 @@ describe('AC-010 — the bundled content set', () => {
     // rather than `SCHEMA_VERSION`: comparing the constant to itself would pass
     // for any future bump that forgot to move the shipped document with it,
     // which is the exact drift this line exists to catch.
-    expect(result.set.schemaVersion).toBe(12)
+    expect(result.set.schemaVersion).toBe(13)
     // Absent, not empty-but-declared: the shipped set names everything through
     // the built-in bundle, which is what ADR-020's absent case must keep working.
     expect(result.set.strings).toEqual({})
@@ -90,7 +90,7 @@ describe('AC-010 — the bundled content set', () => {
       const board = set.boards.get(preset.boardId)
       expect(board, `${preset.id} points at a board that does not exist`).toBeDefined()
       const verdict = withinEnvelope(set, preset.id)
-      expect(verdict.ok, `${preset.id} is outside the AI's complexity envelope (${verdict.reason})`).toBe(true)
+      expect(verdict.ok, `${preset.id} is outside the AI's complexity envelope (${verdict.reason}): ${JSON.stringify(verdict.score)}`).toBe(true)
       expect(preset.skillCardIds.length, `${preset.id} cannot open both drafts`).toBeGreaterThanOrEqual(6)
     }
   })
@@ -125,7 +125,7 @@ describe('AC-010 — the bundled content set', () => {
       ruleCards: set.ruleCards.size,
       skillCards: set.skillCards.size,
       presets: set.presets.size,
-    }).toEqual({ pieces: 12, squareTypes: 11, ruleCards: 18, skillCards: 24, presets: 5 })
+    }).toEqual({ pieces: 13, squareTypes: 17, ruleCards: 24, skillCards: 36, presets: 7 })
   })
 
   it('starts a match from the bundled preset', () => {
@@ -136,10 +136,14 @@ describe('AC-010 — the bundled content set', () => {
     expect(state.drafts.white.offers).toHaveLength(3)
   })
 
-  it('holds a skill pool large enough for both draft rounds', () => {
-    // Phase 3's G-8: fewer than six and the sixth-turn draft can never open.
-    const preset = loadBundledContent().presets.get(BUNDLED_PRESET_ID)!
-    expect(preset.skillCardIds.length).toBeGreaterThanOrEqual(6)
+  it('gives every selectable preset the recurring-award pool floor', () => {
+    // Five-turn awards need a useful stream after the opening offers. Nineteen
+    // distinct cards leaves room for the first two offers plus three later
+    // awards without repeating a passed or already-held card.
+    const set = loadBundledContent()
+    for (const preset of set.presets.values()) {
+      expect(new Set(preset.skillCardIds).size, `${preset.id} has too few distinct skills`).toBeGreaterThanOrEqual(19)
+    }
   })
 })
 

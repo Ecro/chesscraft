@@ -55,12 +55,12 @@ function moveSet(s: GameState): string {
 
 type Place = { square: SquareId; pieceId: string; side: Side }
 
-function pos(opts: { placements: Place[]; ruleCardId?: string | null; held?: string[]; captured?: string[] }): GameState {
+function pos(opts: { placements: Place[]; ruleCardId?: string | null; held?: string[]; captured?: string[]; sideToMove?: Side }): GameState {
   return createPosition({
     content,
     presetId: 'preset.default',
     seed: 1,
-    sideToMove: 'white',
+    sideToMove: opts.sideToMove ?? 'white',
     placements: opts.placements,
     ruleCardId: opts.ruleCardId ?? null,
     held: { white: opts.held ?? [] },
@@ -91,9 +91,9 @@ function ruleState(card: string, placements: Place[], script: Array<[SquareId, S
 }
 
 /** Rule probe, move-generation surface — where a `generate_moves` card lives. */
-function ruleMoves(card: string, placements: Place[]) {
+function ruleMoves(card: string, placements: Place[], sideToMove: Side = 'white') {
   return (): Verdict =>
-    moveSet(pos({ placements, ruleCardId: card })) === moveSet(pos({ placements, ruleCardId: null })) ? 'inert' : 'live'
+    moveSet(pos({ placements, ruleCardId: card, sideToMove })) === moveSet(pos({ placements, ruleCardId: null, sideToMove })) ? 'inert' : 'live'
 }
 
 /** Skill probe: every legal play the engine offers, best case wins. */
@@ -325,6 +325,52 @@ const PROBES: Probe[] = [
       [['b1', 'b2']],
     ),
   },
+  {
+    card: 'rule.march',
+    probe: 'a footman gets a second forward step',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves('rule.march', [K_W, pawn('c2', 'white'), K_B]),
+  },
+  {
+    card: 'rule.steadfast',
+    probe: 'a king shelters a nearby friendly piece',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves(
+      'rule.steadfast',
+      [K_W, rook('b1'), { square: 'c1', pieceId: 'piece.rook', side: 'black' }, K_B],
+      'black',
+    ),
+  },
+  {
+    card: 'rule.scarcity',
+    probe: 'the opponent has already fallen below the scarcity threshold',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.scarcity', [K_W, rook('b1'), K_B], [['b1', 'b2']]),
+  },
+  {
+    card: 'rule.diagonal-court',
+    probe: 'a bishop gets a short orthogonal turn',
+    intended: 'live',
+    current: 'live',
+    run: ruleMoves('rule.diagonal-court', [K_W, { square: 'c3', pieceId: 'piece.bishop', side: 'white' }, K_B]),
+  },
+  {
+    card: 'rule.fallen-banner',
+    probe: 'a capture costs the capturer tempo',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.fallen-banner', [K_W, pawn('b2', 'white'), pawn('c3', 'black'), K_B], [['b2', 'c3']]),
+  },
+  {
+    card: 'rule.heartland',
+    probe: 'a small force calls a footman back home',
+    intended: 'live',
+    current: 'live',
+    run: ruleState('rule.heartland', [K_W, rook('b1'), K_B], [['b1', 'b2']]),
+  },
 
   {
     card: 'skill.teleport',
@@ -366,7 +412,7 @@ const PROBES: Probe[] = [
     probe: 'one of your pawns',
     intended: 'live',
     current: 'live',
-    run: skill('skill.coronation', [K_W, pawn('c4', 'white'), K_B]),
+    run: skill('skill.coronation', [K_W, pawn('c6', 'white'), { square: 'a6', pieceId: 'piece.king', side: 'black' }]),
   },
   {
     card: 'skill.knight-leap',
@@ -429,7 +475,7 @@ const PROBES: Probe[] = [
     probe: 'one of yours and one of theirs',
     intended: 'live',
     current: 'live',
-    run: skill('skill.sacrifice', [K_W, rook('b1'), K_B, pawn('f5', 'black')]),
+    run: skill('skill.sacrifice', [K_W, rook('c3'), rook('d3', 'black'), K_B]),
   },
   // --- PLAN-preset-content-expansion: the 15 records this task added.
   // Every one carries a live probe AND an inert probe (AC-013). The inert half
@@ -666,6 +712,90 @@ const PROBES: Probe[] = [
     intended: 'inert',
     current: 'inert',
     run: skillKeeps('skill.echo', [K_W, rook('b1'), rook('e5', 'black'), K_B], capturedOf),
+  },
+  {
+    card: 'skill.scout',
+    probe: 'a friendly non-royal gains a scouting leap',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.scout', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.guard',
+    probe: 'a friendly non-royal receives cover',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.guard', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.hinder',
+    probe: 'an enemy non-royal is held in place',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.hinder', [K_W, K_B, pawn('f5', 'black')]),
+  },
+  {
+    card: 'skill.reinforce',
+    probe: 'a vacant home rank receives a footman',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.reinforce', [K_W, K_B]),
+  },
+  {
+    card: 'skill.sprint',
+    probe: 'a friendly non-royal gains a short sprint',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.sprint', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.bridge',
+    probe: 'a friendly non-royal crosses a short bridge',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.bridge', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.anchor',
+    probe: 'an enemy non-royal is anchored',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.anchor', [K_W, K_B, pawn('f5', 'black')]),
+  },
+  {
+    card: 'skill.ward',
+    probe: 'a friendly non-royal gets a longer guard window',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.ward', [K_W, rook('b1'), K_B]),
+  },
+  {
+    card: 'skill.salve',
+    probe: 'a fallen minor piece returns',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.salve', [K_W, K_B], ['piece.knight']),
+  },
+  {
+    card: 'skill.courier',
+    probe: 'a friendly non-royal moves into home territory',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.courier', [K_W, rook('b4'), K_B]),
+  },
+  {
+    card: 'skill.feint',
+    probe: 'two friendly non-royals exchange places',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.feint', [K_W, rook('b1'), rook('c1'), K_B]),
+  },
+  {
+    card: 'skill.surge',
+    probe: 'friendly footmen gain diagonal movement',
+    intended: 'live',
+    current: 'live',
+    run: skill('skill.surge', [K_W, pawn('c2', 'white'), K_B]),
   },
 ]
 

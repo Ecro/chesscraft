@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { DRAFT_OFFER_SIZE, SECOND_DRAFT_AFTER_TURNS, type TrustedAction, applyTrusted, legalActions } from '../engine'
+import { SKILL_AWARD_INTERVAL, type TrustedAction, applyTrusted, legalActions } from '../engine'
 import { skillPoolFor } from '../loadout'
 import type { Action, GameState, Side } from '../types'
 import { otherSide } from '../types'
@@ -243,7 +243,8 @@ export function positionKey(state: GameState): number {
     fold(`${side}h${[...draft.held].sort().join(',')}`)
     fold(`u${[...draft.used].sort().join(',')}`)
     fold(`o${draft.offers ? [...draft.offers].sort().join(',') : '-'}`)
-    fold(`c${draft.completedTurns}i${draft.draftIndex}`)
+    fold(`c${draft.completedTurns}n${draft.nextSkillTurn}a${draft.awardCount}i${draft.draftIndex}`)
+    fold(`e${[...draft.everOffered].sort().join(',')}`)
     fold(`x${state.checkCount[side]}`)
     fold(`p${[...state.captured[side]].sort().join(',')}`)
   }
@@ -263,45 +264,32 @@ export function positionKey(state: GameState): number {
 }
 
 // ---------------------------------------------------------------------------
-// The draft boundary (ADR-008)
+// The recurring skill-award boundary (ADR-008)
 // ---------------------------------------------------------------------------
 
 /**
- * Whether applying `action` would draw draft offers nobody has seen yet.
+ * Whether applying `action` would reveal an automatic skill-card award.
  *
- * Computed from the PARENT, and it mirrors `bumpTurns` exactly — including the
- * pool-size test, because a pool too small to fill an offer draws nothing and
- * so reveals nothing. Reading the constants rather than the numbers 5 and 3 is
- * deliberate: if the engine moves the second draft, this moves with it instead
- * of silently opening the leak back up.
+ * Computed from the parent, so the search never expands into a child whose
+ * newly awarded card was not available before this action. An exhausted pool
+ * advances the cadence but reveals nothing.
  *
- * A `draft_pick` never triggers it — that path returns before the turn is
- * recorded — which is what lets the AI still make its own picks. A `play_card`
- * does not trigger it either, since ADR-001: a card no longer completes a turn,
- * so `bumpTurns` does not run for it. Left in, the search would truncate the
- * subtree of the very card it just played and score it statically — blind to
- * the move that card was bought for. `end_turn` DOES complete a turn, and is
- * deliberately not excluded here.
+ * A `draft_pick` never triggers it and a `play_card` does not complete a turn;
+ * `move` and `end_turn` close a turn.
  */
 export function wouldRevealDraft(state: GameState, action: Action, content: ContentSet): boolean {
   if (action.kind === 'draft_pick' || action.kind === 'play_card') return false
   const draft = state.drafts[state.sideToMove]
-  if (draft.completedTurns + 1 !== SECOND_DRAFT_AFTER_TURNS) return false
-  if (draft.draftIndex !== 1 || draft.offers !== null) return false
+  const nextSkillTurn = Number.isInteger(draft.nextSkillTurn) && draft.nextSkillTurn > 0
+    ? draft.nextSkillTurn
+    : (Math.floor(Math.max(0, draft.completedTurns) / SKILL_AWARD_INTERVAL) + 1) * SKILL_AWARD_INTERVAL
+  if (draft.completedTurns + 1 < nextSkillTurn) return false
   const preset = content.presets.get(state.presetId)
   if (!preset) return false
-  // Through `skillPoolFor`, never `preset.skillCardIds` — the same rule
-  // `bumpTurns` follows, and for the same reason. A room may give a side its own
-  // loadout card, which `skillPoolFor` appends to that side's pool; reading the
-  // shared list directly undercounts by one. That is enough to flip this
-  // predicate at the boundary — a pool of exactly `DRAFT_OFFER_SIZE` reads as
-  // one short — and the failure is in the unsafe direction: this returns false,
-  // the search recurses into a child holding offers nobody has seen, and the
-  // ADR-008 information boundary this predicate exists to hold is open.
   const pool = skillPoolFor(preset, state.sideToMove).filter(
-    (id) => !draft.everOffered.includes(id) && !draft.held.includes(id),
+    (id) => !draft.everOffered.includes(id) && !draft.held.includes(id) && !draft.used.includes(id),
   )
-  return pool.length >= DRAFT_OFFER_SIZE
+  return pool.length > 0
 }
 
 // ---------------------------------------------------------------------------

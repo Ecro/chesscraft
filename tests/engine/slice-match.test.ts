@@ -99,9 +99,10 @@ describe('a match played with slice content only', () => {
     expect(pendingDraftSide(state)).toBeNull()
   })
 
-  it('opens a disjoint second offer to each side once the pool is large enough', () => {
-    // The shipped preset carries six, which is the floor at which all four
-    // draft picks of AC-005 + AC-006 exist at all.
+  it('awards one disjoint skill at the first recurring boundary', () => {
+    // The recurring cadence is automatic: the shipped six-card pool still has
+    // enough room for the opening choice plus one five-turn award, but no
+    // second board-blocking offer is opened.
     const content = loadSliceContent()
     let state = currentState(createMatch({ content, presetId: SLICE_PRESET_ID, seed: 11 }))
     const firstOffers = { white: [...state.drafts.white.offers!], black: [...state.drafts.black.offers!] }
@@ -111,10 +112,9 @@ describe('a match played with slice content only', () => {
       state = apply(state, picks[0]!, content)
     }
 
-    // Bound covers ten shuffle plies plus the two second-draft picks, which each
-    // consume a step without advancing the turn count.
+    // Ten plies gives each side exactly five completed turns.
     const shuffle: Record<'white' | 'black', [string, string]> = { white: ['d1', 'd2'], black: ['d6', 'd5'] }
-    for (let turn = 0; turn < 20; turn += 1) {
+    for (let turn = 0; turn < 10; turn += 1) {
       const side = state.sideToMove
       if (state.drafts[side].offers) {
         const picks = legalActions(state, content).filter((a) => a.kind === 'draft_pick')
@@ -130,9 +130,10 @@ describe('a match played with slice content only', () => {
 
     for (const side of ['white', 'black'] as const) {
       const draft = state.drafts[side]
-      expect(draft.draftIndex, `${side} did not resolve a second draft`).toBe(2)
+      expect(draft.draftIndex, `${side} unexpectedly opened another draft`).toBe(1)
+      expect(draft.awardCount, `${side} did not receive the five-turn award`).toBe(1)
       expect(draft.held).toHaveLength(2)
-      // AC-006 — the second card was never in the first offer.
+      // The automatic card was never in the opening offer.
       expect(firstOffers[side]).not.toContain(draft.held[1])
     }
   })

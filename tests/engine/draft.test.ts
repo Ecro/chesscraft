@@ -32,14 +32,12 @@ describe('AC-005 opening draft', () => {
 })
 
 /**
- * AC-006 — the second draft opens after five completed turns with no repeats.
- *
- * Disjointness is a set-theoretic invariant over arbitrary seeds; it holds for
- * every correct implementation and never names which cards are expected, so it
- * cannot be satisfied by reading the drawing code.
+ * Recurring awards replace the old second-draft gate. The boundary is still
+ * five completed turns, but it grants one card immediately and never blocks
+ * board play with another offer.
  */
-describe('AC-006 second draft', () => {
-  it('opens at the start of the sixth turn, offering cards the player does not hold', () => {
+describe('recurring skill awards', () => {
+  it('awards one card after five completed turns without opening another draft', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 100_000 }), (seed) => {
         let match = startedMatch(content, seed)
@@ -47,25 +45,21 @@ describe('AC-006 second draft', () => {
         const side = state.sideToMove
         const firstHeld = [...state.drafts[side].held]
 
-        let sawSecondOffer: string[] | null = null
-        for (let i = 0; i < 40 && !sawSecondOffer && !state.result; i += 1) {
-          const picks = legalActions(state, content).filter((a) => a.kind === 'draft_pick')
-          if (picks.length > 0 && state.sideToMove === side) {
-            expect(state.drafts[side].completedTurns).toBe(5)
-            sawSecondOffer = picks.map((p) => (p.kind === 'draft_pick' ? p.cardId : ''))
-            break
-          }
+        for (let i = 0; i < 40 && state.drafts[side].completedTurns < 5 && !state.result; i += 1) {
           const actions = legalActions(state, content)
-          const chosen = picks[0] ?? actions.find((a) => a.kind === 'move')
+          const chosen = actions.find((a) => a.kind === 'move')
           if (!chosen) break
           state = apply(state, chosen, content)
           match = { ...match, states: [...match.states, state] }
         }
 
-        expect(sawSecondOffer, `no second offer for seed ${seed}`).not.toBeNull()
-        expect(sawSecondOffer!).toHaveLength(3)
-        expect(new Set(sawSecondOffer!).size).toBe(3)
-        for (const id of sawSecondOffer!) expect(firstHeld).not.toContain(id)
+        expect(state.drafts[side].completedTurns, `seed ${seed} did not reach five turns`).toBeGreaterThanOrEqual(5)
+        expect(state.drafts[side].awardCount).toBe(1)
+        expect(state.drafts[side].nextSkillTurn).toBe(10)
+        expect(state.drafts[side].held).toHaveLength(firstHeld.length + 1)
+        expect(state.drafts[side].offers).toBeNull()
+        expect(legalActions(state, content).some((a) => a.kind === 'draft_pick')).toBe(false)
+        expect(state.drafts[side].held.filter((id) => firstHeld.includes(id))).toHaveLength(firstHeld.length)
       }),
       { numRuns: 25 },
     )

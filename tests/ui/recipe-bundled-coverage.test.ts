@@ -125,8 +125,8 @@ describe('AC-003 — the bundle opens with no refusals', () => {
     // FIRST shape, which carried two effects and therefore could not be opened
     // as a sentence at all. The card is one clause now — see its record for the
     // one-ply cost that buys.
-    expect(source.pieces.length).toBe(12)
-    expect(cards().length).toBe(42)
+    expect(source.pieces.length).toBe(13)
+    expect(cards().length).toBe(60)
   })
 
   it('opens every piece through the move grid except the one named', () => {

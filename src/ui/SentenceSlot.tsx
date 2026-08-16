@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react'
+import { controlsFor } from '@editor/controls'
 import type { DraftKind, EditorContext } from '@editor/draft'
 import {
   type Sentence,
@@ -7,6 +8,7 @@ import {
   optionsFor,
   readSentence,
   takesDestination,
+  targetKeysOf,
   targetCount,
   writeSentence,
 } from './CardRecipe'
@@ -478,6 +480,76 @@ export function SentenceEditor({
     return out
   }
 
+  function targetParams(slot: SlotId): ReactNode[] {
+    const index = slotIndex(slot)
+    const action = actionOf(draft, index)
+    if (action === undefined) return []
+    const keys = targetKeysOf(action)
+    const key = keys[slot === 'who' || slot === 'who2' ? 0 : 1]
+    if (key === undefined) return []
+    const target = action[key] as Draft | undefined
+    if (target === undefined || (target.kind !== 'chosen_friendly' && target.kind !== 'chosen_enemy')) return []
+    const at = (mutate: (value: Draft) => void) =>
+      mutateAt((d) => actionOf(d, index)?.[key] as Draft | undefined, mutate)
+
+    const filterControls = controlsFor('targetFilter').filter((control) => control.hosts.includes(kind))
+    const relationControls = controlsFor('relation').filter((control) => control.hosts.includes(kind))
+    const out: ReactNode[] = []
+    if (filterControls.length > 0) {
+      out.push(
+        <fieldset key="target-filter" className="slot-param">
+          <legend>{t('ui.editor.param.target-filter')}</legend>
+          {filterControls.map((control) => {
+            const chosen = (target.filter as Draft | undefined)?.kind === control.kind
+            return (
+              <button
+                key={control.testid}
+                type="button"
+                data-testid={control.testid}
+                data-chosen={chosen}
+                aria-pressed={chosen}
+                onClick={() =>
+                  at((value) => {
+                    value.filter = control.make(ctx, value.filter)
+                  })
+                }
+              >
+                {t(`ui.editor.vocab.targetFilter.${control.kind}`)}
+              </button>
+            )
+          })}
+        </fieldset>,
+      )
+    }
+    if (relationControls.length > 0) {
+      out.push(
+        <fieldset key="target-relation" className="slot-param">
+          <legend>{t('ui.editor.param.relation')}</legend>
+          {relationControls.map((control) => {
+            const chosen = (target.relation as Draft | undefined)?.kind === control.kind
+            return (
+              <button
+                key={control.testid}
+                type="button"
+                data-testid={control.testid}
+                data-chosen={chosen}
+                aria-pressed={chosen}
+                onClick={() =>
+                  at((value) => {
+                    value.relation = control.make(ctx, value.relation)
+                  })
+                }
+              >
+                {t(`ui.editor.vocab.relation.${control.kind}`)}
+              </button>
+            )
+          })}
+        </fieldset>,
+      )
+    }
+    return out
+  }
+
   function destParams(slot: SlotId): ReactNode[] {
     const index = slotIndex(slot)
     const action = actionOf(draft, index)
@@ -490,6 +562,34 @@ export function SentenceEditor({
     const at = (mutate: (d: Draft) => void) =>
       mutateAt((d) => actionOf(d, index)?.[key] as Draft | undefined, mutate)
     const out: ReactNode[] = []
+
+    if (dest.kind === 'chosen_empty') {
+      const regionControls = controlsFor('destinationRegion').filter((control) => control.hosts.includes(kind))
+      out.push(
+        <fieldset key="destination-region" className="slot-param">
+          <legend>{t('ui.editor.param.destination-region')}</legend>
+          {regionControls.map((control) => {
+            const chosen = dest.region === control.kind
+            return (
+              <button
+                key={control.testid}
+                type="button"
+                data-testid={control.testid}
+                data-chosen={chosen}
+                aria-pressed={chosen}
+                onClick={() =>
+                  at((value) => {
+                    value.region = control.make(ctx, value.region)
+                  })
+                }
+              >
+                {t(`ui.editor.vocab.destinationRegion.${control.kind}`)}
+              </button>
+            )
+          })}
+        </fieldset>,
+      )
+    }
 
     if (dest.kind === 'square') {
       out.push(
@@ -554,6 +654,11 @@ export function SentenceEditor({
       case 'then':
       case 'then2':
         return actionParams(slot)
+      case 'who':
+      case 'whoB':
+      case 'who2':
+      case 'who2B':
+        return targetParams(slot)
       case 'where':
       case 'where2':
         return destParams(slot)

@@ -37,9 +37,13 @@ function withExtraTargetSlot(): ContentSet {
     | undefined
   if (!card) throw new Error('fixture drift: the swap card is gone')
 
-  // A second swap action means two more chosen slots on top of the two it
-  // already has — four slots, so `boardArea^4` combinations.
-  card.effects[0]!.actions.push(structuredClone(card.effects[0]!.actions[0]))
+  // Strip the filters before adding a second swap action. Four unconstrained
+  // chosen slots retain the fail-closed board-area bound, so this remains a
+  // genuine `boardArea^4` blow-up after shipped cards gain narrow domains.
+  const swap = card.effects[0]!.actions[0] as Record<string, unknown>
+  swap.a = { kind: 'chosen_friendly' }
+  swap.b = { kind: 'chosen_friendly' }
+  card.effects[0]!.actions.push(structuredClone(swap))
 
   const result = loadContentSet(source)
   if (!result.ok) throw new Error(`fixture is invalid: ${JSON.stringify(result.errors)}`)

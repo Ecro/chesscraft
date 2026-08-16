@@ -4,7 +4,7 @@ import type { PieceDef } from '@content/schema'
 import type { AiClient } from '@engine/ai/client'
 import type { Difficulty } from '@engine/ai/difficulty'
 import { paintedSquares } from '@engine/effects'
-import { apply, describeRejection, legalActions, pendingDraftSide } from '@engine/engine'
+import { apply, describeRejection, legalActions, pendingDraftSide, royalSquaresInCheck } from '@engine/engine'
 import { type Match, createMatch, currentState, undo } from '@engine/match'
 import { type Action, type GameState, type Side, type SquareId, squareId } from '@engine/types'
 import { type LiveEffect, badgeFor, liveEffects, sourceRecord } from './liveEffects'
@@ -18,6 +18,8 @@ import { Result } from './Result'
 import { Sheet } from './Sheet'
 import { MatchIntro } from './MatchIntro'
 import { CardBanner } from './CardBanner'
+import { AwardBanner } from './AwardBanner'
+import { CaptureReveal } from './CaptureReveal'
 import { type CardPlay, cardPlayBetween } from './cardPlays'
 import { MATCH_INTRO_SEEN_KEY, hasSeen, markSeen } from './onboarding'
 import { PieceMoveRegion } from './PieceDetail'
@@ -124,6 +126,7 @@ function squareLabel(
   type: { nameKey: string } | undefined,
   reachable: boolean,
   effect: { kind: string; remaining: number } | undefined,
+  checked: boolean,
 ): string {
   const parts = [sq]
   if (def && piece) parts.push(`${t(`ui.side.${piece.side}`)} ${t(def.nameKey)}`)
@@ -135,6 +138,7 @@ function squareLabel(
   if (effect) {
     parts.push(`${t(`ui.effect.${effect.kind}`)}, ${t('ui.effect.remaining').replace('{n}', String(effect.remaining))}`)
   }
+  if (checked) parts.push(t('ui.board.in-check'))
   if (reachable) parts.push(t('ui.board.reachable'))
   return parts.join(', ')
 }
@@ -188,6 +192,10 @@ const AI_MIN_THINK_MS = 650
  * on screen before effect on the one path where the player did not cause it.
  */
 export const CARD_BANNER_MS = 1200
+/** How long an automatic skill acquisition stays visible. */
+export const AWARD_BANNER_MS = 1800
+/** How long the final board explains a royal capture before the result screen. */
+export const CAPTURE_REVEAL_MS = 2400
 
 /**
  * What the detail sheet is currently showing. Content-agnostic on purpose.
@@ -199,6 +207,39 @@ export const CARD_BANNER_MS = 1200
  * the sheet.
  */
 type Peek = { mark: Mark; name: string; kind: string; text: string; because?: string; piece?: PieceDef }
+
+type TerminalCapture =
+  | {
+      kind: 'move'
+      key: string
+      attackerSide: Side
+      attackerPieceId: string
+      capturedSide: Side
+      capturedPieceId: string
+      from: SquareId
+      to: SquareId
+    }
+  | {
+      kind: 'card'
+      key: string
+      attackerSide: Side
+      cardId: string
+      capturedSide: Side
+      capturedPieceId: string
+    }
+
+function newlyCapturedRoyal(
+  before: GameState,
+  after: GameState,
+  content: ContentSet,
+): { side: Side; pieceId: string } | null {
+  for (const side of ['white', 'black'] as const) {
+    const added = after.captured[side].slice(before.captured[side].length)
+    const pieceId = added.find((id) => content.pieces.get(id)?.royal === true)
+    if (pieceId) return { side, pieceId }
+  }
+  return null
+}
 
 /**
  * Whether the player has asked the system for less movement.
@@ -479,6 +520,19 @@ export function MatchHost({
     const id = setTimeout(() => setCardNotice(null), CARD_BANNER_MS)
     return () => clearTimeout(id)
   }, [cardNotice])
+  const [awardNotice, setAwardNotice] = useState<{ key: string; side: Side; cardId: string } | null>(null)
+  useEffect(() => {
+    if (!awardNotice) return
+    const id = setTimeout(() => setAwardNotice(null), AWARD_BANNER_MS)
+    return () => clearTimeout(id)
+  }, [awardNotice])
+  /** Keeps the final board visible long enough to explain a royal capture. */
+  const [captureNotice, setCaptureNotice] = useState<TerminalCapture | null>(null)
+  useEffect(() => {
+    if (!captureNotice) return
+    const id = setTimeout(() => setCaptureNotice(null), CAPTURE_REVEAL_MS)
+    return () => clearTimeout(id)
+  }, [captureNotice])
   /**
    * The announced card's record, or absent when the set no longer defines it.
    *
@@ -489,6 +543,9 @@ export function MatchHost({
    */
   const cardRecord = cardNotice ? content.skillCards.get(cardNotice.play.cardId) : undefined
   const cardBannerUp = cardNotice !== null && cardRecord !== undefined
+  const awardRecord = awardNotice ? content.skillCards.get(awardNotice.cardId) : undefined
+  const awardBannerUp = awardNotice !== null && awardRecord !== undefined
+  const captureRevealUp = captureNotice !== null && state.result?.reason === 'king_capture'
   /**
    * The squares the announced card touched, for as long as it is announced.
    *
@@ -524,10 +581,10 @@ export function MatchHost({
    * rather than yields.
    */
   useEffect(() => {
-    if (!handOff || cardBannerUp) return
+    if (!handOff || cardBannerUp || awardBannerUp) return
     const id = setTimeout(() => setHandOff(null), HAND_OFF_MS)
     return () => clearTimeout(id)
-  }, [handOff, cardBannerUp, state.plyCount])
+  }, [handOff, cardBannerUp, awardBannerUp, state.plyCount])
 
   const toggle = (key: 'sound' | 'haptics') => applySettings({ ...live, [key]: !live[key] })
 
@@ -549,6 +606,8 @@ export function MatchHost({
     setBanner(true)
     // A new deal has nothing to announce; the previous match's card is not it.
     setCardNotice(null)
+    setAwardNotice(null)
+    setCaptureNotice(null)
   }
 
   const push = (action: Action) => {
@@ -563,6 +622,42 @@ export function MatchHost({
     // would talk over the one part of the match that is already a dialogue.
     const handedOver =
       action.kind !== 'draft_pick' && !next.result && !pendingDraftSide(next) && next.sideToMove !== state.sideToMove
+    for (const side of ['white', 'black'] as const) {
+      const beforeDraft = state.drafts[side]
+      const afterDraft = next.drafts[side]
+      if (afterDraft.awardCount <= beforeDraft.awardCount || afterDraft.held.length <= beforeDraft.held.length) continue
+      const cardId = afterDraft.held[afterDraft.held.length - 1]
+      if (cardId) setAwardNotice({ key: `${match.states.length}:${side}:${afterDraft.awardCount}`, side, cardId })
+      break
+    }
+    if (next.result?.reason === 'king_capture') {
+      const captured = newlyCapturedRoyal(state, next, content)
+      const attacker = action.kind === 'move' ? state.board.get(action.from) : undefined
+      const target = action.kind === 'move' ? state.board.get(action.to) : undefined
+      if (action.kind === 'move' && attacker && target && content.pieces.get(target.pieceId)?.royal === true && captured) {
+        setCaptureNotice({
+          kind: 'move',
+          key: `${match.states.length}:move:${action.from}>${action.to}`,
+          attackerSide: attacker.side,
+          attackerPieceId: attacker.pieceId,
+          capturedSide: captured.side,
+          capturedPieceId: captured.pieceId,
+          from: action.from,
+          to: action.to,
+        })
+      } else if (captured && action.kind === 'play_card') {
+        setCaptureNotice({
+          kind: 'card',
+          key: `${match.states.length}:card:${action.cardId}`,
+          attackerSide: state.sideToMove,
+          cardId: action.cardId,
+          capturedSide: captured.side,
+          capturedPieceId: captured.pieceId,
+        })
+      }
+    } else {
+      setCaptureNotice(null)
+    }
     setLastMove(action.kind === 'move' ? { from: action.from, to: action.to } : null)
     // The rule banner has done its job once someone has acted on the rule. It
     // also has to go so the hand-off banner below it has somewhere to be — two
@@ -687,6 +782,8 @@ export function MatchHost({
     // straight away — so it has to be released here explicitly, or an undone
     // card goes on being announced for the rest of its second.
     setCardNotice(null)
+    setAwardNotice(null)
+    setCaptureNotice(null)
     setPlay((p) => ({ seed: p.seed, match: undo(p.match) }))
     setSelected(null)
     setPendingCard(null)
@@ -1005,6 +1102,31 @@ export function MatchHost({
   // Resolved once and reused for both the presence test and the body. Calling it
   // twice was correct (the function is pure) but says the two could differ.
   const ruleMark = iconMark(t, rule)
+  const checkedSquares = new Set<SquareId>()
+  const checkedSides: Side[] = []
+  if (!state.result) {
+    for (const side of ['white', 'black'] as const) {
+      const squares = royalSquaresInCheck(state, content, side)
+      if (squares.length > 0) {
+        checkedSides.push(side)
+        for (const square of squares) checkedSquares.add(square)
+      }
+    }
+  }
+
+  const captureAttacker = captureNotice?.kind === 'move' ? content.pieces.get(captureNotice.attackerPieceId) : undefined
+  const captureTarget = captureNotice ? content.pieces.get(captureNotice.capturedPieceId) : undefined
+  const captureCard = captureNotice?.kind === 'card' ? content.skillCards.get(captureNotice.cardId) : undefined
+  const captureMark = captureAttacker
+    ? pieceMark(t, captureAttacker, captureNotice?.kind === 'move' ? captureNotice.attackerSide : undefined)
+    : iconMark(t, captureCard)
+  const captureAttackerName = captureNotice ? nameOf(captureNotice.attackerSide) : ''
+  const captureActionName = captureAttacker
+    ? t(captureAttacker.nameKey)
+    : captureCard
+      ? t(captureCard.nameKey)
+      : t('ui.card.unknown')
+  const captureTargetName = captureTarget ? t(captureTarget.nameKey) : t('ui.piece.unknown')
 
   /**
    * Which notice the stack shows, decided in ONE place (ADR-004).
@@ -1022,8 +1144,10 @@ export function MatchHost({
    * not by oversight; `tests/ui/card-banner.test.tsx` pins the coexistence so
    * the two readings cannot be confused later.
    */
-  const notice: 'card' | 'rule' | 'handoff' | 'thinking' | null = cardBannerUp
+  const notice: 'card' | 'award' | 'rule' | 'handoff' | 'thinking' | null = cardBannerUp
     ? 'card'
+    : awardBannerUp
+      ? 'award'
     : banner && rule
       ? 'rule'
       : handOff && !aiSide
@@ -1113,6 +1237,19 @@ export function MatchHost({
           {t('ui.status.whose-turn').replace('{name}', nameOf(mover))}
         </span>
         <span className="turn-right">
+          {checkedSides.length > 0 && (
+            <span
+              className="check-chip"
+              data-testid="check-warning"
+              data-sides={checkedSides.join(',')}
+              role="status"
+              aria-live="assertive"
+            >
+              {checkedSides.length > 1
+                ? t('ui.check.both')
+                : t('ui.check.warning').replace('{name}', nameOf(checkedSides[0]!))}
+            </span>
+          )}
           <span data-testid="phase" data-phase={phase} className="ply">
             {state.plyCount}
             {t('ui.status.ply')}
@@ -1187,6 +1324,7 @@ export function MatchHost({
         {/* Coordinates moved off the squares and onto the edge. In the square
             they competed with the piece for a 60px box on a phone, which is why
             they were 9px and unreadable anyway. */}
+        <div className="board-viewport" data-board-width={state.width}>
         <div className="board-frame" data-turn={mover}>
           <ol className="rank-rail" data-testid="board-ranks">
             {ranks.map((r) => (
@@ -1198,7 +1336,7 @@ export function MatchHost({
             data-testid="board"
             role="grid"
             aria-label={t('ui.board.label')}
-            style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)` }}
+            style={{ gridTemplateColumns: `repeat(${state.width}, 1fr)`, '--board-columns': state.width } as React.CSSProperties}
           >
             {/* `role="grid"` owns `row`, which owns `gridcell` — the middle level
                 was missing, so the squares were 36 cells with no row or column
@@ -1224,6 +1362,7 @@ export function MatchHost({
                       data-piece={piece?.pieceId ?? ''}
                       data-side={piece?.side ?? ''}
                       data-square-type={type?.id ?? ''}
+                      data-check={checkedSquares.has(sq) ? 'true' : undefined}
                       {...(badge ? { 'data-effect': badge.kind, 'data-effect-plies': String(badge.remaining) } : {})}
                       {...(badge && arrived.has(sq) ? { 'data-effect-new': 'true' } : {})}
                       {...(impacted.has(sq) ? { 'data-impact': 'true' } : {})}
@@ -1261,7 +1400,7 @@ export function MatchHost({
                       data-legal-kind={isLegal ? (piece ? 'capture' : 'move') : undefined}
                       data-selected={selected === sq}
                       role="gridcell"
-                      aria-label={squareLabel(t, sq, def, piece, type, isLegal, badge)}
+                      aria-label={squareLabel(t, sq, def, piece, type, isLegal, badge, checkedSquares.has(sq))}
                       // `aria-selected`, not `aria-pressed`: the explicit gridcell
                       // role overrides the native button role, and `aria-pressed`
                       // is a button-family state a gridcell does not support.
@@ -1328,6 +1467,7 @@ export function MatchHost({
               <li key={f}>{String.fromCharCode(97 + f)}</li>
             ))}
           </ol>
+        </div>
         </div>
 
         {/* One line, always present, holding whatever the board most recently
@@ -1629,6 +1769,16 @@ export function MatchHost({
           `[fail:design] declared-but-inert-vocabulary` is at count:7 here. If
           there is no record, there is nothing to name.
       */}
+      {notice === 'award' && awardNotice && awardRecord && (
+        <AwardBanner
+          mark={iconMark(t, awardRecord)}
+          name={t(awardRecord.nameKey)}
+          text={t(awardRecord.textKey)}
+          side={awardNotice.side}
+          by={nameOf(awardNotice.side)}
+        />
+      )}
+
       {notice === 'card' && cardNotice && cardRecord && (
         <CardBanner
           mark={iconMark(t, cardRecord)}
@@ -1714,7 +1864,17 @@ export function MatchHost({
           and it takes the final position off the screen — which is the one thing
           two children look at while arguing about what just happened. It also
           made the position unobservable to the specs that play a line out. */}
-      {state.result && (
+      {captureRevealUp && captureNotice && (
+        <CaptureReveal
+          mark={captureMark}
+          attacker={captureAttackerName}
+          action={captureActionName}
+          captured={captureTargetName}
+          {...(captureNotice.kind === 'move' ? { from: captureNotice.from, to: captureNotice.to } : {})}
+        />
+      )}
+
+      {state.result && !captureRevealUp && (
         <Result
           state={state}
           result={state.result}

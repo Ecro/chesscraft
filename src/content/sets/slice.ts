@@ -237,6 +237,9 @@ export const sliceContentSource: ContentSource = {
       nameKey: 'board.slice.name',
       width: 6,
       height: 6,
+      territoryDepth: 3,
+      promotionDepth: 1,
+      zones: {},
       placements: [
         { square: 'b1', pieceId: 'piece.archer', side: 'white' },
         { square: 'c1', pieceId: 'piece.archer', side: 'white' },

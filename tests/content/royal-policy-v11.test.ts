@@ -56,6 +56,10 @@ describe('schema v11 royal policy migration', () => {
 
   it('round-trips authored non-default v11 declarations unchanged', () => {
     const source = bundled()
+    // Quake is deliberately unprotected in the shipped balance pass. Author a
+    // non-default declaration here so this migration test still covers the
+    // schema's ability to preserve an explicit opt-in.
+    card(source, 'skill.quake').protectRelocatedAfterPlay = true
     const imported = importContent(exportContent(source))
     expect(imported.ok).toBe(true)
     if (!imported.ok) return
@@ -89,6 +93,9 @@ describe('protected relocation authoring grammar', () => {
     }],
   ] as const)('rejects %s protected relocation', (_name, mutate) => {
     const source = bundled()
+    // The bundled Quake card now opts out of universal relocation protection;
+    // turn the grammar fixture back into an explicit protected declaration.
+    card(source).protectRelocatedAfterPlay = true
     mutate(card(source))
     const loaded = loadContentSet(source)
     expect(loaded.ok).toBe(false)

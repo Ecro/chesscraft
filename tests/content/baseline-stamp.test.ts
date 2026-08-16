@@ -17,11 +17,26 @@ import { mergeBundled } from '@content/merge'
  */
 
 const baseline = new Set(BASELINE_STAMP_IDS)
+// The current default preset also references a handful of post-stamp cards.
+// Keep these transitive dependencies in the synthetic old document so this
+// test exercises the merge rather than the loader's invalid-document fallback.
+const BASELINE_DEPENDENCIES = new Set(['piece.bishop', 'skill.blink', 'skill.mend', 'skill.quake', 'skill.veil', 'skill.leash'])
 
 function bundleIds(): string[] {
   return (['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const).flatMap((c) =>
     bundledContentSource[c].map((r) => (r as { id: string }).id),
   )
+}
+
+function baselineDocument() {
+  const doc = structuredClone(bundledContentSource)
+  for (const name of ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const) {
+    doc[name] = doc[name].filter((r) => {
+      const id = (r as { id: string }).id
+      return baseline.has(id) || BASELINE_DEPENDENCIES.has(id)
+    })
+  }
+  return doc
 }
 
 describe('BASELINE_STAMP_IDS', () => {
@@ -67,10 +82,7 @@ describe('BASELINE_STAMP_IDS', () => {
     // If the baseline slice does not load, `initialSource` takes its
     // `failedToLoad` branch and returns the whole bundle — which satisfies every
     // "the record arrived" assertion without the merge ever running.
-    const doc = structuredClone(bundledContentSource)
-    for (const name of ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const) {
-      doc[name] = doc[name].filter((r) => baseline.has((r as { id: string }).id))
-    }
+    const doc = baselineDocument()
     expect(loadContentSet(doc).ok).toBe(true)
   })
 
@@ -78,12 +90,11 @@ describe('BASELINE_STAMP_IDS', () => {
     // The end-to-end arithmetic, at the pure-function level: an install holding
     // the baseline and nothing else receives every record added since, and
     // nothing more.
-    const doc = structuredClone(bundledContentSource)
-    for (const name of ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const) {
-      doc[name] = doc[name].filter((r) => baseline.has((r as { id: string }).id))
-    }
+    const doc = baselineDocument()
     const result = mergeBundled(doc, bundledContentSource, { ids: [...BASELINE_STAMP_IDS] })
-    expect([...result.added].sort()).toEqual(bundleIds().filter((id) => !baseline.has(id)).sort())
+    expect([...result.added].sort()).toEqual(
+      bundleIds().filter((id) => !baseline.has(id) && !BASELINE_DEPENDENCIES.has(id)).sort(),
+    )
     expect(loadContentSet(result.source).ok).toBe(true)
   })
 })

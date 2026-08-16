@@ -61,7 +61,17 @@ export function blankDraft(kind: DraftKind): Record<string, unknown> {
     case 'skillCard':
       return { ...common, uses: 1, royalFollowUp: 'preserve', protectRelocatedAfterPlay: false, lockRelocatedAfterPlay: false }
     case 'board':
-      return { id: '', nameKey: '', width: 6, height: 6, placements: [], squares: [] }
+      return {
+        id: '',
+        nameKey: '',
+        width: 6,
+        height: 6,
+        territoryDepth: 3,
+        promotionDepth: 1,
+        zones: {},
+        placements: [],
+        squares: [],
+      }
     case 'preset':
       return { id: '', nameKey: '', boardId: '', pieceIds: [], ruleCardIds: [], skillCardIds: [] }
   }

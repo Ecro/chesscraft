@@ -152,6 +152,7 @@ function conditionBreadth(condition: Condition): number {
     case 'check_count_at_least':
       return 2
     case 'piece_is':
+    case 'in_promotion_zone':
     case 'on_square':
     case 'on_own_rank':
     // Narrower than `piece_count_at_most` above, not equal to it: that one is

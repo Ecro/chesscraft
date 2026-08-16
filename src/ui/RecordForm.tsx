@@ -1480,6 +1480,16 @@ export function RecordForm({
               d.height = n ?? 6
             }),
           )}
+          {numberField('board-territory-depth', 'ui.editor.board.territory-depth', draft.territoryDepth, (n) =>
+            update((d) => {
+              d.territoryDepth = n ?? 1
+            }),
+          )}
+          {numberField('board-promotion-depth', 'ui.editor.board.promotion-depth', draft.promotionDepth, (n) =>
+            update((d) => {
+              d.promotionDepth = n ?? 1
+            }),
+          )}
           {/* Two modes rather than two buttons per square, matching the room's
               own two steps. The painter itself is the room's — see
               `PlacementPainter`'s header for why its ids are prefixed here. */}

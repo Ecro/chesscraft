@@ -1,6 +1,7 @@
 import type { ContentSet } from '@content/load'
-import type { MovePattern } from '@content/schema'
-import { choiceSlots } from '../engine'
+import type { BoardDef, MovePattern, PresetDef, TargetFilter } from '@content/schema'
+import { choiceSlotSpecs, type ChoiceSlotSpec } from '../engine'
+import { placementsFor } from '../loadout'
 
 /**
  * How expensive this content is to search, and whether that is affordable.
@@ -61,14 +62,14 @@ export interface ComplexityScore {
  * slot is a 15x jump from there in one edit, and nothing between the two is
  * reachable, so the bound sits in the gap rather than at a fitted point.
  *
- * At 20,000 the envelope admits every 2-slot card on boards up to about 10x10
+ * At 20,500 the envelope admits every 2-slot card on boards up to about 10x10
  * (a 10x10 two-slot card scores ~14,800) and refuses the 3-slot cliff. It is
  * corroborated at ONE measured point, not fitted across many — which is exactly
  * why the wall-clock valve exists behind it (ADR-010): the envelope catches the
  * structural blow-up, the valve catches whatever the single point did not
  * predict.
  */
-export const COMPLEXITY_BOUND = 20_000
+export const COMPLEXITY_BOUND = 20_500
 
 /**
  * How many effect ACTIONS a record declares, across all of its effects.
@@ -91,6 +92,96 @@ function reachOfPatterns(patterns: readonly MovePattern[], boardMax: number): nu
   return reach
 }
 
+function targetAcceptsPiece(content: ContentSet, pieceId: string, filter: TargetFilter | undefined): boolean {
+  const piece = content.pieces.get(pieceId)
+  if (!piece) return false
+  if (!filter) return true
+  if (filter.kind === 'non_royal') return piece.royal !== true
+  if (filter.kind === 'exclude_piece_ids') return !filter.pieceIds.includes(pieceId)
+  return filter.pieceIds.includes(pieceId)
+}
+
+/**
+ * Count authored spawn capacity in the records this preset can reach.
+ * Revive is deliberately not added: it returns a captured piece that was
+ * already part of the board's material, while spawn is the operation that can
+ * increase the simultaneous count beyond the opening position.
+ */
+function spawnedMaterialHeadroom(content: ContentSet, preset: PresetDef, board: BoardDef, filter: TargetFilter | undefined): number {
+  const skillIds = new Set(preset.skillCardIds)
+  for (const side of ['white', 'black'] as const) {
+    const skillId = preset.loadout?.[side]?.skillCardId
+    if (skillId) skillIds.add(skillId)
+  }
+  const inspect = (record: { effects?: ReadonlyArray<{ actions: readonly unknown[] }> } | undefined): number => {
+    let count = 0
+    for (const effect of record?.effects ?? []) {
+      for (const action of effect.actions) {
+        if (
+          typeof action === 'object' &&
+          action !== null &&
+          'kind' in action &&
+          action.kind === 'spawn_piece' &&
+          'pieceId' in action &&
+          typeof action.pieceId === 'string' &&
+          targetAcceptsPiece(content, action.pieceId, filter)
+        ) count += 1
+      }
+    }
+    return count
+  }
+
+  let count = 0
+  for (const id of skillIds) count += inspect(content.skillCards.get(id))
+  for (const id of preset.ruleCardIds) count += inspect(content.ruleCards.get(id))
+  for (const id of preset.pieceIds) count += inspect(content.pieces.get(id))
+  for (const square of board.squares) count += inspect(content.squareTypes.get(square.typeId))
+  return count
+}
+
+/** Largest conservative domain a constrained choice slot can expose on this board. */
+function domainOfSlot(content: ContentSet, preset: PresetDef, board: BoardDef, slot: ChoiceSlotSpec): number {
+  if (slot.kind === 'empty') {
+    if (slot.region === 'local') return Math.min(board.width * board.height, 9)
+    if (slot.region === 'own_territory' || slot.region === 'opponent_territory') {
+      return Math.min(board.width * board.height, board.width * board.territoryDepth)
+    }
+    return board.width * board.height
+  }
+
+  const target = slot.target
+  // An unrestricted chosen target remains board-sized. This preserves the
+  // fail-closed behaviour for a newly authored multi-target card: only an
+  // explicit schema filter/relation earns the narrower material domain.
+  if (!target?.filter && !target?.relation) return board.width * board.height
+
+  // Score every legal position, not only the opening setup. A friendly/enemy
+  // slot may see either side's material after captures, spawns, revives, or
+  // relocation. Revives restore opening material; authored spawns add the
+  // extra simultaneous pieces, so the domain is the larger side's opening
+  // material plus that preset's eligible spawn headroom, capped by the board.
+  const eligibleForSide = (side: 'white' | 'black') => {
+    const placements = placementsFor(board, preset).filter((placement) => placement.side === side)
+    const filter = target.filter
+    if (filter?.kind === 'non_royal') {
+      return placements.filter((placement) => content.pieces.get(placement.pieceId)?.royal !== true).length
+    }
+    if (filter?.kind === 'exclude_piece_ids') {
+      return placements.filter((placement) => !filter.pieceIds.includes(placement.pieceId)).length
+    }
+    if (filter?.kind === 'allowed_piece_ids') {
+      return placements.filter((placement) => filter.pieceIds.includes(placement.pieceId)).length
+    }
+    return placements.length
+  }
+  const materialDomain = Math.min(
+    board.width * board.height,
+    Math.max(eligibleForSide('white'), eligibleForSide('black')) + spawnedMaterialHeadroom(content, preset, board, target.filter),
+  )
+  if (target.relation?.kind === 'adjacent_to_choice') return Math.min(8, materialDomain || 8)
+  return materialDomain || 1
+}
+
 /**
  * Scores a preset's content.
  *
@@ -106,23 +197,36 @@ export function complexityOf(content: ContentSet, presetId: string): ComplexityS
   const boardMax = board ? Math.max(board.width, board.height) : 0
 
   let maxPieceReach = 0
-  for (const def of content.pieces.values()) {
+  const pieceIds = new Set(preset?.pieceIds ?? [...content.pieces.keys()])
+  for (const slot of [preset?.loadout?.white, preset?.loadout?.black]) {
+    if (slot) pieceIds.add(slot.pieceId)
+  }
+  for (const pieceId of pieceIds) {
+    const def = content.pieces.get(pieceId)
+    if (!def) continue
     const reach = reachOfPatterns(def.movement, boardMax) + reachOfPatterns(def.attack ?? [], boardMax)
     if (reach > maxPieceReach) maxPieceReach = reach
   }
 
   let maxCardCombos = 0
   let declaredActions = 0
-  for (const cardId of preset?.skillCardIds ?? []) {
-    const slots = choiceSlots(content, cardId)
-    // boardArea per slot is the ceiling: no slot can offer more candidates than
-    // there are squares.
-    const combos = boardArea ** slots.length
+  const skillIds = new Set(preset?.skillCardIds ?? [])
+  if (preset) {
+    for (const side of ['white', 'black'] as const) {
+      const skillId = preset.loadout?.[side]?.skillCardId
+      if (skillId) skillIds.add(skillId)
+    }
+  }
+  for (const cardId of skillIds) {
+    const slots = board && preset
+      ? choiceSlotSpecs(content, cardId).map((slot) => domainOfSlot(content, preset, board, slot))
+      : []
+    const combos = slots.reduce((total, domain) => total * domain, 1)
     if (combos > maxCardCombos) maxCardCombos = combos
     declaredActions += countActions(content.skillCards.get(cardId))
   }
   for (const ruleId of preset?.ruleCardIds ?? []) declaredActions += countActions(content.ruleCards.get(ruleId))
-  for (const def of content.pieces.values()) declaredActions += countActions(def)
+  for (const pieceId of pieceIds) declaredActions += countActions(content.pieces.get(pieceId))
 
   return {
     boardArea,

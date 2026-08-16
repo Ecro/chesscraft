@@ -10,13 +10,13 @@ const content = shippedContent()
 const W_KING = { square: 'a1', pieceId: 'piece.king', side: 'white' as const }
 const B_KING = { square: 'f6', pieceId: 'piece.king', side: 'black' as const }
 
-function position(cardId: string, extra: Parameters<typeof createPosition>[0]['placements']) {
+function position(cardId: string, extra: Parameters<typeof createPosition>[0]['placements'], blackKing = 'f6') {
   return createPosition({
     content,
     presetId: BUNDLED_PRESET_ID,
     seed: 23,
     sideToMove: 'white',
-    placements: [W_KING, B_KING, ...extra],
+    placements: [W_KING, { square: blackKing, pieceId: 'piece.king', side: 'black' }, ...extra],
     held: { white: [cardId], black: [] },
   })
 }
@@ -82,6 +82,14 @@ const PRESERVE_EXISTING = [
   'skill.tide',
   'skill.brand',
   'skill.echo',
+  'skill.scout',
+  'skill.reinforce',
+  'skill.sprint',
+  'skill.bridge',
+  'skill.salve',
+  'skill.courier',
+  'skill.feint',
+  'skill.surge',
 ] as const
 
 const PRESERVE = [
@@ -91,23 +99,41 @@ const PRESERVE = [
   'skill.shackle',
   'skill.leash',
   'skill.veil',
+  'skill.guard',
+  'skill.hinder',
+  'skill.anchor',
+  'skill.ward',
 ] as const
 
 function richPosition(cardId: string) {
+  const placements = cardId === 'skill.coronation'
+    ? [
+        W_KING,
+        { square: 'c6', pieceId: 'piece.pawn', side: 'white' as const },
+        { square: 'a6', pieceId: 'piece.king', side: 'black' as const },
+      ]
+    : cardId === 'skill.sacrifice'
+      ? [
+          W_KING,
+          { square: 'c3', pieceId: 'piece.rook', side: 'white' as const },
+          { square: 'd3', pieceId: 'piece.rook', side: 'black' as const },
+          B_KING,
+        ]
+      : [
+          W_KING,
+          { square: 'b1', pieceId: 'piece.rook', side: 'white' as const },
+          { square: 'c2', pieceId: 'piece.pawn', side: 'white' as const },
+          { square: 'd1', pieceId: 'piece.knight', side: 'white' as const },
+          B_KING,
+          { square: 'e5', pieceId: 'piece.rook', side: 'black' as const },
+          { square: 'd5', pieceId: 'piece.pawn', side: 'black' as const },
+        ]
   return createPosition({
     content,
     presetId: BUNDLED_PRESET_ID,
     seed: 31,
     sideToMove: 'white',
-    placements: [
-      W_KING,
-      { square: 'b1', pieceId: 'piece.rook', side: 'white' },
-      { square: 'c2', pieceId: 'piece.pawn', side: 'white' },
-      { square: 'd1', pieceId: 'piece.knight', side: 'white' },
-      B_KING,
-      { square: 'e5', pieceId: 'piece.rook', side: 'black' },
-      { square: 'd5', pieceId: 'piece.pawn', side: 'black' },
-    ],
+    placements,
     held: { white: [cardId], black: [] },
     captured: { white: ['piece.knight', 'piece.pawn'], black: [] },
   })
@@ -115,7 +141,7 @@ function richPosition(cardId: string) {
 
 describe('bundled royal-threat audit', () => {
   it('makes every bundled skill declare both v11 royal policies', () => {
-    expect(bundledContentSource.skillCards).toHaveLength(24)
+    expect(bundledContentSource.skillCards).toHaveLength(36)
     const declarations = new Map<string, string>()
     for (const rawCard of bundledContentSource.skillCards) {
       const card = rawCard as {
@@ -137,7 +163,7 @@ describe('bundled royal-threat audit', () => {
         .map((card) => card as { id: string; protectRelocatedAfterPlay?: boolean })
         .filter((card) => card.protectRelocatedAfterPlay)
         .map((card) => card.id),
-    ).toEqual(['skill.quake'])
+    ).toEqual([])
   })
 
   it.each([...PRESERVE_EXISTING, ...PRESERVE])('audits every resolving target tuple for %s', (cardId) => {
@@ -158,60 +184,56 @@ describe('bundled royal-threat audit', () => {
     }
   })
 
-  it('protects Quake relocated material for the mandatory follow-up move', () => {
+  it('does not grant Quake a universal capture shield after local relocation', () => {
     const before = position('skill.quake', [
       { square: 'b1', pieceId: 'piece.rook', side: 'white' },
-      { square: 'e5', pieceId: 'piece.rook', side: 'black' },
+      { square: 'e4', pieceId: 'piece.rook', side: 'black' },
     ])
     const play = legalActions(before, content).find(
       (action) =>
         action.kind === 'play_card' &&
         action.cardId === 'skill.quake' &&
-        action.targets[0] === 'e5' &&
-        action.targets[1] === 'b5',
+        action.targets[0] === 'e4' &&
+        action.targets[1] === 'd4',
     )
     expect(play).toBeDefined()
     const mid = apply(before, play!, content)
 
-    expect(mid.board.get('b5')?.side).toBe('black')
-    expect(legalActions(mid, content).some((action) => action.kind === 'move' && action.from === 'b1' && action.to === 'b5')).toBe(false)
-    expect(mid.grants.some((grant) => grant.kind === 'block_capture' && grant.square === 'b5')).toBe(true)
+    expect(mid.board.get('d4')?.side).toBe('black')
+    expect(mid.grants.some((grant) => grant.kind === 'block_capture' && grant.sourceId === 'skill.quake')).toBe(false)
   })
 
-  it('moves Quake protection through a portal to the final surviving square', () => {
+  it('keeps Quake relocation local rather than reaching across the board', () => {
     const before = position('skill.quake', [
       { square: 'e1', pieceId: 'piece.rook', side: 'white' },
-      { square: 'd5', pieceId: 'piece.rook', side: 'black' },
+      { square: 'e4', pieceId: 'piece.rook', side: 'black' },
     ])
     const play = legalActions(before, content).find(
       (action) =>
         action.kind === 'play_card' &&
         action.cardId === 'skill.quake' &&
-        action.targets[0] === 'd5' &&
-        action.targets[1] === 'b3',
+        action.targets[0] === 'e4' &&
+        action.targets[1] === 'd4',
     )
     expect(play).toBeDefined()
     const mid = apply(before, play!, content)
 
-    expect(mid.board.get('e4')?.side).toBe('black')
-    expect(legalActions(mid, content).some((action) => action.kind === 'move' && action.from === 'e1' && action.to === 'e4')).toBe(false)
-    expect(mid.grants.some((grant) => grant.kind === 'block_capture' && grant.square === 'e4')).toBe(true)
-    expect(mid.grants.some((grant) => grant.kind === 'block_capture' && grant.square === 'b3')).toBe(false)
+    expect(mid.board.get('d4')?.side).toBe('black')
+    expect(mid.board.has('b3')).toBe(false)
   })
 
-  it('leaves no stale Quake protection when the relocated piece is removed on entry', () => {
-    const before = position('skill.quake', [{ square: 'd5', pieceId: 'piece.rook', side: 'black' }])
+  it('leaves no stale Quake protection after relocation', () => {
+    const before = position('skill.quake', [{ square: 'e4', pieceId: 'piece.rook', side: 'black' }])
     const play = legalActions(before, content).find(
       (action) =>
         action.kind === 'play_card' &&
         action.cardId === 'skill.quake' &&
-        action.targets[0] === 'd5' &&
-        action.targets[1] === 'a3',
+        action.targets[0] === 'e4' &&
+        action.targets[1] === 'd4',
     )
     expect(play).toBeDefined()
     const mid = apply(before, play!, content)
 
-    expect(mid.board.has('a3')).toBe(false)
     expect(mid.grants.some((grant) => grant.kind === 'block_capture' && grant.sourceId === 'skill.quake')).toBe(false)
   })
 
@@ -336,7 +358,7 @@ describe('bundled royal-threat audit', () => {
           { square: 'f5', pieceId: 'piece.rook', side: 'black' },
         ]),
       },
-      { name: 'promotion', state: position('skill.coronation', [{ square: 'f5', pieceId: 'piece.pawn', side: 'white' }]) },
+      { name: 'promotion', state: position('skill.coronation', [{ square: 'f6', pieceId: 'piece.pawn', side: 'white' }], 'a6') },
     ]
     const generatedCases = fc.sample(
       fc.shuffledSubarray(cases, { minLength: cases.length, maxLength: cases.length }),
@@ -375,12 +397,25 @@ describe('bundled royal-threat audit', () => {
 
     for (const extra of samples) {
       for (const cardId of PRESERVE_EXISTING) {
+        const promotionCase = cardId === 'skill.coronation'
+        const sacrificeCase = cardId === 'skill.sacrifice'
+        const kings = promotionCase
+          ? [W_KING, { square: 'a6', pieceId: 'piece.king', side: 'black' as const }]
+          : [W_KING, B_KING]
+        const tailoredExtra = promotionCase
+          ? [{ square: 'e6', pieceId: 'piece.pawn', side: 'white' as const }]
+          : sacrificeCase
+            ? [
+                { square: 'c3', pieceId: 'piece.rook', side: 'white' as const },
+                { square: 'd3', pieceId: 'piece.rook', side: 'black' as const },
+              ]
+            : extra
         const before = createPosition({
           content,
           presetId: BUNDLED_PRESET_ID,
           seed: 53,
           sideToMove: 'white',
-          placements: [W_KING, B_KING, ...extra],
+          placements: [...kings, ...tailoredExtra],
           held: { white: [cardId], black: [] },
           captured: { white: ['piece.knight', 'piece.pawn'], black: [] },
         })

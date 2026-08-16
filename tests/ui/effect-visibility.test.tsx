@@ -26,25 +26,6 @@ const content = (() => {
   return r.set
 })()
 
-/**
- * Clears the opening draft, taking a named card for white where asked.
- *
- * Seed 1 offers white `skill.swap`, `skill.sacrifice` and `skill.freeze`. The
- * freeze is the one worth having here: it is the only shipped card that leaves
- * a mark on a square a player can point at, and picking it by NAME rather than
- * by position keeps the fixture readable when the offer order changes.
- */
-function draftTaking(container: HTMLElement, whiteCard: string) {
-  const wanted = container.querySelector<HTMLElement>(`[data-testid="offer-${whiteCard}"]`)
-  expect(wanted, `seed 1 should offer ${whiteCard} to white`).toBeTruthy()
-  fireEvent.click(wanted!)
-  for (let i = 0; i < 3; i += 1) {
-    const offer = container.querySelector<HTMLElement>('[data-testid^="offer-"]')
-    if (!offer) break
-    fireEvent.click(offer)
-  }
-}
-
 /** Plays the named card at the first square the board offers for it. */
 function playCardAtFirstTarget(container: HTMLElement, cardId: string) {
   const slot = container.querySelector<HTMLElement>(`.hotbar .slot[data-card="${cardId}"]`)
@@ -86,9 +67,24 @@ function strandedWhite() {
   return white
 }
 
+function freezeStart() {
+  return createPosition({
+    content,
+    presetId: BUNDLED_PRESET_ID,
+    seed: 1,
+    sideToMove: 'white',
+    held: { white: ['skill.freeze'], black: [] },
+    placements: [
+      { square: 'a1', pieceId: 'piece.king', side: 'white' },
+      { square: 'b1', pieceId: 'piece.rook', side: 'white' },
+      { square: 'f6', pieceId: 'piece.king', side: 'black' },
+      { square: 'e5', pieceId: 'piece.pawn', side: 'black' },
+    ],
+  })
+}
+
 function frozenBoard() {
-  const rendered = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
-  draftTaking(rendered.container, 'skill.freeze')
+  const rendered = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={freezeStart()} />)
   const square = playCardAtFirstTarget(rendered.container, 'skill.freeze')
   return { ...rendered, square }
 }
@@ -128,8 +124,7 @@ describe('the legend names what is live', () => {
   })
 
   it('has no effect chips at all before anything is live', () => {
-    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
-    draftTaking(container, 'skill.freeze')
+    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={freezeStart()} />)
     // The row must cost nothing on the board a player spends most of the match
     // looking at — a permanently present empty row is vertical space taken from
     // the one screen this layout has (AC-017/AC-018).

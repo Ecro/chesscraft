@@ -52,6 +52,8 @@ function emptyDraft(offers: string[] | null): DraftState {
     offers,
     everOffered: offers ? [...offers] : [],
     completedTurns: 0,
+    nextSkillTurn: 5,
+    awardCount: 0,
     draftIndex: offers ? 0 : 1,
   }
 }

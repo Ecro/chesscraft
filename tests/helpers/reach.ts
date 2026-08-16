@@ -98,7 +98,16 @@ function bareState(
 ): GameState {
   const board = new Map<SquareId, PieceOnBoard>([[origin, { pieceId: SUBJECT, side }]])
   for (const o of occupants) board.set(o.square, { pieceId: FILLER, side: o.side })
-  const emptyDraft = { held: [], used: [], offers: null, everOffered: [], completedTurns: 0, draftIndex: 2 }
+  const emptyDraft = {
+    held: [],
+    used: [],
+    offers: null,
+    everOffered: [],
+    completedTurns: 0,
+    nextSkillTurn: 5,
+    awardCount: 0,
+    draftIndex: 2,
+  }
   return {
     width,
     height,

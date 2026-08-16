@@ -41,6 +41,18 @@ function withoutIds(source: ContentSource, remove: string[]): ContentSource {
   for (const name of ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const) {
     next[name] = next[name].filter((r) => !gone.has((r as { id: string }).id))
   }
+  // An authored deletion also removes that record from the loadouts that used
+  // it. Otherwise the fixture is not a saved document at all: the loader would
+  // reject the dangling reference before the merge path under test runs.
+  next.presets = next.presets.map((raw) => {
+    const preset = raw as Record<string, unknown>
+    const copy = { ...preset }
+    for (const field of ['pieceIds', 'ruleCardIds', 'skillCardIds'] as const) {
+      const ids = copy[field]
+      if (Array.isArray(ids)) copy[field] = ids.filter((id) => typeof id !== 'string' || !gone.has(id))
+    }
+    return copy
+  })
   return next
 }
 
@@ -66,9 +78,13 @@ function withAuthoredPiece(source: ContentSource): ContentSource {
  */
 function baselineDocument(): ContentSource {
   const keep = new Set(BASELINE_STAMP_IDS)
+  const dependencies = new Set(['piece.bishop', 'skill.blink', 'skill.mend', 'skill.quake', 'skill.veil', 'skill.leash'])
   const next = structuredClone(bundledContentSource) as ContentSource
   for (const name of ['pieces', 'squareTypes', 'ruleCards', 'skillCards', 'boards', 'presets'] as const) {
-    next[name] = next[name].filter((r) => keep.has((r as { id: string }).id))
+    next[name] = next[name].filter((r) => {
+      const id = (r as { id: string }).id
+      return keep.has(id) || dependencies.has(id)
+    })
   }
   expect(loadContentSet(next).ok).toBe(true)
   return next
@@ -247,19 +263,19 @@ describe('initialSource — a saved install with a stamp', () => {
   it('handles mixed membership: adds the new, keeps the authored, honours the deleted', () => {
     // Neither equal to the bundle nor disjoint from it. `preset.bastion` is the
     // only bundled record deletable in one step (`roomsReferencing` returns []
-    // for presets alone), and removing it is what lets `skill.veil` go with it.
+    // for presets alone), and removing it is what lets `skill.brand` go with it.
     const saved = withAuthoredPiece(
-      withoutIds(bundledContentSource, ['preset.covenant', 'preset.bastion', 'skill.veil']),
+      withoutIds(bundledContentSource, ['preset.covenant', 'preset.bastion', 'skill.brand']),
     )
     expect(loadContentSet(saved).ok).toBe(true)
-    // `preset.covenant` is new this release; bastion and veil the author deleted.
+    // `preset.covenant` is new this release; bastion and brand the author deleted.
     seed(saved, stampWithout(['preset.covenant']))
 
     const result = initialSource()
     expect(ids(result.source.presets)).toContain('preset.covenant')
     expect(ids(result.source.pieces)).toContain('piece.mine')
     expect(ids(result.source.presets)).not.toContain('preset.bastion')
-    expect(ids(result.source.skillCards)).not.toContain('skill.veil')
+    expect(ids(result.source.skillCards)).not.toContain('skill.brand')
     expect(result.mergeFailed).toEqual([])
     expect(loadContentSet(result.source).ok).toBe(true)
   })

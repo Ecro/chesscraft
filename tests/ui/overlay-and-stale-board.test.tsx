@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { ContentSource } from '@content/load'
 import { loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
+import { createPosition } from '@engine/match'
 import { SLICE_PRESET_ID, sliceContentSource } from '@content/sets/slice'
 import { Edit } from '../../src/ui/Edit'
 import { MatchHost } from '../../src/ui/MatchHost'
@@ -37,6 +38,23 @@ const slice = (() => {
   if (!r.ok) throw new Error('slice content must load')
   return r.set
 })()
+
+function playableStart(cardId: string) {
+  return createPosition({
+    content,
+    presetId: BUNDLED_PRESET_ID,
+    seed: 13,
+    sideToMove: 'white',
+    held: { white: [cardId], black: [] },
+    placements: [
+      { square: 'a1', pieceId: 'piece.king', side: 'white' },
+      { square: 'b1', pieceId: 'piece.rook', side: 'white' },
+      { square: 'c2', pieceId: 'piece.pawn', side: 'white' },
+      { square: 'f6', pieceId: 'piece.king', side: 'black' },
+      { square: 'e5', pieceId: 'piece.pawn', side: 'black' },
+    ],
+  })
+}
 
 /** Clears the opening draft so the board accepts moves (AC-005 gates it). */
 function pastDraft(container: HTMLElement) {
@@ -172,17 +190,16 @@ describe('a card the player cannot use is never a dead end', () => {
    * so those cards armed, highlighted nothing, and refused every square the
    * player tried. The refusal message was accurate and useless.
    *
-   * Seed 13 deals `skill.charge` as white's first offer, which `pastDraft`
-   * picks. Chosen rather than hunted for: a fixture that took whatever card the
-   * seed happened to give would test the one-target path most of the time and
-   * this one never.
+   * The card is injected into a ready-to-play position so this test does not
+   * depend on the random opening offer as the skill pool grows.
    */
   it('gives a card that asks for no square a way to be used', () => {
-    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 13} />)
-    pastDraft(container)
+    const { container } = render(
+      <MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={playableStart('skill.charge')} />,
+    )
 
     const slot = container.querySelector<HTMLElement>('.hotbar .slot[data-card="skill.charge"]')
-    expect(slot, 'seed 13 should deal skill.charge to white').toBeTruthy()
+    expect(slot, 'the ready fixture should hold skill.charge').toBeTruthy()
     fireEvent.click(slot!)
 
     // Armed — the card IS playable — with nothing anywhere to tap. Both halves
@@ -215,8 +232,9 @@ describe('a card the player cannot use is never a dead end', () => {
      * spent card is still in your hand — it stays visible by design — and
      * tapping it armed a card that could never resolve.
      */
-    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
-    pastDraft(container)
+    const { container } = render(
+      <MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={playableStart('skill.freeze')} />,
+    )
     expect(armable(container), 'no card in the opening hand can be played').toBeTruthy()
 
     // Spend it. A card can want more than one square — `skill.swap` names a
@@ -269,8 +287,9 @@ describe('a card the player cannot use is never a dead end', () => {
   })
 
   it('disarms an armed card when it is tapped again', () => {
-    const { container } = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} newSeed={() => 1} />)
-    pastDraft(container)
+    const { container } = render(
+      <MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={playableStart('skill.freeze')} />,
+    )
     const tile = armable(container)
     expect(tile, 'no card in the opening hand can be played — the fixture is broken').toBeTruthy()
     expect(tile!.getAttribute('data-pending'), 'precondition: the card armed').toBe('true')

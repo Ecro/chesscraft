@@ -111,6 +111,38 @@ const grandRank = [
   'piece.rook',
 ]
 
+const files10 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+/** A 10-file front with two bishops and four specialist flankers per side. */
+const frontierRank = [
+  'piece.rook',
+  'piece.knight',
+  'piece.bishop',
+  'piece.queen',
+  'piece.king',
+  'piece.bishop',
+  'piece.rook',
+  'piece.archer',
+  'piece.lancer',
+  'piece.marksman',
+]
+
+const files12 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']
+/** Twelve files, one compact back rank, and two full bishops per side. */
+const colossusRank = [
+  'piece.rook',
+  'piece.knight',
+  'piece.bishop',
+  'piece.queen',
+  'piece.king',
+  'piece.bishop',
+  'piece.rook',
+  'piece.knight',
+  'piece.archer',
+  'piece.lancer',
+  'piece.marksman',
+  'piece.charger',
+]
+
 const bastionRank = ['piece.rook', 'piece.warden', 'piece.queen', 'piece.king', 'piece.warden', 'piece.rook']
 const cavalryRank = ['piece.charger', 'piece.knight', 'piece.queen', 'piece.king', 'piece.knight', 'piece.charger']
 const covenantRank = ['piece.acolyte', 'piece.marksman', 'piece.queen', 'piece.king', 'piece.shade', 'piece.lancer']
@@ -136,7 +168,7 @@ const CAMEL: Array<[number, number]> = [
 ]
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 12,
+  schemaVersion: 13,
 
   pieces: [
     {
@@ -170,6 +202,14 @@ export const bundledContentSource: ContentSource = {
       textKey: 'piece.knight.text',
       artKey: 'art.knight',
       movement: [{ kind: 'jump', vectors: KNIGHT }],
+      effects: [],
+    },
+    {
+      id: 'piece.bishop',
+      nameKey: 'piece.bishop.name',
+      textKey: 'piece.bishop.text',
+      artKey: 'art.bishop',
+      movement: [{ kind: 'slide', vectors: DIAGONAL }],
       effects: [],
     },
     {
@@ -357,8 +397,11 @@ export const bundledContentSource: ContentSource = {
       effects: [
         {
           trigger: 'on_enter',
-          condition: { kind: 'piece_is', pieceId: 'piece.pawn' },
-          actions: [{ kind: 'promote_piece', target: { kind: 'entering' }, to: 'piece.queen' }],
+          condition: {
+            kind: 'all',
+            of: [{ kind: 'piece_is', pieceId: 'piece.pawn' }, { kind: 'in_promotion_zone' }],
+          },
+          actions: [{ kind: 'promote_piece', target: { kind: 'entering' }, to: 'piece.bishop' }],
         },
       ],
     },
@@ -523,6 +566,96 @@ export const bundledContentSource: ContentSource = {
           trigger: 'on_enter',
           condition: { kind: 'always' },
           actions: [{ kind: 'block_capture', target: { kind: 'entering' }, duration: 3 }],
+        },
+      ],
+    },
+    {
+      /** A shallow pit costs the arriving piece two plies before it can move. */
+      id: 'square.pit',
+      nameKey: 'square.pit.name',
+      textKey: 'square.pit.text',
+      artKey: 'art.pit',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'entering' }, plies: 2 }],
+        },
+      ],
+    },
+    {
+      /** Spikes punish only pawns, leaving a deliberate route for other pieces. */
+      id: 'square.spikes',
+      nameKey: 'square.spikes.name',
+      textKey: 'square.spikes.text',
+      artKey: 'art.spikes',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'piece_is', pieceId: 'piece.pawn' },
+          actions: [{ kind: 'destroy_piece', target: { kind: 'entering' } }],
+        },
+      ],
+    },
+    {
+      /** Water grants a short diagonal step, but does not move a piece by itself. */
+      id: 'square.water',
+      nameKey: 'square.water.name',
+      textKey: 'square.water.text',
+      artKey: 'art.water',
+      paired: false,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'occupant' }, pattern: { kind: 'step', vectors: DIAGONAL } }],
+        },
+      ],
+    },
+    {
+      /** Brambles hold any arrival in place for one reply. */
+      id: 'square.brambles',
+      nameKey: 'square.brambles.name',
+      textKey: 'square.brambles.text',
+      artKey: 'art.brambles',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'entering' }, plies: 1 }],
+        },
+      ],
+    },
+    {
+      /** A rune grants a two-square diagonal slide while occupied. */
+      id: 'square.rune',
+      nameKey: 'square.rune.name',
+      textKey: 'square.rune.text',
+      artKey: 'art.rune',
+      paired: false,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'occupant' }, pattern: { kind: 'slide', vectors: DIAGONAL, maxDistance: 2 } }],
+        },
+      ],
+    },
+    {
+      /** Embers protect an arriving piece from capture for two plies. */
+      id: 'square.ember',
+      nameKey: 'square.ember.name',
+      textKey: 'square.ember.text',
+      artKey: 'art.ember',
+      paired: false,
+      effects: [
+        {
+          trigger: 'on_enter',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'entering' }, duration: 2 }],
         },
       ],
     },
@@ -868,6 +1001,105 @@ export const bundledContentSource: ContentSource = {
         },
       ],
     },
+    {
+      /** Every footman may advance two squares, but still captures normally. */
+      id: 'rule.march',
+      nameKey: 'rule.march.name',
+      textKey: 'rule.march.text',
+      artKey: 'art.ladder',
+      cost: 3,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'self' },
+              pattern: { kind: 'slide', vectors: [[0, 1]], maxDistance: 2, forward: true },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Kings shelter one nearby friendly piece from direct capture. */
+      id: 'rule.steadfast',
+      nameKey: 'rule.steadfast.name',
+      textKey: 'rule.steadfast.text',
+      artKey: 'art.scales',
+      cost: 3,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.king', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'adjacent_friendly' } }],
+        },
+      ],
+    },
+    {
+      /** A measured endgame goal: win once the opponent has only five pieces. */
+      id: 'rule.scarcity',
+      nameKey: 'rule.scarcity.name',
+      textKey: 'rule.scarcity.text',
+      artKey: 'art.hourglass',
+      cost: 4,
+      effects: [
+        {
+          trigger: 'end_of_ply',
+          condition: { kind: 'piece_count_at_most', side: 'opponent', n: 5 },
+          actions: [{ kind: 'win', side: 'mover' }],
+        },
+      ],
+    },
+    {
+      /** The bishop may briefly turn a corner without becoming a queen. */
+      id: 'rule.diagonal-court',
+      nameKey: 'rule.diagonal-court.name',
+      textKey: 'rule.diagonal-court.text',
+      artKey: 'art.bridge',
+      cost: 3,
+      effects: [
+        {
+          trigger: 'generate_moves',
+          forEach: { kind: 'piece', pieceId: 'piece.bishop', side: 'any' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'self' }, pattern: { kind: 'step', vectors: ORTHOGONAL } }],
+        },
+      ],
+    },
+    {
+      /** Capturing still costs tempo, but the taker is not destroyed. */
+      id: 'rule.fallen-banner',
+      nameKey: 'rule.fallen-banner.name',
+      textKey: 'rule.fallen-banner.text',
+      artKey: 'art.candle',
+      cost: 3,
+      effects: [
+        {
+          trigger: 'on_capture',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'mover' }, plies: 2 }],
+        },
+      ],
+    },
+    {
+      /** A side with very few pieces can call one modest footman back. */
+      id: 'rule.heartland',
+      nameKey: 'rule.heartland.name',
+      textKey: 'rule.heartland.text',
+      artKey: 'art.gem',
+      cost: 3,
+      effects: [
+        {
+          trigger: 'end_of_ply',
+          condition: { kind: 'piece_count_at_most', side: 'mover', n: 3 },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
   ],
 
   skillCards: [
@@ -885,7 +1117,13 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'on_play',
           condition: { kind: 'always' },
-          actions: [{ kind: 'teleport_piece', target: { kind: 'chosen_friendly' }, to: { kind: 'chosen_empty' } }],
+          actions: [
+            {
+              kind: 'teleport_piece',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              to: { kind: 'chosen_empty', region: 'own_territory' },
+            },
+          ],
         },
       ],
     },
@@ -903,7 +1141,13 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'on_play',
           condition: { kind: 'always' },
-          actions: [{ kind: 'swap_pieces', a: { kind: 'chosen_friendly' }, b: { kind: 'chosen_friendly' } }],
+          actions: [
+            {
+              kind: 'swap_pieces',
+              a: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              b: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+            },
+          ],
         },
       ],
     },
@@ -976,8 +1220,17 @@ export const bundledContentSource: ContentSource = {
       effects: [
         {
           trigger: 'on_play',
-          condition: { kind: 'piece_is', pieceId: 'piece.pawn' },
-          actions: [{ kind: 'promote_piece', target: { kind: 'chosen_friendly' }, to: 'piece.queen' }],
+          condition: {
+            kind: 'all',
+            of: [{ kind: 'piece_is', pieceId: 'piece.pawn' }, { kind: 'in_promotion_zone' }],
+          },
+          actions: [
+            {
+              kind: 'promote_piece',
+              target: { kind: 'chosen_friendly', filter: { kind: 'allowed_piece_ids', pieceIds: ['piece.pawn'] } },
+              to: 'piece.queen',
+            },
+          ],
         },
       ],
     },
@@ -1133,7 +1386,12 @@ export const bundledContentSource: ContentSource = {
         {
           trigger: 'on_play',
           condition: { kind: 'always' },
-          actions: [{ kind: 'destroy_piece', target: { kind: 'chosen_enemy' } }],
+          actions: [
+            {
+              kind: 'destroy_piece',
+              target: { kind: 'chosen_enemy', filter: { kind: 'exclude_piece_ids', pieceIds: ['piece.queen'] } },
+            },
+          ],
         },
       ],
     },
@@ -1152,8 +1410,18 @@ export const bundledContentSource: ContentSource = {
           trigger: 'on_play',
           condition: { kind: 'always' },
           actions: [
-            { kind: 'destroy_piece', target: { kind: 'chosen_friendly' } },
-            { kind: 'destroy_piece', target: { kind: 'chosen_enemy' } },
+            {
+              kind: 'destroy_piece',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+            },
+            {
+              kind: 'destroy_piece',
+              target: {
+                kind: 'chosen_enemy',
+                filter: { kind: 'exclude_piece_ids', pieceIds: ['piece.queen'] },
+                relation: { kind: 'adjacent_to_choice', choiceIndex: 0 },
+              },
+            },
           ],
         },
       ],
@@ -1257,13 +1525,19 @@ export const bundledContentSource: ContentSource = {
       artKey: 'art.quake',
       uses: 1,
       royalFollowUp: 'preserve-existing',
-      protectRelocatedAfterPlay: true,
+      protectRelocatedAfterPlay: false,
       lockRelocatedAfterPlay: false,
       effects: [
         {
           trigger: 'on_play',
           condition: { kind: 'always' },
-          actions: [{ kind: 'teleport_piece', target: { kind: 'chosen_enemy' }, to: { kind: 'chosen_empty' } }],
+          actions: [
+            {
+              kind: 'teleport_piece',
+              target: { kind: 'chosen_enemy', filter: { kind: 'non_royal' } },
+              to: { kind: 'chosen_empty', region: 'local' },
+            },
+          ],
         },
       ],
     },
@@ -1366,6 +1640,275 @@ export const bundledContentSource: ContentSource = {
         },
       ],
     },
+    {
+      /** A short scouting leap for one non-royal piece. */
+      id: 'skill.scout',
+      nameKey: 'skill.scout.name',
+      textKey: 'skill.scout.text',
+      artKey: 'art.eye',
+      cost: 2,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              pattern: { kind: 'jump', vectors: KNIGHT },
+              duration: 2,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** A smaller, cheaper guard that cannot protect a king. */
+      id: 'skill.guard',
+      nameKey: 'skill.guard.name',
+      textKey: 'skill.guard.text',
+      artKey: 'art.key',
+      cost: 2,
+      uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } }, duration: 2 }],
+        },
+      ],
+    },
+    {
+      /** Hold one non-royal enemy in place for two plies. */
+      id: 'skill.hinder',
+      nameKey: 'skill.hinder.name',
+      textKey: 'skill.hinder.text',
+      artKey: 'art.lock',
+      cost: 2,
+      uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'forbid_movement', target: { kind: 'chosen_enemy', filter: { kind: 'non_royal' } }, duration: 2 }],
+        },
+      ],
+    },
+    {
+      /** One new footman, gated by a vacant home-rank square. */
+      id: 'skill.reinforce',
+      nameKey: 'skill.reinforce.name',
+      textKey: 'skill.reinforce.text',
+      artKey: 'art.sun',
+      cost: 2,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'spawn_piece', pieceId: 'piece.pawn', side: 'mover', at: { kind: 'own_back_rank' } }],
+        },
+      ],
+    },
+    {
+      /** A controlled sprint for a chosen non-royal piece. */
+      id: 'skill.sprint',
+      nameKey: 'skill.sprint.name',
+      textKey: 'skill.sprint.text',
+      artKey: 'art.drum',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              pattern: { kind: 'slide', vectors: ORTHOGONAL, maxDistance: 2 },
+              duration: 2,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** A short-lived bridge across two orthogonal squares. */
+      id: 'skill.bridge',
+      nameKey: 'skill.bridge.name',
+      textKey: 'skill.bridge.text',
+      artKey: 'art.bridge',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              pattern: { kind: 'slide', vectors: ORTHOGONAL, maxDistance: 2 },
+              duration: 2,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Freeze an enemy without ever naming a royal as a legal target. */
+      id: 'skill.anchor',
+      nameKey: 'skill.anchor.name',
+      textKey: 'skill.anchor.text',
+      artKey: 'art.mountain',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'freeze_piece', target: { kind: 'chosen_enemy', filter: { kind: 'non_royal' } }, plies: 2 }],
+        },
+      ],
+    },
+    {
+      /** A longer guard window for one friendly non-royal. */
+      id: 'skill.ward',
+      nameKey: 'skill.ward.name',
+      textKey: 'skill.ward.text',
+      artKey: 'art.mirror',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [{ kind: 'block_capture', target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } }, duration: 3 }],
+        },
+      ],
+    },
+    {
+      /** Restore one fallen non-royal piece except a rook. */
+      id: 'skill.salve',
+      nameKey: 'skill.salve.name',
+      textKey: 'skill.salve.text',
+      artKey: 'art.potion',
+      cost: 4,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'revive_piece',
+              side: 'mover',
+              at: { kind: 'own_back_rank' },
+              except: ['piece.king', 'piece.queen', 'piece.rook'],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Move one friendly non-royal into a vacant square in home territory. */
+      id: 'skill.courier',
+      nameKey: 'skill.courier.name',
+      textKey: 'skill.courier.text',
+      artKey: 'art.compass',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: true,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'teleport_piece',
+              target: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              to: { kind: 'chosen_empty', region: 'own_territory' },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Exchange two non-royal friends; kings and queens stay out of it. */
+      id: 'skill.feint',
+      nameKey: 'skill.feint.name',
+      textKey: 'skill.feint.text',
+      artKey: 'art.mask',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: true,
+      effects: [
+        {
+          trigger: 'on_play',
+          condition: { kind: 'always' },
+          actions: [
+            {
+              kind: 'swap_pieces',
+              a: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+              b: { kind: 'chosen_friendly', filter: { kind: 'non_royal' } },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /** Every friendly footman gains one diagonal step for two plies. */
+      id: 'skill.surge',
+      nameKey: 'skill.surge.name',
+      textKey: 'skill.surge.text',
+      artKey: 'art.wave',
+      cost: 3,
+      uses: 1,
+      royalFollowUp: 'preserve-existing',
+      protectRelocatedAfterPlay: false,
+      lockRelocatedAfterPlay: false,
+      effects: [
+        {
+          trigger: 'on_play',
+          forEach: { kind: 'piece', pieceId: 'piece.pawn', side: 'mover' },
+          condition: { kind: 'always' },
+          actions: [{ kind: 'grant_movement', target: { kind: 'self' }, pattern: { kind: 'step', vectors: DIAGONAL }, duration: 2 }],
+        },
+      ],
+    },
   ],
 
   boards: [
@@ -1374,6 +1917,9 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.los-alamos.name',
       width: 6,
       height: 6,
+      territoryDepth: 3,
+      promotionDepth: 1,
+      zones: {},
       placements: openingFor(backRank),
       // Ranks 3 and 4 are the only empty ones at the start, so every painted
       // square is reachable and none sits under a piece at setup. The portal
@@ -1392,6 +1938,9 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.bastion.name',
       width: 6,
       height: 6,
+      territoryDepth: 3,
+      promotionDepth: 1,
+      zones: {},
       placements: openingFor(bastionRank),
       // Ranks 3 and 4 only — the rule every board in this file follows, so no
       // painted square starts under a piece and all six are reachable (ADR-003).
@@ -1410,6 +1959,9 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.cavalry.name',
       width: 6,
       height: 6,
+      territoryDepth: 3,
+      promotionDepth: 1,
+      zones: {},
       placements: openingFor(cavalryRank),
       squares: [
         { square: 'b3', typeId: 'square.geyser' },
@@ -1426,6 +1978,12 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.covenant.name',
       width: 6,
       height: 6,
+      territoryDepth: 3,
+      // Both painted shrines sit three ranks from the far edge. Keeping the
+      // promotion band equally deep makes the terrain reachable without
+      // turning a shrine into an unconditional promotion square.
+      promotionDepth: 3,
+      zones: {},
       placements: openingFor(covenantRank),
       squares: [
         { square: 'a3', typeId: 'square.shrine' },
@@ -1453,6 +2011,9 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'board.grand.name',
       width: 8,
       height: 8,
+      territoryDepth: 4,
+      promotionDepth: 1,
+      zones: {},
       placements: openingOn(files8, 8, grandRank),
       squares: [
         { square: 'c3', typeId: 'square.springboard' },
@@ -1465,6 +2026,93 @@ export const bundledContentSource: ContentSource = {
         { square: 'a5', typeId: 'square.altar' },
         { square: 'd4', typeId: 'square.portal', pairedWith: 'e5' },
         { square: 'e5', typeId: 'square.portal', pairedWith: 'd4' },
+      ],
+    },
+    {
+      /**
+       * A 10x10 frontier room between the compact rooms and Colossus. The
+       * three-rank promotion band deliberately includes c8/h3 so both shrines
+       * are live without painting a starting square.
+       */
+      id: 'board.frontier',
+      nameKey: 'board.frontier.name',
+      width: 10,
+      height: 10,
+      territoryDepth: 5,
+      promotionDepth: 3,
+      zones: {
+        white_promotion: files10.map((file) => `${file}8`),
+        black_promotion: files10.map((file) => `${file}3`),
+        central_ring: ['e5', 'f5', 'e6', 'f6'],
+      },
+      placements: openingOn(files10, 10, frontierRank),
+      squares: [
+        { square: 'b4', typeId: 'square.bomb' },
+        { square: 'i7', typeId: 'square.bomb' },
+        { square: 'c8', typeId: 'square.shrine' },
+        { square: 'h3', typeId: 'square.shrine' },
+        { square: 'd5', typeId: 'square.sanctuary' },
+        { square: 'g6', typeId: 'square.sanctuary' },
+        { square: 'e6', typeId: 'square.mire' },
+        { square: 'f5', typeId: 'square.mire' },
+        { square: 'f4', typeId: 'square.portal', pairedWith: 'g7' },
+        { square: 'g7', typeId: 'square.portal', pairedWith: 'f4' },
+        { square: 'a5', typeId: 'square.springboard' },
+        { square: 'j6', typeId: 'square.springboard' },
+        { square: 'b6', typeId: 'square.pit' },
+        { square: 'i5', typeId: 'square.pit' },
+        { square: 'c6', typeId: 'square.spikes' },
+        { square: 'h5', typeId: 'square.spikes' },
+        { square: 'd6', typeId: 'square.water' },
+        { square: 'g5', typeId: 'square.water' },
+        { square: 'e5', typeId: 'square.brambles' },
+        { square: 'f6', typeId: 'square.brambles' },
+      ],
+    },
+    {
+      /**
+       * The first 12x12 room: a longer front, familiar two-rank armies, and a
+       * deliberately mirrored terrain ring. The empty ranks are 3..10, so
+       * every painted square is reachable from the opening and the two
+       * promotion zones stay side-relative through board metadata.
+       */
+      id: 'board.colossus',
+      nameKey: 'board.colossus.name',
+      width: 12,
+      height: 12,
+      territoryDepth: 6,
+      promotionDepth: 2,
+      zones: {
+        white_promotion: files12.map((file) => `${file}11`),
+        black_promotion: files12.map((file) => `${file}2`),
+        central_ring: ['f6', 'g6', 'f7', 'g7'],
+      },
+      placements: openingOn(files12, 12, colossusRank),
+      squares: [
+        { square: 'b4', typeId: 'square.bomb' },
+        { square: 'k9', typeId: 'square.bomb' },
+        { square: 'c5', typeId: 'square.shrine' },
+        { square: 'j8', typeId: 'square.shrine' },
+        { square: 'd6', typeId: 'square.sanctuary' },
+        { square: 'i7', typeId: 'square.sanctuary' },
+        { square: 'e7', typeId: 'square.mire' },
+        { square: 'h6', typeId: 'square.mire' },
+        { square: 'f5', typeId: 'square.portal', pairedWith: 'g8' },
+        { square: 'g8', typeId: 'square.portal', pairedWith: 'f5' },
+        { square: 'a6', typeId: 'square.springboard' },
+        { square: 'l7', typeId: 'square.springboard' },
+        { square: 'a7', typeId: 'square.pit' },
+        { square: 'l6', typeId: 'square.pit' },
+        { square: 'b6', typeId: 'square.spikes' },
+        { square: 'k7', typeId: 'square.spikes' },
+        { square: 'c7', typeId: 'square.water' },
+        { square: 'j6', typeId: 'square.water' },
+        { square: 'd7', typeId: 'square.brambles' },
+        { square: 'i6', typeId: 'square.brambles' },
+        { square: 'e6', typeId: 'square.rune' },
+        { square: 'h7', typeId: 'square.rune' },
+        { square: 'f8', typeId: 'square.ember' },
+        { square: 'g5', typeId: 'square.ember' },
       ],
     },
   ],
@@ -1513,6 +2161,11 @@ export const bundledContentSource: ContentSource = {
         'skill.recruit',
         'skill.volley',
         'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.leash',
       ],
     },
     {
@@ -1525,9 +2178,32 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'preset.bastion.name',
       boardId: 'board.bastion',
       pieceIds: ['piece.king', 'piece.queen', 'piece.rook', 'piece.warden', 'piece.pawn', 'piece.marksman'],
-      ruleCardIds: ['rule.oath', 'rule.royal-bodyguard', 'rule.duel', 'rule.eclipse', 'rule.last-stand', 'rule.siege'],
+      ruleCardIds: ['rule.oath', 'rule.royal-bodyguard', 'rule.duel', 'rule.eclipse', 'rule.last-stand', 'rule.siege', 'rule.steadfast', 'rule.fallen-banner'],
       loadoutBudget: 4,
-      skillCardIds: ['skill.veil', 'skill.bulwark', 'skill.mend', 'skill.leash', 'skill.snare', 'skill.recall'],
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.brand',
+        'skill.hinder',
+        'skill.ward',
+      ],
     },
     {
       /**
@@ -1538,9 +2214,33 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'preset.cavalry.name',
       boardId: 'board.cavalry',
       pieceIds: ['piece.king', 'piece.queen', 'piece.charger', 'piece.knight', 'piece.pawn', 'piece.shade'],
-      ruleCardIds: ['rule.knights-honour', 'rule.blitz', 'rule.beacon', 'rule.harvest', 'rule.fast-promotion', 'rule.three-check'],
+      ruleCardIds: ['rule.knights-honour', 'rule.blitz', 'rule.beacon', 'rule.harvest', 'rule.fast-promotion', 'rule.three-check', 'rule.march', 'rule.scarcity'],
       loadoutBudget: 8,
-      skillCardIds: ['skill.blink', 'skill.charge', 'skill.knight-leap', 'skill.dart', 'skill.tide', 'skill.shove', 'skill.teleport'],
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.tide',
+        'skill.anchor',
+        'skill.sprint',
+        'skill.bridge',
+      ],
     },
     {
       /** The default budget, spent on a board that keeps replacing what it kills. */
@@ -1548,9 +2248,33 @@ export const bundledContentSource: ContentSource = {
       nameKey: 'preset.covenant.name',
       boardId: 'board.covenant',
       pieceIds: ['piece.king', 'piece.queen', 'piece.lancer', 'piece.acolyte', 'piece.pawn', 'piece.shade'],
-      ruleCardIds: ['rule.tribute', 'rule.conscription', 'rule.blood-toll', 'rule.democracy', 'rule.sudden-death', 'rule.king-of-the-hill', 'rule.harvest'],
+      ruleCardIds: ['rule.tribute', 'rule.conscription', 'rule.blood-toll', 'rule.democracy', 'rule.sudden-death', 'rule.king-of-the-hill', 'rule.harvest', 'rule.heartland', 'rule.fallen-banner'],
       loadoutBudget: 6,
-      skillCardIds: ['skill.echo', 'skill.brand', 'skill.quake', 'skill.revive', 'skill.sacrifice', 'skill.coronation', 'skill.swap'],
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.echo',
+        'skill.reinforce',
+        'skill.salve',
+        'skill.surge',
+      ],
     },
     {
       /**
@@ -1580,9 +2304,142 @@ export const bundledContentSource: ContentSource = {
         'rule.conscription',
         'rule.tribute',
         'rule.siege',
+        'rule.scarcity',
+        'rule.march',
       ],
       loadoutBudget: 6,
-      skillCardIds: ['skill.teleport', 'skill.swap', 'skill.freeze', 'skill.bulwark', 'skill.knight-leap', 'skill.volley', 'skill.recall'],
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.dart',
+        'skill.courier',
+        'skill.feint',
+      ],
+    },
+    {
+      id: 'preset.frontier',
+      nameKey: 'preset.frontier.name',
+      boardId: 'board.frontier',
+      pieceIds: [
+        'piece.king',
+        'piece.queen',
+        'piece.rook',
+        'piece.knight',
+        'piece.bishop',
+        'piece.pawn',
+        'piece.archer',
+        'piece.lancer',
+        'piece.marksman',
+      ],
+      ruleCardIds: [
+        'rule.three-check',
+        'rule.sudden-death',
+        'rule.royal-bodyguard',
+        'rule.last-stand',
+        'rule.conscription',
+        'rule.duel',
+        'rule.siege',
+        'rule.march',
+        'rule.steadfast',
+        'rule.diagonal-court',
+      ],
+      loadoutBudget: 6,
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.scout',
+        'skill.guard',
+        'skill.hinder',
+        'skill.anchor',
+        'skill.courier',
+        'skill.salve',
+        'skill.feint',
+      ],
+    },
+    {
+      id: 'preset.colossus',
+      nameKey: 'preset.colossus.name',
+      boardId: 'board.colossus',
+      pieceIds: [
+        'piece.king',
+        'piece.queen',
+        'piece.rook',
+        'piece.knight',
+        'piece.bishop',
+        'piece.pawn',
+        'piece.archer',
+        'piece.lancer',
+        'piece.marksman',
+        'piece.charger',
+      ],
+      ruleCardIds: [
+        'rule.three-check',
+        'rule.sudden-death',
+        'rule.royal-bodyguard',
+        'rule.last-stand',
+        'rule.conscription',
+        'rule.diagonal-court',
+      ],
+      loadoutBudget: 6,
+      skillCardIds: [
+        'skill.teleport',
+        'skill.swap',
+        'skill.revive',
+        'skill.freeze',
+        'skill.snare',
+        'skill.coronation',
+        'skill.knight-leap',
+        'skill.charge',
+        'skill.bulwark',
+        'skill.shackle',
+        'skill.recall',
+        'skill.shove',
+        'skill.recruit',
+        'skill.volley',
+        'skill.sacrifice',
+        'skill.blink',
+        'skill.mend',
+        'skill.quake',
+        'skill.veil',
+        'skill.dart',
+        'skill.leash',
+        'skill.tide',
+        'skill.brand',
+      ],
     },
   ],
 }

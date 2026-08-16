@@ -27,11 +27,14 @@ const ok = shippedContent()
 /** Content the envelope refuses, built by widening a card's target space. */
 function overBudget(): ContentSet {
   const source = structuredClone(bundledContentSource) as {
-    skillCards: Array<{ id: string; effects: Array<{ actions: unknown[] }> }>
+    skillCards: Array<{ id: string; effects: Array<{ actions: Array<Record<string, unknown>> }> }>
   }
   const card = source.skillCards.find((c) => c.id === 'skill.swap')
   if (!card) throw new Error('fixture drift: the swap card is gone')
-  card.effects[0]!.actions.push(structuredClone(card.effects[0]!.actions[0]))
+  const swap = card.effects[0]!.actions[0]!
+  swap.a = { kind: 'chosen_friendly' }
+  swap.b = { kind: 'chosen_friendly' }
+  card.effects[0]!.actions.push(structuredClone(swap))
   const loaded = loadContentSet(source)
   if (!loaded.ok) throw new Error(`fixture is invalid: ${JSON.stringify(loaded.errors)}`)
   return loaded.set

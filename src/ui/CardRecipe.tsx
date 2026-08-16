@@ -182,7 +182,7 @@ function kindOf(value: unknown): string {
  * tests with nothing else to hand. `targetCount` below answers the same question
  * for a kind that has not been built yet, which is what the UI needs.
  */
-function targetKeysOf(action: Record<string, unknown>): string[] {
+export function targetKeysOf(action: Record<string, unknown>): string[] {
   if ('a' in action || 'b' in action) return ['a', 'b']
   return 'target' in action ? ['target'] : []
 }

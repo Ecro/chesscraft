@@ -61,7 +61,8 @@ describe('a condition on the effect narrows what the card may be aimed at', () =
     // The reason this fix is worth making in the engine rather than in the new
     // card: `skill.coronation` has carried the identical shape since the
     // original set, so a content-level workaround would have left it broken.
-    expect(offers('skill.coronation', mixed)).toEqual(['c2', 'e2'])
+    const promotionMixed: Place[] = [K_W, at('c6', 'piece.pawn'), at('e6', 'piece.pawn'), at('b5', 'piece.rook'), { square: 'f1', pieceId: 'piece.king', side: 'black' }]
+    expect(offers('skill.coronation', promotionMixed)).toEqual(['c6', 'e6'])
   })
 
   it('offers the card not at all when nothing satisfies its condition', () => {

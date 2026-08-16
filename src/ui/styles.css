@@ -1160,9 +1160,12 @@ hr {
 }
 
 .foe-cards {
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   gap: var(--space-1);
   margin-left: auto;
+  overflow-x: auto;
 }
 
 .foe-card {
@@ -1210,6 +1213,15 @@ hr {
  * whole board on screen at once — at every viewport, without the layout needing
  * to know which orientation it is in.
  */
+.board-viewport {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
 .board-frame {
   flex: none;
   /* 200px is what sits ABOVE the board and must stay on screen with it — the
@@ -1221,7 +1233,7 @@ hr {
      fallback the whole declaration is dropped on a browser that lacks `dvh` and
      the board falls back to the full container width, which is the one outcome
      `min()` exists to stop: a board taller than the screen, bottom ranks gone. */
-  width: min(100%, calc(100vh - 200px));
+  width: max(calc(var(--board-columns, 6) * 44px + 14px), min(100%, calc(100vh - 200px)));
   margin-inline: auto;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
@@ -1233,7 +1245,7 @@ hr {
 
 @supports (width: 100dvh) {
   .board-frame {
-    width: min(100%, calc(100dvh - 200px));
+    width: max(calc(var(--board-columns, 6) * 44px + 14px), min(100%, calc(100dvh - 200px)));
   }
 }
 
@@ -1317,9 +1329,8 @@ hr {
   justify-content: center;
   border: none;
   border-radius: 0;
-  /* Six columns, so one is ~16.6cqw. 11cqw keeps the mark inside its square
-     with room for the bevel, and the cap stops it ballooning on a desktop. */
-  font-size: min(34px, 11cqw);
+  /* Keep the mark at roughly two-thirds of a cell for every board width. */
+  font-size: min(34px, calc(100cqw / var(--board-columns, 6) * 0.66));
   line-height: 0;
   color: var(--color-text);
   background: var(--color-board-light);
@@ -1463,6 +1474,26 @@ hr {
   }
   100% {
     transform: translate(0, 0) scale(1);
+  }
+}
+
+/* A royal under attack gets a persistent red edge, not only a transient
+   toast. The pulse is a reminder; the `data-check` attribute and accessible
+   square label carry the same fact when motion is reduced. */
+.square[data-check='true'] {
+  outline: var(--bevel-lg) solid var(--color-legal-capture);
+  outline-offset: calc(-1 * var(--bevel-lg));
+  z-index: 3;
+  animation: check-pulse var(--motion-card-duration) var(--motion-card-steps) infinite;
+}
+
+@keyframes check-pulse {
+  0%,
+  100% {
+    outline-color: var(--color-legal-capture);
+  }
+  50% {
+    outline-color: var(--color-selected);
   }
 }
 
@@ -1918,11 +1949,16 @@ hr {
 .hotbar {
   display: flex;
   gap: var(--space-2);
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px;
 }
 
 .slot {
-  flex: 1;
-  aspect-ratio: 1;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -2283,7 +2319,8 @@ hr {
  * spent the card must be able to move straight through it, and the one who did
  * not has nothing to do about it either.
  */
-.card-banner {
+.card-banner,
+.award-banner {
   position: absolute;
   top: 96px;
   left: var(--space-5);
@@ -2299,6 +2336,11 @@ hr {
   box-shadow: inset var(--bevel) var(--bevel) 0 var(--color-surface-hi);
 }
 
+.award-banner {
+  background: var(--color-positive);
+  animation: pop var(--motion-card-duration) var(--motion-card-steps);
+}
+
 .card-banner-body {
   min-width: 0;
 }
@@ -2309,7 +2351,8 @@ hr {
   font-size: var(--font-size-xs);
 }
 
-.card-banner strong {
+.card-banner strong,
+.award-banner strong {
   display: block;
   font-weight: 400;
   font-size: var(--font-size-md);
@@ -2328,6 +2371,57 @@ hr {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* The final board stays visible while this explains the royal capture. */
+.capture-reveal {
+  position: absolute;
+  top: 96px;
+  left: var(--space-5);
+  right: var(--space-5);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-side-black-deep);
+  box-shadow:
+    inset var(--bevel-lg) var(--bevel-lg) 0 var(--color-side-black-hi),
+    inset calc(-1 * var(--bevel-lg)) calc(-1 * var(--bevel-lg)) 0 var(--color-side-black-lo),
+    0 8px 0 var(--color-shadow);
+  color: var(--color-side-black-hi);
+  pointer-events: none;
+  animation: pop var(--motion-card-duration) var(--motion-card-steps);
+}
+
+.capture-reveal-body {
+  min-width: 0;
+}
+
+.capture-reveal-body strong,
+.capture-reveal-body > span,
+.capture-reveal-body small {
+  display: block;
+}
+
+.capture-reveal-body strong {
+  color: var(--color-heading);
+  font-size: var(--font-size-md);
+  font-weight: 400;
+}
+
+.capture-reveal-body > span {
+  margin-top: var(--space-1);
+  color: var(--color-side-black-hi);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.capture-reveal-body small {
+  margin-top: var(--space-1);
+  color: var(--color-side-black-text);
+  font-size: var(--font-size-xs);
 }
 
 .rule-banner {
@@ -2416,6 +2510,21 @@ hr {
     inset var(--bevel) var(--bevel) 0 var(--color-side-black),
     0 6px 0 var(--color-shadow);
   color: var(--color-side-black-hi);
+}
+
+.check-chip {
+  display: block;
+  max-width: min(42vw, 220px);
+  overflow: hidden;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-w-thin) solid var(--color-outline);
+  background: var(--color-legal-capture);
+  color: var(--color-outline);
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: check-pulse var(--motion-card-duration) var(--motion-card-steps) infinite;
 }
 
 /* -------------------------------------------------------------------- result */

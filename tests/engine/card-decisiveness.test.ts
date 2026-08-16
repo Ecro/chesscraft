@@ -180,7 +180,7 @@ describe('AC-CARDS — what each rule card does to the outcome (PLAN Phase 5)', 
  */
 const SUSPECTS: string[] = [
   'rule.royal-bodyguard',
-  'rule.knights-honour',
   'rule.fast-promotion',
+  'rule.conscription',
   'rule.blood-toll',
 ]

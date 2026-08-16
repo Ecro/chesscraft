@@ -1,11 +1,13 @@
 import type { ContentSet } from '@content/load'
-import type { Action as EffectAction, MovePattern } from '@content/schema'
+import { parseSquare, type Action as EffectAction, type DestinationRegion, type MovePattern, type Target } from '@content/schema'
 import {
   type BoundEffect,
   type EvalCtx,
   bindEffect,
   collectEffects,
   evalCondition,
+  isChosenTargetAllowed,
+  isDestinationAllowed,
   paintedSquares,
   pieceDefOf,
   resolveTarget,
@@ -83,7 +85,11 @@ export const DRAFT_ACTIONS = 4
 export const MAX_MATCH_ACTIONS = ACTIONS_PER_PLY * PLY_CAP + DRAFT_ACTIONS
 
 export const DRAFT_OFFER_SIZE = 3
-export const SECOND_DRAFT_AFTER_TURNS = 5
+/** A side receives one automatic skill-card award every five completed turns. */
+export const SKILL_AWARD_INTERVAL = 5
+/** @deprecated Kept as a compatibility alias for callers that named the old boundary. */
+export const SECOND_DRAFT_AFTER_TURNS = SKILL_AWARD_INTERVAL
+export const MATCH_SNAPSHOT_VERSION = 2
 const MAX_CASCADE_DEPTH = 8
 
 // ---------------------------------------------------------------------------
@@ -284,17 +290,18 @@ function hasRoyal(board: ReadonlyMap<SquareId, PieceOnBoard>, content: ContentSe
  * generated. Reading it any other way would let a rule card that makes a king
  * safe still lose the match to a check counter.
  */
-export function sideInCheck(state: GameState, content: ContentSet, side: Side): boolean {
+export function royalSquaresInCheck(state: GameState, content: ContentSet, side: Side): SquareId[] {
   const royals: SquareId[] = []
   for (const [sq, piece] of state.board) {
     if (piece.side === side && content.pieces.get(piece.pieceId)?.royal === true) royals.push(sq)
   }
-  if (royals.length === 0) return false
+  if (royals.length === 0) return []
 
   const mods = generationModifiers({ ...state, sideToMove: otherSide(side) }, content)
   const exposed = royals.filter((sq) => !mods.protectedSquares.has(sq))
-  if (exposed.length === 0) return false
+  if (exposed.length === 0) return []
 
+  const attacked = new Set<SquareId>()
   for (const [from, piece] of state.board) {
     if (piece.side === side) continue
     if (mods.forbidden.has(from)) continue
@@ -302,59 +309,111 @@ export function sideInCheck(state: GameState, content: ContentSet, side: Side): 
     if (!def) continue
     const patterns = def.attack ?? def.movement
     const reach = reachFrom(state, from, piece, patterns, true, false)
-    if (reach.captures.some((sq) => exposed.includes(sq))) return true
+    for (const square of reach.captures) {
+      if (exposed.includes(square)) attacked.add(square)
+    }
   }
-  return false
+  return royals.filter((square) => attacked.has(square))
+}
+
+/** Whether at least one royal of `side` can be captured on the next move. */
+export function sideInCheck(state: GameState, content: ContentSet, side: Side): boolean {
+  return royalSquaresInCheck(state, content, side).length > 0
 }
 
 // ---------------------------------------------------------------------------
 // Card plays
 // ---------------------------------------------------------------------------
 
-/** Ordered choice slots a card requires, derived from its actions. */
-/**
- * Exported so the AI's content-complexity envelope can read the same slot
- * structure the generator does (ADR-010). Re-deriving it there would be one
- * vocabulary with two code paths — the failure this repo has recorded twice —
- * and the copy would go stale the first time a new target kind is added.
- */
-export function choiceSlots(content: ContentSet, cardId: string): Array<'friendly' | 'enemy' | 'empty'> {
+type ChosenTarget =
+  | Extract<Target, { kind: 'chosen_friendly' }>
+  | Extract<Target, { kind: 'chosen_enemy' }>
+
+export interface ChoiceSlotSpec {
+  kind: 'friendly' | 'enemy' | 'empty'
+  target?: ChosenTarget
+  region?: DestinationRegion
+  /** Choice index of the target whose piece owns a scoped destination. */
+  anchorIndex?: number
+}
+
+/** Detailed slots are the single source of truth for generation and complexity. */
+export function choiceSlotSpecs(content: ContentSet, cardId: string): ChoiceSlotSpec[] {
   const card = content.skillCards.get(cardId)
   if (!card) return []
-  const slots: Array<'friendly' | 'enemy' | 'empty'> = []
+  const slots: ChoiceSlotSpec[] = []
+  const addTarget = (target: Target): number | null => {
+    if (target.kind !== 'chosen_friendly' && target.kind !== 'chosen_enemy') return null
+    slots.push({ kind: target.kind === 'chosen_friendly' ? 'friendly' : 'enemy', target })
+    return slots.length - 1
+  }
   for (const effect of card.effects) {
     for (const act of effect.actions) {
+      let targetIndex: number | null = null
       if ('target' in act) {
-        if (act.target.kind === 'chosen_friendly') slots.push('friendly')
-        if (act.target.kind === 'chosen_enemy') slots.push('enemy')
+        targetIndex = addTarget(act.target)
       }
       if (act.kind === 'swap_pieces') {
-        for (const side of [act.a, act.b]) {
-          if (side.kind === 'chosen_friendly') slots.push('friendly')
-          if (side.kind === 'chosen_enemy') slots.push('enemy')
-        }
+        addTarget(act.a)
+        addTarget(act.b)
       }
-      if ('to' in act && typeof act.to === 'object' && act.to.kind === 'chosen_empty') slots.push('empty')
-      if ('at' in act && typeof act.at === 'object' && act.at.kind === 'chosen_empty') slots.push('empty')
+      if ('to' in act && typeof act.to === 'object' && act.to !== null && act.to.kind === 'chosen_empty') {
+        slots.push({
+          kind: 'empty',
+          ...(act.to.region === undefined ? {} : { region: act.to.region }),
+          ...(targetIndex === null ? {} : { anchorIndex: targetIndex }),
+        })
+      }
+      if ('at' in act && typeof act.at === 'object' && act.at !== null && act.at.kind === 'chosen_empty') {
+        slots.push({
+          kind: 'empty',
+          ...(act.at.region === undefined ? {} : { region: act.at.region }),
+        })
+      }
     }
   }
   return slots
 }
 
-function candidatesFor(state: GameState, content: ContentSet, slot: 'friendly' | 'enemy' | 'empty'): SquareId[] {
+/**
+ * Exported as the compatibility view used by AI callers that only need the
+ * number and broad kind of each slot. The detailed resolver remains the
+ * authority for candidate domains.
+ */
+export function choiceSlots(content: ContentSet, cardId: string): Array<'friendly' | 'enemy' | 'empty'> {
+  return choiceSlotSpecs(content, cardId).map((slot) => slot.kind)
+}
+
+function emptySquares(state: GameState): SquareId[] {
   const out: SquareId[] = []
-  if (slot === 'empty') {
-    for (let f = 0; f < state.width; f += 1) {
-      for (let r = 0; r < state.height; r += 1) {
-        const sq = squareId(f, r)
-        if (!state.board.has(sq)) out.push(sq)
-      }
+  for (let f = 0; f < state.width; f += 1) {
+    for (let r = 0; r < state.height; r += 1) {
+      const sq = squareId(f, r)
+      if (!state.board.has(sq)) out.push(sq)
     }
-    return out.sort()
   }
-  for (const [sq, piece] of state.board) {
-    const wanted = slot === 'friendly' ? state.sideToMove : otherSide(state.sideToMove)
-    if (piece.side === wanted && content.pieces.get(piece.pieceId)?.royal !== true) out.push(sq)
+  return out.sort()
+}
+
+function candidatesFor(
+  state: GameState,
+  content: ContentSet,
+  slot: ChoiceSlotSpec,
+  chosen: readonly SquareId[],
+): SquareId[] {
+  if (slot.kind === 'empty') {
+    const anchor = slot.anchorIndex === undefined ? null : chosen[slot.anchorIndex] ?? null
+    const anchorPiece = anchor ? state.board.get(anchor) : undefined
+    const relativeSide = anchorPiece?.side ?? state.sideToMove
+    return emptySquares(state).filter((square) =>
+      isDestinationAllowed(state, content, square, slot.region, relativeSide, anchor),
+    )
+  }
+  const target = slot.target
+  if (!target) return []
+  const out: SquareId[] = []
+  for (const [sq] of state.board) {
+    if (isChosenTargetAllowed(target, sq, state, content, state.sideToMove, chosen, 'skill')) out.push(sq)
   }
   return out.sort()
 }
@@ -397,11 +456,11 @@ function firstChoiceCandidates(
   state: GameState,
   content: ContentSet,
   cardId: string,
-  slot: 'friendly' | 'enemy' | 'empty',
+  slot: ChoiceSlotSpec,
 ): SquareId[] {
-  const options = candidatesFor(state, content, slot)
+  const options = candidatesFor(state, content, slot, [])
   const card = content.skillCards.get(cardId)
-  if (!card || slot === 'empty') return options
+  if (!card || slot.kind === 'empty') return options
   if (card.effects.some((effect) => effect.forEach)) return options
   // The common case, kept free: with nothing to narrow by, the answer is the
   // answer `candidatesFor` already gave.
@@ -487,11 +546,19 @@ function cardPlays(state: GameState, content: ContentSet): Action[] {
     if (usedCount >= card.uses) continue
     if (!cardResolves(state, content, cardId)) continue
 
-    const slots = choiceSlots(content, cardId)
+    const slots = choiceSlotSpecs(content, cardId)
     let combos: SquareId[][] = [[]]
     for (const [index, slot] of slots.entries()) {
-      const options = index === 0 ? firstChoiceCandidates(state, content, cardId, slot) : candidatesFor(state, content, slot)
-      combos = combos.flatMap((prefix) => options.filter((o) => !prefix.includes(o)).map((o) => [...prefix, o]))
+      if (index === 0) {
+        const options = firstChoiceCandidates(state, content, cardId, slot)
+        combos = options.map((option) => [option])
+      } else {
+        combos = combos.flatMap((prefix) =>
+          candidatesFor(state, content, slot, prefix)
+            .filter((option) => !prefix.includes(option))
+            .map((option) => [...prefix, option]),
+        )
+      }
       if (combos.length === 0) break
     }
     for (const targets of combos) actions.push({ kind: 'play_card', cardId, targets })
@@ -903,6 +970,19 @@ function executeActions(
             } else if (act.to.kind === 'chosen_empty') {
               dest = chosen[cursor.i] ?? null
               cursor.i += 1
+              if (
+                dest &&
+                !isDestinationAllowed(
+                  working,
+                  content,
+                  dest,
+                  act.to.region,
+                  piece.side,
+                  sq,
+                )
+              ) {
+                dest = null
+              }
             }
             // A teleport never returns a piece to a square it already occupied
             // this ply. Two portals pointing at each other would otherwise
@@ -937,7 +1017,8 @@ function executeActions(
           } else if (act.at.kind === 'own_back_rank') {
             dest = homeRankVacancy(side)
           }
-          if (dest && !m.board.has(dest)) {
+          const region = act.at.kind === 'chosen_empty' ? act.at.region : undefined
+          if (dest && !m.board.has(dest) && isDestinationAllowed(working, content, dest, region, side, null)) {
             m.board.set(dest, { pieceId: act.pieceId, side })
             m.arrived.push(dest)
           }
@@ -964,7 +1045,8 @@ function executeActions(
             dest = chosen[cursor.i] ?? null
             cursor.i += 1
           }
-          if (!dest || m.board.has(dest)) break
+          const region = act.at.kind === 'chosen_empty' ? act.at.region : undefined
+          if (!dest || m.board.has(dest) || !isDestinationAllowed(working, content, dest, region, side, null)) break
 
           const [pieceId] = pool.splice(at, 1)
           m.board.set(dest, { pieceId: pieceId!, side })
@@ -1526,44 +1608,51 @@ function royalTransition(
   return null
 }
 
-/**
- * Records the completed turn and opens the second draft on turn six (AC-006).
- *
- * The offer excludes every card this side already holds AND every card it was
- * ever offered, so a re-roll cannot resurface a card the player passed on.
- * It is drawn from the (seed, player, draftIndex) substream, never from board
- * state — that independence is what the AC-006 bias test pins.
- */
+/** Returns the first recurring skill-award boundary after this side's turns. */
 /*
  * Takes no card id since ADR-001. A turn's card is consumed by the card branch,
  * which is the only place that still knows one was played — a `usedCard`
  * parameter here would be permanently null and silently stop marking cards used.
  */
+function firstSkillBoundary(completedTurns: number): number {
+  return (Math.floor(Math.max(0, completedTurns) / SKILL_AWARD_INTERVAL) + 1) * SKILL_AWARD_INTERVAL
+}
+
+function validNextSkillTurn(draft: GameState['drafts'][Side]): number {
+  return Number.isInteger(draft.nextSkillTurn) && draft.nextSkillTurn > 0
+    ? draft.nextSkillTurn
+    : firstSkillBoundary(draft.completedTurns)
+}
+
+/**
+ * Records a completed turn and awards cards at recurring per-side boundaries.
+ * Awards are immediate and never create a board-blocking offer.
+ */
 function bumpTurns(state: GameState, content: ContentSet, mover: Side): GameState['drafts'] {
   const draft = state.drafts[mover]
   const completedTurns = draft.completedTurns + 1
 
-  let offers = draft.offers
-  let everOffered = draft.everOffered
-  if (completedTurns === SECOND_DRAFT_AFTER_TURNS && draft.draftIndex === 1 && offers === null) {
-    const preset = content.presets.get(state.presetId)
-    // Through `skillPoolFor`, never `preset.skillCardIds` — the opening offer in
-    // `match.ts` reads the same helper, and a second draft that skipped it would
-    // deal the shared pool while the first dealt the per-side one.
-    const pool = (preset ? skillPoolFor(preset, mover) : []).filter(
-      (id) => !draft.everOffered.includes(id) && !draft.held.includes(id),
-    )
-    const drawn = pickDistinct(rngFor(state.seed, 'draft', mover, draft.draftIndex), pool, DRAFT_OFFER_SIZE)
-    // AC-005 fixes an offer at three distinct cards, so a pool that cannot fill
-    // one yields NO second offer. Not a short offer, and above all not an empty
-    // one: an empty offer still gates board play, which leaves the match with no
-    // legal action and no result. A preset with a small card pool is legal
-    // content, so this absent case is reachable from valid input, not a bug in
-    // the caller.
-    if (drawn.length === DRAFT_OFFER_SIZE) {
-      offers = drawn
-      everOffered = [...draft.everOffered, ...drawn]
+  let nextSkillTurn = validNextSkillTurn(draft)
+  let awardCount = Number.isInteger(draft.awardCount) && draft.awardCount >= 0
+    ? draft.awardCount
+    : Math.floor(Math.max(0, draft.completedTurns) / SKILL_AWARD_INTERVAL)
+  let held = [...draft.held]
+  let everOffered = [...draft.everOffered]
+  const preset = content.presets.get(state.presetId)
+
+  while (completedTurns >= nextSkillTurn) {
+    const alreadySeen = new Set([...everOffered, ...held, ...draft.used])
+    const pool = preset
+      ? [...new Set(skillPoolFor(preset, mover))].filter((id) => !alreadySeen.has(id))
+      : []
+    const drawn = pickDistinct(rngFor(state.seed, 'skill-award', mover, awardCount), pool, 1)
+    const cardId = drawn[0]
+    if (cardId !== undefined) {
+      held.push(cardId)
+      everOffered.push(cardId)
     }
+    awardCount += 1
+    nextSkillTurn += SKILL_AWARD_INTERVAL
   }
 
   return {
@@ -1571,7 +1660,9 @@ function bumpTurns(state: GameState, content: ContentSet, mover: Side): GameStat
     [mover]: {
       ...draft,
       completedTurns,
-      offers,
+      held,
+      nextSkillTurn,
+      awardCount,
       everOffered,
     },
   }
@@ -1582,12 +1673,127 @@ function bumpTurns(state: GameState, content: ContentSet, mover: Side): GameStat
 // ---------------------------------------------------------------------------
 
 export function serializeState(state: GameState): string {
-  return JSON.stringify({ ...state, board: [...state.board.entries()] })
+  const { board, ...rest } = state
+  return JSON.stringify({ ...rest, board: [...board.entries()], snapshotVersion: MATCH_SNAPSHOT_VERSION })
 }
 
 export function deserializeState(json: string): GameState {
-  const raw = JSON.parse(json) as Omit<GameState, 'board'> & { board: Array<[SquareId, PieceOnBoard]> }
-  return { ...raw, board: new Map(raw.board) }
+  const parsed: unknown = JSON.parse(json)
+  if (parsed === null || typeof parsed !== 'object') throw new Error('invalid match snapshot')
+  const raw = parsed as Record<string, unknown>
+  const versionValue = raw.snapshotVersion === undefined ? 1 : raw.snapshotVersion
+  if (!Number.isInteger(versionValue) || (versionValue as number) < 1 || (versionValue as number) > MATCH_SNAPSHOT_VERSION) {
+    throw new Error(`unsupported match snapshot version ${String(versionValue)}`)
+  }
+  const version = versionValue as number
+
+  const width = raw.width
+  const height = raw.height
+  if (!Number.isInteger(width) || (width as number) <= 0 || !Number.isInteger(height) || (height as number) <= 0) {
+    throw new Error('invalid match snapshot dimensions')
+  }
+
+  const rawBoard = raw.board
+  if (!Array.isArray(rawBoard)) throw new Error('invalid match snapshot board')
+  const boardEntries: Array<[SquareId, PieceOnBoard]> = []
+  const squares = new Set<string>()
+  for (const entry of rawBoard) {
+    if (!Array.isArray(entry) || entry.length !== 2) throw new Error('invalid match snapshot board entry')
+    const square = entry[0]
+    const piece = entry[1]
+    if (typeof square !== 'string' || squares.has(square) || piece === null || typeof piece !== 'object') {
+      throw new Error('invalid match snapshot board entry')
+    }
+    const parsedSquare = parseSquare(square)
+    if (
+      parsedSquare === null ||
+      parsedSquare.file < 0 ||
+      parsedSquare.file >= (width as number) ||
+      parsedSquare.rank < 0 ||
+      parsedSquare.rank >= (height as number)
+    ) {
+      throw new Error('invalid match snapshot board entry')
+    }
+    const rawPiece = piece as Record<string, unknown>
+    const side = rawPiece.side
+    if (typeof rawPiece.pieceId !== 'string' || (side !== 'white' && side !== 'black')) {
+      throw new Error('invalid match snapshot piece')
+    }
+    squares.add(square)
+    boardEntries.push([square, { pieceId: rawPiece.pieceId, side }])
+  }
+
+  const rawDrafts = raw.drafts
+  if (rawDrafts === null || typeof rawDrafts !== 'object') throw new Error('invalid match snapshot drafts')
+  const drafts = rawDrafts as Record<string, unknown>
+  const normalizeStrings = (value: unknown, field: string): string[] => {
+    if (value === undefined && version === 1) return []
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+      throw new Error(`invalid match snapshot draft ${field}`)
+    }
+    return [...value]
+  }
+  const normalizeDraft = (value: unknown): GameState['drafts'][Side] => {
+    if (value === null || typeof value !== 'object') throw new Error('invalid match snapshot draft')
+    const draft = value as Record<string, unknown>
+    const held = normalizeStrings(draft.held, 'held')
+    const used = normalizeStrings(draft.used, 'used')
+    const everOffered = draft.everOffered === undefined
+      ? [
+          ...held,
+          ...(Array.isArray(draft.offers)
+            ? draft.offers.filter((item): item is string => typeof item === 'string')
+            : []),
+        ]
+      : normalizeStrings(draft.everOffered, 'everOffered')
+    const offersValue = draft.offers === undefined ? null : draft.offers
+    if (offersValue !== null && (!Array.isArray(offersValue) || offersValue.some((item) => typeof item !== 'string'))) {
+      throw new Error('invalid match snapshot draft offers')
+    }
+    const completedTurns = draft.completedTurns === undefined ? 0 : draft.completedTurns
+    if (!Number.isInteger(completedTurns) || (completedTurns as number) < 0) {
+      throw new Error('invalid match snapshot completedTurns')
+    }
+    const completed = completedTurns as number
+    const nextSkillTurn = draft.nextSkillTurn === undefined
+      ? firstSkillBoundary(completed)
+      : draft.nextSkillTurn
+    if (!Number.isInteger(nextSkillTurn) || (nextSkillTurn as number) < 1) {
+      throw new Error('invalid match snapshot nextSkillTurn')
+    }
+    // v1 did not record automatic awards. Keep the legacy counter honest at
+    // zero instead of guessing which cards were already received; the next
+    // boundary is reconstructed independently from completedTurns.
+    const awardCount = draft.awardCount === undefined ? 0 : draft.awardCount
+    if (!Number.isInteger(awardCount) || (awardCount as number) < 0) {
+      throw new Error('invalid match snapshot awardCount')
+    }
+    const draftIndex = draft.draftIndex === undefined ? (offersValue === null ? 1 : 0) : draft.draftIndex
+    if (!Number.isInteger(draftIndex) || (draftIndex as number) < 0) {
+      throw new Error('invalid match snapshot draftIndex')
+    }
+    const offers = offersValue === null ? null : [...(offersValue as string[])]
+    return {
+      held,
+      used,
+      offers,
+      everOffered,
+      completedTurns: completed,
+      nextSkillTurn: nextSkillTurn as number,
+      awardCount: awardCount as number,
+      draftIndex: draftIndex as number,
+    }
+  }
+
+  // Keep `drafts` in its original property position so serialization is a
+  // fixed point as well as a semantic round trip. Overwriting an existing
+  // object property does not move it; destructuring it out would.
+  const { snapshotVersion: _snapshotVersion, board: _board, ...rest } = raw
+  return {
+    ...rest,
+    drafts: { white: normalizeDraft(drafts.white), black: normalizeDraft(drafts.black) },
+    board: new Map(boardEntries),
+  } as unknown as GameState
 }
 
 /** Per-player view (ADR-004) — the seam a future fog rule needs. */

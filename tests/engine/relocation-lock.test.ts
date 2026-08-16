@@ -4,6 +4,7 @@ import { createPosition } from '@engine/match'
 import { loadContentSet, type ContentSet } from '@content/load'
 import { cloneValid, type ContentSource } from '../content/fixtures/valid-set'
 import { exportContent, importContent } from '@editor/io'
+import { SCHEMA_VERSION } from '@content/schema'
 import type { GameState, Side, SquareId } from '@engine/types'
 
 /**
@@ -278,7 +279,7 @@ describe('ADR-002: the lock flag admits swap and refuses a card with no relocati
   })
 })
 
-describe('ADR-007: the v12 bump normalizes without erasing v11 declarations', () => {
+describe('ADR-007: schema bumps normalize without erasing v11 declarations', () => {
   it('injects lockRelocatedAfterPlay: false into a pre-v12 document', () => {
     const src = cloneValid() // schemaVersion 1
     const result = loadContentSet(src)
@@ -287,7 +288,7 @@ describe('ADR-007: the v12 bump normalizes without erasing v11 declarations', ()
     expect(result.set.skillCards.get('skill.teleport')?.lockRelocatedAfterPlay).toBe(false)
   })
 
-  it('brings a v11 document up to v12 through the EDITOR import path too', () => {
+  it('brings a v11 document up to the current schema through the EDITOR import path too', () => {
     // D.5 window. `editor/io.ts` carried its own copy of the normalization and
     // the copy stopped at `<= 10`, so the v12 bump made every pre-v12 import
     // re-stamp the document to v12 while leaving the new field off — an import
@@ -304,7 +305,7 @@ describe('ADR-007: the v12 bump normalizes without erasing v11 declarations', ()
     expect(imported.ok, JSON.stringify(imported.ok ? [] : imported.errors, null, 2)).toBe(true)
     if (!imported.ok) return
 
-    expect(imported.source.schemaVersion, 'the import re-stamps to this build').toBe(12)
+    expect(imported.source.schemaVersion, 'the import re-stamps to this build').toBe(SCHEMA_VERSION)
     for (const card of imported.source.skillCards) {
       expect((card as { lockRelocatedAfterPlay?: boolean }).lockRelocatedAfterPlay).toBe(false)
     }

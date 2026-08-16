@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION } from '@content/schema'
-import { type ContentSource, type ValidationError, loadContentSet, normalizeSkillCard } from '@content/load'
+import { type ContentSource, type ValidationError, loadContentSet, normalizeBoard, normalizeSkillCard } from '@content/load'
 
 /**
  * JSON export and import (AC-015).
@@ -70,6 +70,8 @@ export function importContent(text: string): ImportResult {
     source[collection] = Array.isArray(list)
       ? collection === 'skillCards'
         ? list.map((record) => normalizeSkillCard(record, declaredVersion))
+        : collection === 'boards'
+          ? list.map((record) => normalizeBoard(record, declaredVersion))
         : (list as unknown[])
       : []
   }

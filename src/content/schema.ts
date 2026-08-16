@@ -98,7 +98,12 @@ import { z } from 'zod'
  * and a new condition kind — because two bumps would mean two migration
  * branches and two invalidations of stored author content for one release.
  */
-export const SCHEMA_VERSION = 12
+/*
+ * Bumped 12 -> 13 (PLAN-12x12-cards-balance Phase 1): board-relative regions,
+ * named zones, constrained targets, scoped destinations, and promotion-zone
+ * conditions. v12 documents are normalized once at the loader boundary.
+ */
+export const SCHEMA_VERSION = 13
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -189,20 +194,39 @@ export type MovePattern = z.infer<typeof movePattern>
 // Effect grammar: trigger / condition / action
 // ---------------------------------------------------------------------------
 
+export const targetFilter = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('non_royal') }),
+  z.strictObject({ kind: z.literal('exclude_piece_ids'), pieceIds: z.array(contentId).min(1) }),
+  z.strictObject({ kind: z.literal('allowed_piece_ids'), pieceIds: z.array(contentId).min(1) }),
+])
+export type TargetFilter = z.infer<typeof targetFilter>
+
+/** The current action grammar has one prior target slot, so only index 0 exists. */
+export const choiceRelation = z.strictObject({
+  kind: z.literal('adjacent_to_choice'),
+  choiceIndex: z.number().int().nonnegative().refine((value) => value === 0, {
+    message: 'choiceIndex must reference the only earlier choice (0)',
+  }),
+})
+export type ChoiceRelation = z.infer<typeof choiceRelation>
+
 export const target = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('self') }),
   z.strictObject({ kind: z.literal('mover') }),
   z.strictObject({ kind: z.literal('entering') }),
   z.strictObject({ kind: z.literal('occupant') }),
   z.strictObject({ kind: z.literal('adjacent_friendly') }),
-  z.strictObject({ kind: z.literal('chosen_friendly') }),
-  z.strictObject({ kind: z.literal('chosen_enemy') }),
+  z.strictObject({ kind: z.literal('chosen_friendly'), filter: targetFilter.optional(), relation: choiceRelation.optional() }),
+  z.strictObject({ kind: z.literal('chosen_enemy'), filter: targetFilter.optional(), relation: choiceRelation.optional() }),
 ])
 export type Target = z.infer<typeof target>
 
+export const destinationRegion = z.enum(['any', 'own_territory', 'opponent_territory', 'local'])
+export type DestinationRegion = z.infer<typeof destinationRegion>
+
 export const destination = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('paired_square') }),
-  z.strictObject({ kind: z.literal('chosen_empty') }),
+  z.strictObject({ kind: z.literal('chosen_empty'), region: destinationRegion.optional() }),
   z.strictObject({ kind: z.literal('square'), square: squareRef }),
   z.strictObject({ kind: z.literal('own_back_rank') }),
   /**
@@ -222,6 +246,7 @@ export type Condition =
   | { kind: 'always' }
   | { kind: 'piece_is'; pieceId: string }
   | { kind: 'piece_side'; side: 'mover' | 'opponent' }
+  | { kind: 'in_promotion_zone' }
   | { kind: 'on_square'; squares: string[] }
   /**
    * The subject stands on rank `n`, counted from ITS OWN side's home rank —
@@ -260,6 +285,7 @@ export const condition: z.ZodType<Condition> = z.lazy(() =>
     z.strictObject({ kind: z.literal('always') }),
     z.strictObject({ kind: z.literal('piece_is'), pieceId: contentId }),
     z.strictObject({ kind: z.literal('piece_side'), side: z.enum(['mover', 'opponent']) }),
+    z.strictObject({ kind: z.literal('in_promotion_zone') }),
     z.strictObject({ kind: z.literal('on_square'), squares: z.array(squareRef).min(1) }),
     z.strictObject({ kind: z.literal('on_own_rank'), n: z.number().int().positive() }),
     z.strictObject({ kind: z.literal('check_count_at_least'), n: z.number().int().positive() }),
@@ -489,6 +515,9 @@ export const boardDef = z
     nameKey: i18nKey,
     width: z.number().int().positive(),
     height: z.number().int().positive(),
+    territoryDepth: z.number().int().positive(),
+    promotionDepth: z.number().int().positive(),
+    zones: z.record(z.string().regex(/^[a-z][a-z0-9_-]*$/), z.array(squareRef).min(1)),
     placements: z.array(
       z.strictObject({
         square: squareRef,
@@ -527,6 +556,43 @@ export const boardDef = z
         })
       }
     })
+
+    const maxTerritoryDepth = Math.floor(board.height / 2)
+    if (board.territoryDepth > maxTerritoryDepth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['territoryDepth'],
+        message: `territoryDepth must be at most ${maxTerritoryDepth} for a ${board.height}-rank board`,
+      })
+    }
+    if (board.promotionDepth > board.territoryDepth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['promotionDepth'],
+        message: 'promotionDepth must be at most territoryDepth',
+      })
+    }
+
+    for (const [zoneName, squares] of Object.entries(board.zones)) {
+      const seen = new Set<string>()
+      squares.forEach((square, index) => {
+        if (!inBounds(square)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['zones', zoneName, index],
+            message: `square ${square} is outside the ${board.width}x${board.height} board`,
+          })
+        }
+        if (seen.has(square)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['zones', zoneName, index],
+            message: `duplicate square ${square} in zone ${zoneName}`,
+          })
+        }
+        seen.add(square)
+      })
+    }
   })
 export type BoardDef = z.infer<typeof boardDef>
 

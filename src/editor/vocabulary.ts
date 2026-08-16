@@ -13,7 +13,17 @@ import { LIFECYCLE_EVENTS, SKILL_TRIGGER, action, condition, destination, target
  * kinds. Parameters live with their controls, not here.
  */
 
-export type VocabAxis = 'trigger' | 'target' | 'destination' | 'condition' | 'action' | 'movement' | 'forEach'
+export type VocabAxis =
+  | 'trigger'
+  | 'target'
+  | 'targetFilter'
+  | 'relation'
+  | 'destination'
+  | 'destinationRegion'
+  | 'condition'
+  | 'action'
+  | 'movement'
+  | 'forEach'
 
 export interface VocabularyEntry {
   axis: VocabAxis
@@ -57,8 +67,16 @@ export function enumerateVocabulary(): VocabularyEntry[] {
     ...LIFECYCLE_EVENTS.map((kind) => ({ axis: 'trigger' as const, kind })),
     { axis: 'trigger' as const, kind: SKILL_TRIGGER },
     ...kindsOf(target as unknown as { options: readonly unknown[] }).map((kind) => ({ axis: 'target' as const, kind })),
+    { axis: 'targetFilter' as const, kind: 'non_royal' },
+    { axis: 'targetFilter' as const, kind: 'exclude_piece_ids' },
+    { axis: 'targetFilter' as const, kind: 'allowed_piece_ids' },
+    { axis: 'relation' as const, kind: 'adjacent_to_choice' },
     ...kindsOf(destination as unknown as { options: readonly unknown[] }).map((kind) => ({
       axis: 'destination' as const,
+      kind,
+    })),
+    ...(['any', 'own_territory', 'opponent_territory', 'local'] as const).map((kind) => ({
+      axis: 'destinationRegion' as const,
       kind,
     })),
     ...conditionKinds().map((kind) => ({ axis: 'condition' as const, kind })),

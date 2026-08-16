@@ -74,7 +74,11 @@ export interface DraftState {
   everOffered: string[]
   /** Board plies this side has completed. Drives the turn-6 second draft. */
   completedTurns: number
-  /** How many drafts this side has resolved (0, 1 or 2). */
+  /** Next completed-turn boundary at which this side receives one skill card. */
+  nextSkillTurn: number
+  /** Number of automatic skill awards already attempted for this side. */
+  awardCount: number
+  /** How many opening drafts this side has resolved (0 or 1). */
   draftIndex: number
 }
 

@@ -10,8 +10,8 @@
  * patterns, so "the same reach" and "the same bytes" are genuinely different
  * claims and this file asserts the second.
  *
- * Measured before any of this was written: 18 pieces across the three sources
- * the app loads, 17 of which open. The one that does not is `piece.charger`
+ * Measured after the bishop was added: 19 pieces across the three sources
+ * the app loads, 18 of which open. The one that does not is `piece.charger`
  * (`maxDistance: 3`), and it stays that way by design — the outermost ring cell
  * means "and keeps going", so a slide capped at exactly 3 has no encoding
  * (ADR-002). AC-006 pins the refusal SET rather than a count, so a second
@@ -55,7 +55,7 @@ describe('AC-006 — the set of shipped pieces the grid cannot open is exactly o
     // from measuring against ONE source while the app loaded three, so the
     // count is asserted rather than assumed.
     expect(SOURCES.length).toBe(3)
-    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(18)
+    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(19)
   })
 
   it('refuses exactly piece.charger, and opens everything else', () => {
@@ -167,7 +167,7 @@ describe('every piece the grid opens survives a round-trip', () => {
     const opens = allPieces().filter(
       ({ piece }) => readGrid(movementOf(piece) as unknown as Record<string, unknown>) !== null,
     )
-    expect(opens.length).toBe(17)
+    expect(opens.length).toBe(18)
   })
 })
 

@@ -55,6 +55,10 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   'target:adjacent_friendly': () => ({ kind: 'adjacent_friendly' }),
   'target:chosen_friendly': () => ({ kind: 'chosen_friendly' }),
   'target:chosen_enemy': () => ({ kind: 'chosen_enemy' }),
+  'targetFilter:non_royal': () => ({ kind: 'non_royal' }),
+  'targetFilter:exclude_piece_ids': (ctx) => ({ kind: 'exclude_piece_ids', pieceIds: [firstPiece(ctx)] }),
+  'targetFilter:allowed_piece_ids': (ctx) => ({ kind: 'allowed_piece_ids', pieceIds: [firstPiece(ctx)] }),
+  'relation:adjacent_to_choice': () => ({ kind: 'adjacent_to_choice', choiceIndex: 0 }),
 
   // destinations
   'destination:paired_square': () => ({ kind: 'paired_square' }),
@@ -62,11 +66,16 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   'destination:square': (ctx) => ({ kind: 'square', square: ctx.squares[0] ?? 'a1' }),
   'destination:own_back_rank': () => ({ kind: 'own_back_rank' }),
   'destination:offset': () => ({ kind: 'offset', df: 0, dr: 1 }),
+  'destinationRegion:any': () => 'any',
+  'destinationRegion:own_territory': () => 'own_territory',
+  'destinationRegion:opponent_territory': () => 'opponent_territory',
+  'destinationRegion:local': () => 'local',
 
   // conditions
   'condition:always': () => ({ kind: 'always' }),
   'condition:piece_is': (ctx) => ({ kind: 'piece_is', pieceId: firstPiece(ctx) }),
   'condition:piece_side': () => ({ kind: 'piece_side', side: 'mover' }),
+  'condition:in_promotion_zone': () => ({ kind: 'in_promotion_zone' }),
   // Empty until the author paints a square: a condition that matches nowhere
   // must fail validation, not quietly match everywhere.
   'condition:on_square': () => ({ kind: 'on_square', squares: [] }),

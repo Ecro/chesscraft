@@ -160,6 +160,42 @@ const ROWS: readonly Row[] = [
     path: 'effects.0.actions.0.target',
     authored: { kind: 'chosen_enemy' },
   },
+  {
+    axis: 'targetFilter',
+    kind: 'non_royal',
+    host: 'skillCard',
+    requires: [...EFFECT_WITH_DESTINATION, 'vocab-target-chosen_enemy'],
+    reachTestId: 'vocab-targetFilter-non_royal',
+    path: 'effects.0.actions.0.target.filter',
+    authored: { kind: 'non_royal' },
+  },
+  {
+    axis: 'targetFilter',
+    kind: 'exclude_piece_ids',
+    host: 'skillCard',
+    requires: [...EFFECT_WITH_DESTINATION, 'vocab-target-chosen_enemy'],
+    reachTestId: 'vocab-targetFilter-exclude_piece_ids',
+    path: 'effects.0.actions.0.target.filter',
+    authored: { kind: 'exclude_piece_ids', pieceIds: ['piece.king'] },
+  },
+  {
+    axis: 'targetFilter',
+    kind: 'allowed_piece_ids',
+    host: 'skillCard',
+    requires: [...EFFECT_WITH_DESTINATION, 'vocab-target-chosen_enemy'],
+    reachTestId: 'vocab-targetFilter-allowed_piece_ids',
+    path: 'effects.0.actions.0.target.filter',
+    authored: { kind: 'allowed_piece_ids', pieceIds: ['piece.king'] },
+  },
+  {
+    axis: 'relation',
+    kind: 'adjacent_to_choice',
+    host: 'skillCard',
+    requires: [...EFFECT_WITH_DESTINATION, 'vocab-target-chosen_enemy'],
+    reachTestId: 'vocab-relation-adjacent_to_choice',
+    path: 'effects.0.actions.0.target.relation',
+    authored: { kind: 'adjacent_to_choice', choiceIndex: 0 },
+  },
 
   // --- destinations -------------------------------------------------------
   {
@@ -216,6 +252,17 @@ const ROWS: readonly Row[] = [
     path: 'effects.0.actions.0.to',
     authored: { kind: 'offset', df: 1, dr: -2, forward: true },
   },
+  ...(['any', 'own_territory', 'opponent_territory', 'local'] as const).map(
+    (kind): Row => ({
+      axis: 'destinationRegion',
+      kind,
+      host: 'skillCard',
+      requires: [...EFFECT_WITH_DESTINATION, 'vocab-destination-chosen_empty'],
+      reachTestId: `vocab-destinationRegion-${kind}`,
+      path: 'effects.0.actions.0.to.region',
+      authored: kind,
+    }),
+  ),
 
   // --- conditions ---------------------------------------------------------
   {
@@ -245,6 +292,14 @@ const ROWS: readonly Row[] = [
     params: [{ testid: 'param-cond-side', value: 'opponent' }],
     path: 'effects.0.condition',
     authored: { kind: 'piece_side', side: 'opponent' },
+  },
+  {
+    axis: 'condition',
+    kind: 'in_promotion_zone',
+    host: 'piece',
+    requires: EFFECT,
+    path: 'effects.0.condition',
+    authored: { kind: 'in_promotion_zone' },
   },
   {
     axis: 'condition',

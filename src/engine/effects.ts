@@ -1,5 +1,13 @@
 import type { ContentSet } from '@content/load'
-import type { Condition, Effect, PieceDef, SquareTypeDef } from '@content/schema'
+import type {
+  Condition,
+  DestinationRegion,
+  Effect,
+  PieceDef,
+  SquareTypeDef,
+  Target,
+  TargetFilter,
+} from '@content/schema'
 import { type GameState, type PieceOnBoard, type Side, type SquareId, coords, otherSide, squareId } from './types'
 
 /**
@@ -47,6 +55,79 @@ export interface EvalCtx {
    * board move behind them, where `mover` falls back to the subject.
    */
   moverSquare?: SquareId | null
+}
+
+/** Board-relative rank, counted from a piece's own home side. */
+export function rankFromSide(state: GameState, square: SquareId, side: Side): number {
+  const { rank } = coords(square)
+  return side === 'white' ? rank + 1 : state.height - rank
+}
+
+/** A board half-band whose depth is authored by the board, not by a card. */
+export function inTerritory(
+  state: GameState,
+  content: ContentSet,
+  square: SquareId,
+  side: Side,
+  region: 'own_territory' | 'opponent_territory',
+): boolean {
+  const board = content.boards.get(state.boardId)
+  if (!board) return false
+  const relativeSide = region === 'own_territory' ? side : otherSide(side)
+  return rankFromSide(state, square, relativeSide) <= board.territoryDepth
+}
+
+/** `local` is the eight-square neighborhood around the selected piece. */
+export function inLocalRegion(state: GameState, anchor: SquareId, destination: SquareId): boolean {
+  const from = coords(anchor)
+  const to = coords(destination)
+  return Math.max(Math.abs(from.file - to.file), Math.abs(from.rank - to.rank)) <= 1
+}
+
+function matchesTargetFilter(piece: PieceOnBoard, filter: TargetFilter | undefined, content: ContentSet): boolean {
+  if (!filter) return true
+  if (filter.kind === 'non_royal') return content.pieces.get(piece.pieceId)?.royal !== true
+  if (filter.kind === 'exclude_piece_ids') return !filter.pieceIds.includes(piece.pieceId)
+  return filter.pieceIds.includes(piece.pieceId)
+}
+
+/** Shared target validation used by candidate generation and effect execution. */
+export function isChosenTargetAllowed(
+  target: Target,
+  square: SquareId,
+  state: GameState,
+  content: ContentSet,
+  mover: Side,
+  chosen: readonly SquareId[],
+  layer: Layer,
+): boolean {
+  if (target.kind !== 'chosen_friendly' && target.kind !== 'chosen_enemy') return false
+  const piece = state.board.get(square)
+  if (!piece) return false
+  const expectedSide = target.kind === 'chosen_friendly' ? mover : otherSide(mover)
+  if (piece.side !== expectedSide) return false
+  if (layer === 'skill' && content.pieces.get(piece.pieceId)?.royal === true) return false
+  if (!matchesTargetFilter(piece, target.filter, content)) return false
+  const relation = target.relation
+  if (relation?.kind === 'adjacent_to_choice') {
+    const anchor = chosen[relation.choiceIndex]
+    if (!anchor || !inLocalRegion(state, anchor, square) || anchor === square) return false
+  }
+  return true
+}
+
+/** Shared destination validation used by candidate generation and apply. */
+export function isDestinationAllowed(
+  state: GameState,
+  content: ContentSet,
+  destination: SquareId,
+  region: DestinationRegion | undefined,
+  relativeSide: Side,
+  anchor: SquareId | null,
+): boolean {
+  if (!region || region === 'any') return true
+  if (region === 'local') return anchor !== null && inLocalRegion(state, anchor, destination)
+  return inTerritory(state, content, destination, relativeSide, region)
 }
 
 /** Square types painted on the active board, keyed by square. */
@@ -145,6 +226,12 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
       return ctx.subject?.piece.pieceId === cond.pieceId
     case 'piece_side':
       return ctx.subject?.piece.side === (cond.side === 'mover' ? ctx.mover : otherSide(ctx.mover))
+    case 'in_promotion_zone': {
+      if (!ctx.subject) return false
+      const board = ctx.content.boards.get(ctx.state.boardId)
+      if (!board) return false
+      return rankFromSide(ctx.state, ctx.subject.square, ctx.subject.piece.side) >= ctx.state.height - board.promotionDepth + 1
+    }
     case 'on_square':
       return ctx.subject !== null && cond.squares.includes(ctx.subject.square)
     case 'on_own_rank': {
@@ -188,7 +275,7 @@ export function evalCondition(cond: Condition, bound: BoundEffect, ctx: EvalCtx)
 
 /** Squares an action's `target` resolves to, given who owns the effect. */
 export function resolveTarget(
-  target: { kind: string },
+  target: Target,
   bound: BoundEffect,
   ctx: EvalCtx,
   chosenCursor: { i: number },
@@ -231,7 +318,7 @@ export function resolveTarget(
     case 'chosen_enemy': {
       const sq = ctx.chosen[chosenCursor.i]
       chosenCursor.i += 1
-      return sq ? [sq] : []
+      return sq && isChosenTargetAllowed(target, sq, ctx.state, ctx.content, ctx.mover, ctx.chosen, bound.layer) ? [sq] : []
     }
     default:
       return []
