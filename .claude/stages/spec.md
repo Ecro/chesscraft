@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/spec.md.j2
 provenance: official
-content_hash: bcec227c9b149807a94752d1042c5096f62b50d0fb04d5dd32ae7690f48f6792
+content_hash: 358a60efb1d23dafaa429e717ce1598b028605c0f78f9bb0b1acfc07c4dd6803
 ---
 # Stage: spec
 
@@ -47,7 +47,7 @@ The deep interview here is shorter than `/hm:plan`'s — SPEC concerns are **wha
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:spec --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:spec --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -56,7 +56,7 @@ The deep interview here is shorter than `/hm:plan`'s — SPEC concerns are **wha
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -87,7 +87,7 @@ Grep "<key terms>" --glob "specs/SPEC-*.md"
 Grep "<key terms>" --glob "work-docs/PLAN-*.md"
 # Repo memory — replace `<topic>` with the actual SPEC topic before running.
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 
 # When research ran, read its cache
 [ -f work-docs/RESEARCH-{slug}.md ] && Read work-docs/RESEARCH-{slug}.md
@@ -107,6 +107,20 @@ Same UX rules as `/hm:plan`:
 - Always include **"Other — let me describe"**.
 - From Round 2 onward, include **"SPEC is sufficiently clear — end interview"** on one foundational question per round.
 - Visualization OPTIONAL — prose / bullets preferred, ASCII for topology, Mermaid only in the final document (never in live terminal).
+
+<!-- @hm:comprehension:brief -->
+### Design brief — show this BEFORE the first interview round
+
+`/hm:spec` has no architecture draft — its Step 1 is knowledge retrieval — so disclose what this
+stage holds, in `ko`, before the first category:
+
+1. **Inherited scope** — what RESEARCH and any prior SPEC settled, so the user sees what is not
+   being re-litigated.
+2. **AC skeleton** — the criteria you can already draft, marked provisional.
+3. **Category status** — of the six, which are answered, which are open, and which you will
+   default rather than ask, with the default and its reason.
+
+One screen. This is the overview layer; detail arrives per question, on demand.
 
 #### 2.1 Six interview categories (in this order)
 
@@ -212,17 +226,29 @@ SPEC's substantive decisions (e.g., "what counts as done for Scenario 2?", "fail
 
 #### 2.3 Round preamble
 
+
+<!-- @hm:comprehension:round_state -->
+**Round state — required when anything changed.** Open every round after the first with:
+
 ```
-## SPEC Interview Round {N}
+## Interview Round {N}
 
 **Decisions locked in so far:**
-- ✅ Intent: {summary}
-- ✅ Outcomes: {summary}
-- ✅ Scenario S1, S2 confirmed
+- ✅ {decision} (→ ADR-XXX)
 
-**This round's category:** {Non-Goals / Constraints / Verification}
-**Why it matters:** {one-sentence cost of getting this wrong}
+**Changed since last round:**
+{the delta only — not a re-dump}
+
+**Ambiguity to resolve this round:** {one specific thing}
+**Why it matters:** {one-sentence impact of getting it wrong}
 ```
+
+- **"Changed"** = a component, boundary, phase, or locked decision moved. Wording edits do not.
+- **Round 1 has no base** — emit the full state, not a delta.
+- **The final round emits a delta if one exists**, so the last thing seen is what the last
+  answer moved.
+- Nothing changed? Omit the block, but say "no change since last round" — an absence should be a
+  statement, not an oversight.
 
 ### Step 3 — Write SPEC document
 
@@ -345,7 +371,7 @@ object — the three separate calls this replaced cost three round-trips for ver
 are always read together:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm spec_machine check --all \
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm spec_machine check --all \
   --yaml specs/SPEC-{slug}.machine.yaml \
   --md specs/SPEC-{slug}.md \
   --dev-mode task-driven
@@ -414,7 +440,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm iter_receipts write \
        --iter "$ITER" --stage spec --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -452,7 +478,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps gate-blocked --root . --stage spec --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps gate-blocked --root . --stage spec --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -463,7 +489,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps boundary --root . --current spec --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps boundary --root . --current spec --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

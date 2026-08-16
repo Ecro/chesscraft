@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.telemetry",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.telemetry",
             "timeout": 5,
             "type": "command"
           }
@@ -14,7 +14,7 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.post_write_reminder",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.post_write_reminder",
             "timeout": 5,
             "type": "command"
           }
@@ -26,13 +26,13 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.flush_session",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.flush_session",
             "statusMessage": "Snapshotting autoloop progress...",
             "timeout": 30,
             "type": "command"
           },
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.worktree span-end",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.worktree span-end",
             "timeout": 10,
             "type": "command"
           }
@@ -42,13 +42,13 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.flush_session",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.flush_session",
             "statusMessage": "Snapshotting autoloop progress...",
             "timeout": 30,
             "type": "command"
           },
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.worktree span-end",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.worktree span-end",
             "timeout": 10,
             "type": "command"
           }
@@ -60,7 +60,7 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.gates.permission_gate --subordinate-to-deny-dangerous",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.gates.permission_gate --subordinate-to-deny-dangerous",
             "timeout": 10,
             "type": "command"
           }
@@ -70,7 +70,7 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.gates.worktree_gate",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.gates.worktree_gate",
             "timeout": 10,
             "type": "command"
           }
@@ -82,11 +82,11 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.sessionid_envfile",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.sessionid_envfile",
             "type": "command"
           },
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.autopilot_autoarm",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.autopilot_autoarm",
             "type": "command"
           }
         ]
@@ -96,12 +96,12 @@
       {
         "hooks": [
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.hooks.loop_gate --mode stop-hook",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.hooks.loop_gate --mode stop-hook",
             "timeout": 10,
             "type": "command"
           },
           {
-            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1\" python -m harness_maker.worktree span-end",
+            "command": "uv run --with \"$HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0\" python -m harness_maker.worktree span-end",
             "timeout": 10,
             "type": "command"
           }
@@ -112,14 +112,17 @@
   "permissions": {
     "allow": [
       "Read",
-      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.*)",
-      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm *)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.*)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm *)",
       "Bash(uv run pytest:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv run mypy:*)",
       "Bash(pytest:*)",
-      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_opinion_invoke:*)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm second_opinion_invoke:*)",
       "Bash(codex exec:*)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.*)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm *)",
+      "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_opinion_invoke:*)",
       "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 python -m harness_maker.*)",
       "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm *)",
       "Bash(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.0 hm second_opinion_invoke:*)",

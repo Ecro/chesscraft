@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/worktree-isolator/SKILL.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: worktree-isolator
 description: Isolate a /hm stage's changes inside a git worktree. Read harness.yaml.worktree.enabled
   to decide whether to engage; on success merge back and clean up; on failure preserve
   the worktree for inspection.
-content_hash: 1644181e37f02f0dec3c409f7a5e68052dd597000f3741a6702573e163e2367b
+content_hash: ff0ef9941c16565f55527b66763ae0703b4a907f4672ef254dc51b13cdfd51be
 ---
 
 # worktree-isolator
@@ -47,7 +47,7 @@ CLI-owned flow, executed deterministically by the orchestrator:
 
    CLI (used by stage skills directly):
    ```
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.worktree create execute "$(pwd)"
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.worktree create execute "$(pwd)"
    ```
 
    Create is the primary dirty-base boundary. If the base repo has user WIP,
@@ -71,12 +71,12 @@ CLI-owned flow, executed deterministically by the orchestrator:
    Success for `/hm:execute` uses stage-only handoff so wrapup owns the single
    user-facing commit:
    ```bash
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.worktree finalize <WT> stage-only
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.worktree finalize <WT> stage-only
    ```
 
    Failure preserves the worktree for inspection:
    ```bash
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.worktree finalize <WT> fail
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.worktree finalize <WT> fail
    ```
 
    If dirty-base bypass was used or new base dirt appeared after create,
@@ -85,7 +85,7 @@ CLI-owned flow, executed deterministically by the orchestrator:
    `HM_OWNED_SESSION_UUIDS` from THIS task's slug crumb so only your own stash is
    popped (PLAN-layer3-per-session-ownership; an empty set fail-safe-preserves):
    ```bash
-   HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 python -m harness_maker.worktree post-commit-pop "$(pwd)"
+   HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 python -m harness_maker.worktree post-commit-pop "$(pwd)"
    ```
 
    Never replace this flow with direct `worktree.merge()` +

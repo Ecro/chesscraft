@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Lock how and in what order — deep interview, ADRs and validated phases
   into a PLAN doc.
-content_hash: 8f49fd371e2f58ef03f46cec5b039aaf542ff36341e795a3e5fa3baf573f17a0
+content_hash: ab788b45b23e110d648251a9223cc0dcafd4d1593f1ef234d88dfc1952cf9164
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -39,7 +39,7 @@ content_hash: 8f49fd371e2f58ef03f46cec5b039aaf542ff36341e795a3e5fa3baf573f17a0
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -53,7 +53,7 @@ content_hash: 8f49fd371e2f58ef03f46cec5b039aaf542ff36341e795a3e5fa3baf573f17a0
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -107,7 +107,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -122,9 +122,9 @@ questions:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_brain search '<task slug or topic>' --type decision
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_brain search '<task slug or topic>' --type preference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_brain search '<task slug or topic>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm second_brain search '<task slug or topic>' --type decision
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm second_brain search '<task slug or topic>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm second_brain search '<task slug or topic>' --type project
 ```
 
 
@@ -142,7 +142,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -151,7 +151,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -185,7 +185,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `AskUserQuestion`). Scope the plan to the next master-PLAN phase only.
@@ -250,6 +250,23 @@ If `specs/SPEC-{slug}.md` exists:
    **Case C — no SPEC file:**
    Run the full Step 3 interview from scratch.
 
+<!-- @hm:comprehension:brief -->
+### Design brief — show this BEFORE the first interview round
+
+Step 1 already built this picture and its heading says it is not shown. Show it now, in
+`ko`, **before Step 3.0** — an approved SPEC takes the Case-A path that skips
+Step 3 entirely, and that is the common entry.
+
+1. **Goal** — one paragraph: what changes for the user.
+2. **Shape** — components, boundaries, data flow. Bullets or a small ASCII sketch; never Mermaid
+   (raw fence in a terminal).
+3. **Phase skeleton** — one line per phase.
+4. **Ambiguities, ranked by blast radius** — for EACH, say which you are doing: *asking this
+   round*, or *defaulting to X because Y*. An unseen default is indistinguishable from an
+   oversight.
+
+One screen. This is the overview layer; detail arrives per question, on demand.
+
 #### Step 3.0 — Brief lock-in confirmation (Case A only)
 
 When SPEC is fully approved, the only remaining `/hm:plan` question is: **"Given this SPEC, are you ready for phase decomposition, or is there a how-question (architecture / phasing / library choice) you want to lock down first?"** Use `AskQuestion` (Cursor) or `AskUserQuestion` (Claude Code) to present structured options to the user. Options:
@@ -274,32 +291,40 @@ This single confirmation prevents the "I just answered every SPEC question — w
 
 Each round runs Steps A–E.
 
-#### Step A — Render current plan state (visualization OPTIONAL)
+#### Step A — Render current plan state
 
-Visualization is NOT mandatory. Use only when it genuinely speeds comprehension. Format priority (most readable first):
+Render it whenever anything changed — see the round-state contract below, which **replaces** the
+older "visualization is optional" guidance for this depth. Format priority (most readable first):
 
 1. **Prose / bullet summary** — default.
 2. **Compact table** — when comparing alternatives across dimensions.
 3. **ASCII boxes / arrows / trees** — when topology helps.
 4. **Mermaid** — AVOID in live interview (renders as raw fenced code in terminal). OK in the final PLAN document.
 
-Round preamble structure:
+
+
+<!-- @hm:comprehension:round_state -->
+**Round state — required when anything changed.** Open every round after the first with:
 
 ```
 ## Interview Round {N}
 
 **Decisions locked in so far:**
-- ✅ {Round 1 decision} (→ ADR-001)
-- ✅ {Round 2 decision}
+- ✅ {decision} (→ ADR-XXX)
 
-**Current plan state:**
-{ASCII / bullets / table — whatever makes THIS decision easiest to see}
+**Changed since last round:**
+{the delta only — not a re-dump}
 
 **Ambiguity to resolve this round:** {one specific thing}
 **Why it matters:** {one-sentence impact of getting it wrong}
 ```
 
-If nothing topologically changed since last round, skip the "current plan state" block.
+- **"Changed"** = a component, boundary, phase, or locked decision moved. Wording edits do not.
+- **Round 1 has no base** — emit the full state, not a delta.
+- **The final round emits a delta if one exists**, so the last thing seen is what the last
+  answer moved.
+- Nothing changed? Omit the block, but say "no change since last round" — an absence should be a
+  statement, not an oversight.
 
 #### Step B — `AskQuestion` / `AskUserQuestion` (in `ko`)
 
@@ -450,7 +475,7 @@ findings and echoes the main-loop-supplied per-model status — it never runs an
   PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
   that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm high_diff classify --added-lines "$added"
   ```
   Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
   inject empty findings and a `skipped` entry per model in `second_opinion_results`.
@@ -492,7 +517,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -549,10 +574,101 @@ Task(
 
 Resolution:
 - **APPROVED** → write PLAN, proceed to Step 5.
-- **NEEDS_REVISION** (warnings only) → run one follow-up interview round per warning. Options: A. revise plan / B. accept as risk (record in ADR) / C. reject / Other. Then write PLAN.
-- **MAJOR_REVISION** (critical issues) → run follow-up rounds for each critical critique. After resolution, **re-run validator once only** (no infinite loop). If second pass still MAJOR_REVISION, ask user: A. proceed with remaining critiques as accepted-risk / B. abort planning.
+- **NEEDS_REVISION** / **MAJOR_REVISION** → the follow-up rounds are **planned by CLI, not
+  one-per-critique.** `Write` the validator's `critiques` array to a temp path (the whole
+  `{overall, critiques}` object is accepted), then:
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>
+```
+
+  Run one follow-up round for each entry in `rounds` — options A. revise plan / B. accept as
+  risk (record in ADR) / C. reject / Other — and **none for any entry in `skipped`**; carry each
+  skipped entry's `reason` into `## 🔍 Plan Validation` so the queue never shrinks silently.
+  Two rules do the cutting, and they are the loop's, not new judgement:
+  - a critique the previous pass raised and this pass raised again is `unresolved` — the
+    revision did not answer it, and asking again is the round that produced nothing;
+  - once the PLAN has churned past the threshold, the critiques still queued were raised
+    against a document that no longer exists, so they are `stale` and Step 4.5's terminal pass
+    re-derives whichever still hold.
+
+  After the rounds, **re-run the validator once only** (no infinite loop). If the second pass
+  is still MAJOR_REVISION, ask the user: A. proceed with remaining critiques as accepted-risk /
+  B. abort planning.
+
+#### Step 4.4 — Measure how much the revision rewrote (optional, enables the stale rule)
+
+Pin the PLAN before the first follow-up round and after the last, then measure. Skipping this
+is safe and costs only the stale rule: **an unmeasured ratio runs every round**, which is the
+behaviour that shipped before this step existed.
+
+```bash
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm review_churn pin --slug {slug} --label plan-p<N>-pre
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post
+```
+
+Use the ratio for `work-docs/PLAN-{slug}.md` from `measured`, not the aggregate — the aggregate
+is the maximum across every touched file, and a revision round may legitimately touch others.
 
 > **If the validator agent itself fails to launch** (0 tool uses, model/launch error): retry the `Task(...)` call once with `model: "opus"` explicitly set (subagent frontmatter may be stale across a model upgrade). When you surface such a failure to the user, name the **tier** (`opus`/`sonnet`) — never a pinned concrete id like `claude-4-7-opus[1m]`; a pinned id in the message is itself the bug class this guidance exists to avoid. If it still cannot launch, self-review the PLAN in the validator's place and say so plainly.
+
+### Step 4.5 — Terminal re-validation of the whole PLAN
+
+**Whichever revision path you took — `NEEDS_REVISION` or `MAJOR_REVISION` — the last revision is
+the one nothing has looked at.** Re-validate the **whole PLAN** in one pass after writing it, not
+only the sections you changed.
+
+Measured on this repository's own `stage-agents.jsonl`: 12 plan-validator episodes, **none ever
+reached a clean verdict**, and the recorded critiques show why — the blocking findings were
+verified against source and held, and one PLAN records outright that pass 2's three criticals
+were *created by the pass-1 fixes*. Revisions are where new criticals come from, so reading only
+the revised sections misses precisely the cross-section contradictions a revision introduces.
+
+`NEEDS_REVISION` is the easy path to skip here because it is "warnings only" — but a
+warning-driven revision edits the document just as much, and the defect does not care what
+prompted the edit.
+
+**This pass is TERMINAL. Its findings are recorded and never revised.** That is forced by the
+same measurement: the loop does not converge, so a re-validation that waits for a clean verdict
+would never release. It runs **within the existing two-pass cap** — do not add a third pass;
+every recorded three-pass episode also ended `MAJOR_REVISION`, so a further pass buys findings,
+not release.
+
+Write the surviving findings into `## 🔍 Plan Validation`, and when any of them still block, set
+the PLAN frontmatter to:
+
+```yaml
+validator_outcome: MAJOR_REVISION_TERMINAL
+```
+
+A distinct name from `MAJOR_REVISION` on purpose: that one means "revise", this one means "a
+second pass ran and these survived it". Collapsing them makes an unrevised PLAN and a
+twice-validated one indistinguishable to every later reader.
+
+**Also record WHY the loop ended**, which the two-pass cap alone cannot say:
+
+```bash
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>
+```
+
+`no-progress` means pass 2 resolved nothing and found nothing new — the revision step is not
+working on this document, and the next reader should attack the PLAN's structure rather than
+its critiques. `progress` means the cap stopped a loop that was still moving. Reporting the cap
+for both, which is what a bare two-pass limit does, hides the first entirely. Put the outcome
+and both counts in `## 🔍 Plan Validation`.
+
+**Its two readers do opposite things — keep them separate.**
+
+- **`/hm:execute` proceeds.** It treats the recorded findings as **known risks** carried into
+  implementation. It must not halt: the terminal outcome is the normal ending of a loop that does
+  not converge, and blocking on it would stop every task.
+
+- **Loop mode has no human to hand risks to**, so instead the stage emits its Gate 0 receipt with
+  `verdict: fail` and lets the loop driver own retry and escalation.
+
+Emit the ledger row for this pass exactly as below — the terminal outcome lives in the PLAN
+frontmatter, and `--verdict` keeps its existing three values. A new enum value would need every
+ledger reader updated, and the one that gets missed is the failure mode.
 
 
 **Record every validator pass (ADR-004).** One row per dispatch, including the second pass
@@ -561,7 +677,7 @@ pass of one PLAN — that shared id is what makes the pass-to-pass comparison po
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
@@ -615,7 +731,7 @@ spec: "[[SPEC-{slug}]]"  # OR omit when no SPEC exists
 research_doc: "[[RESEARCH-{slug}]]"  # OR omit when /hm:research did not run
 interview_rounds: {N}
 adrs: {M}
-validator_outcome: APPROVED | NEEDS_REVISION_RESOLVED | MAJOR_REVISION_RESOLVED
+validator_outcome: APPROVED | NEEDS_REVISION_RESOLVED | MAJOR_REVISION_RESOLVED | MAJOR_REVISION_TERMINAL
 summary: "{≤100 char one-line TL;DR}"
 
 ---
@@ -669,7 +785,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm iter_receipts write \
        --iter "$ITER" --stage plan --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -740,7 +856,7 @@ placeholder. **Omitting it is not a way to say `pending`**: an absent verdict ha
 level, `auto_full` included, and reports a stale render.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

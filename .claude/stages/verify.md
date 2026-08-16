@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/verify.md.j2
 provenance: official
-content_hash: 2ef42a508fa2a0d5d284b305ac6a96052f428582960dc71e7821d1bceabcac22
+content_hash: aa25d41a35f95fe18e28bae674a5fea792b4efaa11a90cc5c872d2d5bb2b153b
 ---
 # Stage: verify
 
@@ -71,7 +71,7 @@ verification script changes.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm observability.verification_cache check --root . --mode relevant
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm observability.verification_cache check --root . --mode relevant
 ```
 
 
@@ -80,6 +80,15 @@ If this exits `0`, print `PASS (cached)` and skip to Check 3. If it exits
 command has passed.
 
 Run the project's full check suite. Pick the toolchain that matches the project:
+
+> **Ask for the runner's own recipe first — do not guess the parallel flag.** `hm test_runners
+> plan --root .` names this project's runner, a worker count already capped for the machine
+> (about half its cores, never all of them), and whether the runner is ALREADY parallel — for
+> `cargo`, `go`, `vitest`, `jest` and `flutter` it is, and adding a worker flag there caps or
+> nests instead of accelerating. `pytest` is the one common runner that is serial by default.
+> Run the FULL suite here regardless: this is the stage that owns the whole-suite pass, and a
+> suite only ever run in parallel hides order-dependent failures, so keep the flag on the
+> command line and out of the project's persistent config.
 
 
 ```bash
@@ -101,7 +110,7 @@ After every selected suite command passes, write the marker:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
 ```
 
 
@@ -172,7 +181,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm iter_receipts write \
        --iter "$ITER" --stage verify --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -239,7 +248,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -248,7 +257,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -294,7 +303,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -305,7 +314,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/configure.md.j2
 provenance: official
 description: Change one harness dimension without re-running the full interview.
-content_hash: cb421517c20f27d533cf4783890d09e7c9a6457a9740b08fa7bf6fdff6619267
+content_hash: 2d278d6c0a3f2fb69191f43296156b7b467cfcbb61952d79dc33158067fa2b06
 ---
 # /hm:configure
 
@@ -80,7 +80,7 @@ Options (multi-select):
   the list. A missing or unauthenticated CLI warns and skips.
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli detect-tools --json
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm cli detect-tools --json
 ```
 
 - **Autopilot** — `autonomy.level`: `ask` (choose per session — the default) / `gated` (off) / `auto_safe` / `auto_full`, and whether it
@@ -89,6 +89,16 @@ Options (multi-select):
   architecture interview stops at `gated`/`auto_safe`; `auto_full` answers it with the
   recommended option and records that in the PLAN — say so, it is the difference between
   the two auto levels.
+- **Interview comprehension** — `interview.comprehension.depth`: `minimal` (today's terse
+  interview) / `standard` (the default — the plan/spec interview opens with a design brief and
+  reports what changed each round) / `deep` (adds a per-question envelope — what it decides, what
+  it rewrites, the recommended default and why, the cost to undo — plus a closing readback of the
+  locked design). Trade-off: more to read per round, in exchange for seeing the whole design and
+  the reasoning behind each choice. It spends the budget on **context per question, not more
+  questions** — `interview.deep_gate` is untouched. Dispatch with
+  `--comprehension-depth "$COMPREHENSION_DEPTH"` — quoted like every sibling flag, because
+  a free-text "Other" answer substituted into an unquoted position is evaluated by the
+  shell *before* the CLI's allowlist ever sees it. An out-of-set value exits non-zero.
 - **Locale** — the `locale` tag (en / ko / …), for this conversation and the re-render.
   Unknown tags fall back to English.
 - **Delivery metrics tuning** — `/hm:metrics`
@@ -126,7 +136,7 @@ For **Second Brain**: first inspect current state via the CLI subcommand
 time — they MUST delegate state inspection to the CLI per CLAUDE.md §4):
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm cli \
   configure-second-brain "$(pwd)" --check
 ```
 
@@ -148,7 +158,7 @@ which prompts to surface:
    non-skip answer, dispatch the folder add through the CLI:
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm cli \
      configure-second-brain "$(pwd)" --add-folder "$SB_FOLDER"
    ```
 
@@ -172,7 +182,7 @@ which prompts to surface:
 Run the CLI with only the changed flags:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm cli make "$(pwd)" \
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm cli make "$(pwd)" \
   --grade-threshold "$GRADE" --domains "$DOMAINS" --mechanical-checks "$CHECKS" \
   --default-model "$MODEL" --focus "$FOCUS" --wrapup-docs "$WRAPUP_DOCS" \
   --ref-folders "$REF_FOLDERS" --sibling-repos "$SIBLING_REPOS" \
@@ -183,7 +193,9 @@ Worktree isolation is a flag pair: append exactly one of `--worktree` /
 `--no-worktree`, only when changed. A refused `--no-worktree` exits non-zero listing
 the branches — surface it verbatim and stop.
 
-Append when changed: `--locale "$LOCALE"`; `--second-opinion-models "$SO_MODELS"` (comma
+Append when changed: `--comprehension-depth "$COMPREHENSION_DEPTH"` (one of `minimal` /
+`standard` / `deep` — an out-of-set value exits non-zero rather than being corrected, so
+pass the literal the user chose, quoted); `--locale "$LOCALE"`; `--second-opinion-models "$SO_MODELS"` (comma
 list, `""` disables — per-model sub-blocks like `codex.hermetic` survive either way);
 `--autonomy-level "$AUTONOMY"` (`gated` turns auto-advance off while preserving persistence
 and caps) plus `--autonomy-persistent` / `--no-autonomy-persistent` only on an explicit

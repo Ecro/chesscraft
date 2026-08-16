@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.51.1
+harness_maker_version: 0.52.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/targeted-test-selection/SKILL.md.j2
 provenance: official
@@ -8,13 +8,41 @@ name: targeted-test-selection
 description: Procedure for turning a set of changed files into the tests that actually
   cover them, instead of running the whole suite. Followed by /hm:review's auto-fix
   loop on every fix round; mirrors what /hm:execute Phase D does inline.
-content_hash: 3dd2a7135806356e84f383d598a5b56550d1fae0c0aa2b6ef3ea96e7b2ce8061
+content_hash: 6a6afc21fdda75b34f4a9712edb78328a4033a8f82575766a1ab9ec2347bd217
 ---
 
 # targeted-test-selection
 
-Select what to run, then run it. The selector is `harness_maker.test_dep_map`; it returns
-either a bounded node list or an explicit FULL with a reason, and it is **never** silent.
+Select what to run, then run it — and run it with the right amount of the machine.
+
+Three levers, and **which of them exist depends on the runner, not on this skill**. Ask first:
+
+```bash
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm test_runners plan --root .
+```
+
+It prints the project's runner (detected from its markers), a `workers` count already capped
+for this machine, and — per lever — either the command or `null`:
+
+| Field | Meaning when non-null |
+|---|---|
+| `parallel` | the flag to add, with the worker count substituted |
+| `parallel_is_default` | **`true` = do NOT add it.** `cargo`, `go`, `vitest`, `jest` and `flutter` already parallelise; the flag there caps or nests rather than accelerates |
+| `parallel_requires` | an install the flag needs first (`-n` on a pytest without `pytest-xdist` is just `unrecognized arguments`) |
+| `select_changed` | the runner's own change-based selection, when it has one |
+| `rerun_failed` | re-run only last run's failures — the biggest win while iterating |
+| `runner: null` | this table has never heard of the toolchain. **Not an error**: use the project's own test command and skip to §4 |
+
+**`workers` is deliberately about half the cores**, floored at 1 and never above `cores - 1`.
+More is not faster: the runner's workers are not the only processes on the box (a suite that
+shells out to `git` doubles them), the session waiting for the suite needs a core too, and
+several runners are already parallel internally — asking for N there requests N × M. Raise it
+with `--fraction`, which refuses anything above 0.7 rather than silently clamping.
+
+§1–§3 below are the **Python** dep-map selector. The selector is `harness_maker.test_dep_map`;
+it returns either a bounded node list or an explicit FULL with a reason, and it is **never**
+silent. For a non-Python runner use `select_changed` if the recipe named one, and otherwise run
+the full suite — a missing dep map is a reason to run more tests, never fewer.
 
 **Why this is a skill and not inline stage prose.** `review.md.j2` is re-read by every loop
 commands, and `test_aggregate_shipped_surface_does_not_grow` asserts a STRICT non-increase
@@ -46,7 +74,7 @@ Run this inside **the task worktree** you were given — not the base repo. `git
 invocation returns the base's state and selects tests for changes that are not there.
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.51.1 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.0 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
 ```
 
 **Both details of that argument form are load-bearing, and §1's care is wasted without
@@ -86,17 +114,24 @@ The command prints JSON:
   empty selection. This arm exists because the two above presuppose the process
   succeeded, and a verify step that silently runs nothing reads exactly like a pass.
 
+Whichever mode you are in, run the command the recipe gave you — `parallel` when it is
+non-null, `full` otherwise. Two rules about that:
+
+- **While iterating on a failure, run `rerun_failed` first** (when the recipe has one), then the
+  targeted set, and only then the full suite. Re-running everything after each edit is where the
+  wall-clock actually goes: one full pass per edit dominates any flag you could add.
+- **The full suite still runs at least once before the work is called done**, serially or in
+  parallel. A suite only ever run in parallel hides order- and isolation-dependent failures,
+  which is also why the parallel flag belongs on the command line and **not** in the project's
+  persistent config (`addopts` and its equivalents).
+
 Lint and type checks stay **unconditional** — they are repo-wide, cheap, and have no
-selection concept:
+selection concept. Use the project's own:
 
 ```bash
-uv run ruff check
+uv run ruff check      # example: this project. Substitute the project's linter.
 uv run mypy --strict
 ```
-
-Pick the toolchain that matches the project. This selector is Python-only: for Rust
-(`cargo test`) or Node (`pnpm test`) there is no dep-map, so run the project's normal
-suite and skip §1–§3 entirely.
 
 ## 5. What the selection does and does not promise
 
