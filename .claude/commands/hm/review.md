@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Multi-reviewer consensus review with a grade gate and an auto-fix loop.
-content_hash: 1ec152d81d1ccba45c4c35b841f8bf915e20dc751f42174cff568e0478dff5fa
+content_hash: 2632cc35aade6d973840be69b4c30a66b1a5db96f50c49b84c96d93aaa0e2f1b
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -29,7 +29,6 @@ content_hash: 1ec152d81d1ccba45c4c35b841f8bf915e20dc751f42174cff568e0478dff5fa
 > early-FAIL rules, and any stage's own `STOP — do not proceed` boundary override
 > this plan; never treat the banner as a commitment to run past a STOP.
 
-
 <!-- @hm:autopilot-picker -->
 > **Autopilot session start.** This harness is configured for autonomy (`autonomy.level: auto_safe`).
 > **Arming works in any runtime**; only end-of-stage auto-advance needs Claude Code's `Skill`
@@ -38,7 +37,7 @@ content_hash: 1ec152d81d1ccba45c4c35b841f8bf915e20dc751f42174cff568e0478dff5fa
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -52,7 +51,7 @@ content_hash: 1ec152d81d1ccba45c4c35b841f8bf915e20dc751f42174cff568e0478dff5fa
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -117,8 +116,8 @@ them to recognize known-good patterns and repeated failure modes:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<changed area or task slug>' --type failure
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<changed area or task slug>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<changed area or task slug>' --type failure
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<changed area or task slug>' --type preference
 ```
 
 
@@ -148,7 +147,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-preflight <slug> "$(pwd)" --stage hm:review --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -157,7 +156,7 @@ Per-invocation overrides (workflow command flags):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -178,7 +177,7 @@ why one lens's finding stands on its own (Step 4).
 - Resolve `review_base` once, here in round 1, storing it at `refs/hm-freeze/v1/<slug>-base`:
 
   ```bash
-  !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm freeze resolve-base --slug <slug>
+  !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm freeze resolve-base --slug <slug>
   ```
 
   Later rounds and both confirmation passes **read** that ref; re-resolving it makes the base a
@@ -241,9 +240,11 @@ When no drift is detected, emit `result: clean` with empty lists. This record is
 
 ### Step 3 — Parallel reviewer invocation (2-pass redaction)
 
-**Dispatch the 7 lenses in ONE message, in round 1** — one `Task(`
+**Dispatch the 7 lenses in ONE message, in round 1** — one dispatch
 per lens, same message, so they run concurrently. The core lenses share `code-reviewer` and are
 distinguished only by the lens line, so send that line verbatim.
+
+Dispatch each item below with the `Task` tool.
 
 ```
 Task(subagent_type="code-reviewer", description="lens design: {slug}", prompt="<brief>\n\nYour lens: design — boundaries, coupling, whether this is the right shape for the problem; and complexity: could it be simpler? Unnecessary indirection, dead generality, a knob or a function with no caller on any path a user reaches.")
@@ -300,7 +301,7 @@ Then compute coverage. The CLI is the **sole producer** of the verdict — do no
 own judgement about which lenses ran:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round <round> --run-id <run-id> --preset Side
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round <round> --run-id <run-id> --preset Side
 ```
 
 It prints `{"exercised": [...], "missing": [...], "blocks_approval": <bool>}`. Carry all three
@@ -346,7 +347,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 3. Re-run the same reviewer set with the **full** context (metadata
    restored) and the **raw Pass 1 findings** list — unfiltered, since no verifier
    step runs between the passes (ADR-001). Launch these reviewer
-   calls in parallel, using one Task call per reviewer (or per reviewer × file
+   calls in parallel, using one sub-agent dispatch per reviewer (or per reviewer × file
    cluster when safe). Each reviewer validates each finding against the
    metadata, drops any that the context proves spurious, and adjusts severity
    if context changes risk.
@@ -355,7 +356,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
    so they are the last content that should reach a shell inside quotes:
    
    ```bash
-   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm two_pass_review merge --file <the literal temp path>
+   uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm two_pass_review merge --file <the literal temp path>
    ```
    
    Pass 2 is authoritative — Pass 1 findings absent from Pass 2 are
@@ -367,7 +368,7 @@ extras at runtime bringing total > 1, re-enable Pass 1 manually.
 `Write` the merged findings to a temp path (never argv — skill §1), then:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm codex_adapter stamp-ids < <the literal temp path>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm codex_adapter stamp-ids < <the literal temp path>
 ```
 
 
@@ -391,7 +392,7 @@ round**, against the merged temp file you already wrote, with the literal review
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm stage_agent_ledger persist-payload --file <the literal temp path> --slug {slug} --run-id <run-id> --round <N> --reviewer merged
 ```
 
 
@@ -428,7 +429,7 @@ never a rising bar.
   note `HEAD` (the post-execute diff is staged, so a bare `git diff` would see nothing) and
   `--numstat` for the added-line count that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm high_diff classify --added-lines "$added"
   ```
   Invoke when `is_high` (or `boundary` and your judgment, reusing the When-to-Run
   criteria, says high). Otherwise skip all models this round (no extra voters).
@@ -470,7 +471,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage review
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -565,7 +566,7 @@ plus `reasoning_diverges: true` when Step 4b found matching OBSERVE with divergi
 the `disposition`/`authority` that Step 4e describes. Write the array to a temp path, then:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_consensus finalize --file <the literal temp path>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_consensus finalize --file <the literal temp path>
 ```
 
 It **reads only** and prints one payload: `{"findings": [...with `tag`...], "grade": …,
@@ -643,7 +644,7 @@ shaped `{"dispositions": [{"model": "<codex|antigravity>", "id": "<finding id>",
 "<enum>", "oracle_result": "<evidence>"}]}`:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug <slug> --stage review
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug <slug> --stage review
 ```
 
 > **Reviewer-lens dispositions do NOT go here.** The ledger's `model` is a closed enum of
@@ -795,7 +796,7 @@ coverage is cumulative over a review rather than per round: the auto-fix loop re
 the reviewers a fix touched, so this round's directory legitimately holds one or two files.
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round 1 --round 2 <one --round per further round so far> --round <this round> --run-id <run-id> --preset Side
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round 1 --round 2 <one --round per further round so far> --round <this round> --run-id <run-id> --preset Side
 ```
 
 > The union is computed by the CLI, not by you. Round 2 of this change's own review rejected
@@ -825,7 +826,7 @@ Per iteration:
 3b. **Pin the pre-fix endpoint** — before this round's first `Edit`, never after:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn pin --slug {slug} --label r{N}-pre
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn pin --slug {slug} --label r{N}-pre
 ```
 
 4. **Apply** in priority order (P0 → P1 → P2):
@@ -853,7 +854,7 @@ Per iteration:
 5b. **Measure this round's churn** — after Step 5's reverts, so a reverted fix does not count:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn pin --slug {slug} --label r{N}-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn measure --pre refs/hm-churn/v1/{slug}-r{N}-pre --post refs/hm-churn/v1/{slug}-r{N}-post
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn pin --slug {slug} --label r{N}-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn measure --pre refs/hm-churn/v1/{slug}-r{N}-pre --post refs/hm-churn/v1/{slug}-r{N}-post
 ```
 
    Carry the four `churn_*` keys verbatim into the iteration record and the telemetry row.
@@ -874,7 +875,7 @@ Per iteration:
      carries a full vote (ADR-007).
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_consensus plan --churn-ratio <the measured ratio> --threshold 0.2
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_consensus plan --churn-ratio <the measured ratio> --threshold 0.2
 ```
 
    It prints `{"dispatches": [...], "reason": "churn <r> <op> <t>"}`. An empty `dispatches` IS
@@ -920,7 +921,7 @@ as `confirm_pass_ran: false`, which is a different fact from a pass that ran and
 ### Step C1 — Freeze the artifact
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm freeze commit --slug <slug> --pass <confirm-1|confirm-2>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm freeze commit --slug <slug> --pass <confirm-1|confirm-2>
 ```
 
 It writes `refs/hm-freeze/v1/<slug>-<pass-id>` from a **temporary index**, so the frozen tree is
@@ -931,7 +932,7 @@ owns commits and nothing is committed yet.
 **Read `review_base` from its store; do not re-resolve it.**
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm freeze read-base --slug <slug>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm freeze read-base --slug <slug>
 ```
 
 Round 1 wrote `refs/hm-freeze/v1/<slug>-base`. Re-resolving here would recompute against a HEAD
@@ -960,6 +961,8 @@ that failed during the pass be counted as exercised from that round's stale file
 
 The dispatch list is the round-1 list, unchanged — same agents, same lens lines:
 
+Dispatch each item below with the `Task` tool.
+
 ```
 Task(subagent_type="code-reviewer", description="lens design: {slug}", prompt="<brief>\n\nYour lens: design — boundaries, coupling, whether this is the right shape for the problem; and complexity: could it be simpler? Unnecessary indirection, dead generality, a knob or a function with no caller on any path a user reaches.")
 Task(subagent_type="code-reviewer", description="lens functionality: {slug}", prompt="<brief>\n\nYour lens: functionality — does it do what the SPEC and the invariants say, on every path?")
@@ -971,7 +974,7 @@ Task(subagent_type="test-reviewer", description="lens tests: {slug}", prompt="<b
 ```
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round <pass-id> --run-id <run-id> --preset Side
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm lens_coverage check --results-dir .claude/observability/.hm-lens-results --slug <slug> --round <pass-id> --run-id <run-id> --preset Side
 ```
 
 **Apply no fixes in this pass.** It is an observation, and a pass that edits what it is measuring
@@ -1026,7 +1029,7 @@ else reliably reaps them (`prune_stale`'s sweep needs a live task slug, and the 
 none). Run this once the review has reached its terminal state:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm freeze reap --slug <slug>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm freeze reap --slug <slug>
 ```
 
 **Record each confirmation pass as its own ledger episode.** One row per pass, `--pass 1` for
@@ -1035,7 +1038,7 @@ otherwise, `--terminal` only on the pass that ends the stage.
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent confirmation-pass --stage review --slug '{slug}' --pass <1|2> --verdict '<PASS|FAIL>' --duration-ms '<elapsed>'
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm stage_agent_ledger emit --run-id '<run-id>' --agent confirmation-pass --stage review --slug '{slug}' --pass <1|2> --verdict '<PASS|FAIL>' --duration-ms '<elapsed>'
 ```
 
 
@@ -1053,7 +1056,7 @@ put back. `<rounds>` is the comma-separated repair rounds that ran (`2,3` after 
 skip the call when none did:
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn oscillation --slug {slug} --rounds <rounds>
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn oscillation --slug {slug} --rounds <rounds>
 ```
 
 Each row is a `manual-only` P1 `spec_gap`: two rounds disagreed about the same code, which is
@@ -1115,7 +1118,7 @@ leakage — see `test_telemetry_no_leak`).
 
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_telemetry emit --file <the literal temp path>
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_telemetry emit --file <the literal temp path>
 ```
 
 
@@ -1145,7 +1148,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm iter_receipts write \
        --iter "$ITER" --stage review --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -1214,7 +1217,7 @@ placeholder. **Omitting it is not a way to say `pending`**: an absent verdict ha
 level, `auto_full` included, and reports a stale render.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot_caps boundary --root . --current review --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

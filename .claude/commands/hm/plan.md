@@ -1,12 +1,12 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/atomic_command.md.j2
 provenance: official
 description: Lock how and in what order — deep interview, ADRs and validated phases
   into a PLAN doc.
-content_hash: c8ac9e9d70b1ea438faa374400605e0daf7f72e4fc5eef84a65012cc9b2c45da
+content_hash: 5f571f425f6c0044f734b45f22dc4c9ac9c929ee285aa9682ac25dcc9bf5c06b
 ---
 > **Before you begin — outline your plan.** First check whether an autoloop is
 > active **for THIS session** (session-scoped — a loop in another session must
@@ -30,7 +30,6 @@ content_hash: c8ac9e9d70b1ea438faa374400605e0daf7f72e4fc5eef84a65012cc9b2c45da
 > early-FAIL rules, and any stage's own `STOP — do not proceed` boundary override
 > this plan; never treat the banner as a commitment to run past a STOP.
 
-
 <!-- @hm:autopilot-picker -->
 > **Autopilot session start.** This harness is configured for autonomy (`autonomy.level: auto_safe`).
 > **Arming works in any runtime**; only end-of-stage auto-advance needs Claude Code's `Skill`
@@ -39,7 +38,7 @@ content_hash: c8ac9e9d70b1ea438faa374400605e0daf7f72e4fc5eef84a65012cc9b2c45da
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -53,7 +52,7 @@ content_hash: c8ac9e9d70b1ea438faa374400605e0daf7f72e4fc5eef84a65012cc9b2c45da
 > - anything else → offer ONCE via `AskUserQuestion`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -107,7 +106,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -122,9 +121,9 @@ questions:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<task slug or topic>' --type decision
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<task slug or topic>' --type preference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<task slug or topic>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<task slug or topic>' --type decision
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<task slug or topic>' --type preference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<task slug or topic>' --type project
 ```
 
 
@@ -142,7 +141,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-preflight <slug> "$(pwd)" --stage hm:plan --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -151,7 +150,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -185,7 +184,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `AskUserQuestion`). Scope the plan to the next master-PLAN phase only.
@@ -467,7 +466,7 @@ The **main loop** (this stage prompt) runs each enabled second-opinion model —
 `plan-validator` agent is tool-restricted (`Read, Grep, Glob`, no Bash) and cannot. For every
 model in `second_opinion.models` (codex) the main loop
 runs the CLI, decides invoked-vs-skipped + the skip reason, adapts the findings, and **injects**
-them into the `plan-validator` Task() prompt below. The agent then *reconciles* the pre-injected
+them into the `plan-validator` dispatch below. The agent then *reconciles* the pre-injected
 findings and echoes the main-loop-supplied per-model status — it never runs any CLI itself.
 
 **Mandatory gate (ADR-003 matrix — applies uniformly to EVERY enabled model):**
@@ -475,7 +474,7 @@ findings and echoes the main-loop-supplied per-model status — it never runs an
   PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
   that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm high_diff classify --added-lines "$added"
   ```
   Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
   inject empty findings and a `skipped` entry per model in `second_opinion_results`.
@@ -517,7 +516,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -557,19 +556,17 @@ calls this same entrypoint, is the positive backstop.
 
 | Owner | Responsibility |
 |-------|----------------|
-| Main loop (this prompt) | Run each enabled model's CLI; decide invoked/skipped/failed + skip reason per model; adapt findings; inject findings + a per-model `second_opinion_results` entry into the validator Task() prompt. |
+| Main loop (this prompt) | Run each enabled model's CLI; decide invoked/skipped/failed + skip reason per model; adapt findings; inject findings + a per-model `second_opinion_results` entry into the validator dispatch. |
 | `plan-validator` agent | Reconcile the **pre-injected** findings (no Bash, no CLI); emit `second_opinion_results` (echo the main-loop per-model status) in its JSON. |
 | On skip/fail | Injected findings empty for that model → its `second_opinion_results` entry carries `status: skipped` (or `failed`) with an empty `reconciliation`. |
 
 Exactly one `second_opinion_results` entry per enabled model — success, skip, and failure paths
 all produce one entry (never zero, never duplicated).
 
+Dispatch each item below with the `Task` tool.
+
 ```
-Task(
-  subagent_type="plan-validator",
-  description="Plan validator: {slug}",
-  prompt="<full draft PLAN body + Interview Transcript + ADRs>\n\nCross-model second opinion (main-loop supplied — one entry per model in [codex], each with status invoked|skipped|failed + skip reason):\n<adapted findings JSON per model from the Step 4 (pre) adapter, or [] on skip/fail>\n\nReconcile every injected finding (disposition + reason); echo the supplied per-model status in your output.\n\nReturn JSON: {overall: APPROVED|NEEDS_REVISION|MAJOR_REVISION, critiques: [...], second_opinion_results: [{model, status: invoked|skipped|failed, reconciliation: [...]}, ...]}"
-)
+Task(subagent_type="plan-validator", description="Plan validator: {slug}", prompt="<full draft PLAN body + Interview Transcript + ADRs>\n\nCross-model second opinion (main-loop supplied — one entry per model in [codex], each with status invoked|skipped|failed + skip reason):\n<adapted findings JSON per model from the Step 4 (pre) adapter, or [] on skip/fail>\n\nReconcile every injected finding (disposition + reason); echo the supplied per-model status in your output.\n\nReturn JSON: {overall: APPROVED|NEEDS_REVISION|MAJOR_REVISION, critiques: [...], second_opinion_results: [{model, status: invoked|skipped|failed, reconciliation: [...]}, ...]}")
 ```
 
 Resolution:
@@ -579,7 +576,7 @@ Resolution:
   `{overall, critiques}` object is accepted), then:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>
 ```
 
   Run one follow-up round for each entry in `rounds` — options A. revise plan / B. accept as
@@ -603,14 +600,14 @@ is safe and costs only the stale rule: **an unmeasured ratio runs every round**,
 behaviour that shipped before this step existed.
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn pin --slug {slug} --label plan-p<N>-pre
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn pin --slug {slug} --label plan-p<N>-pre
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post
 ```
 
 Use the ratio for `work-docs/PLAN-{slug}.md` from `measured`, not the aggregate — the aggregate
 is the maximum across every touched file, and a revision round may legitimately touch others.
 
-> **If the validator agent itself fails to launch** (0 tool uses, model/launch error): retry the `Task(...)` call once with `model: "opus"` explicitly set (subagent frontmatter may be stale across a model upgrade). When you surface such a failure to the user, name the **tier** (`opus`/`sonnet`) — never a pinned concrete id like `claude-4-7-opus[1m]`; a pinned id in the message is itself the bug class this guidance exists to avoid. If it still cannot launch, self-review the PLAN in the validator's place and say so plainly.
+> **If the validator agent itself fails to launch** (0 tool uses, model/launch error): retry the dispatch once with `model: "opus"` explicitly set (subagent frontmatter may be stale across a model upgrade). When you surface such a failure to the user, name the **tier** (`opus`/`sonnet`) — never a pinned concrete id like `claude-4-7-opus[1m]`; a pinned id in the message is itself the bug class this guidance exists to avoid. If it still cannot launch, self-review the PLAN in the validator's place and say so plainly.
 
 ### Step 4.5 — Terminal re-validation of the whole PLAN
 
@@ -648,7 +645,7 @@ twice-validated one indistinguishable to every later reader.
 **Also record WHY the loop ended**, which the two-pass cap alone cannot say:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>
 ```
 
 `no-progress` means pass 2 resolved nothing and found nothing new — the revision step is not
@@ -677,7 +674,7 @@ pass of one PLAN — that shared id is what makes the pass-to-pass comparison po
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
@@ -785,7 +782,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm iter_receipts write \
        --iter "$ITER" --stage plan --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -856,7 +853,7 @@ placeholder. **Omitting it is not a way to say `pending`**: an absent verdict ha
 level, `auto_full` included, and reports a stale render.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot_caps boundary --root . --current plan --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

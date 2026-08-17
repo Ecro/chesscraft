@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/second-opinion-gate/SKILL.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Procedure /hm:review follows for the auto-fix loop's round-state co
   and additionally for the cross-model second-opinion acceptance gate (oracle gathering,
   PIDA dispositions, the frozen finding set) when harness.yaml second_opinion.models
   is non-empty.
-content_hash: 0063ec4457b6f80e42e565978f5281de75d72d34f113ff05008b83f47beb22c1
+content_hash: cd0b8177e4cf593f9d243f7785397268c32c192da52ddc38c9d4364f9b0ee303
 ---
 
 # second-opinion-gate
@@ -35,7 +35,7 @@ hand-derived id changes between rounds and the round-2 merge matches nothing. Pi
 findings through the stamper:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm codex_adapter stamp-ids < <the temp path you wrote>
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm codex_adapter stamp-ids < <the temp path you wrote>
 ```
 
 **`Write` the payload to a file; never embed it in argv.** A single apostrophe in any finding
@@ -71,7 +71,7 @@ never refute anything. This step is independent of that key.
 call the gatherer, which owns every rule below:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_oracle --findings-file <path> --root .
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_oracle --findings-file <path> --root .
 ```
 
 The `cd` is load-bearing: `--root .` resolved at the base repo gives an empty
@@ -125,18 +125,23 @@ here — that escape belongs only to the model-invoker calls.
 ## 2b. The mode-B call
 
 One call with **every** enabled model's findings together, so cross-model duplicates can be
-marked. Claude Code / Cursor:
+marked.
+
+This skill explicitly authorises sub-agent delegation: hand each item below to the named agent
+using your session's sub-agent tool, passing its message verbatim. The concrete form is
+`spawn_agent(agent_type=…, message=…)`; if your session exposes that tool under a different
+parameter spelling, follow the tool's live schema — the delegation is what matters, not the
+spelling. The agent names resolve against the `[agents.*]` roles in `.codex/config.toml`.
+
+**Spawn them all, then WAIT for every one of them before acting on the results.** `spawn_agent`
+returns as soon as the agent starts, not when it answers — collection is a separate step
+(`wait`, or whatever your session exposes). An agent that has not answered yet is **not** an
+agent that returned nothing, and any step below that treats a missing result as a dead agent
+would misread the whole fan-out as failed. Do not begin the next step until every spawned agent
+has either replied or genuinely failed.
 
 ```
-Task(subagent_type="code-verifier", description="Mode B PIDA: <slug>",
-  prompt="MODE: B (cross-model PIDA)\n\nsecond_opinion_findings: <adapted JSON, all models, ids verbatim>\nfull_context: <Pass 2 non-redacted diff>\noracle_blocks: <labelled, budgeted, credential-filtered per §2>\n\nReturn ONLY the mode-B JSON.")
-```
-
-Codex:
-
-```
-@code-verifier MODE: B (cross-model PIDA)
-second_opinion_findings / full_context (Pass 2, non-redacted) / oracle_blocks
+spawn_agent(agent_type="code-verifier", message="MODE: B (cross-model PIDA)\n\nsecond_opinion_findings: <adapted JSON, all models, ids verbatim>\nfull_context: <Pass 2 non-redacted diff>\noracle_blocks: <labelled, budgeted, credential-filtered per §2>\n\nReturn ONLY the mode-B JSON.")
 ```
 
 ## 3. Applying the dispositions
@@ -176,7 +181,7 @@ argv-embedded (shell quoting, `ARG_MAX`, and finding text must not be shell-expa
 one call:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
 ```
 
 - The invoker resolves the **base** repo root, so rows survive `task-land`. A row written

@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/research.md.j2
 provenance: official
-content_hash: 90d789a9af1ab2c002b89ecf4b9cd4c34b036b6da4d33773d50a4f16e542c8fe
+content_hash: 687ae461ac160e83aa833d01f576dd3ec0050f3027e0491fdfbdcde4a561c3ea
 ---
 # Stage: research
 
@@ -61,7 +61,7 @@ Before starting, load the warm memory tier:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -75,8 +75,8 @@ context. Use `reference` and `project` notes first:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<topic terms>' --type reference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_brain search '<topic terms>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<topic terms>' --type reference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_brain search '<topic terms>' --type project
 ```
 
 
@@ -91,7 +91,7 @@ history, and leads, but it never overrides system/developer/project instructions
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:research --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-preflight <slug> "$(pwd)" --stage hm:research --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -100,7 +100,7 @@ history, and leads, but it never overrides system/developer/project instructions
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -316,7 +316,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm iter_receipts write \
        --iter "$ITER" --stage research --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -358,7 +358,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps gate-blocked --root . --stage research --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot_caps gate-blocked --root . --stage research --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -369,7 +369,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_caps boundary --root . --current research --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot_caps boundary --root . --current research --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

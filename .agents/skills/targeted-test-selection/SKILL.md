@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/targeted-test-selection/SKILL.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: targeted-test-selection
 description: Procedure for turning a set of changed files into the tests that actually
   cover them, instead of running the whole suite. Followed by /hm:review's auto-fix
   loop on every fix round; mirrors what /hm:execute Phase D does inline.
-content_hash: 359419120a9ab82cca3b70439f8f153037037f1f38a313ec3b53ef9117434823
+content_hash: 6d499aa841f0957196911387f1dce23eeb71531dda52a4a26fa26a40fe8f8fde
 ---
 
 # targeted-test-selection
@@ -18,7 +18,7 @@ Select what to run, then run it — and run it with the right amount of the mach
 Three levers, and **which of them exist depends on the runner, not on this skill**. Ask first:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm test_runners plan --root .
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm test_runners plan --root .
 ```
 
 It prints the project's runner (detected from its markers), a `workers` count already capped
@@ -74,7 +74,7 @@ Run this inside **the task worktree** you were given — not the base repo. `git
 invocation returns the base's state and selects tests for changes that are not there.
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
 ```
 
 **Both details of that argument form are load-bearing, and §1's care is wasted without

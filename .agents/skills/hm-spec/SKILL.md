@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-spec
 description: harness-maker spec stage. Invoke when the task requires the spec stage
   of the harness-maker workflow.
-content_hash: ef6fb856eb49d3036e54ff50179e724b27b8d02c08a7083c70cf32a888c9d7f3
+content_hash: 81abc66c3a3f8950a5df769f3e1a0874d873b6d11a45da5ebb05e7b3ef53df7b
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -32,7 +32,6 @@ content_hash: ef6fb856eb49d3036e54ff50179e724b27b8d02c08a7083c70cf32a888c9d7f3
 > early-FAIL rules, and any stage's own `STOP — do not proceed` boundary override
 > this plan; never treat the banner as a commitment to run past a STOP.
 
-
 <!-- @hm:autopilot-picker -->
 > **Autopilot session start.** This harness is configured for autonomy (`autonomy.level: auto_safe`).
 > **Arming works in any runtime**; only end-of-stage auto-advance needs Claude Code's `Skill`
@@ -41,7 +40,7 @@ content_hash: ef6fb856eb49d3036e54ff50179e724b27b8d02c08a7083c70cf32a888c9d7f3
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -52,10 +51,10 @@ content_hash: ef6fb856eb49d3036e54ff50179e724b27b8d02c08a7083c70cf32a888c9d7f3
 >   Only on **no**, re-run the arm command with `--force`. On yes, stay gated.
 > - `reason: "degraded-idless"` → no id of your own: **NORMAL state, not a failure** in Cursor/Codex (`$CLAUDE_ENV_FILE` is Claude-Code-only), a hook failure in Claude Code.
 >   Arm either way — unset expands to `""` and arms the shared degraded marker.
-> - anything else → offer ONCE via `AskUserQuestion`: "Run the
+> - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -116,7 +115,7 @@ The deep interview here is shorter than `/hm:plan`'s — SPEC concerns are **wha
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:spec --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:spec --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -125,7 +124,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -156,7 +155,7 @@ Grep "<key terms>" --glob "specs/SPEC-*.md"
 Grep "<key terms>" --glob "work-docs/PLAN-*.md"
 # Repo memory — replace `<topic>` with the actual SPEC topic before running.
 
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
 
 # When research ran, read its cache
 [ -f work-docs/RESEARCH-{slug}.md ] && Read work-docs/RESEARCH-{slug}.md
@@ -440,7 +439,7 @@ object — the three separate calls this replaced cost three round-trips for ver
 are always read together:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm spec_machine check --all \
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm spec_machine check --all \
   --yaml specs/SPEC-{slug}.machine.yaml \
   --md specs/SPEC-{slug}.md \
   --dev-mode task-driven
@@ -506,7 +505,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm iter_receipts write --iter \"$ITER\" --stage spec --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm iter_receipts write --iter \"$ITER\" --stage spec --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
@@ -534,7 +533,7 @@ Otherwise emit it as your final output, in the configured output language:
 <!-- @hm:banner:end -->
 > ✅ **Done:** SPEC authored with observable acceptance criteria
 > 📁 **Artifacts:** specs/SPEC-{slug}.md
-> ➡️ **Next:** `/hm:plan {slug}` (STOP — user-initiated)
+> ➡️ **Next:** `@hm-plan {slug}` (STOP — user-initiated)
 
 
 <!-- @hm:user:extra-quality-checks -->

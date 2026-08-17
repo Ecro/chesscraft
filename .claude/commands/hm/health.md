@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.1
+harness_maker_version: 0.52.4
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/health.md.j2
 provenance: official
 description: Two-layer harness audit — structural integrity plus personalization drift.
-content_hash: 637bc3ca475ddd39f0dc954070fe26d4d1b920ac3ab43d0766f2ff478af29b3d
+content_hash: 844e94c1b8ca2388fad1f68b64a56e9c0913957fa3601226ed7e95eda3c0c7b3
 ---
 # /hm:health
 
@@ -43,7 +43,7 @@ flipping the ADR-012 kill-switch (`llm_inference_enabled: false`).
 ## Run
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm cli health . --session-id "$HM_SESSION_ID" --json-output .claude/observability/.health.tmp.json
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm cli health . --session-id "$HM_SESSION_ID" --json-output .claude/observability/.health.tmp.json
 ```
 
 Then read `.claude/observability/dashboard.md` to inspect the two sections.
@@ -57,7 +57,7 @@ and never deletes unmerged work — preserved branches surface as a count only.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm worktree drain .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm worktree drain .
 ```
 
 
@@ -90,7 +90,7 @@ the Step 4 filter cannot consume). The `reason` field names which.
 ### codex
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm second_opinion_invoke --model codex --smoke --slug health-smoke --stage health
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --model codex --smoke --slug health-smoke --stage health
 ```
 
 > **Relay the budget advisory verbatim; never judge latency yourself.** If stderr has a
@@ -122,7 +122,7 @@ autopilot (a broken boundary CLI, a marker that never gets written, a chain that
 kill-switches) looks identical to "the user just never turned it on". Run the degradation probe:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm autopilot_ledger smoke --root . --level auto_safe
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm autopilot_ledger smoke --root . --level auto_safe
 ```
 
 Report the JSON as a Layer 1 ActionItem:
@@ -141,7 +141,7 @@ looks exactly like "this project has no history". Measures the INSTRUMENT, never
 — it must never carry a cost threshold, and it feeds no readiness dimension.
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm economics doctor --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm economics doctor --root .
 ```
 
 Report the JSON as a Layer 1 ActionItem:
@@ -159,7 +159,7 @@ Report the JSON as a Layer 1 ActionItem:
 ## Delivery-metrics narrative (1-2 lines, no score impact)
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.1 hm delivery_metrics trend --root . --limit 1
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm delivery_metrics trend --root . --limit 1
 ```
 
 Surface ONE narrative line from the newest snapshot: CFR as raw `failed/total`
