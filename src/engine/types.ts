@@ -72,7 +72,7 @@ export interface DraftState {
   offers: string[] | null
   /** Every card ever offered to this side — the second offer must avoid these. */
   everOffered: string[]
-  /** Board plies this side has completed. Drives the turn-6 second draft. */
+  /** Board turns this side has completed. Drives recurring skill awards. */
   completedTurns: number
   /** Next completed-turn boundary at which this side receives one skill card. */
   nextSkillTurn: number

@@ -7,8 +7,8 @@ import type { Side } from './types'
  * This module exists so the two questions a loadout answers — "which pieces
  * start on the board?" and "which skill cards can this side be offered?" — have
  * exactly one implementation each. The draft pool in particular is read from two
- * places (`createMatch`'s opening offer and `engine.ts`'s second draft on turn
- * six), and the repo already records `shared-vocabulary-unshared-code-path` at
+ * places (`createMatch`'s opening offer and `engine.ts`'s recurring turn
+ * awards), and the repo already records `shared-vocabulary-unshared-code-path` at
  * count:2: one vocabulary read through two code paths is how half of a feature
  * silently keeps the old behaviour. Neither call site is allowed to build the
  * pool itself.
