@@ -63,7 +63,7 @@ description = "Runs a whole pipeline stage body (wrapup or verify) from a valida
 
 [agents.stuck]
 config_file = "agents/stuck.toml"
-description = "Escalation analyst \u2014 invoked when /hm:execute, /hm:review, or /hm:plan blocks. Performs root-cause analysis, proposes 2-3 unblock paths, and writes a structured escalation note. Read-only."
+description = "Escalation analyst \u2014 invoked when /hm:execute, /hm:review, or /hm:plan blocks. Performs root-cause analysis, proposes 2-3 unblock paths, and returns a structured escalation note. Read-only."
 
 [agents.test-reviewer]
 config_file = "agents/test-reviewer.toml"

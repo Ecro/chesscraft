@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.4
+harness_maker_version: 0.52.5
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/second-opinion-gate/SKILL.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Procedure /hm:review follows for the auto-fix loop's round-state co
   and additionally for the cross-model second-opinion acceptance gate (oracle gathering,
   PIDA dispositions, the frozen finding set) when harness.yaml second_opinion.models
   is non-empty.
-content_hash: cd0b8177e4cf593f9d243f7785397268c32c192da52ddc38c9d4364f9b0ee303
+content_hash: 025213b65c573491812ae17725c6a99978c1e1026bd1ce67a10a6ad9fc9746b9
 ---
 
 # second-opinion-gate
@@ -35,7 +35,7 @@ hand-derived id changes between rounds and the round-2 merge matches nothing. Pi
 findings through the stamper:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm codex_adapter stamp-ids < <the temp path you wrote>
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm codex_adapter stamp-ids < <the temp path you wrote>
 ```
 
 **`Write` the payload to a file; never embed it in argv.** A single apostrophe in any finding
@@ -71,7 +71,7 @@ never refute anything. This step is independent of that key.
 call the gatherer, which owns every rule below:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_oracle --findings-file <path> --root .
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm second_opinion_oracle --findings-file <path> --root .
 ```
 
 The `cd` is load-bearing: `--root .` resolved at the base repo gives an empty
@@ -181,7 +181,7 @@ argv-embedded (shell quoting, `ARG_MAX`, and finding text must not be shell-expa
 one call:
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.4 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm second_opinion_invoke --record-disposition --disposition-file <the literal temp path> --slug "<slug>" --stage review
 ```
 
 - The invoker resolves the **base** repo root, so rows survive `task-land`. A row written

@@ -1,6 +1,6 @@
 {
   "generated_by": "harness-maker",
-  "version": "0.52.4",
+  "version": "0.52.5",
   "files": [
     ".agents/skills/agent-quality-rubric/SKILL.md",
     ".agents/skills/ai-readiness-rubric/SKILL.md",
