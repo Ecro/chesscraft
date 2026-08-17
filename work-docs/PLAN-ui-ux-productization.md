@@ -3,7 +3,7 @@ type: plan
 task_slug: ui-ux-productization
 status: planning
 created: 2026-08-06
-tags: [strange-chess, plan, react, ui-ux, mobile-web, pwa, content-editor]
+tags: [chess-craft, plan, react, ui-ux, mobile-web, pwa, content-editor]
 research_doc: "[[RESEARCH-ui-ux-productization]]"
 interview_rounds: 5
 adrs: 13

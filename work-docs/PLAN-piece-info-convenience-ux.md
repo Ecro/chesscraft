@@ -3,7 +3,7 @@ type: plan
 task_slug: piece-info-convenience-ux
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, typescript, touch-ux, accessibility, react]
+tags: [chess-craft, plan, typescript, touch-ux, accessibility, react]
 spec: "[[SPEC-piece-info-convenience-ux]]"
 research_doc: "[[RESEARCH-piece-info-convenience-ux]]"
 interview_rounds: 2

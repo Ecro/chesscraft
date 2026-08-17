@@ -4,7 +4,7 @@ task_slug: movement-lock-8x8-and-rule-cards
 status: approved
 created: 2026-08-13
 tier: 2
-tags: [strange-chess, spec, typescript, game-rules, content-schema, engine]
+tags: [chess-craft, spec, typescript, game-rules, content-schema, engine]
 test_framework: vitest
 research_doc: "[[RESEARCH-movement-lock-8x8-and-rule-cards]]"
 summary: "Relocation lock, block_capture side fix, pawn-wipeout rule card, an 8x8 preset and three new square types"

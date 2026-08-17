@@ -1,6 +1,6 @@
 import type { ContentSource, ValidationError } from '@content/load'
 import type { BundleStamp } from '@content/merge'
-import { HIDDEN_KEY } from './hidden'
+import { HIDDEN_KEY, LEGACY_HIDDEN_KEY } from './hidden'
 import { importContent } from './io'
 
 /**
@@ -18,7 +18,8 @@ import { importContent } from './io'
  * would take the whole app down instead of reporting it.
  */
 
-export const STORAGE_KEY = 'strange-chess.content.v1'
+export const STORAGE_KEY = 'chess-craft.content.v1'
+const LEGACY_STORAGE_KEY = 'strange-chess.content.v1'
 
 export type SaveResult = { ok: true } | { ok: false; reason: 'quota' | 'unavailable'; message: string }
 
@@ -56,6 +57,9 @@ export function loadStoredContent(storage: Storage): LoadResult {
   let stored: string | null
   try {
     stored = storage.getItem(STORAGE_KEY)
+    // Keep rooms authored in the previous product namespace available once,
+    // then write all future saves under Chess Craft's namespace.
+    if (stored === null) stored = storage.getItem(LEGACY_STORAGE_KEY)
   } catch (e) {
     return { ok: false, reason: 'unavailable', message: `browser storage is unavailable: ${String(e)}` }
   }
@@ -83,7 +87,8 @@ export function loadStoredContent(storage: Storage): LoadResult {
  * `importContent`, which rebuilds the source field by field, so an unknown
  * top-level field is silently dropped on the very next read.
  */
-export const STAMP_KEY = 'strange-chess.bundle-stamp.v1'
+export const STAMP_KEY = 'chess-craft.bundle-stamp.v1'
+const LEGACY_STAMP_KEY = 'strange-chess.bundle-stamp.v1'
 
 /**
  * The stored stamp, or null when there isn't a usable one.
@@ -100,6 +105,7 @@ export function loadStamp(storage: Storage): BundleStamp | null {
   let raw: string | null
   try {
     raw = storage.getItem(STAMP_KEY)
+    if (raw === null) raw = storage.getItem(LEGACY_STAMP_KEY)
   } catch {
     return null
   }
@@ -149,7 +155,9 @@ export function saveStamp(storage: Storage, stamp: BundleStamp): void {
  * leaving the stamp behind would be worse than doing nothing: the next save
  * would write a fresh document under an old stamp, and every record the stamp
  * names and the document lacks reads as a deletion the author never made. A
- * stamp without its content is the one state the invariant forbids.
+ * stamp without its content is the one state the invariant forbids. The legacy
+ * namespaces are cleared as well, so a pre-branding key cannot resurrect state
+ * after reset.
  *
  * Never throws — a browser that denies storage has nothing to clear anyway, and
  * this is the button a person presses when things are already going wrong.
@@ -161,18 +169,33 @@ export function clearStoredContent(storage: Storage): void {
     // Nothing to report: the caller's next load reads storage directly.
   }
   try {
+    storage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    // Remove the pre-branding namespace too, so reset really is a clean slate.
+  }
+  try {
     storage.removeItem(STAMP_KEY)
   } catch {
     // Separate try so a failure on the first key cannot skip the second — that
     // asymmetry is exactly the stamp-without-content state described above.
   }
   try {
+    storage.removeItem(LEGACY_STAMP_KEY)
+  } catch {
+    // See the content-key migration above.
+  }
+  try {
     storage.removeItem(HIDDEN_KEY)
   } catch {
-    // Third key, third try, same reason (ADR-006). Clearing the document and the
+    // Hidden key, separate try, same reason (ADR-006). Clearing the document and the
     // stamp while leaving this one behind hands the child a "fresh start" with
     // some of the shipped rooms still tucked away and nothing on screen to
     // explain why — which is the one state a reset exists to make unreachable.
+  }
+  try {
+    storage.removeItem(LEGACY_HIDDEN_KEY)
+  } catch {
+    // Remove the pre-branding hidden namespace too, so reset really is a clean slate.
   }
 }
 

@@ -4,7 +4,7 @@ task_slug: unified-create-ux
 status: approved
 created: 2026-08-08
 tier: 2
-tags: [strange-chess, spec, react, typescript, editor-ux, progressive-disclosure]
+tags: [chess-craft, spec, react, typescript, editor-ux, progressive-disclosure]
 test_framework: vitest
 research_doc: "[[RESEARCH-unified-create-ux]]"
 summary: "One maker screen: the sentence is the only editor, and it can say everything the game ships."

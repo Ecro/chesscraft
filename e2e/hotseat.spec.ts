@@ -28,12 +28,6 @@ async function pickFirstOffer(page: Page) {
   await offers.first().click()
 }
 
-async function offerIds(page: Page): Promise<string[]> {
-  return page.locator('[data-testid^="offer-"]').evaluateAll((els) =>
-    els.map((e) => e.getAttribute('data-card') ?? ''),
-  )
-}
-
 /** Walks the side to move's king between its home square and the one ahead. */
 async function shuffleKing(page: Page) {
   const side = (await page.getByTestId('side-to-move').getAttribute('data-side')) ?? ''
@@ -48,7 +42,7 @@ async function heldBy(page: Page, side: 'white' | 'black'): Promise<string[]> {
     .evaluateAll((els) => els.map((e) => e.getAttribute('data-card') ?? ''))
 }
 
-test('plays a hot-seat match through all four draft picks to a result', async ({ page }) => {
+test('plays a hot-seat match through recurring skill awards to a result', async ({ page }) => {
   // The longest test in the suite, and WebKit here is several times slower than
   // Chromium — it exceeded the 30s default on the first full WebKit run. Marked
   // slow rather than skipped: the claim is engine-independent and worth keeping.
@@ -67,38 +61,12 @@ test('plays a hot-seat match through all four draft picks to a result', async ({
   await pickFirstOffer(page) // black
   await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
 
-  // AC-017 — both trays are on screen, each holding one card.
-  expect(await heldBy(page, 'white')).toHaveLength(1)
-  expect(await heldBy(page, 'black')).toHaveLength(1)
-
-  // --- Play on until the sixth-turn offer opens. ---------------------------
-  for (let ply = 0; ply < 24; ply += 1) {
-    if ((await page.locator('[data-testid^="offer-"]').count()) > 0) break
-    await shuffleKing(page)
-  }
-  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'draft')
-
-  // --- Pick 3, with ADR-013's undo clause in the middle of it. -------------
-  const beforeUndo = await offerIds(page)
-  expect(beforeUndo).toHaveLength(3)
-  await pickFirstOffer(page)
-  await page.getByTestId('undo').click()
-
-  // The offer came back from history, not from a fresh draw. Re-rolling here
-  // would let a player undo their way to a better hand.
-  await expect(page.locator('[data-testid^="offer-"]')).toHaveCount(3)
-  expect(await offerIds(page)).toEqual(beforeUndo)
-  await pickFirstOffer(page)
-
-  // --- Pick 4: the other player's sixth-turn offer. ------------------------
-  for (let ply = 0; ply < 24; ply += 1) {
-    if ((await page.locator('[data-testid^="offer-"]').count()) > 0) break
-    await shuffleKing(page)
-  }
-  await pickFirstOffer(page)
-
-  expect(await heldBy(page, 'white')).toHaveLength(2)
-  expect(await heldBy(page, 'black')).toHaveLength(2)
+  // AC-017 — both trays stay visible while the engine grants one new card at
+  // turns 5 and 10 without opening another blocking draft.
+  for (let ply = 0; ply < 24; ply += 1) await shuffleKing(page)
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
+  expect(await heldBy(page, 'white')).toHaveLength(3)
+  expect(await heldBy(page, 'black')).toHaveLength(3)
 
   // --- Play to a result: an archer walks onto the beacon. ------------------
   while (((await page.getByTestId('side-to-move').getAttribute('data-side')) ?? '') !== 'white') {

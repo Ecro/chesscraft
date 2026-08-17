@@ -16,7 +16,8 @@
  * the cost of forgetting is that a player re-flips one switch.
  */
 
-export const SETTINGS_KEY = 'strange-chess.settings.v1'
+export const SETTINGS_KEY = 'chess-craft.settings.v1'
+const LEGACY_SETTINGS_KEY = 'strange-chess.settings.v1'
 
 /** How long a player may make their name. Long enough for a nickname, short
  *  enough that the turn bar and the hand-off curtain cannot be overflowed. */
@@ -57,7 +58,7 @@ function readName(value: unknown): string {
 
 export function loadSettings(storage: Storage): Settings {
   try {
-    const raw = storage.getItem(SETTINGS_KEY)
+    const raw = storage.getItem(SETTINGS_KEY) ?? storage.getItem(LEGACY_SETTINGS_KEY)
     if (!raw) return structuredClone(DEFAULT_SETTINGS)
     const parsed = JSON.parse(raw) as Partial<Settings>
     const names = (parsed.names ?? {}) as Partial<Settings['names']>

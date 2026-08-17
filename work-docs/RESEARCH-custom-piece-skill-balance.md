@@ -3,7 +3,7 @@ type: research
 task_slug: custom-piece-skill-balance
 status: complete
 created: 2026-08-08
-tags: [strange-chess, research, typescript, zod, content-vocabulary, game-balance, ugc]
+tags: [chess-craft, research, typescript, zod, content-vocabulary, game-balance, ugc]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

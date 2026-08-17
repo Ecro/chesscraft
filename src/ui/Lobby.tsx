@@ -5,8 +5,8 @@ import { DIFFICULTIES, type Difficulty } from '@engine/ai/difficulty'
 import type { ContentSet, ContentSource } from '@content/load'
 import { exportContent, importContent } from '@editor/io'
 import type { Side } from '@engine/types'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { ART_ASSETS, BRAND_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import { MiniBoard } from './MiniBoard'
 import { MAX_NAME_LENGTH } from './settings'
 import { useTranslate } from './i18n'
@@ -168,6 +168,9 @@ export function Lobby({
       </header>
 
       <div className="screen-body">
+        <div className="lobby-brand" aria-hidden="true">
+          <ImageMark className="brand-mark" src={BRAND_ART.crest} />
+        </div>
         <p className="hint">{t('ui.lobby.intro')}</p>
 
         <fieldset className="mode-picker" data-testid="mode-picker">
@@ -328,7 +331,7 @@ function PlayerCard({ side, name, onChange }: { side: Side; name: string; onChan
   return (
     <div className="player-card" data-side={side}>
       <span className="crest" aria-hidden="true">
-        <Pix sprite={PIXEL_SPRITES.king} tint={`var(--color-side-${side}-ink)`} />
+        <ImageMark src={ART_ASSETS.piece['king'][side]} />
       </span>
       <span className="player-fields">
         <label className="player-role" htmlFor={id}>

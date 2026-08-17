@@ -259,7 +259,7 @@ export const ko: Record<string, string> = {
   // reason the cards' words are: a translator should own one file, not grep
   // through JSX. Wording target is the same as the content bundle — 초·중학생,
   // short, and naming the action rather than the widget.
-  'ui.app.title': '이상한 체스',
+  'ui.app.title': 'Chess Craft',
   'ui.tab.play': '놀기',
   'ui.tab.edit': '만들기',
   'ui.content.broken': '내용을 불러오지 못했어요.',
@@ -291,7 +291,7 @@ export const ko: Record<string, string> = {
   // localisation pass reintroducing the very mismatch the palette removed.
   'ui.side.white': '파란 편',
   'ui.side.black': '빨간 편',
-  'ui.home.tagline': '친구와 번갈아 두는 이상한 체스. 판마다 규칙이 달라져요.',
+  'ui.home.tagline': '친구와 번갈아 두는 Chess Craft. 판마다 규칙이 달라져요.',
   'ui.action.start-match': '놀러 가기',
   'ui.action.new-match': '새 판',
   'ui.action.rematch': '한 판 더',

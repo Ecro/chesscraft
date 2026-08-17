@@ -3,7 +3,7 @@ type: plan
 task_slug: ai-opponent-singleplayer
 status: complete
 created: 2026-08-07
-tags: [strange-chess, plan, typescript, game-ai, tree-search, web-worker]
+tags: [chess-craft, plan, typescript, game-ai, tree-search, web-worker]
 spec: "[[SPEC-ai-opponent-singleplayer]]"
 research_doc: "[[RESEARCH-ai-opponent-singleplayer]]"
 interview_rounds: 2

@@ -4,7 +4,6 @@ import { type ContentSource, loadContentSet } from '@content/load'
 import { sliceContentSource } from '@content/sets/slice'
 import { bundledContentSource } from '@content/sets/bundled'
 import { artRegistry } from '@ui/art/registry'
-import { isSpriteName } from '@ui/art/pixels'
 import { exportContent, importContent } from '@editor/io'
 import { artKeysOf, textKeysOf } from '@ui/i18n'
 
@@ -185,7 +184,7 @@ describe('the art catalogue and the content that points at it', () => {
     const claimed = new Set(artKeysOf(loaded.set))
     const free = { piece: 0, square: 0, card: 0 }
     for (const [id, entry] of artRegistry) {
-      if (entry.kind !== 'pixel' || claimed.has(id)) continue
+      if (claimed.has(id)) continue
       free[entry.surface] += 1
     }
 
@@ -209,9 +208,8 @@ describe('the art catalogue and the content that points at it', () => {
      * Nothing else stops a rule card from pointing at a square's art: it would
      * render perfectly on a card face while being legibility-checked only
      * against painted board squares, and pass while being unreadable where it
-     * actually appears. A raster entry carries the surface in its filename
-     * prefix, which is what `e2e/art-contrast.spec.ts` reads; a pixel entry
-     * declares it outright, because a sprite has no filename to read.
+     * actually appears. The registry carries the surface explicitly and the
+     * imported filename prefix mirrors that contract for build-time inspection.
      */
     const expected: Record<string, { prefix: string; surface: 'piece' | 'square' | 'card' }> = {
       pieces: { prefix: 'piece-', surface: 'piece' },
@@ -229,10 +227,8 @@ describe('the art catalogue and the content that points at it', () => {
         if (!record.artKey) continue
         const entry = artRegistry.get(record.artKey)
         if (!entry) continue // the unregistered case is the test above
-        if (entry.kind === 'pixel') {
-          if (entry.surface !== surface) {
-            offences.push(`${record.id} (${collection}) points at ${entry.sprite}, drawn for a ${entry.surface}`)
-          }
+        if (entry.surface !== surface) {
+          offences.push(`${record.id} (${collection}) points at a ${entry.surface} asset`)
           continue
         }
         const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
@@ -248,20 +244,16 @@ describe('the art catalogue and the content that points at it', () => {
   })
 
   it('gives every registered entry something that will actually draw', () => {
-    // The two kinds fail differently and both fail silently. A raster entry
-    // whose asset import was removed keeps an empty string, and `<img src="">`
-    // re-fetches the document; a pixel entry naming a sprite the sheet does not
-    // have falls through to the glyph, which looks like "the art just did not
-    // show up".
+    // An imported asset that is removed while its registry entry remains keeps
+    // an empty value, and `<img src="">` re-fetches the document. Every source
+    // must therefore be non-empty and must still be a bundled WebP URL.
     for (const [id, entry] of artRegistry) {
-      if (entry.kind === 'pixel') {
-        expect(isSpriteName(entry.sprite), `${id} names a sprite the sheet does not have`).toBe(true)
-        continue
-      }
       const urls = entry.kind === 'sided' ? [entry.white, entry.black] : [entry.src]
       for (const url of urls) {
         expect(url, `${id} has an empty asset url`).toBeTruthy()
+        expect(url, `${id} does not point at a WebP`).toMatch(/\.webp(?:$|\?)/)
       }
+      expect(entry.kind === 'sided' ? entry.surface : entry.surface).toBeTruthy()
     }
   })
 })

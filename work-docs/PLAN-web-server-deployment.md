@@ -3,7 +3,7 @@ type: plan
 task_slug: web-server-deployment
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, cloudflare-workers, vite, pwa, routing, desktop-layout]
+tags: [chess-craft, plan, cloudflare-workers, vite, pwa, routing, desktop-layout]
 research_doc: "[[RESEARCH-web-server-deployment]]"
 interview_rounds: 4
 adrs: 9

@@ -62,34 +62,21 @@ test('a second visit plays with the network switched off', async ({ page, contex
   expect(hasFont, 'Galmuri did not come from the cache — the offline app has no pixel font').toBe(true)
 
   /*
-   * And the art is on the board, offline.
-   *
-   * This used to measure an `<img>`'s `naturalWidth`, because a broken image is
-   * still a visible element with a layout box and `toBeVisible()` passes on
-   * exactly the failure the line existed for. There is no image any more: every
-   * mark is a sprite the bundle draws, so the failure mode it guarded against —
-   * an asset that fell out of the precache list — cannot happen to the art. It
-   * can still happen to the font, which is why the check above replaced it.
-   *
-   * What is left worth asserting is that the marks reached the board at all. A
-   * sprite that fails to render leaves the square empty rather than broken, so
-   * this counts the SVG's drawn children: an SVG with none is the sprite
-   * equivalent of a broken image, and it is invisible to every other assertion
-   * in this file.
-   *
-   * `rect, path` rather than `rect`. The renderer drew one rect per horizontal run until PLAN
-   * Phase 7 replaced it with one rounded outline path per colour, and this counted zero and
-   * reported "the marks did not render offline" — a true-sounding failure about the wrong thing,
-   * on the one suite where a false alarm is most expensive to diagnose. What is being asserted is
-   * that the SVG has ink in it, so match the shapes, not the element name the renderer happens
-   * to use this month.
+   * And the art is on the board, offline. A broken image can still have a layout
+   * box, so assert both that the image exists and that the browser decoded pixels
+   * for it. This is the asset-level half of the offline contract; the build test
+   * separately proves the complete WebP catalogue is in the service worker.
    */
-  const shapes = await page.locator('.square .piece svg.pix rect, .square .piece svg.pix path').count()
-  expect(shapes, 'the sprite SVGs are empty — the marks did not render offline').toBeGreaterThan(0)
-  // Unconditional, not `if (count > 0)`. The bundled board paints a marked
-  // square, so a count of zero means the square marks stopped rendering —
-  // which is a finding, not a reason to skip.
-  await expect(page.locator('.square-mark svg.pix').first()).toBeAttached()
+  const images = page.locator('.square .piece img.image-mark')
+  await expect(images, 'the raster marks did not render offline').toHaveCount(24)
+  const decoded = await images.evaluateAll((els) =>
+    els.every((el) => {
+      const image = el as HTMLImageElement
+      return image.complete && image.naturalWidth >= 128 && image.naturalHeight >= 128
+    }),
+  )
+  expect(decoded, 'offline raster marks have no decoded pixels').toBe(true)
+  await expect(page.locator('.square-mark img.image-mark').first()).toBeAttached()
 })
 
 test('ships a manifest an installable app needs', async ({ page, request }) => {

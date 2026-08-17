@@ -3,7 +3,7 @@ type: research
 task_slug: unified-movement-and-placement-ux
 status: complete
 created: 2026-08-09
-tags: [strange-chess, research, react, typescript, editor-ux, movement-model, board-placement]
+tags: [chess-craft, research, react, typescript, editor-ux, movement-model, board-placement]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

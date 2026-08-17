@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { ART_ASSETS, BRAND_ART, CHROME_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import { useTranslate } from './i18n'
 
 /**
@@ -25,9 +25,9 @@ import { useTranslate } from './i18n'
  * content layers that would happily be explained.
  */
 const STEPS = [
-  { id: 'build', sprite: PIXEL_SPRITES['nav-build'] },
-  { id: 'rules', sprite: PIXEL_SPRITES.hill },
-  { id: 'hotseat', sprite: PIXEL_SPRITES.arrows },
+  { id: 'build', src: CHROME_ART.navBuild },
+  { id: 'rules', src: ART_ASSETS.card.ranks },
+  { id: 'hotseat', src: ART_ASSETS.card.arrows },
 ] as const
 
 export function Boot({ onDone }: { onDone: () => void }) {
@@ -39,11 +39,14 @@ export function Boot({ onDone }: { onDone: () => void }) {
   return (
     <section className="boot" data-testid={`boot-step-${current.id}`} aria-label={t('ui.boot.label')}>
       <div className="boot-body">
+        <div className="boot-brand" aria-hidden="true">
+          <ImageMark className="brand-mark" src={BRAND_ART.crest} />
+        </div>
         <div className="boot-crest">
-          {/* Big — 8x the sprite's natural size, which is the whole reason the
-              art is 12 pixels of data rather than a raster: it scales to a
-              150px crest and stays exactly as sharp as it is in a tab. */}
-          <Pix sprite={current.sprite} />
+          {/* The same bundled image is used at onboarding scale and card scale,
+              so the product's visual language remains consistent from the first
+              screen instead of switching back to placeholder glyphs. */}
+          <ImageMark src={current.src} />
         </div>
         {/* `aria-live`, because the buttons stay put and only this text changes.
             Without it a screen-reader user pressing next hears nothing at all

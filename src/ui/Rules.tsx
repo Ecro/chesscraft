@@ -48,10 +48,8 @@ type KindId = (typeof KINDS)[number]['id']
  * Nothing rather than a monogram: this is a reference list, and an invented mark
  * beside every unmarked entry would decode nothing.
  *
- * `side` matters even though a reference list has no sides. A pixel piece sprite
- * tints its `$` cells from the side it is handed, and with none it falls to the
- * neutral tint — readable, but not the blue a player has been staring at all
- * match. White is the side the board starts from.
+ * `side` matters even though a reference list has no sides. Piece art is shipped
+ * as separate white/black images, and white is the side the board starts from.
  */
 function markOf(t: Translate, e: Entry, side?: Side): Mark {
   return resolveMark(t, e, { registry: artRegistry, side, fallback: 'none' })

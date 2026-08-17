@@ -3,7 +3,7 @@ type: research
 task_slug: ai-opponent-singleplayer
 status: complete
 created: 2026-08-07
-tags: [strange-chess, research, typescript, game-ai, tree-search, web-worker, determinism]
+tags: [chess-craft, research, typescript, game-ai, tree-search, web-worker, determinism]
 mtime_warn_days: 7
 libs_fetched:
   - vite.dev/guide/features#web-workers

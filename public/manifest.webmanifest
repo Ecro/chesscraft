@@ -1,7 +1,7 @@
 {
-  "name": "이상한 체스",
-  "short_name": "이상한 체스",
-  "description": "친구와 번갈아 두는 이상한 체스. 판마다 규칙이 달라져요.",
+  "name": "Chess Craft",
+  "short_name": "Chess Craft",
+  "description": "Chess Craft — 친구와 번갈아 두는 체스. 판마다 규칙이 달라져요.",
   "lang": "ko",
   "dir": "ltr",
   "start_url": "/",

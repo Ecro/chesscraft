@@ -1,7 +1,7 @@
 import { PIXEL_PALETTE, type PixelSprite, runsOf } from './pixels.ts'
 
 /**
- * The rules a sprite has to obey, as one module both the suite and the
+ * Legacy source-sprite rules, as one module both the suite and the
  * generator import (ADR-005 of PLAN-preset-content-expansion).
  *
  * These used to live as assertions inside `pixels.test.ts` and
@@ -13,10 +13,10 @@ import { PIXEL_PALETTE, type PixelSprite, runsOf } from './pixels.ts'
  * unlikely, which is why `sprite-generator.test.ts` asserts module IDENTITY and
  * not merely equivalent behaviour.
  *
- * Nothing in here reads the filesystem, so it is importable from the app, from a
- * jsdom test and from a plain node script alike. The colour VALUES the contrast
- * rules need are passed in — `tokens.css` stays the only place a colour is
- * named (ADR-021), and the two callers each read it their own way.
+ * Runtime art uses imported WebP files. Nothing in here is on that rendering
+ * path; the module remains filesystem-free so the legacy generator and its tests
+ * can share the same predicates. The colour VALUES the contrast rules need are
+ * passed in — `tokens.css` stays the only place a colour is named (ADR-021).
  */
 
 /** Every sprite is exactly this many rows of exactly this many characters. */

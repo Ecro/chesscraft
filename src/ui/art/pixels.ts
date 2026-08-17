@@ -1,18 +1,13 @@
 /**
- * The 12x12 pixel sprite sheet (Chess Craft redesign).
+ * Legacy 12x12 source sprites retained for the generator and its tests.
  *
- * Every mark this app draws — piece, painted square, rule card, skill card, tab
- * bar icon — is twelve rows of twelve characters in here. The redesign retires
- * the emoji glyphs for one reason that is not taste: an emoji is drawn from a
- * colour font, so it ignores `color` and `font-weight`, and ADR-007 spends both
- * of those separating the two armies. Two archers rendered identically, and
- * `ko.ts` already carried a paragraph apologising for it. A sprite the app owns
- * inherits whatever tint it is handed.
+ * Runtime UI art is now imported from `src/ui/art/assets/` as high-resolution
+ * WebP images. This module is no longer imported by the application renderer;
+ * it remains only because the legacy candidate generator and its invariant tests
+ * still use the source sheet as historical authoring data.
  *
- * **A sprite is data, not a picture file.** `artRegistry` still maps an art id
- * to an asset for raster entries; a pixel entry names a key in here instead, so
- * nothing has to be emitted by the bundler, precached by the service worker or
- * enumerated in `vite-plugin-sw.ts`. Offline is free.
+ * The WebP catalogue is the runtime source of truth. These rows are not emitted
+ * by the bundler or precached by the service worker.
  *
  * **Characters.** `.` is transparent, `$` takes the caller's tint, and every
  * other character indexes `PIXEL_PALETTE`. An unknown character is drawn in
@@ -2277,22 +2272,9 @@ export function isSpriteName(name: string): name is SpriteName {
 /**
  * A horizontal run of identical pixels, in sprite coordinates (0..11).
  *
- * The sprites are rendered as SVG rects rather than as the design prototype's
- * `box-shadow` pixel stack, and the runs are why. A 6x6 board shows up to 36
- * pieces; at one shadow per opaque pixel that is some five thousand shadows in
- * one `box-shadow` list per repaint, which is the kind of thing that is fine on
- * a laptop and visibly stutters on the household Android this app is for.
- * Merging each row into runs roughly halves it — 40 rects for the average
- * sprite, 57 for the worst — and `shape-rendering: crispEdges` kept the
- * result pixel-identical to the box-shadow version.
- *
- * **`Pix.tsx` no longer draws these runs (PLAN Phase 7).** It draws one rounded outline path per
- * colour from `smooth.ts`, because the marks read as pixel art and the blockiness was the
- * geometry rather than the rasterisation. `runsOf` stays, and stays load-bearing: `gates.ts`
- * counts its output for the rect cap and the sheet-wide compression floor, which are properties
- * of the sprite DATA and are unaffected by how it is drawn. That is also why nothing in this file
- * changed for Phase 7 — the 125 committed sprites and every gate constant derived from them still
- * describe exactly what they described.
+ * The old renderer merged each row into runs to keep a 6x6 board cheap to
+ * repaint. `runsOf` stays available to the legacy generator gates, but no
+ * runtime component turns these rows into DOM geometry anymore.
  */
 export interface PixelRun {
   readonly x: number

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadContentSet } from '@content/load'
 import { bundledContentSource } from '@content/sets/bundled'
 import { HIDDEN_KEY } from '@editor/hidden'
+import { STORAGE_KEY } from '@editor/storage'
 import { App } from '../../src/ui/App'
 import { skipOnboarding } from '../helpers/onboarding'
 
@@ -76,7 +77,7 @@ describe('the carousel leaves out rooms this browser has hidden', () => {
     const rooms = shippedRooms()
     localStorage.setItem(HIDDEN_KEY, JSON.stringify({ ids: [rooms[1]] }))
     render(<App />)
-    const stored = localStorage.getItem('strange-chess.content.v1')
+    const stored = localStorage.getItem(STORAGE_KEY)
     // Nothing was written to the content key at all — hiding is not a save.
     expect(stored).toBeNull()
   })

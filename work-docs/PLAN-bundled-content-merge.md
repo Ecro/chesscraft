@@ -25,7 +25,7 @@ merged = saved  +  { bundle records : id ∉ stamp  ∧  id ∉ saved }
 ```
 
 **Why it is broken.** `src/ui/App.tsx:28` `initialSource()` returns the stored source whenever
-`loadStoredContent` succeeds. `STORAGE_KEY = 'strange-chess.content.v1'`
+`loadStoredContent` succeeds. `STORAGE_KEY = 'chess-craft.content.v1'`
 (`src/editor/storage.ts:19`) holds the **entire** `ContentSource`, and `src/ui/Edit.tsx:71` is
 the sole production writer. So the first editor save freezes that browser's catalogue
 permanently. Reported as *"new maps show up on a fresh install but not on one I already had"*.
@@ -143,7 +143,7 @@ implementation `saved ++ additions` rather than a per-record decision tree.
 field by field** (`io.ts:60`–`:71`), so any new top-level field is silently dropped on the very
 next read. (The document root is *not* a strict Zod object — an earlier draft claimed it was,
 which is false and would have sent a future reader to re-litigate a sound decision.)
-**Decision:** A separate key, `strange-chess.bundle-stamp.v1`, beside `STORAGE_KEY` in
+**Decision:** A separate key, `chess-craft.bundle-stamp.v1`, beside `STORAGE_KEY` in
 `src/editor/storage.ts`. Shape: `{ ids: string[] }`.
 **Consequences:**
 - ✅ `ContentSource`, its schema, and the import/export format are untouched.

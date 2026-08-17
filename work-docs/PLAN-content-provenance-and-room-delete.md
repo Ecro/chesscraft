@@ -3,7 +3,7 @@ type: plan
 task_slug: content-provenance-and-room-delete
 status: complete
 created: 2026-08-09
-tags: [strange-chess, plan, typescript, react, content-provenance, editor-ux, localstorage]
+tags: [chess-craft, plan, typescript, react, content-provenance, editor-ux, localstorage]
 interview_rounds: 4
 adrs: 7
 validator_outcome: MAJOR_REVISION_RESOLVED
@@ -322,7 +322,7 @@ argument, not a subtly wrong render.
 `ContentSource` field by field, so an unknown top-level field is silently dropped on the
 very next read — a failure this project already hit and documented when placing the bundle
 stamp (`src/editor/storage.ts:79-84`).
-**Decision:** `HIDDEN_KEY = 'strange-chess.hidden.v1'`, holding `{ ids: string[] }`, read
+**Decision:** `HIDDEN_KEY = 'chess-craft.hidden.v1'`, holding `{ ids: string[] }`, read
 with the same defensive shape-check `loadStamp` uses, every failure resolving to "nothing
 hidden".
 **Consequences:**
@@ -434,9 +434,9 @@ No new packages. `zod`, `react` and the existing test rig only.
                                           │ isOfficial(id)
                                           ▼
  localStorage                        visibility.ts  (pure)
-  ├ strange-chess.content.v1 ──┐          │ partitionByOrigin(records, hidden)
-  ├ strange-chess.bundle-stamp ─┼─ merge ─┤
-  └ strange-chess.hidden.v1 ────┘         │
+  ├ chess-craft.content.v1 ──┐          │ partitionByOrigin(records, hidden)
+  ├ chess-craft.bundle-stamp ─┼─ merge ─┤
+  └ chess-craft.hidden.v1 ────┘         │
         (hidden.ts)                       ▼
                                    list surfaces only
                           EditorRooms · EditorLibrary · Home

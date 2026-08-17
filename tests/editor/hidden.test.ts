@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HIDDEN_KEY, loadHidden, saveHidden } from '@editor/hidden'
+import { HIDDEN_KEY, LEGACY_HIDDEN_KEY, loadHidden, saveHidden } from '@editor/hidden'
 import { STAMP_KEY, STORAGE_KEY, clearStoredContent } from '@editor/storage'
 
 /**
@@ -117,11 +117,13 @@ describe('clearStoredContent drops the hidden set too (ADR-006)', () => {
       [STORAGE_KEY]: '{"schemaVersion":10}',
       [STAMP_KEY]: '{"ids":["piece.king"]}',
       [HIDDEN_KEY]: '{"ids":["preset.default"]}',
+      [LEGACY_HIDDEN_KEY]: '{"ids":["piece.legacy"]}',
     })
     clearStoredContent(storage)
     expect(storage.getItem(STORAGE_KEY)).toBeNull()
     expect(storage.getItem(STAMP_KEY)).toBeNull()
     expect(storage.getItem(HIDDEN_KEY)).toBeNull()
+    expect(storage.getItem(LEGACY_HIDDEN_KEY)).toBeNull()
     expect([...loadHidden(storage)]).toEqual([])
   })
 

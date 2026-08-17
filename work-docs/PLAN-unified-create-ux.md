@@ -3,7 +3,7 @@ type: plan
 task_slug: unified-create-ux
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, react, typescript, editor-ux, progressive-disclosure]
+tags: [chess-craft, plan, react, typescript, editor-ux, progressive-disclosure]
 spec: "[[SPEC-unified-create-ux]]"
 research_doc: "[[RESEARCH-unified-create-ux]]"
 interview_rounds: 3

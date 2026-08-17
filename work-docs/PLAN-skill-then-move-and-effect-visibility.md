@@ -3,7 +3,7 @@ type: plan
 task_slug: skill-then-move-and-effect-visibility
 status: planning
 created: 2026-08-08
-tags: [strange-chess, plan, typescript, react, engine, turn-model, ui-affordance]
+tags: [chess-craft, plan, typescript, react, engine, turn-model, ui-affordance]
 interview_rounds: 4
 adrs: 7
 validator_outcome: MAJOR_REVISION_RESOLVED

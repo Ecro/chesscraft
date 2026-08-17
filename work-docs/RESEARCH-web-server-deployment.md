@@ -3,7 +3,7 @@ type: research
 task_slug: web-server-deployment
 status: complete
 created: 2026-08-07
-tags: [strange-chess, research, cloudflare, vite, pwa, deployment, desktop-layout, multiplayer]
+tags: [chess-craft, research, cloudflare, vite, pwa, deployment, desktop-layout, multiplayer]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

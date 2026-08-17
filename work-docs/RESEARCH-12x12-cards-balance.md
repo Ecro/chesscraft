@@ -3,7 +3,7 @@ type: research
 task_slug: 12x12-cards-balance
 status: complete
 created: 2026-08-16
-tags: [strange-chess, research, typescript, board-scaling, cards, game-balance]
+tags: [chess-craft, research, typescript, board-scaling, cards, game-balance]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

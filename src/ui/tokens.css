@@ -28,14 +28,9 @@
  * old board used on glyphs — the eye reads the EDGE, so the fill is free to
  * carry hue — applied to the whole UI rather than to pieces alone.
  *
- * **The two sides separate by hue, position and shape, no longer by weight.**
- * Weight was the third cue when a piece was a text glyph. A piece is now a
- * sprite, and a sprite has no weight to vary, so the third cue moved to
- * geometry: `.square .side-tag` puts a hard-edged marker in the bottom-left
- * corner for one side and the top-right for the other. Roughly one boy in twelve
- * reads red/green poorly and a chess board is the worst place to learn that
- * about yourself; a cue you can locate without resolving its colour is stronger
- * than one you have to.
+ * **The two sides separate by hue.** Piece art ships as matched white/black
+ * image variants, so the board keeps the visual language simple: the image
+ * colour is the side cue and there is no extra badge competing with the piece.
  */
 
 /*

@@ -3,7 +3,7 @@ type: research
 task_slug: preset-content-expansion
 status: complete
 created: 2026-08-08
-tags: [strange-chess, research, content-authoring, pixel-art, game-balance, vocabulary]
+tags: [chess-craft, research, content-authoring, pixel-art, game-balance, vocabulary]
 mtime_warn_days: 7
 libs_fetched: []
 sources: []

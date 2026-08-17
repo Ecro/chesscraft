@@ -1,5 +1,5 @@
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { CHROME_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import { useTranslate } from './i18n'
 
 /**
@@ -11,7 +11,7 @@ import { useTranslate } from './i18n'
  * had to come back out to look a piece up. Everything reachable is reachable
  * from everywhere, which is the one thing a tab bar is actually for.
  *
- * A sprite AND a word on every tab. The icon alone would be a guess for a
+ * A picture AND a word on every tab. The icon alone would be a guess for a
  * seven-year-old and the word alone would be a wall of Korean at 11px; together
  * they are what every phone game this audience already plays looks like.
  */
@@ -19,9 +19,9 @@ const TABS = [
   // `testid` is not `id`. The route is `home` and the tab has always been called
   // `tab-play` — the e2e suite drives it by that name, and renaming a selector
   // to match an internal route is churn a spec has to absorb for nothing.
-  { id: 'home', testid: 'tab-play', sprite: PIXEL_SPRITES['nav-play'], labelKey: 'ui.tab.play' },
-  { id: 'edit', testid: 'tab-edit', sprite: PIXEL_SPRITES['nav-build'], labelKey: 'ui.tab.edit' },
-  { id: 'dex', testid: 'tab-dex', sprite: PIXEL_SPRITES['nav-dex'], labelKey: 'ui.tab.dex' },
+  { id: 'home', testid: 'tab-play', src: CHROME_ART.navPlay, labelKey: 'ui.tab.play' },
+  { id: 'edit', testid: 'tab-edit', src: CHROME_ART.navBuild, labelKey: 'ui.tab.edit' },
+  { id: 'dex', testid: 'tab-dex', src: CHROME_ART.navDex, labelKey: 'ui.tab.dex' },
 ] as const
 
 export type TabId = (typeof TABS)[number]['id']
@@ -47,7 +47,7 @@ export function TabBar({ active, onNavigate }: { active: TabId; onNavigate: (id:
           onClick={() => onNavigate(tab.id)}
         >
           <span className="tab-icon">
-            <Pix sprite={tab.sprite} />
+            <ImageMark src={tab.src} />
           </span>
           <span className="tab-label">{t(tab.labelKey)}</span>
         </button>

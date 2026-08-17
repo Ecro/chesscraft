@@ -3,7 +3,7 @@ type: research
 task_slug: same-turn-skill-move-balance
 status: complete
 created: 2026-08-11
-tags: [strange-chess, research, typescript, game-balance, turn-model, skill-cards, royal-capture]
+tags: [chess-craft, research, typescript, game-balance, turn-model, skill-cards, royal-capture]
 mtime_warn_days: 7
 libs_fetched: []
 sources: []

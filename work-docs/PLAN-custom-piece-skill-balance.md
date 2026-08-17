@@ -3,7 +3,7 @@ type: plan
 task_slug: custom-piece-skill-balance
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, typescript, zod, content-vocabulary, game-balance, ugc]
+tags: [chess-craft, plan, typescript, zod, content-vocabulary, game-balance, ugc]
 research_doc: "[[RESEARCH-custom-piece-skill-balance]]"
 interview_rounds: 5
 adrs: 11

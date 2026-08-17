@@ -3,7 +3,7 @@ type: plan
 task_slug: same-turn-skill-move-balance
 status: complete
 created: 2026-08-11
-tags: [strange-chess, plan, typescript, game-balance, turn-model, skill-cards, royal-capture]
+tags: [chess-craft, plan, typescript, game-balance, turn-model, skill-cards, royal-capture]
 research_doc: "[[RESEARCH-same-turn-skill-move-balance]]"
 interview_rounds: 6
 adrs: 5

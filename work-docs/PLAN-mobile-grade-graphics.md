@@ -3,7 +3,7 @@ type: plan
 task_slug: mobile-grade-graphics
 status: complete
 created: 2026-08-06
-tags: [strange-chess, plan, react, content-schema, game-art, pwa, raster-assets]
+tags: [chess-craft, plan, react, content-schema, game-art, pwa, raster-assets]
 research_doc: "[[RESEARCH-mobile-grade-graphics]]"
 interview_rounds: 3
 adrs: 13

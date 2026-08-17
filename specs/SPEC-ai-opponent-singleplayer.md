@@ -4,7 +4,7 @@ task_slug: ai-opponent-singleplayer
 status: approved
 created: 2026-08-07
 tier: 2
-tags: [strange-chess, spec, typescript, vitest, game-ai, single-player]
+tags: [chess-craft, spec, typescript, vitest, game-ai, single-player]
 test_framework: vitest
 research_doc: "[[RESEARCH-ai-opponent-singleplayer]]"
 summary: "Single-player mode: a deterministic search-based AI opponent with three difficulty levels"

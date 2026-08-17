@@ -4,7 +4,7 @@ task_slug: preset-content-expansion
 status: approved
 created: 2026-08-08
 tier: 2
-tags: [strange-chess, spec, vitest, content-authoring, pixel-art, engine-semantics]
+tags: [chess-craft, spec, vitest, content-authoring, pixel-art, engine-semantics]
 test_framework: vitest
 research_doc: "[[RESEARCH-preset-content-expansion]]"
 summary: "Fix 3 inert-card root causes, then add 3 rooms + 24 records + a 60-sprite spare art pool"

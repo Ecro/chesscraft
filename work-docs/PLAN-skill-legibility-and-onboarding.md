@@ -3,7 +3,7 @@ type: plan
 task_slug: skill-legibility-and-onboarding
 status: complete
 created: 2026-08-13
-tags: [strange-chess, plan, react, typescript, ui-affordance, onboarding, motion]
+tags: [chess-craft, plan, react, typescript, ui-affordance, onboarding, motion]
 interview_rounds: 4
 adrs: 7
 validator_outcome: NEEDS_REVISION_RESOLVED
@@ -263,7 +263,7 @@ and every control stays live.
 be duplicated". A second, independently-added flag reproduces that hazard immediately: every
 one of the ~40 UI tests that mounts `MatchHost` would start behind an undismissed sheet.
 **Decision:** A new module `src/ui/onboarding.ts` exports `ONBOARDING_KEYS` (the coach key
-plus the new `strange-chess.match-intro.seen.v1`) and the shared read/write helpers.
+plus the new `chess-craft.match-intro.seen.v1`) and the shared read/write helpers.
 `coach.ts` re-exports from it for compatibility; `tests/helpers/onboarding.ts` and
 `playwright.config.ts` both iterate the registry instead of naming keys.
 **Consequences:**
@@ -359,8 +359,8 @@ None external. Internal module surface added:
 
 ```ts
 // src/ui/onboarding.ts
-export const COACH_SEEN_KEY = 'strange-chess.coach.seen.v1'
-export const MATCH_INTRO_SEEN_KEY = 'strange-chess.match-intro.seen.v1'
+export const COACH_SEEN_KEY = 'chess-craft.coach.seen.v1'
+export const MATCH_INTRO_SEEN_KEY = 'chess-craft.match-intro.seen.v1'
 export const ONBOARDING_KEYS: readonly string[]
 export function hasSeen(storage: Storage, key: string): boolean
 export function markSeen(storage: Storage, key: string): void

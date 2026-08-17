@@ -14,4 +14,10 @@ export default defineConfig({
       '@ui': fileURLToPath(new URL('./src/ui', import.meta.url)),
     },
   },
+  // Keep each raster mark as a real emitted file. Inlining the small neutral
+  // cards into the JS bundle makes the browser work, but removes them from the
+  // service worker's image inventory and makes offline cache failures opaque.
+  build: {
+    assetsInlineLimit: 0,
+  },
 })

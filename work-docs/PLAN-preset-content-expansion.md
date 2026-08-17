@@ -3,7 +3,7 @@ type: plan
 task_slug: preset-content-expansion
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, vitest, content-authoring, pixel-art, preset-design]
+tags: [chess-craft, plan, vitest, content-authoring, pixel-art, preset-design]
 spec: "[[SPEC-preset-content-expansion]]"
 research_doc: "[[RESEARCH-preset-content-expansion]]"
 interview_rounds: 1

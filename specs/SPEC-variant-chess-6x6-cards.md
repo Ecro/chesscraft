@@ -4,7 +4,7 @@ task_slug: variant-chess-6x6-cards
 status: draft
 created: 2026-08-05
 tier: 2
-tags: [strange-chess, spec, typescript, vitest, game-engine, data-driven-content, chess-variant]
+tags: [chess-craft, spec, typescript, vitest, game-engine, data-driven-content, chess-variant]
 test_framework: vitest
 research_doc: "[[RESEARCH-variant-chess-6x6-cards]]"
 summary: "Data-driven 6x6 variant-chess web MVP: pieces/rules/skills/boards as content, hot-seat + editor"

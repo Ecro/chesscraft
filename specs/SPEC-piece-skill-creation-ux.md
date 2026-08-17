@@ -4,7 +4,7 @@ task_slug: piece-skill-creation-ux
 status: approved
 created: 2026-08-08
 tier: 2
-tags: [strange-chess, spec, react, typescript, editor-ux, movement-grid]
+tags: [chess-craft, spec, react, typescript, editor-ux, movement-grid]
 test_framework: vitest
 research_doc: "[[RESEARCH-piece-skill-creation-ux]]"
 summary: "Make the piece maker's grid mean one thing, and prove every edit against the real engine."

@@ -13,8 +13,7 @@ import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { PlacementPainter, type PaintedSquare, type Placed, paintSquare, togglePlacement } from './PlacementPainter'
 import { MarkBody } from './art/MarkBody'
-import { PIXEL_SPRITES, isSpriteName } from './art/pixels'
-import { Pix } from './art/Pix'
+import { ImageMark } from './art/ImageMark'
 import {
   Cell,
   DIRECTIONS,
@@ -761,17 +760,17 @@ export function RecordForm({
   }
 
   /**
-   * The mark this record shows, picked from the app's sprite sheet.
+   * The mark this record shows, picked from the app's raster catalogue.
    *
    * Not a text field for the art id. The id is `art.homeward` and the picture is
    * a house — a child cannot map one to the other by reading, and there is no
-   * reason to make them: the whole catalogue fits on one screen at 12 pixels a
-   * side.
+   * reason to make them: the whole catalogue fits on one screen at display size
+   * while the imported sources stay high-resolution.
    */
   function artPicker() {
     const surface = ART_SURFACE[kind]
     if (!surface) return null
-    const options = [...artRegistry.entries()].filter(([, entry]) => entry.kind === 'pixel' && entry.surface === surface)
+    const options = [...artRegistry.entries()].filter(([, entry]) => entry.surface === surface)
     if (options.length === 0) return null
     const chosen = typeof draft.artKey === 'string' ? draft.artKey : ''
     return (
@@ -779,7 +778,7 @@ export function RecordForm({
         <legend>{t('ui.editor.field.art')}</legend>
         <div className="palette wrap">
           {options.map(([artId, entry]) => {
-            const sprite = entry.kind === 'pixel' && isSpriteName(entry.sprite) ? PIXEL_SPRITES[entry.sprite] : null
+            const src = entry.kind === 'sided' ? entry.white : entry.src
             return (
               <button
                 key={artId}
@@ -798,7 +797,7 @@ export function RecordForm({
                   })
                 }
               >
-                {sprite && <Pix sprite={sprite} tint={surface === 'piece' ? 'var(--pix-tint-white)' : undefined} />}
+                <ImageMark src={src} />
               </button>
             )
           })}

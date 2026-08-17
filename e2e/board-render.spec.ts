@@ -24,7 +24,7 @@ async function openBoard(page: import('@playwright/test').Page) {
   await startMatch(page)
 }
 
-test('every occupied square shows exactly one grapheme after layout', async ({ page }) => {
+test('every occupied square shows exactly one raster image after layout', async ({ page }) => {
   await openBoard(page)
 
   const occupied = page.locator('[data-testid^="sq-"]:not([data-piece=""])')
@@ -39,8 +39,8 @@ test('every occupied square shows exactly one grapheme after layout', async ({ p
   // the slice fixture; the lesson did not get carried across, which is the whole
   // reason it is written down here.
   //
-  // Since the redesign a piece is a SPRITE, so the claim inverts: the square
-  // must carry a drawing and no text at all. A grapheme here would mean the art
+  // Since the redesign a piece is a bundled IMAGE, so the claim inverts: the
+  // square must carry a drawing and no text at all. A grapheme here would mean the art
   // failed to resolve and the monogram fallback quietly caught it — which is
   // exactly the silent degradation `art-key.test.ts` exists to make loud.
   const declaresArt = (pieceId: string) => {
@@ -57,7 +57,7 @@ test('every occupied square shows exactly one grapheme after layout', async ({ p
     // Post-layout, so this also fails for a sprite that is in the DOM and not
     // displayed — the half a textContent read cannot see.
     expect((await sq.innerText()).trim(), `${id} (${pieceId}) still renders text`).toBe('')
-    expect(await sq.locator('.piece svg.pix').count(), `${id} (${pieceId}) draws no sprite`).toBe(1)
+    expect(await sq.locator('.piece img.image-mark').count(), `${id} (${pieceId}) draws no raster art`).toBe(1)
   }
 })
 

@@ -51,15 +51,15 @@ describe('a piece renders as a mark, never as a blank square', () => {
       return {
         square: s.getAttribute('data-testid'),
         text: (s.textContent ?? '').trim(),
-        sprites: s.querySelectorAll('svg.pix').length,
+        images: s.querySelectorAll('img.image-mark').length,
         artKey: def?.artKey ?? null,
         name: def ? translate(def.nameKey) : '',
       }
     })
     expect(seen.length).toBeGreaterThan(0)
-    for (const { square, text, sprites, artKey, name } of seen) {
+    for (const { square, text, images, artKey, name } of seen) {
       expect(artKey, `${square} — the bundled set must carry art`).toBeTruthy()
-      expect(sprites, `${square} — no sprite drawn`).toBeGreaterThan(0)
+      expect(images, `${square} — no raster art drawn`).toBe(1)
       expect(text, `${square} still shows text`).toBe('')
       expect(text, `${square} still shows the name`).not.toBe(name)
     }

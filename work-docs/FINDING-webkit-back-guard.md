@@ -5,7 +5,7 @@ status: open
 created: 2026-08-08
 found_by: PLAN-piece-info-convenience-ux (ADR-006 added the WebKit e2e project)
 severity: potentially-high
-tags: [strange-chess, finding, webkit, ios, routing, data-loss]
+tags: [chess-craft, finding, webkit, ios, routing, data-loss]
 summary: "WebKit History API: Back left a match without asking, and unknown-path normalization intermittently does not land"
 ---
 

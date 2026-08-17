@@ -3,7 +3,7 @@ type: research
 task_slug: piece-skill-creation-ux
 status: complete
 created: 2026-08-08
-tags: [strange-chess, research, react, typescript, editor-ux, movement-grid, content-authoring]
+tags: [chess-craft, research, react, typescript, editor-ux, movement-grid, content-authoring]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

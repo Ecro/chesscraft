@@ -3,7 +3,7 @@ type: spec
 task_slug: mobile-grade-graphics
 status: active
 created: 2026-08-07
-tags: [strange-chess, art, assets, contrast, accessibility]
+tags: [chess-craft, art, assets, contrast, accessibility]
 summary: "What the 43-asset illustrated batch must satisfy to pass the gate that already exists"
 ---
 

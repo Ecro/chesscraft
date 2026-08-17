@@ -4,7 +4,7 @@ task_slug: unified-movement-and-placement-ux
 status: approved
 created: 2026-08-09
 tier: 2
-tags: [strange-chess, spec, react, typescript, editor-ux, movement-model, board-placement]
+tags: [chess-craft, spec, react, typescript, editor-ux, movement-model, board-placement]
 test_framework: vitest
 research_doc: "[[RESEARCH-unified-movement-and-placement-ux]]"
 summary: "One grid says where a piece goes; the board record places pieces the way 배치 already does."

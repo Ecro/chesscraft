@@ -3,7 +3,7 @@ type: research
 task_slug: variant-chess-6x6-cards
 status: complete
 created: 2026-08-05
-tags: [strange-chess, research, typescript, game-design, chess-variant, card-system, web-to-mobile]
+tags: [chess-craft, research, typescript, game-design, chess-variant, card-system, web-to-mobile]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

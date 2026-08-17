@@ -3,7 +3,7 @@ type: plan
 task_slug: 12x12-cards-balance
 status: complete
 created: 2026-08-16
-tags: [strange-chess, plan, typescript, board-scaling, cards, game-balance]
+tags: [chess-craft, plan, typescript, board-scaling, cards, game-balance]
 research_doc: "[[RESEARCH-12x12-cards-balance]]"
 interview_rounds: 1
 adrs: 6

@@ -518,6 +518,25 @@ hr {
   line-height: 0;
 }
 
+.image-mark {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  vertical-align: middle;
+  user-select: none;
+  pointer-events: none;
+}
+
+.image-mark-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .tab-label {
   font-size: var(--font-size-sm);
 }
@@ -589,13 +608,23 @@ hr {
   text-align: center;
 }
 
+.boot-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 52px;
+  line-height: 1;
+  filter: drop-shadow(4px 4px 0 var(--color-heading-shadow));
+}
+
 .boot-crest {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 150px;
   height: 150px;
-  /* 8x the sprite's 12px grid. The whole reason the art is data. */
+  /* A fixed onboarding frame keeps the crest large and stable while the
+     imported raster itself scales to the frame. */
   font-size: 96px;
   border: var(--border-w) solid var(--color-outline);
   background: var(--color-surface);
@@ -603,6 +632,12 @@ hr {
     inset var(--bevel-lg) var(--bevel-lg) 0 var(--color-surface-hi),
     inset calc(-1 * var(--bevel-lg)) calc(-1 * var(--bevel-lg)) 0 var(--color-surface-lo);
   animation: bob var(--motion-idle-duration) steps(6) infinite;
+}
+
+.boot-crest .image-mark,
+.result-crest .image-mark {
+  width: 100%;
+  height: 100%;
 }
 
 .boot-title {
@@ -681,6 +716,14 @@ hr {
 .wordmark {
   text-align: center;
   padding-top: var(--space-4);
+}
+
+.wordmark-brand {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: 58px;
+  line-height: 1;
+  filter: drop-shadow(4px 4px 0 var(--color-heading-shadow));
 }
 
 .wordmark-text {
@@ -800,6 +843,13 @@ hr {
 }
 
 /* -------------------------------------------------------------------- lobby */
+
+.lobby-brand {
+  align-self: center;
+  font-size: 54px;
+  line-height: 1;
+  filter: drop-shadow(3px 3px 0 var(--color-heading-shadow));
+}
 
 .player-cards {
   display: flex;
@@ -1073,7 +1123,7 @@ hr {
 
 .rule-icon {
   flex: none;
-  font-size: 26px;
+  font-size: 34px;
   line-height: 0;
 }
 
@@ -1169,13 +1219,13 @@ hr {
 }
 
 .foe-card {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 26px;
   border-width: var(--border-w-thin);
   background: var(--color-deep);
   box-shadow:
@@ -1246,6 +1296,21 @@ hr {
 @supports (width: 100dvh) {
   .board-frame {
     width: max(calc(var(--board-columns, 6) * 44px + 14px), min(100%, calc(100dvh - 200px)));
+  }
+}
+
+/* A landscape phone has only ~412px of vertical room. Its board is the one
+ * surface that must yield when the enlarged marks meet the fixed turn/rule
+ * chrome; portrait and desktop keep the roomier 44px floor above. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .board-frame {
+    width: max(calc(var(--board-columns, 6) * 34px + 14px), min(100%, calc(100vh - 200px)));
+  }
+
+  @supports (width: 100dvh) {
+    .board-frame {
+      width: max(calc(var(--board-columns, 6) * 34px + 14px), min(100%, calc(100dvh - 200px)));
+    }
   }
 }
 
@@ -1329,8 +1394,8 @@ hr {
   justify-content: center;
   border: none;
   border-radius: 0;
-  /* Keep the mark at roughly two-thirds of a cell for every board width. */
-  font-size: min(34px, calc(100cqw / var(--board-columns, 6) * 0.66));
+  /* Let the generated art read as the piece, not as a tiny badge in the cell. */
+  font-size: min(42px, calc(100cqw / var(--board-columns, 6) * 0.78));
   line-height: 0;
   color: var(--color-text);
   background: var(--color-board-light);
@@ -1590,8 +1655,14 @@ hr {
 .square-mark {
   position: absolute;
   line-height: 0;
-  font-size: 0.8em;
+  font-size: 0.95em;
   opacity: 0.9;
+  /* The WebP carries its own silhouette, but a special-square colour can sit
+     close to one of its mid-tones. Keep the mark's edge readable on every
+     board surface; the rendered contrast gate applies this same filter. */
+  filter:
+    drop-shadow(1px 0 0 var(--color-outline)) drop-shadow(-1px 0 0 var(--color-outline))
+    drop-shadow(0 1px 0 var(--color-outline)) drop-shadow(0 -1px 0 var(--color-outline));
 }
 
 .square-mark[data-occupied='true'] {
@@ -1608,33 +1679,6 @@ hr {
   filter:
     drop-shadow(1px 0 0 var(--color-cue-lo)) drop-shadow(-1px 0 0 var(--color-cue-lo))
     drop-shadow(0 1px 0 var(--color-cue-lo)) drop-shadow(0 -1px 0 var(--color-cue-lo));
-}
-
-/**
- * The third side cue.
- *
- * `tokens.css` used to name font weight as the third channel separating the two
- * armies; a sprite has no weight, so the cue is geometric instead. One side is
- * marked bottom-left, the other top-right — locatable without resolving a
- * colour, which is the whole point for a red/green-blind player.
- */
-.side-tag {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border: var(--border-w-thin) solid var(--color-outline);
-}
-
-.side-tag[data-side='white'] {
-  left: 1px;
-  bottom: 1px;
-  background: var(--pix-tint-white);
-}
-
-.side-tag[data-side='black'] {
-  right: 1px;
-  top: 1px;
-  background: var(--pix-tint-black);
 }
 
 /* --- hint, legend, hand */
@@ -1687,8 +1731,8 @@ hr {
 
 .strip-icon {
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   line-height: 0;
 }
 
@@ -1955,15 +1999,15 @@ hr {
 }
 
 .slot {
-  flex: 0 0 44px;
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
+  flex: 0 0 52px;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
+  font-size: 36px;
   background: var(--color-sunken);
   box-shadow:
     inset var(--bevel) var(--bevel) 0 var(--color-sunken-hi),
@@ -2178,7 +2222,7 @@ hr {
 }
 
 .card-icon {
-  font-size: 48px;
+  font-size: 56px;
   line-height: 0;
 }
 
@@ -2209,9 +2253,9 @@ hr {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  font-size: 40px;
+  width: 72px;
+  height: 72px;
+  font-size: 50px;
   border: var(--border-w) solid var(--color-outline);
   background: var(--color-sunken);
   box-shadow:
@@ -2558,6 +2602,12 @@ hr {
   padding: var(--space-7);
 }
 
+.result-brand {
+  font-size: 34px;
+  line-height: 1;
+  opacity: 0.78;
+}
+
 .result-crest {
   display: flex;
   align-items: center;
@@ -2874,7 +2924,7 @@ details.advanced summary {
 }
 
 .palette.wrap {
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
 }
 
 .palette button,
@@ -2885,7 +2935,7 @@ details.advanced summary {
   gap: var(--space-2);
   /* Dense tier: 9px label under a sprite in a narrow grid cell. */
   padding: var(--space-4) var(--space-2);
-  font-size: 26px;
+  font-size: 34px;
   line-height: 0;
   background: var(--color-sunken);
   box-shadow:
@@ -2913,6 +2963,15 @@ details.advanced summary {
 .palette button[data-selected='true'] span,
 .tile[data-selected='true'] span {
   color: var(--color-primary-ink);
+}
+
+/* Art-only picker buttons do not carry a label, so the enlarged runtime mark
+   would otherwise turn their 11px vertical padding into a 67px row. Keep the
+   image large while reclaiming the empty space in this dense editor surface.
+   This is separate from the fieldset's nowrap guard against definite-height
+   grid stretching; that guard remains the source of truth for the wrap fix. */
+.art-picker .palette button {
+  padding-block: var(--space-2);
 }
 
 .tile-grid {
@@ -3454,7 +3513,7 @@ details.advanced summary {
 }
 
 .dex-icon {
-  font-size: 26px;
+  font-size: 42px;
   line-height: 0;
 }
 

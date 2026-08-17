@@ -3,7 +3,7 @@ type: research
 task_slug: unified-create-ux
 status: complete
 created: 2026-08-08
-tags: [strange-chess, research, react, typescript, editor-ux, progressive-disclosure, information-architecture]
+tags: [chess-craft, research, react, typescript, editor-ux, progressive-disclosure, information-architecture]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

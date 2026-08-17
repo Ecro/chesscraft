@@ -3,7 +3,7 @@ type: plan
 task_slug: button-label-truncation
 status: complete
 created: 2026-08-11
-tags: [strange-chess, plan, css, react, ui, accessibility, layout]
+tags: [chess-craft, plan, css, react, ui, accessibility, layout]
 interview_rounds: 4
 adrs: 7
 validator_outcome: MAJOR_REVISION_RESOLVED

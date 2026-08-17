@@ -3,7 +3,7 @@ type: research
 task_slug: movement-lock-8x8-and-rule-cards
 status: complete
 created: 2026-08-13
-tags: [strange-chess, research, typescript, game-rules, content-schema, engine]
+tags: [chess-craft, research, typescript, game-rules, content-schema, engine]
 mtime_warn_days: 7
 libs_fetched: []
 sources: []

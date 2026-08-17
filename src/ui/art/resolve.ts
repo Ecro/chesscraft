@@ -1,6 +1,5 @@
 import type { Side } from '@engine/types'
 import type { Translate } from '../i18n'
-import { type PixelSprite, type SpriteName, PIXEL_SPRITES } from './pixels'
 
 /**
  * What a record renders as (schema v7, PLAN-mobile-grade-graphics ADR-006).
@@ -22,43 +21,17 @@ import { type PixelSprite, type SpriteName, PIXEL_SPRITES } from './pixels'
  * separation has to be drawn into two assets. Neutral for square types and
  * cards, which have no side.
  */
+export type ArtSurface = 'piece' | 'square' | 'card'
+
 export type ArtEntry =
-  | { kind: 'sided'; white: string; black: string }
-  | { kind: 'neutral'; src: string }
-  /**
-   * A sprite from the app's own sheet (Chess Craft redesign).
-   *
-   * No side pair, unlike a raster entry: a sprite carries `$` cells that take
-   * whatever tint the caller hands it, so ONE sprite covers both armies and
-   * ADR-007's separation is a property of the render rather than of the asset.
-   * That is why the sided/neutral split does not extend here.
-   *
-   * `surface` is the one thing that must be declared rather than derived. It
-   * says where this picture is meant to appear, and `art-key.test.ts` uses it to
-   * keep a rule card from pointing at a square's art — a mismatch that renders
-   * fine and is contrast-checked against the wrong background. Raster entries
-   * carry the same fact in the asset's filename prefix.
-   */
-  | { kind: 'pixel'; sprite: SpriteName; surface: 'piece' | 'square' | 'card' }
+  | { kind: 'sided'; white: string; black: string; surface: 'piece' }
+  | { kind: 'neutral'; src: string; surface: 'square' | 'card' }
 
 export type Mark =
   | { kind: 'art'; src: string }
-  | { kind: 'pixel'; sprite: PixelSprite; tint: string | undefined }
   | { kind: 'glyph'; text: string }
   | { kind: 'monogram'; text: string }
   | { kind: 'none' }
-
-/**
- * The tint a sprite's `$` cells take, per side.
- *
- * Custom properties rather than colours, so ADR-021's rule — `tokens.css` is
- * the only place a colour is named — survives art that is drawn in code. A
- * sprite with no `$` cells ignores this entirely.
- */
-const SIDE_TINT: Readonly<Record<Side, string>> = {
-  white: 'var(--pix-tint-white)',
-  black: 'var(--pix-tint-black)',
-}
 
 type MarkDef = {
   artKey?: string | undefined
@@ -90,27 +63,12 @@ type Options = {
  */
 export function resolveMark(t: Translate, def: MarkDef | undefined, opts: Options): Mark {
   const art = def?.artKey ? opts.registry.get(def.artKey) : undefined
-  if (art?.kind === 'pixel') {
-    // Registered under a name the sheet does not have is the pixel equivalent
-    // of the empty-url case below: fall through to the glyph rather than draw a
-    // blank box. `pixels.test.ts` makes it unreachable for anything bundled.
-    const sprite = PIXEL_SPRITES[art.sprite] as PixelSprite | undefined
-    // A sided read with no side does NOT fall through here, and that is the one
-    // deliberate difference from a raster entry. There is only ever one sprite,
-    // so "no side" is a question about the tint and not about which asset —
-    // `Pix` answers it with the neutral default, which is what the reference
-    // screens want anyway.
-    if (sprite) return { kind: 'pixel', sprite, tint: opts.side ? SIDE_TINT[opts.side] : undefined }
-  } else if (art) {
+  if (art) {
     // A sided entry read with no side, or a neutral entry read for a side, is
-    // the shape mismatch above — not an error, just not usable here.
+    // a shape mismatch — not an error, just not usable here.
     const src = opts.side ? (art.kind === 'sided' ? art[opts.side] : '') : art.kind === 'neutral' ? art.src : ''
-    // An EMPTY src is the third degenerate case, and the one that would still
-    // reach the DOM: `<img src="">` resolves against the document URL, so the
-    // browser either draws a broken image or re-fetches the page. A registry
-    // entry can carry one the moment an asset import is removed without its
-    // entry, which is a one-line edit. Treated exactly like the other two —
-    // fall through to the glyph.
+    // An EMPTY src would make `<img src="">` re-fetch the document. Treat it
+    // like an unknown id and preserve the safe text fallback.
     if (src) return { kind: 'art', src }
   }
 

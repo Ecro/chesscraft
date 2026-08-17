@@ -161,7 +161,7 @@ describe('the first board a player opens explains itself', () => {
 
 describe('the onboarding key registry is the only place a flag is named', () => {
   it('carries both flags', () => {
-    expect(ONBOARDING_KEYS).toContain('strange-chess.coach.seen.v1')
+    expect(ONBOARDING_KEYS).toContain('chess-craft.coach.seen.v1')
     expect(ONBOARDING_KEYS).toContain(MATCH_INTRO_SEEN_KEY)
   })
 
@@ -187,7 +187,7 @@ describe('the onboarding key registry is the only place a flag is named', () => 
      * from the source rather than trusted.
      */
     const dir = join(__dirname, '../../src/ui')
-    const pattern = /'(strange-chess\.[a-z0-9.-]*seen\.v\d+)'/g
+    const pattern = /'(chess-craft\.[a-z0-9.-]*seen\.v\d+)'/g
     const found = new Set<string>()
     for (const name of readdirSync(dir)) {
       if (!name.endsWith('.ts') && !name.endsWith('.tsx')) continue

@@ -3,7 +3,7 @@ type: research
 task_slug: ui-ux-productization
 status: complete
 created: 2026-08-06
-tags: [strange-chess, research, react, ui-ux, mobile-web, game-feel, accessibility]
+tags: [chess-craft, research, react, ui-ux, mobile-web, game-feel, accessibility]
 mtime_warn_days: 7
 libs_fetched: []
 sources:
@@ -103,7 +103,7 @@ Grouped by severity. Every row cites the file it was read from. Severity is
 | 1 | **No "new match" / "restart" / "rematch" control.** A finished match is a dead screen; only a page reload restarts. | `Play.tsx:114-118` renders the result and stops; `App.tsx` has no restart path | Every board-game app ends a match on a rematch/home CTA |
 | 2 | **Seed never varies** — same rule card + same draft offers, every match, forever. | `App.tsx:75` omits `seed`; `Play.tsx:18` defaults `seed = 1` | Randomised setup is the product's own freshness mechanism (SPEC Intent) |
 | 3 | **No onboarding / FTUE at all.** No rules screen, no "how to play", no first-move coaching, no card gallery. | no such component in `src/ui/` | New players decide within minutes; progressive in-context teaching is the norm ([HypeHype], [Adrian Crook]) |
-| 4 | **No home / title screen.** Boots straight into a live board under `<h1>Strange Chess</h1>` and two lowercase `play`/`edit` buttons. | `App.tsx:50-59` | Title → mode select → match |
+| 4 | **No home / title screen.** Boots straight into a live board under `<h1>Chess Craft</h1>` and two lowercase `play`/`edit` buttons. | `App.tsx:50-59` | Title → mode select → match |
 | 5 | **Result text leaks engine internals** — prints the raw `reason` string. | `Play.tsx:116` | Results are authored copy, not enum ids |
 | 6 | **Phase and side render as raw English enums** (`play`, `draft`, `white`, `black`) in a Korean product for 초·중학생. | `Play.tsx:99-100`, `190-191` | Localised, human labels |
 | 40 | **Authored content cannot carry display text.** The editor accepts only a *key*; nothing in `src/editor/` writes a locale string; `translate()` falls back to the key — so a piece a child authors renders on the board as `my.piece.name`. | `Edit.tsx:692-693`; `src/ui/i18n.ts:26`; no locale writer in `src/editor/` | A creator names their creation and sees the name |

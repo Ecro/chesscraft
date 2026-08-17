@@ -1,6 +1,6 @@
 import type { GameState, MatchResult, Side } from '@engine/types'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { ART_ASSETS, BRAND_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import { type Translate, useTranslate } from './i18n'
 
 /**
@@ -57,11 +57,11 @@ export function Result({
   return (
     <div className="result-screen" data-testid="result-screen" data-winner={winner ?? ''}>
       <div className="result-body">
+        <div className="result-brand" aria-hidden="true">
+          <ImageMark className="brand-mark" src={BRAND_ART.crest} />
+        </div>
         <div className="result-crest" data-side={winner ?? ''}>
-          <Pix
-            sprite={PIXEL_SPRITES.king}
-            tint={winner ? `var(--pix-tint-${winner})` : undefined}
-          />
+          <ImageMark src={ART_ASSETS.piece['king'][winner ?? 'white']} />
         </div>
 
         {/* The same node and the same test id the inline panel used, so the

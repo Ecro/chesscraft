@@ -352,9 +352,9 @@ export const bundledContentSource: ContentSource = {
        * Art on every record, and no `iconKey` behind it (Chess Craft redesign).
        *
        * `iconKey` used to stay as the fallback for a build whose asset failed to
-       * load. A pixel sprite has no such build: it is 12 rows of characters in
-       * `pixels.ts`, so there is nothing for the bundler to emit, the service
-       * worker to precache or the network to lose. What the emoji actually cost
+       * load. The art catalogue now imports raster WebP files, so the bundler
+       * emits them, the service worker precaches them and the browser can report
+       * a failed decode instead of silently depending on a font. What the emoji actually cost
        * is recorded in `ko.ts`'s archer note — an emoji is drawn from a colour
        * font that ignores `color` and `font-weight`, which are two of the three
        * cues ADR-007 spends separating the two armies, so both sides' archers

@@ -3,7 +3,7 @@ type: plan
 task_slug: capture-rules-and-art-fixes
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, typescript, react, engine, content-balance, css, pixel-art]
+tags: [chess-craft, plan, typescript, react, engine, content-balance, css, pixel-art]
 interview_rounds: 6
 adrs: 9
 validator_outcome: MAJOR_REVISION_RESOLVED

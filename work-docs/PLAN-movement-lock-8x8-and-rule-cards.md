@@ -3,7 +3,7 @@ type: plan
 task_slug: movement-lock-8x8-and-rule-cards
 status: complete
 created: 2026-08-13
-tags: [strange-chess, plan, typescript, engine, content-schema, game-rules]
+tags: [chess-craft, plan, typescript, engine, content-schema, game-rules]
 spec: "[[SPEC-movement-lock-8x8-and-rule-cards]]"
 research_doc: "[[RESEARCH-movement-lock-8x8-and-rule-cards]]"
 interview_rounds: 2

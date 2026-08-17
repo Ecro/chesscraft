@@ -1,8 +1,8 @@
 import type React from 'react'
 import type { Mark } from './art/resolve'
 import { MarkBody } from './art/MarkBody'
-import { PIXEL_SPRITES } from './art/pixels'
-import { Pix } from './art/Pix'
+import { CHROME_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import type { Translate } from './i18n'
 
 /**
@@ -302,7 +302,7 @@ export function PlacementPainter(props: PlacementPainterProps): React.ReactEleme
             aria-pressed={selected === ''}
             onClick={() => onSelect('')}
           >
-            <Pix sprite={PIXEL_SPRITES.erase} />
+            <ImageMark src={CHROME_ART.erase} />
             <span>{t('ui.editor.paint.erase')}</span>
           </button>
         )}

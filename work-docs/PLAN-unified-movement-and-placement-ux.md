@@ -3,7 +3,7 @@ type: plan
 task_slug: unified-movement-and-placement-ux
 status: complete
 created: 2026-08-09
-tags: [strange-chess, plan, react, typescript, editor-ux, movement-model, board-placement]
+tags: [chess-craft, plan, react, typescript, editor-ux, movement-model, board-placement]
 spec: "[[SPEC-unified-movement-and-placement-ux]]"
 research_doc: "[[RESEARCH-unified-movement-and-placement-ux]]"
 interview_rounds: 2

@@ -20,8 +20,8 @@ import { type ArtEntry, resolveMark } from '@ui/art/resolve'
 
 const t = makeTranslate({ ko: { 'piece.k.name': '왕', 'piece.k.icon': '♚', 'card.c.icon': '⚡' } })
 
-const sided: ArtEntry = { kind: 'sided', white: '/w.webp', black: '/b.webp' }
-const neutral: ArtEntry = { kind: 'neutral', src: '/n.webp' }
+const sided: ArtEntry = { kind: 'sided', white: '/w.webp', black: '/b.webp', surface: 'piece' }
+const neutral: ArtEntry = { kind: 'neutral', src: '/n.webp', surface: 'card' }
 
 const registry = new Map<string, ArtEntry>([
   ['art.k', sided],
@@ -66,8 +66,8 @@ describe('resolveMark — degenerate art, which must never reach the DOM as an <
     // draws a broken image or re-fetches the page. One removed asset import
     // with its registry entry left behind produces exactly this.
     const half = new Map<string, ArtEntry>([
-      ['art.half', { kind: 'sided', white: '', black: '/b.webp' }],
-      ['art.blank', { kind: 'neutral', src: '' }],
+      ['art.half', { kind: 'sided', white: '', black: '/b.webp', surface: 'piece' }],
+      ['art.blank', { kind: 'neutral', src: '', surface: 'card' }],
     ])
     const piece = { artKey: 'art.half', iconKey: 'piece.k.icon', nameKey: 'piece.k.name' }
     expect(resolveMark(t, piece, { registry: half, side: 'white', fallback: 'monogram' })).toEqual({ kind: 'glyph', text: '♚' })

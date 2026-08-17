@@ -3,7 +3,7 @@ type: research
 task_slug: mobile-grade-graphics
 status: complete
 created: 2026-08-06
-tags: [strange-chess, research, architecture, renderer, distribution, game-art, mobile-web, pwa]
+tags: [chess-craft, research, architecture, renderer, distribution, game-art, mobile-web, pwa]
 mtime_warn_days: 7
 libs_fetched: []
 sources:

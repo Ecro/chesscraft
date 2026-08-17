@@ -86,17 +86,12 @@ test('plays a match to a result and offers a rematch that starts a different one
   await useSliceContent(page)
 
   // --- Reach a result on the slice's scripted beacon line. -----------------
-  // Same sequence `hotseat.spec.ts` walks, minus the assertions it owns: four
-  // draft picks, then an archer onto the beacon.
+  // Same sequence `hotseat.spec.ts` walks, minus the assertions it owns: the
+  // opening picks, recurring automatic awards, then an archer onto the beacon.
   await pickFirstOffer(page) // white, opening draft
   await pickFirstOffer(page) // black, opening draft
-  for (const _ of [0, 1]) {
-    for (let ply = 0; ply < 24; ply += 1) {
-      if ((await page.locator('[data-testid^="offer-"]').count()) > 0) break
-      await shuffleKing(page)
-    }
-    await pickFirstOffer(page)
-  }
+  for (let ply = 0; ply < 24; ply += 1) await shuffleKing(page)
+  await expect(page.getByTestId('phase')).toHaveAttribute('data-phase', 'play')
   while ((await sideToMove(page)) !== 'white') {
     await shuffleKing(page)
   }

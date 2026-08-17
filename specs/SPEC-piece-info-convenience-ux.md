@@ -3,7 +3,7 @@ type: spec
 task_slug: piece-info-convenience-ux
 status: draft
 created: 2026-08-08
-tags: [strange-chess, spec, typescript, touch-ux, accessibility]
+tags: [chess-craft, spec, typescript, touch-ux, accessibility]
 tier: 2
 test_framework: vitest
 research_doc: "[[RESEARCH-piece-info-convenience-ux]]"

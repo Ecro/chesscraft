@@ -93,7 +93,7 @@ test('the summary says what the record currently is, and updates as it changes',
  * The art picker's option boxes, and the mechanism that inflated them.
  *
  * Measured before the fix, at this viewport, with a piece open: 32 option buttons of
- * 49x265px each, holding a 26x26px sprite — 225px of blank BELOW every picture — and a
+ * 49x265px each, holding a 26x26px image — 225px of blank BELOW every picture — and a
  * 1926px `.art-picker` inside an 844px screen. The rows were 264.7px where their content
  * is 54px.
  *
@@ -124,7 +124,7 @@ test('no art option is taller than its picture needs, and the picker fits the sc
     return {
       count: buttons.length,
       tallest: Math.max(...buttons.map((b) => b.getBoundingClientRect().height)),
-      sprite: Math.max(...buttons.map((b) => b.querySelector('svg')?.getBoundingClientRect().height ?? 0)),
+      image: Math.max(...buttons.map((b) => b.querySelector('img.image-mark')?.getBoundingClientRect().height ?? 0)),
       picker: picker ? picker.getBoundingClientRect().height : 0,
     }
   })
@@ -132,7 +132,7 @@ test('no art option is taller than its picture needs, and the picker fits the sc
   // The premise: there ARE options to measure. Without this the maxima below are -Infinity
   // and every comparison passes on an empty set.
   expect(boxes.count, 'the art picker offered nothing to measure').toBeGreaterThan(8)
-  expect(boxes.sprite, 'the sprites have no box').toBeGreaterThan(0)
+  expect(boxes.image, 'the raster art has no box').toBeGreaterThan(0)
 
   // A button is its sprite plus its own padding and border — nowhere near 265px.
   expect(boxes.tallest, 'an art option is taller than its picture needs').toBeLessThanOrEqual(60)
@@ -202,7 +202,7 @@ test('a room tile still stacks its picture over its label, with the shared paddi
     if (!el) return null
     const s = getComputedStyle(el)
     const label = el.querySelector('span')
-    const mark = el.querySelector('svg')
+    const mark = el.querySelector('img.image-mark')
     const box = el.getBoundingClientRect()
     return {
       flexDirection: s.flexDirection,

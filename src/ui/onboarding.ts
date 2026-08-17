@@ -32,7 +32,7 @@
  */
 
 /** The home-screen tour (`Boot.tsx`), shown once per browser. */
-export const COACH_SEEN_KEY = 'strange-chess.coach.seen.v1'
+export const COACH_SEEN_KEY = 'chess-craft.coach.seen.v1'
 
 /**
  * The in-match sheet, shown on the first board a player ever opens.
@@ -41,7 +41,7 @@ export const COACH_SEEN_KEY = 'strange-chess.coach.seen.v1'
  * already saw `Boot` before this sheet existed would otherwise never meet it,
  * and that is exactly the population it is for.
  */
-export const MATCH_INTRO_SEEN_KEY = 'strange-chess.match-intro.seen.v1'
+export const MATCH_INTRO_SEEN_KEY = 'chess-craft.match-intro.seen.v1'
 
 /** Every flag, for the two test surfaces that must pre-seed all of them. */
 export const ONBOARDING_KEYS: readonly string[] = [COACH_SEEN_KEY, MATCH_INTRO_SEEN_KEY]
@@ -49,6 +49,10 @@ export const ONBOARDING_KEYS: readonly string[] = [COACH_SEEN_KEY, MATCH_INTRO_S
 export function hasSeen(storage: Storage, key: string): boolean {
   try {
     if (storage.getItem(key) !== null) return true
+    // A returning player may still have a dismissal flag from the old brand.
+    // Reading it avoids replaying onboarding during the namespace migration.
+    const legacyKey = key.replace('chess-craft', 'strange-chess')
+    if (legacyKey !== key && storage.getItem(legacyKey) !== null) return true
   } catch {
     return true
   }

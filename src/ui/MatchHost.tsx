@@ -1416,12 +1416,6 @@ export function MatchHost({
                         </span>
                       )}
                       <span className="piece">{def ? <MarkBody mark={pieceMark(t, def, piece?.side)} /> : ''}</span>
-                      {/* The third side cue, and the reason `tokens.css` no
-                          longer claims font weight as one: a sprite has no
-                          weight. One side is tagged bottom-left and the other
-                          top-right, so the two armies differ by a mark you can
-                          LOCATE without resolving its colour. */}
-                      {piece && <span className="side-tag" data-side={piece.side} aria-hidden="true" />}
                       {/* Where the card landed. An element of its own rather
                           than a pseudo-element, because both of this square's
                           are already spoken for — `[data-last]` has `::before`

@@ -1,5 +1,7 @@
 import type { ContentSet } from '@content/load'
 import { MiniBoard, paintedCount } from './MiniBoard'
+import { BRAND_ART } from './art/assets'
+import { ImageMark } from './art/ImageMark'
 import { useTranslate } from './i18n'
 import { recordLabel } from './recordLabel'
 
@@ -191,6 +193,9 @@ function Wordmark() {
   const t = useTranslate()
   return (
     <div className="wordmark" aria-hidden="true">
+      <span className="wordmark-brand">
+        <ImageMark className="brand-mark" src={BRAND_ART.crest} />
+      </span>
       <span className="wordmark-text">{t('ui.app.wordmark')}</span>
       <span className="wordmark-tagline">{t('ui.home.tagline')}</span>
     </div>

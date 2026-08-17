@@ -18,7 +18,8 @@
  * make content disappear on a bad read.
  */
 
-export const HIDDEN_KEY = 'strange-chess.hidden.v1'
+export const HIDDEN_KEY = 'chess-craft.hidden.v1'
+export const LEGACY_HIDDEN_KEY = 'strange-chess.hidden.v1'
 
 /**
  * The hidden set, or an empty one when there isn't a usable answer.
@@ -32,6 +33,7 @@ export function loadHidden(storage: Storage): ReadonlySet<string> {
   let raw: string | null
   try {
     raw = storage.getItem(HIDDEN_KEY)
+    if (raw === null) raw = storage.getItem(LEGACY_HIDDEN_KEY)
   } catch {
     return new Set()
   }

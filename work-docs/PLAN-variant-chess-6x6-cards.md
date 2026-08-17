@@ -3,7 +3,7 @@ type: plan
 task_slug: variant-chess-6x6-cards
 status: planning
 created: 2026-08-05
-tags: [strange-chess, plan, typescript, vitest, game-engine, declarative-content, chess-variant]
+tags: [chess-craft, plan, typescript, vitest, game-engine, declarative-content, chess-variant]
 spec: "[[SPEC-variant-chess-6x6-cards]]"
 research_doc: "[[RESEARCH-variant-chess-6x6-cards]]"
 interview_rounds: 4

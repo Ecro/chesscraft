@@ -3,7 +3,7 @@ type: plan
 task_slug: piece-skill-creation-ux
 status: complete
 created: 2026-08-08
-tags: [strange-chess, plan, react, typescript, editor-ux, movement-grid]
+tags: [chess-craft, plan, react, typescript, editor-ux, movement-grid]
 spec: "[[SPEC-piece-skill-creation-ux]]"
 research_doc: "[[RESEARCH-piece-skill-creation-ux]]"
 interview_rounds: 1
