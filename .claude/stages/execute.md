@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.5
+harness_maker_version: 0.52.6
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/execute.md.j2
 provenance: official
-content_hash: 994ff9276e942b7bfc7f54d0e831c484a101e8395f7cd092d8c1922b2ee01f14
+content_hash: 92c585f42e1c57ae4e37fe1feb297d9ed0a0cca771da1cde233df87d6ced2f2b
 ---
 # Stage: execute
 
@@ -68,7 +68,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -77,7 +77,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -95,6 +95,18 @@ Read PLAN fully. Extract:
 - Phase list with scope / exit-criterion / risk / rollback for each.
 - ADRs (binding constraints — must not be violated by implementation).
 - Frontmatter `spec:` and `research_doc:` references.
+- **`## 🚧 Contract Boundaries` → the `Do not change` list.** Restate it once in your turn
+  output. This load is here, not in Phase C.0, because C.0 triggers only on defect repair —
+  hanging the contract off it would leave every new-feature task unconstrained. Entries are
+  repo-relative paths — Step 4 owns what counts as a crossing; an `Advisory:` line is a
+  constraint you **honor** — it simply takes no part in Step 4's path comparison; a `none`
+  line asserts there are none and is never a prefix. If the PLAN has
+  **no such section**, say exactly
+  `[boundaries] PLAN predates the contract-boundaries section — none loaded` and proceed —
+  an absent section is *unknown*, never an assertion that there are no boundaries. If the
+  section is **present but its `### Do not change` list is missing or a bullet matches none of
+  the three forms**, say `[boundaries] section present but unparseable — {what}` and load only
+  the bullets that do parse: "predates" would be a false statement about that PLAN.
 
 
 Parse flags from `$ARGUMENTS`:
@@ -352,7 +364,7 @@ Run this as each round resolves, with `<run-id>` stable across the rounds of one
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
@@ -402,14 +414,16 @@ an artefact:
    API improvement you noticed while reading. Enlarging the change enlarges the space for a
    self-induced regression, which is the whole reason this step exists.
 
-**Declare all three; do not look any of them up.** What a repair will change and what it will
-leave alone are properties of the repair itself — they exist in every `dev_mode`, with or
-without a SPEC, with or without TDD. A step that told you to go read them somewhere would have
-no referent most of the time.
+**Declare all three unprompted** — what a repair will change and what it will leave alone are
+properties of the repair itself, so they exist in every `dev_mode`, with or without a SPEC,
+**with or without TDD** — C.0 is not one of the phases `--no-tdd` skips.
+**Then cite the `Do not change` list loaded at Step 1** where item 3 overlaps it, naming the
+entries your declared scope comes near. If you cannot restate it, re-Read that
+section; if Step 1 emitted a `[boundaries]` line, repeat it. It does not replace the declaration.
 
-Nothing verifies afterwards that you respected what you declared: the out-of-scope-diff check at
-stage exit compares against the PLAN's scope, not against this. The value is that the third item
-is the only brake that exists *before* the edit rather than after it.
+What checks it afterwards: the drift check at the **GREEN stage exit** compares the change set
+**you enumerate at Step 4** against the PLAN's phase scope **and** against that same `Do not change` list. The value of item 3 is still that it is the only brake
+existing *before* the edit rather than after it.
 
 #### Phase C — Implementation to GREEN
 
@@ -439,7 +453,7 @@ first failure. **A repair re-runs targeted on the files IT touched; `full` once,
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm test_dep_map --root . --changed-file <f1> …
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm test_dep_map --root . --changed-file <f1> …
 !cd <WT> && <lint> && <type> && <test> <nodes-or-empty>
 ```
 
@@ -455,7 +469,7 @@ when this PLAN phase authored bindable-mechanical-AC tests and the machine SPEC 
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
 ```
 
 
@@ -514,11 +528,24 @@ not a reflection:
 
 When all PLAN phases complete GREEN:
 1. Verify the worktree's working tree is clean of unintended drift (no stray edits outside scope).
+   <!-- @hm:boundaries -->
+   The operand is **the same set item 1 inspects** — every path changed in the worktree, added,
+   edited, renamed or deleted — named here as a count and a list. **Only this paragraph defines a crossing.** A changed path
+   that equals a `Do not change` entry, or sits under it at a `/` boundary, is a **crossing**: name it, name the entry it crosses, say why it was needed; a
+   deletion or rename-away is the strongest one, so name it first. Crossings are reported, never
+   auto-reverted, and never fail the stage — the human decides.
+   Lost after a compaction? Re-derive: boundary list → re-Read that section; changed-path set →
+   from item 1. Still unavailable → say `[boundaries] comparison not performed — {which}` and
+   **continue to item 2**; this line is the report, never a halt. An unreported comparison is
+   byte-identical to a clean one.
+   With no list, or only part of one, say **which**: absent (unknown), an explicit `none`,
+   unparseable (say how much parsed), or unrecoverable.
+   <!-- @hm:/boundaries -->
 2. **Leave changes staged or unstaged on the worktree branch — DO NOT run `git commit`.** Wrapup stage owns the single user-facing commit.
 3. Update PLAN with phase status (in-progress / done / blocked) — but do NOT commit the PLAN file edit either.
 
 If a PLAN phase blocks (Phase A.5 retry exhausted, Phase D unfixable, or ADR conflict), do these
-four in order. **Everything in the four steps below, the dispatch block included, runs on the
+five in order. **Everything in the five steps below, the dispatch block included, runs on the
 blocked path ONLY** — a phase that exited GREEN skips to Step 4.5.
 
 1. Document the blocker inline in the PLAN under the affected phase.
@@ -539,6 +566,9 @@ Task(subagent_type="stuck", description="escalate blocker: {slug}", prompt="<the
    three conditions never fire on a hang.
 4. Do NOT silently change scope, and do NOT act on the recommendation — `stuck` is advisory, and
    the user picks the unblock path.
+5. State in the blocker note that the boundary comparison did not run on this path:
+   `[boundaries] comparison not performed — blocked exit`. Edits exist on disk here, so silence
+   would read as a clean comparison.
 
 ### Step 4.5 — Emit Gate 0 receipt (ADR-001, ADR-005)
 
@@ -555,7 +585,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts write \
        --iter "$ITER" --stage execute --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -587,12 +617,12 @@ Pick **exactly one** finalize command. Substitute `<WT>` with the absolute path 
 ```bash
 # All phases GREEN — stage-merge the branch back (NO commit) + cleanup the worktree.
 # /hm:wrapup will create the single user-facing commit (with proper message + Co-Authored-By).
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree finalize <WT> stage-only
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree finalize <WT> stage-only
 ```
 
 ```bash
 # Stage halted on a blocker — preserve the worktree for inspection:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree finalize <WT> fail
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree finalize <WT> fail
 ```
 
 
@@ -606,7 +636,7 @@ so a fresh or recovered wrapup still works). Substitute `<slug>` (this `/hm:exec
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree wt-uuid <WT>)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree wt-uuid <WT>)"
 ```
 
 
@@ -622,7 +652,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 
 
 ```bash
-!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree post-commit-pop "$(pwd)"
+!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree post-commit-pop "$(pwd)"
 ```
 
 
@@ -659,7 +689,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -670,7 +700,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

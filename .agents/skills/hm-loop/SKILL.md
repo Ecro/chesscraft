@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.5
+harness_maker_version: 0.52.6
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/loop_skill.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: hm-loop
 description: Start a bounded harness-maker autoloop. Runs a coverage-driven adaptive
   interview then iterates the configured workflow until stopping criteria are met
   or a safety cap fires.
-content_hash: 072f178f738995769d1620d890ad6bf734be58090f5037837c194e8406981263
+content_hash: f281edfc052ad96fc1d2d382ba8b4aeceaba701180b16083ce567719424b38db
 ---
 
 # @hm-loop
@@ -413,7 +413,7 @@ worktree would explode commit count.
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree create execute \"$(pwd)\" --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree create execute \"$(pwd)\" --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 If the command fails (non-zero exit or git error):
@@ -445,7 +445,7 @@ if any one fails:
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree verify <WT>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree verify <WT>")
 ```
 
 
@@ -740,7 +740,7 @@ For each iter (until convergence or any safety rail fires):
    and triggers fruitless retries.
 
    ```
-   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts set-iter-marker --iter <N> --root \"<WT>\"")
+   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts set-iter-marker --iter <N> --root \"<WT>\"")
    ```
 
 
@@ -788,7 +788,7 @@ For each iter (until convergence or any safety rail fires):
    Run the verify CLI inside `<WT>`:
 
    ```
-   Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts verify --iter <N> --expected <EXPECTED_STAGES> --root \"<WT>\"")
+   Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts verify --iter <N> --expected <EXPECTED_STAGES> --root \"<WT>\"")
    ```
 
 
@@ -812,7 +812,7 @@ For each iter (until convergence or any safety rail fires):
       hand-edit the YAML (non-atomic rewrites corrupt the file on WSL2/NTFS):
 
       ```
-      Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts patch-runtime --context work-docs/loop-context/<slug>.yaml --counter stage_retry_counts --key iter-<N>:<stage> --value <count>")
+      Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts patch-runtime --context work-docs/loop-context/<slug>.yaml --counter stage_retry_counts --key iter-<N>:<stage> --value <count>")
       ```
 
    3. If `stage_retry_counts[K] <= 2`:
@@ -829,7 +829,7 @@ For each iter (until convergence or any safety rail fires):
       - **B. Skip with explicit `verdict: skipped` marker** — invoke the
         receipt CLI manually (the `--with` flag is required because
         `harness_maker` is not on the user project's default `uv` PATH):
-        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
+        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
         then ALSO append a durable audit entry so `/hm:health` can detect
         systematic skip patterns (quote the root + create parent dir; single
         `printf` write of well under 4 KiB stays atomic via POSIX `O_APPEND`):
@@ -872,7 +872,7 @@ When the loop halts (convergence, safety rail, or hard error):
    file on WSL2/NTFS):
 
    ```
-   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm iter_receipts patch-runtime --context work-docs/loop-context/<slug>.yaml --counter stage_retry_counts --clear")
+   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts patch-runtime --context work-docs/loop-context/<slug>.yaml --counter stage_retry_counts --clear")
    ```
 
    Without this, a long-running loop accumulates one entry per `(iter, stage)`
@@ -961,7 +961,7 @@ When the loop halts (convergence, safety rail, or hard error):
 
 
    ```
-   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.5 hm worktree finalize <WT> <STATUS>")
+   Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree finalize <WT> <STATUS>")
    ```
 
 
