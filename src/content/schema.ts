@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isValidTurnPair } from './movement'
+import { isCompassVector, isValidTurnPair } from './movement'
 
 /**
  * The declarative content vocabulary (ADR-001, ADR-003).
@@ -107,8 +107,12 @@ import { isValidTurnPair } from './movement'
 /*
  * Bumped 13 -> 14 (PLAN-turning-slide ADR-005): the bounded one-bend
  * `turning_slide` movement pattern. Existing v13 patterns remain unchanged.
+ *
+ * Bumped 14 -> 15 (PLAN-turning-slide-redesign ADR-002/ADR-003): the compact
+ * movement-grid form can ask the engine to choose any legal second direction;
+ * v14 ordered pairs remain accepted as a compatibility form.
  */
-export const SCHEMA_VERSION = 14
+export const SCHEMA_VERSION = 15
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -194,7 +198,7 @@ const straightMovePattern = z.strictObject({
   forward: z.boolean().optional(),
 })
 
-const turningSlidePattern = z.strictObject({
+const legacyTurningSlidePattern = z.strictObject({
   kind: z.literal('turning_slide'),
   vectors: z
     .tuple([vector, vector])
@@ -206,6 +210,28 @@ const turningSlidePattern = z.strictObject({
   /** When true, both vectors mirror by the owning side's forward direction. */
   forward: z.boolean().optional(),
 })
+
+const automaticTurningSlidePattern = z.strictObject({
+  kind: z.literal('turning_slide'),
+  vectors: z
+    .array(vector)
+    .min(1)
+    .max(8)
+    .refine(
+      (vectors) => {
+        const keys = new Set(vectors.map((candidate) => `${candidate[0]},${candidate[1]}`))
+        return keys.size === vectors.length && vectors.every((candidate) => isCompassVector(candidate))
+      },
+      { message: 'automatic turning_slide vectors must be unique compass unit vectors' },
+    ),
+  turn: z.literal('any'),
+  /** Total distance across both positive legs; omitted means the board bound. */
+  maxDistance: z.number().int().min(2).optional(),
+  /** When true, vectors mirror by the owning side's forward direction. */
+  forward: z.boolean().optional(),
+})
+
+const turningSlidePattern = z.union([automaticTurningSlidePattern, legacyTurningSlidePattern])
 
 export const movePattern = z.union([straightMovePattern, turningSlidePattern])
 export type MovePattern = z.infer<typeof movePattern>

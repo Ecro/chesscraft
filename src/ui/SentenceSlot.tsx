@@ -15,12 +15,8 @@ import {
 } from './CardRecipe'
 import { Sheet } from './Sheet'
 import type { Translate } from './i18n'
-import {
-  turningPatternFromRow,
-  turningRowFromPattern,
-  type TurningRow,
-} from './PieceMoves'
-import { TurningSlideEditor } from './TurningSlideEditor'
+import { Cell, blankGrid, readGrid, writePatternGrid, type PieceGrid } from './PieceMoves'
+import { MovementPatternGrid } from './MovementPatternGrid'
 
 /**
  * The sentence, as chips you tap (ADR-001).
@@ -74,8 +70,6 @@ const DESTINATION_SLOT: Readonly<Record<string, string>> = {
   spawn_piece: 'at',
   revive_piece: 'at',
 }
-
-const GRID = [3, 2, 1, 0, -1, -2, -3]
 
 /** The slots whose value can be cleared back to "not said". */
 const OPTIONAL_SLOTS = new Set<SlotId>(['each', 'cond2', 'then2'])
@@ -239,35 +233,13 @@ export function SentenceEditor({
     </label>
   )
 
-  const toggleVector = (vectors: number[][], df: number, dr: number): number[][] => {
-    const at = vectors.findIndex((v) => v[0] === df && v[1] === dr)
-    if (at >= 0) return vectors.filter((_, i) => i !== at)
-    return [...vectors, [df, dr]]
+  function patternGrid(pattern: Draft): PieceGrid {
+    return readGrid({ movement: [pattern] }) ?? blankGrid()
   }
 
-  const vectorGrid = (prefix: string, vectors: number[][], onToggle: (df: number, dr: number) => void) => (
-    <div className="vector-grid" role="group" key={prefix}>
-      {GRID.map((dr) => (
-        <div className="vector-row" key={dr}>
-          {GRID.map((df) => {
-            const lit = vectors.some((v) => v[0] === df && v[1] === dr)
-            return (
-              <button
-                key={df}
-                type="button"
-                data-testid={`${prefix}-${df}_${dr}`}
-                data-lit={lit}
-                aria-pressed={lit}
-                aria-label={`${df} ${dr}`}
-                disabled={df === 0 && dr === 0}
-                onClick={() => onToggle(df, dr)}
-              />
-            )
-          })}
-        </div>
-      ))}
-    </div>
-  )
+  function patternFromGrid(grid: PieceGrid, kind: string): Draft {
+    return writePatternGrid(grid, kind) as Draft
+  }
 
   /** The quantifier's own parameters: which piece, on which side. */
   function eachParams(): ReactNode[] {
@@ -453,6 +425,8 @@ export function SentenceEditor({
       // pattern, so it gets the same picture of squares the piece maker uses
       // rather than a second way of saying the same thing.
       const pattern = (action.pattern as Draft | undefined) ?? {}
+      const drawablePattern = readGrid({ movement: [pattern] }) !== null
+      const compactPatternGrid = patternGrid(pattern)
       out.push(
         <fieldset key="pattern" className="slot-param">
           <legend>{t('ui.editor.param.pattern')}</legend>
@@ -470,7 +444,7 @@ export function SentenceEditor({
                 at((a) => {
                   a.pattern =
                     pk === 'turning_slide'
-                      ? turningPatternFromRow({ first: 'n', second: 'e', reach: 2 })
+                      ? { kind: 'turning_slide', vectors: [[0, 1]], turn: 'any' }
                       : { kind: pk, vectors: [] }
                 })
               }
@@ -478,54 +452,38 @@ export function SentenceEditor({
               {t(`ui.editor.vocab.movement.${pk}`)}
             </button>
           ))}
-          {pattern.kind === 'turning_slide' ? (
-            <>
-              {(() => {
-                const row = turningRowFromPattern(pattern)
-                if (!row) {
-                  return <p className="slot-param-note">{t('ui.editor.turning.unsupported')}</p>
+          {typeof pattern.kind === 'string' && (
+            <MovementPatternGrid
+              grid={compactPatternGrid}
+              axis={Cell.Move}
+              testIdPrefix={`s-param-pattern${suffix}-cell`}
+              readOnly={!drawablePattern}
+              onChange={(next) =>
+                at((a) => {
+                  a.pattern = patternFromGrid(next, String(pattern.kind))
+                })
+              }
+            />
+          )}
+          {!drawablePattern && typeof pattern.kind === 'string' && (
+            <p className="slot-param-note">{t('ui.editor.piece.preserved-pattern')}</p>
+          )}
+          {typeof pattern.kind === 'string' && (
+            <label className="slot-param">
+              {t('ui.editor.piece.forward')}
+              <input
+                type="checkbox"
+                data-testid={`s-param-pattern${suffix}-forward`}
+                checked={pattern.forward === true}
+                onChange={() =>
+                  at((a) => {
+                    const p = a.pattern as Draft
+                    p.forward = p.forward === true ? undefined : true
+                    if (p.forward === undefined) delete p.forward
+                  })
                 }
-                return (
-                  <TurningSlideEditor
-                    axis="move"
-                    rows={[row]}
-                    allowMultipleRows={false}
-                    onChange={(rows: TurningRow[]) =>
-                      at((a) => {
-                        const next = rows[0]
-                        if (!next) return
-                        const p = a.pattern as Draft
-                        a.pattern = turningPatternFromRow(next, p.forward === true)
-                      })
-                    }
-                    t={t}
-                    testIdPrefix={`s-param-pattern${suffix}-turning`}
-                  />
-                )
-              })()}
-              <label className="slot-param">
-                {t('ui.editor.piece.forward')}
-                <input
-                  type="checkbox"
-                  data-testid={`s-param-pattern${suffix}-forward`}
-                  checked={pattern.forward === true}
-                  onChange={() =>
-                    at((a) => {
-                      const p = a.pattern as Draft
-                      p.forward = p.forward === true ? undefined : true
-                      if (p.forward === undefined) delete p.forward
-                    })
-                  }
-                />
-              </label>
-            </>
-          ) : (
-            vectorGrid(`s-param-pattern${suffix}-cell`, (pattern.vectors as number[][] | undefined) ?? [], (df, dr) =>
-              at((a) => {
-                const p = a.pattern as Draft
-                p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
-              }),
-            )
+              />
+            </label>
           )}
         </fieldset>,
       )

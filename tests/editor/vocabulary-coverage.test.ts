@@ -49,6 +49,8 @@ interface Param {
   testid: string
   /** Text/select value to enter. Omitted means the control is clicked. */
   value?: string
+  /** Native gesture used by the movement grid's outer-cell affordance. */
+  event?: 'click' | 'doubleClick'
 }
 
 interface Row {
@@ -488,7 +490,7 @@ const ROWS: readonly Row[] = [
       // `step`, not `jump`: ADR-006 retires `jump` from the authorable
       // vocabulary, and the engine gives the two the same `maxSteps` anyway.
       { testid: 'param-pattern-step' },
-      { testid: 'param-pattern-cell-2_1' },
+      { testid: 'param-pattern-cell-2,1' },
       { testid: 'param-duration', value: '3' },
     ],
     path: 'effects.0.actions.0',
@@ -585,22 +587,12 @@ const ROWS: readonly Row[] = [
     axis: 'movement',
     kind: 'turning_slide',
     host: 'piece',
-    // A turning row is added beside the seeded step, then its second leg and
-    // total cap are changed so the row proves the shared editor writes both.
-    reachTestId: 'turning-slide-move-add',
-    params: [
-      { testid: 'turning-slide-move-row-0-second-w' },
-      { testid: 'turning-slide-move-row-0-reach-3' },
-    ],
-    path: 'movement.1',
-    authored: {
-      kind: 'turning_slide',
-      vectors: [
-        [0, 1],
-        [-1, 0],
-      ],
-      maxDistance: 3,
-    },
+    // One ordinary tap enters the ray, then the native double-click converts
+    // that same outer cell into the automatic one-bend contract.
+    reachTestId: 'piece-cell-0,3',
+    params: [{ testid: 'piece-cell-0,3', event: 'doubleClick' }],
+    path: 'movement.0',
+    authored: { kind: 'turning_slide', vectors: [[0, 1]], turn: 'any' },
   },
   // `movement: jump` is GONE, not moved (ADR-006 of PLAN-unified-create-ux).
   // `MOVEMENT_KINDS` no longer enumerates it, so `goldenKeys` — derived from these
@@ -832,8 +824,9 @@ function applyParams(params: readonly Param[] | undefined, translate = true) {
     const testid = translate ? sentenceParam(param.testid) : param.testid
     const el = screen.getByTestId(testid)
     expectEnabled(el, testid)
-    if (param.value === undefined) fireEvent.click(el)
-    else fireEvent.change(el, { target: { value: param.value } })
+    if (param.value !== undefined) fireEvent.change(el, { target: { value: param.value } })
+    else if (param.event === 'doubleClick') fireEvent.doubleClick(el)
+    else fireEvent.click(el)
   }
 }
 

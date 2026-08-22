@@ -168,7 +168,7 @@ const CAMEL: Array<[number, number]> = [
 ]
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 14,
+  schemaVersion: 15,
 
   pieces: [
     {

@@ -49,7 +49,7 @@ function blocks(css: string): Array<{ selector: string; body: string }> {
  * are `fieldset` elements. The e2e counterpart reads the rendered DOM and needs no list,
  * which is what keeps this one from silently going stale.
  */
-const MAKER_FIELDSETS = ['.art-picker', '.piece-moves', '.card-recipe', '.sentence', '.turning-slide-editor']
+const MAKER_FIELDSETS = ['.art-picker', '.piece-moves', '.card-recipe', '.sentence']
 
 describe('the maker fieldsets (PLAN Phase 2, ADR-005)', () => {
   it('gives every fieldset a wrap by default, which is what the column ones must override', () => {

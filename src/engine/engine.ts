@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { turningPathDistance } from '@content/movement'
+import { COMPASS_VECTORS, isValidTurnPair, turningPathDistance } from '@content/movement'
 import { parseSquare, type Action as EffectAction, type DestinationRegion, type MovePattern, type Target } from '@content/schema'
 import {
   type BoundEffect,
@@ -193,36 +193,47 @@ function reachFrom(
   for (const pattern of patterns) {
     if (pattern.kind === 'turning_slide') {
       const oriented = orient(pattern, piece.side)
-      const first = oriented[0]!
-      const second = oriented[1]!
+      const automatic = 'turn' in pattern && pattern.turn === 'any'
       const maxDistance = turningPathDistance(pattern.maxDistance, state.width, state.height)
 
-      for (let firstLeg = 1; firstLeg <= maxDistance; firstLeg += 1) {
-        const bendFile = origin.file + first[0] * firstLeg
-        const bendRank = origin.rank + first[1] * firstLeg
-        if (!inBounds(state, bendFile, bendRank)) break
+      const secondDirections = automatic
+        ? COMPASS_VECTORS.map(([df, dr]) =>
+            pattern.forward === true && piece.side === 'black' ? ([df, -dr] as [number, number]) : ([df, dr] as [number, number]),
+          )
+        : [oriented[1]!]
+      const firstDirections = automatic ? oriented : [oriented[0]!]
 
-        const bend = squareId(bendFile, bendRank)
-        const bendOccupant = state.board.get(bend)
-        if (bendOccupant) {
-          if (bendOccupant.side !== piece.side && allowCapture) out.captures.push(bend)
-          break
-        }
+      for (const first of firstDirections) {
+        for (let firstLeg = 1; firstLeg <= maxDistance; firstLeg += 1) {
+          const bendFile = origin.file + first[0] * firstLeg
+          const bendRank = origin.rank + first[1] * firstLeg
+          if (!inBounds(state, bendFile, bendRank)) break
 
-        if (allowQuiet) out.quiet.push(bend)
-
-        for (let secondLeg = 1; firstLeg + secondLeg <= maxDistance; secondLeg += 1) {
-          const file = bendFile + second[0] * secondLeg
-          const rank = bendRank + second[1] * secondLeg
-          if (!inBounds(state, file, rank)) break
-          const sq = squareId(file, rank)
-          const occupant = state.board.get(sq)
-          if (!occupant) {
-            if (allowQuiet) out.quiet.push(sq)
-            continue
+          const bend = squareId(bendFile, bendRank)
+          const bendOccupant = state.board.get(bend)
+          if (bendOccupant) {
+            if (bendOccupant.side !== piece.side && allowCapture) out.captures.push(bend)
+            break
           }
-          if (occupant.side !== piece.side && allowCapture) out.captures.push(sq)
-          break
+
+          if (allowQuiet) out.quiet.push(bend)
+
+          for (const second of secondDirections) {
+            if (automatic && !isValidTurnPair(first, second)) continue
+            for (let secondLeg = 1; firstLeg + secondLeg <= maxDistance; secondLeg += 1) {
+              const file = bendFile + second[0] * secondLeg
+              const rank = bendRank + second[1] * secondLeg
+              if (!inBounds(state, file, rank)) break
+              const sq = squareId(file, rank)
+              const occupant = state.board.get(sq)
+              if (!occupant) {
+                if (allowQuiet) out.quiet.push(sq)
+                continue
+              }
+              if (occupant.side !== piece.side && allowCapture) out.captures.push(sq)
+              break
+            }
+          }
         }
       }
       continue

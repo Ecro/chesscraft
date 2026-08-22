@@ -4,7 +4,34 @@ import { exportContent, importContent } from '@editor/io'
 import { cloneValid } from './fixtures/valid-set'
 
 describe('turning_slide schema', () => {
-  it('parses an ordered pair, total cap, and forward flag', () => {
+  it('S4 accepts an automatic one-bend slide in the v15 contract', () => {
+    expect(
+      movePattern.parse({
+        kind: 'turning_slide',
+        vectors: [[0, 1]],
+        turn: 'any',
+      }),
+    ).toEqual({
+      kind: 'turning_slide',
+      vectors: [[0, 1]],
+      turn: 'any',
+    })
+  })
+
+  it('S4 accepts multiple distinct first-leg vectors for automatic turns', () => {
+    expect(
+      movePattern.safeParse({
+        kind: 'turning_slide',
+        vectors: [
+          [0, 1],
+          [1, 0],
+        ],
+        turn: 'any',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('S5 parses a legacy ordered pair, total cap, and forward flag', () => {
     const result = movePattern.parse({
       kind: 'turning_slide',
       vectors: [[1, 0], [0, 1]],
@@ -20,20 +47,23 @@ describe('turning_slide schema', () => {
   })
 
   it.each([
+    { vectors: [[0, 1]], turn: 'fixed' },
+    { vectors: [[0, 1], [0, 1]], turn: 'any' },
+    { vectors: [[0, 0]], turn: 'any' },
     { vectors: [[1, 0]], maxDistance: 2 },
     { vectors: [[1, 0], [1, 0]], maxDistance: 2 },
     { vectors: [[1, 0], [-1, 0]], maxDistance: 2 },
     { vectors: [[2, 0], [0, 1]], maxDistance: 2 },
     { vectors: [[1, 0], [0, 1]], maxDistance: 1 },
-  ])('rejects an invalid turning contract: %j', (fields) => {
+  ])('S4 rejects an invalid automatic or legacy turning contract: %j', (fields) => {
     expect(movePattern.safeParse({ kind: 'turning_slide', ...fields }).success).toBe(false)
   })
 
-  it('bumps the content vocabulary version for the new kind', () => {
-    expect(SCHEMA_VERSION).toBe(14)
+  it('S4 bumps the content vocabulary version for the new kind', () => {
+    expect(SCHEMA_VERSION).toBe(15)
   })
 
-  it('reads a v13 straight-only document and re-stamps it as v14 without changing content', () => {
+  it('S6 reads a v13 straight-only document and re-stamps it as v15 without changing content', () => {
     const legacy = cloneValid()
     legacy.schemaVersion = 13
     legacy.boards = legacy.boards.map((board) => ({
@@ -51,8 +81,8 @@ describe('turning_slide schema', () => {
     const imported = importContent(JSON.stringify(legacy))
     expect(imported.ok).toBe(true)
     if (!imported.ok) return
-    expect(imported.source.schemaVersion).toBe(14)
+    expect(imported.source.schemaVersion).toBe(15)
     expect(imported.source.pieces).toEqual(legacy.pieces)
-    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(14)
+    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(15)
   })
 })

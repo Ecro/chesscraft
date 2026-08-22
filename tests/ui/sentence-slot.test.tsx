@@ -195,7 +195,7 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     ['then', 'spawn_piece', 's-param-pieceId', 'which piece appears'],
     ['then', 'win', 's-param-side', 'who wins'],
     ['then', 'grant_movement', 's-param-pattern-slide', 'the granted pattern kind'],
-    ['then', 'grant_movement', 's-param-pattern-cell-1_1', 'the granted pattern squares'],
+    ['then', 'grant_movement', 's-param-pattern-cell-1,1', 'the granted pattern squares'],
     ['cond', 'piece_is', 's-param-cond-pieceId', 'which piece'],
     ['cond', 'piece_side', 's-param-cond-side', 'whose piece'],
     ['cond', 'on_own_rank', 's-param-cond-n', 'which rank'],
@@ -233,23 +233,19 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     expect((screen.getByTestId('s-param-plies') as HTMLInputElement).value).toBe('4')
   })
 
-  it('edits a granted turning slide through the shared turning-row control', () => {
+  it('edits a granted automatic turning slide through the shared movement grid', () => {
     mount()
     pick('then', 'grant_movement')
     const sheet = screen.getByTestId('slot-sheet-then')
 
     fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning_slide'))
-    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-first-n')).toBeTruthy()
-    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-e').getAttribute('aria-pressed')).toBe('true')
-
-    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-w'))
-    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning-row-0-reach-3'))
-    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-w').getAttribute('aria-pressed')).toBe('true')
-    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-reach-3').getAttribute('aria-pressed')).toBe('true')
+    const outer = within(sheet).getByTestId('s-param-pattern-cell-3,0')
+    fireEvent.doubleClick(outer)
+    expect(outer.getAttribute('data-turning')).toBe('true')
 
     const saved = draftData()
     const action = (((saved.effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!)
-    expect(action.pattern).toEqual({ kind: 'turning_slide', vectors: [[0, 1], [-1, 0]], maxDistance: 3 })
+    expect(action.pattern).toEqual({ kind: 'turning_slide', vectors: [[0, 1], [1, 0]], turn: 'any' })
 
     cleanup()
     mount('skillCard', saved)
@@ -258,7 +254,36 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     expect(reopenedAction.pattern).toEqual(action.pattern)
   })
 
-  it('does not expose row deletion or flatten an unsupported turning cap', () => {
+  it('authors a granted slide from a compass cell through the shared grid', () => {
+    mount()
+    pick('then', 'grant_movement')
+    const sheet = screen.getByTestId('slot-sheet-then')
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning_slide'))
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-slide'))
+
+    const outer = within(sheet).getByTestId('s-param-pattern-cell-3,0')
+    fireEvent.click(outer)
+
+    const saved = draftData()
+    const action = (((saved.effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!)
+    expect(action.pattern).toEqual({ kind: 'slide', vectors: [[1, 0]] })
+    expect((within(sheet).getByTestId('s-param-pattern-cell-3,0') as HTMLButtonElement).getAttribute('data-ray')).toBe('e')
+  })
+
+  it('keeps a grant automatic pattern with two rays editable after rerender', () => {
+    mount()
+    pick('then', 'grant_movement')
+    const sheet = screen.getByTestId('slot-sheet-then')
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning_slide'))
+    fireEvent.doubleClick(within(sheet).getByTestId('s-param-pattern-cell-3,0'))
+
+    const secondRay = within(sheet).getByTestId('s-param-pattern-cell-0,-3') as HTMLButtonElement
+    expect(secondRay.disabled).toBe(false)
+    fireEvent.doubleClick(secondRay)
+    expect((within(sheet).getByTestId('s-param-pattern-cell-3,0') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('preserves a non-drawable legacy turning pattern instead of flattening it', () => {
     mount('skillCard', {
       ...blankDraft('skillCard'),
       effects: [
@@ -276,8 +301,8 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     } as Record<string, unknown>)
     pick('then', 'grant_movement')
     const sheet = screen.getByTestId('slot-sheet-then')
-    expect(within(sheet).getByText(t('ui.editor.turning.unsupported'))).toBeTruthy()
-    expect(within(sheet).queryByTestId('s-param-pattern-turning-add')).toBeNull()
+    expect(within(sheet).getByText(t('ui.editor.piece.preserved-pattern'))).toBeTruthy()
+    expect((within(sheet).getByTestId('s-param-pattern-cell-0,3') as HTMLButtonElement).disabled).toBe(true)
     expect(draftData()).toMatchObject({
       effects: [
         {

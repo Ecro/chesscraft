@@ -94,22 +94,23 @@ describe('AC-005: the move region is total', () => {
     expect(notice?.textContent).not.toContain('ui.piece-info')
   })
 
-  it('renders a turning-only piece with its ordered bend instead of the undrawable notice', () => {
+  it('renders an automatic turning ray with a visible bend marker', () => {
     const turning = {
       id: 'piece.test-turning',
       nameKey: 'piece.test-turning.name',
       textKey: 'piece.test-turning.text',
-      movement: [{ kind: 'turning_slide', vectors: [[1, 0], [0, 1]], maxDistance: 3 }],
+      movement: [{ kind: 'turning_slide', vectors: [[1, 0]], turn: 'any' }],
     }
 
     const { container } = render(<PieceMoveRegion piece={turning as never} t={t} />)
 
     expect(container.querySelector('[data-testid="move-undrawable"]')).toBeNull()
     expect(container.querySelector('[data-testid="move-grid"]')).toBeTruthy()
-    const row = container.querySelector('[data-testid="move-turning-row"]')
-    expect(row?.textContent).toContain(t('ui.editor.piece.dir.e'))
-    expect(row?.textContent).toContain(t('ui.editor.piece.dir.n'))
-    expect(row?.textContent).toContain('3')
+    expect(container.querySelector('[data-testid="move-turning-auto"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="move-turning-auto-row"]')?.textContent).toContain(
+      t('ui.editor.piece.dir.e'),
+    )
+    expect(container.querySelector('[data-turning="true"]')).toBeTruthy()
   })
 })
 

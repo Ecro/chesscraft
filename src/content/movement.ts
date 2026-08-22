@@ -2,7 +2,18 @@
 
 export type CompassVector = readonly [number, number]
 
-const COMPASS_VECTORS = new Set([
+export const COMPASS_VECTORS: ReadonlyArray<CompassVector> = [
+  [0, 1],
+  [1, 1],
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, -1],
+  [-1, 0],
+  [-1, 1],
+] as const
+
+const COMPASS_VECTOR_KEYS = new Set([
   '0,1',
   '1,1',
   '1,0',
@@ -19,7 +30,7 @@ function vectorKey([df, dr]: CompassVector): string {
 
 /** Whether a vector is one of the eight unit compass directions. */
 export function isCompassVector(vector: CompassVector): boolean {
-  return COMPASS_VECTORS.has(vectorKey(vector))
+  return COMPASS_VECTOR_KEYS.has(vectorKey(vector))
 }
 
 /** Whether two vectors describe a real ordered turn rather than straight/U-turn travel. */
@@ -49,4 +60,12 @@ export function turningPathDistance(maxDistance: number | undefined, width: numb
 /** Direct first-leg endpoints plus all positive one-bend split endpoints. */
 export function turningEndpointUpperBound(distance: number): number {
   return distance + (distance * (distance - 1)) / 2
+}
+
+/** Number of legal second-leg directions after excluding straight and U-turn travel. */
+export const AUTOMATIC_TURN_DIRECTIONS = 6
+
+/** Direct endpoints plus every legal second-leg direction for automatic bends. */
+export function automaticTurningEndpointUpperBound(distance: number, firstVectorCount = 1): number {
+  return firstVectorCount * (distance + AUTOMATIC_TURN_DIRECTIONS * (distance * (distance - 1)) / 2)
 }

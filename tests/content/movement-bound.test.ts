@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   boardTurnDistance,
   boardTurnDistanceFromMax,
+  automaticTurningEndpointUpperBound,
   isCompassVector,
   isValidTurnPair,
   turningEndpointUpperBound,
@@ -26,6 +27,11 @@ describe('turning-slide geometry contract', () => {
     [4, 10],
   ])('counts direct endpoints plus every positive split for D=%s', (distance, expected) => {
     expect(turningEndpointUpperBound(distance)).toBe(expected)
+  })
+
+  it('counts six automatic second-leg directions for each authored first vector', () => {
+    expect(automaticTurningEndpointUpperBound(2)).toBe(8)
+    expect(automaticTurningEndpointUpperBound(3, 2)).toBe(42)
   })
 
   it('accepts only compass unit vectors and a real ordered turn', () => {

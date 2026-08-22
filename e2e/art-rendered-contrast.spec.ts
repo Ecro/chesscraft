@@ -8,6 +8,19 @@ test('every game image separates from its actual surface after WebP compositing'
   await page.goto('/')
   await startMatch(page)
   await page.getByTestId('board').waitFor()
+  const imageMarks = page.locator('.square img.image-mark, .card-icon img.image-mark, .rule-icon img.image-mark')
+  await expect
+    .poll(
+      async () =>
+        imageMarks.evaluateAll((images) =>
+          images.filter((image) => {
+            const candidate = image as HTMLImageElement
+            return candidate.complete && candidate.naturalWidth > 0
+          }).length,
+        ),
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(6)
 
   const measured = await page.evaluate(async (floor) => {
     const srgb = (c: number) => {

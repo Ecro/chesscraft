@@ -8,6 +8,9 @@ import {
   type Reach,
   hasMovementEditorMoves,
   hasMovementEditorTakes,
+  hasMoves,
+  hasTakes,
+  isTurningAt,
   readMovementEditor,
 } from './PieceMoves'
 import { resolveMark } from './art/resolve'
@@ -54,8 +57,10 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
    * component exists to prevent, wearing a different hat.
    */
   const anything = editor !== null && (hasMovementEditorMoves(editor) || hasMovementEditorTakes(editor))
+  const drawable = editor !== null && (hasMoves(editor.grid) || hasTakes(editor.grid))
+  const preserved = editor !== null && (editor.preservedPatterns.movement.length > 0 || (editor.preservedPatterns.attack?.length ?? 0) > 0)
 
-  if (!editor || !grid || !anything) {
+  if (!editor || !grid || !anything || (!drawable && preserved)) {
     return (
       <p className="move-undrawable" data-testid="move-undrawable">
         {t('ui.piece-info.undrawable')}
@@ -111,6 +116,7 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
                 key={`${df},${dr}`}
                 className="move-cell"
                 data-value={grid.cells[`${df},${dr}`] ?? Cell.None}
+                data-turning={isTurningAt(grid, Cell.Move, df, dr) || isTurningAt(grid, Cell.Capture, df, dr)}
                 aria-hidden="true"
               />
             )
@@ -129,16 +135,16 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
             .replace('{reach}', t(`ui.piece-info.reach.${reach}`))}
         </p>
       ))}
-      {editor.turning.move.length > 0 && (
-        <ul className="move-turning" data-testid="move-turning">
-          {editor.turning.move.map((row, index) => (
-            <li key={index} data-testid="move-turning-row">
-              {t('ui.piece-info.turning')
-                .replace('{first}', t(`ui.editor.piece.dir.${row.first}`))
-                .replace('{second}', t(`ui.editor.piece.dir.${row.second}`))
-                .replace('{reach}', row.reach === 'edge' ? t('ui.piece-info.reach.edge') : String(row.reach))}
-            </li>
-          ))}
+      {(DIRECTIONS.some((direction) => grid.turning.move[direction]) || DIRECTIONS.some((direction) => grid.turning.capture[direction])) && (
+        <ul className="move-turning" data-testid="move-turning-auto">
+          <li data-testid="move-turning-auto-row">
+            {t('ui.piece-info.turning-auto').replace(
+              '{dirs}',
+              DIRECTIONS.filter((direction) => grid.turning.move[direction] || grid.turning.capture[direction])
+                .map((direction) => t(`ui.editor.piece.dir.${direction}`))
+                .join(', '),
+            )}
+          </li>
         </ul>
       )}
       {/* The legend is not decoration. The three cell states differ by hue and

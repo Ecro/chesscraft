@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadContentSet } from '@content/load'
-import { boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
+import { automaticTurningEndpointUpperBound, boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
 import { patternReach, pieceCost } from '@balance/cost'
 import { pieceValue } from '@engine/ai/evaluate'
 import { complexityOf } from '@engine/ai/complexity'
@@ -17,9 +17,16 @@ const turning = (maxDistance?: number): MovePattern => ({
   ...(maxDistance === undefined ? {} : { maxDistance }),
 })
 
+const automatic = (maxDistance?: number): MovePattern => ({
+  kind: 'turning_slide',
+  vectors: [[1, 0]],
+  turn: 'any',
+  ...(maxDistance === undefined ? {} : { maxDistance }),
+})
+
 function contentWith(pattern: MovePattern) {
   const source: ContentSource = {
-    schemaVersion: 14,
+    schemaVersion: 15,
     pieces: [
       {
         id: 'piece.turner',
@@ -74,6 +81,14 @@ describe('turning movement accounting uses one triangular upper bound', () => {
     const uncapped = contentWith(turning())
     expect(pieceValue(uncapped, 'piece.turner', 4)).toBe(turningEndpointUpperBound(6) * 25)
     expect(complexityOf(uncapped, 'preset.turner').maxPieceReach).toBe(turningEndpointUpperBound(6))
+  })
+
+  it('uses the six-way automatic bound and authored first-vector count', () => {
+    expect(patternReach([automatic(2)], 8)).toBe(8)
+    expect(patternReach([{ ...automatic(2), vectors: [[1, 0], [0, 1]] }], 8)).toBe(16)
+    const content = contentWith(automatic(2))
+    expect(pieceValue(content, 'piece.turner', 4)).toBe(automaticTurningEndpointUpperBound(2) * 25)
+    expect(complexityOf(content, 'preset.turner').maxPieceReach).toBe(automaticTurningEndpointUpperBound(2))
   })
 
   it('keeps cost, AI value, and complexity on the same cap table', () => {

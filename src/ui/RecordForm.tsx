@@ -17,19 +17,15 @@ import { ImageMark } from './art/ImageMark'
 import {
   Cell,
   DIRECTIONS,
-  type Dir8,
   describeMovementEditor,
-  GRID_RANGE,
   type MovementEditorState,
   hasMovementEditorMoves,
   hasMovementEditorTakes,
-  cycleAt,
-  paintAt,
-  rayOf,
   readMovementEditor,
   writeMovementEditor,
+  type PieceGrid,
 } from './PieceMoves'
-import { TurningSlideEditor } from './TurningSlideEditor'
+import { MovementPatternGrid } from './MovementPatternGrid'
 import { readSentence } from './CardRecipe'
 import { SentenceEditor, describeRecord, sentenceText } from './SentenceSlot'
 import { RecordGrade } from './RecordGrade'
@@ -845,10 +841,6 @@ export function RecordForm({
     return parts.length === 0 ? t('ui.editor.form.summary-empty') : parts.join(' / ')
   }
 
-  /** Every direction off. `slides` is a total record, so `{}` is not a valid value. */
-  const emptySlides = (): Record<Dir8, Cell> =>
-    Object.fromEntries(DIRECTIONS.map((d) => [d, Cell.None])) as Record<Dir8, Cell>
-
   /** How this piece moves, as one grid. See `PieceMoves.tsx` for the mapping. */
   function pieceGridView() {
     if (kind !== 'piece') return null
@@ -858,6 +850,13 @@ export function RecordForm({
     // it could not read passes through the draft untouched.
     if (!editor) return readOnlyMovesView()
     const grid = editor.grid
+
+    const commitGrid = (next: PieceGrid, materializeCapture = true) =>
+      commit({
+        ...editor,
+        grid: next,
+        ...(materializeCapture ? { captureFollowsMovement: false } : {}),
+      })
 
     const commit = (next: MovementEditorState) => {
       const written = writeMovementEditor(next)
@@ -921,6 +920,11 @@ export function RecordForm({
       <fieldset className="piece-moves" data-testid="editor-moves">
         <legend>{t('ui.editor.piece.how')}</legend>
         <p className="hint">{t('ui.editor.piece.how-hint')}</p>
+        {(editor.preservedPatterns.movement.length > 0 || (editor.preservedPatterns.attack?.length ?? 0) > 0) && (
+          <p className="hint" data-testid="piece-preserved-pattern">
+            {t('ui.editor.piece.preserved-pattern')}
+          </p>
+        )}
         {/* One question on screen at a time (ADR-003). A cell answers "how does
             it get there"; this answers "which of the two am I drawing". Leaving
             the capture side unpainted means captures follow the movement, which
@@ -952,55 +956,17 @@ export function RecordForm({
             untouched — `readGrid` / `writeGrid` / `PieceGrid` / `REACH_VALUES` and every
             `data-testid` are exactly as they were, which is what ADR-007 froze. */}
         <div className="move-map">
-          <div className="move-grid">
-          {GRID_RANGE.map((dr) =>
-            GRID_RANGE.map((df) => {
-              const centre = df === 0 && dr === 0
-              const value = grid.cells[`${df},${dr}`] ?? Cell.None
-              if (centre) {
-                return (
-                  <span key={`${df},${dr}`} className="move-cell" data-centre="true" aria-hidden="true">
-                    <MarkBody mark={resolveMark(t, draft as { artKey?: string; iconKey?: string }, { registry: artRegistry, side: 'white', fallback: 'none' })} />
-                  </span>
-                )
-              }
-              /*
-               * No ghosting, and the reason is worth keeping: the plan expected
-               * an empty capture grid and a "first tap silently narrows capture
-               * to only here" cliff, and neither exists. An omitted `attack`
-               * means captures follow the movement, and `readGrid` PROMOTES every
-               * move square to both — so the capture grid already shows the
-               * squares this record captures on, truthfully, and a tap ADDS to
-               * them rather than replacing them. Drawing a faded copy of the
-               * movement axis instead would have made the picture disagree with
-               * what a tap does, which is the bug the ghost was invented to
-               * prevent.
-               */
-              const paint = paintAt(grid, moveAxis, df, dr)
-              return (
-                <button
-                  key={`${df},${dr}`}
-                  type="button"
-                  className="move-cell"
-                  data-testid={`piece-cell-${df},${dr}`}
-                  /* Scoped to the axis being drawn, so the existing cell-state
-                     colours mean "painted for THIS question" rather than showing
-                     a movement square as lit while the capture grid is open. */
-                  data-value={paint.kind === 'leap' ? moveAxis : Cell.None}
-                  data-cells={value}
-                  data-paint={paint.kind}
-                  data-tip={paint.kind === 'ray' ? paint.tip : false}
-                  data-endless={paint.kind === 'ray' ? paint.endless : false}
-                  data-ray={rayOf(df, dr)?.dir ?? ''}
-                  aria-label={`${df},${dr}`}
-                  aria-pressed={paint.kind !== 'none'}
-                  onClick={() => commit({ ...editor, grid: cycleAt(grid, moveAxis, df, dr) })}
-                />
-              )
-            }),
-          )}
-          </div>
-
+          <MovementPatternGrid
+            grid={grid}
+            axis={moveAxis}
+            onChange={commitGrid}
+            testIdPrefix="piece-cell"
+            center={
+              <MarkBody
+                mark={resolveMark(t, draft as { artKey?: string; iconKey?: string }, { registry: artRegistry, side: 'white', fallback: 'none' })}
+              />
+            }
+          />
         </div>
 
         {/* What survives the deletion, and why each one had to be moved rather
@@ -1040,11 +1006,12 @@ export function RecordForm({
               }
               const slides = { ...grid.slides }
               for (const d of DIRECTIONS) slides[d] = (slides[d] & keep) as Cell
-              const turning =
-                moveMode === 'move'
-                  ? { ...editor.turning, move: [] }
-                  : { ...editor.turning, capture: [] }
-              commit({ ...editor, grid: { ...grid, cells, slides }, turning })
+              const axis = moveMode === 'move' ? 'move' : 'capture'
+              const turning = {
+                ...grid.turning,
+                [axis]: Object.fromEntries(DIRECTIONS.map((d) => [d, false])),
+              }
+              commitGrid({ ...grid, cells, slides, turning })
             }}
           >
             {t(moveMode === 'move' ? 'ui.editor.piece.clear' : 'ui.editor.piece.clear-capture')}
@@ -1056,23 +1023,11 @@ export function RecordForm({
               type="checkbox"
               data-testid="piece-forward"
               checked={grid.forward}
-              onChange={() => commit({ ...editor, grid: { ...grid, forward: !grid.forward } })}
+              onChange={() => commitGrid({ ...grid, forward: !grid.forward }, false)}
             />
           </label>
           <p className="hint">{t('ui.editor.piece.forward-hint')}</p>
         </div>
-
-        <TurningSlideEditor
-          axis={moveMode}
-          rows={editor.turning[moveMode]}
-          onChange={(rows) =>
-            commit({
-              ...editor,
-              turning: { ...editor.turning, [moveMode]: rows },
-            })
-          }
-          t={t}
-        />
 
         {noMoves && (
           <p className="refusal" data-testid="piece-no-moves">

@@ -1,6 +1,5 @@
 import type { Translate } from './i18n'
 import { isValidTurnPair } from '../content/movement'
-
 /**
  * How a piece moves, as two questions instead of one.
  *
@@ -20,10 +19,9 @@ import { isValidTurnPair } from '../content/movement'
  * move -> capture -> both -> none cycle (ADR-028), so a piece that slides forward
  * and takes diagonally is authorable here rather than in the detailed form.
  *
- * The straight grid remains unchanged while `MovementEditorState` adds ordered
- * turning rows beside it. The schema's `turning_slide` variant is deliberately
- * kept out of `PieceGrid`, so straight canonical output cannot be flattened into
- * a ray and the shared adapter can keep move and capture rows independent.
+ * The grid is the complete compact authoring surface. A double-click on an
+ * outermost compass cell marks that ray as an automatic one-bend slide; there
+ * is no second direction row to keep in sync with the grid.
  *
  * ## It still refuses to open rather than flatten
  *
@@ -109,6 +107,8 @@ export interface PieceGrid {
    * simply never read.
    */
   reach: Record<Axis, Record<Dir8, Reach>>
+  /** Whether a ray chooses its second leg automatically at the first bend. */
+  turning: Record<Axis, Record<Dir8, boolean>>
   /** Whether the vectors mirror by the owning side's forward direction. */
   forward: boolean
 }
@@ -129,11 +129,12 @@ export function withAllReach(grid: PieceGrid, reach: Reach): PieceGrid {
   return { ...grid, reach: { move: all(), capture: all() } }
 }
 
-type Pattern = { kind?: unknown; vectors?: unknown; maxDistance?: unknown; forward?: unknown }
+type Pattern = { kind?: unknown; vectors?: unknown; maxDistance?: unknown; forward?: unknown; turn?: unknown }
 
 const key = (df: number, dr: number) => `${df},${dr}`
 
 export function blankGrid(): PieceGrid {
+  const emptyTurning = () => ({ n: false, ne: false, e: false, se: false, s: false, sw: false, w: false, nw: false })
   return {
     cells: {},
     slides: { n: 0, ne: 0, e: 0, se: 0, s: 0, sw: 0, w: 0, nw: 0 },
@@ -141,6 +142,7 @@ export function blankGrid(): PieceGrid {
       move: { n: 'edge', ne: 'edge', e: 'edge', se: 'edge', s: 'edge', sw: 'edge', w: 'edge', nw: 'edge' },
       capture: { n: 'edge', ne: 'edge', e: 'edge', se: 'edge', s: 'edge', sw: 'edge', w: 'edge', nw: 'edge' },
     },
+    turning: { move: emptyTurning(), capture: emptyTurning() },
     forward: false,
   }
 }
@@ -166,7 +168,10 @@ type Buckets = { slides: Pattern[]; leap?: Pattern }
 function bucketize(patterns: Pattern[]): Buckets | null {
   const out: Buckets = { slides: [] }
   for (const p of patterns) {
-    if (p.kind === 'slide') {
+    // Draft controls intentionally start with an empty vector list so the
+    // author can paint the first cell before validation runs.
+    if (vectorsOf(p).length === 0) continue
+    if (p.kind === 'slide' || (p.kind === 'turning_slide' && p.turn === 'any')) {
       // Several are expected now, one per distinct cap. Refusing the second was
       // correct only while the grid held a single shared reach.
       out.slides.push(p)
@@ -229,6 +234,37 @@ export function paintAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: num
   return { kind: 'none' }
 }
 
+/** Whether the outermost compass cell is currently an automatic turning ray. */
+export function isTurningAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): boolean {
+  const ray = rayOf(df, dr)
+  return ray?.distance === 3 && grid.turning[axisOf(axis)][ray.dir] && bit(grid.slides[ray.dir], axis)
+}
+
+/**
+ * The semantic reducer used by the grid's double-click handler.
+ *
+ * Automatic turns deliberately have one visible entry point: the outermost
+ * compass cell. Calling this for an inner cell is a no-op, so a browser's
+ * double-click timing cannot accidentally create a hidden second-leg choice.
+ */
+export function turnAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): PieceGrid {
+  const ray = rayOf(df, dr)
+  if (!ray || ray.distance !== 3) return grid
+  const axisName = axisOf(axis)
+  const k = key(df, dr)
+  const cells = { ...grid.cells }
+  const next = ((cells[k] ?? Cell.None) & ~axis) as Cell
+  if (next === Cell.None) delete cells[k]
+  else cells[k] = next
+  return {
+    ...grid,
+    cells,
+    slides: { ...grid.slides, [ray.dir]: (grid.slides[ray.dir] | axis) as Cell },
+    reach: { ...grid.reach, [axisName]: { ...grid.reach[axisName], [ray.dir]: 'edge' } },
+    turning: { ...grid.turning, [axisName]: { ...grid.turning[axisName], [ray.dir]: true } },
+  }
+}
+
 /**
  * One tap: none -> leap -> ray -> none, skipping `ray` where it cannot exist.
  *
@@ -263,6 +299,7 @@ export function cycleAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: num
       ...grid,
       slides,
       reach: { ...grid.reach, [axis_]: { ...grid.reach[axis_], [ray!.dir]: 'edge' as Reach } },
+      turning: { ...grid.turning, [axis_]: { ...grid.turning[axis_], [ray!.dir]: false } },
     }
   }
 
@@ -288,6 +325,7 @@ export function cycleAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: num
     cells,
     slides: { ...grid.slides, [ray.dir]: (grid.slides[ray.dir] | axis) as Cell },
     reach: { ...grid.reach, [axis_]: { ...grid.reach[axis_], [ray.dir]: reach } },
+    turning: { ...grid.turning, [axis_]: { ...grid.turning[axis_], [ray.dir]: false } },
   }
 }
 
@@ -353,6 +391,9 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
       if (reach === null) return false
       const vectors = vectorsOf(pattern)
       if (vectors.length === 0) return false
+      const automatic = pattern.kind === 'turning_slide' && pattern.turn === 'any'
+      if (automatic && pattern.maxDistance !== undefined) return false
+      if (!automatic && pattern.kind !== 'slide') return false
       for (const [df, dr] of vectors) {
         const dir = DIR_BY_VECTOR.get(key(df, dr))
         if (!dir) return false
@@ -364,6 +405,7 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
         if ((grid.slides[dir] & value) !== 0 && grid.reach[axis][dir] !== reach) return false
         grid.slides[dir] = (grid.slides[dir] | value) as Cell
         grid.reach[axis][dir] = reach
+        grid.turning[axis][dir] = automatic
       }
     }
     return true
@@ -399,6 +441,7 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
       // so `writeGrid` emitted an `attack` for a record that had none — a field
       // appearing out of a round-trip that was supposed to be a no-op.
       grid.reach.capture[d] = grid.reach.move[d]
+      grid.turning.capture[d] = grid.turning.move[d]
     }
   } else {
     if (!paintSlides(takeBuckets.slides, Cell.Capture)) return null
@@ -417,9 +460,10 @@ export type WriteResult =
 const has = (value: Cell, axis: Cell.Move | Cell.Capture): boolean => (value & axis) !== 0
 
 interface Emitted {
-  kind: 'slide' | 'step'
+  kind: 'slide' | 'step' | 'turning_slide'
   vectors: Array<[number, number]>
   maxDistance?: 1 | 2
+  turn?: 'any'
   forward?: true
 }
 
@@ -431,7 +475,13 @@ function vectorsEqual(a: Array<[number, number]>, b: Array<[number, number]>): b
 
 function patternEqual(a: Emitted | undefined, b: Emitted | undefined): boolean {
   if (!a || !b) return a === b
-  return a.maxDistance === b.maxDistance && a.forward === b.forward && vectorsEqual(a.vectors, b.vectors)
+  return (
+    a.kind === b.kind &&
+    a.turn === b.turn &&
+    a.maxDistance === b.maxDistance &&
+    a.forward === b.forward &&
+    vectorsEqual(a.vectors, b.vectors)
+  )
 }
 
 /**
@@ -444,21 +494,24 @@ function patternEqual(a: Emitted | undefined, b: Emitted | undefined): boolean {
  * open.
  */
 function sameReach(a: Emitted[], b: Emitted[]): boolean {
-  const bucket = (ps: Emitted[]) => ({
-    // Keyed by cap, because there is one slide pattern per cap now. Taking the
-    // FIRST slide pattern — which is what this did — silently compared a
-    // two-square ray against an edge ray and called them the same reach, which
-    // would omit an `attack` that genuinely differs from the movement.
-    slides: new Map(ps.filter((p) => p.kind === 'slide').map((p) => [String(p.maxDistance ?? 'edge'), p])),
-    leap: ps.find((p) => p.kind !== 'slide'),
-  })
+  const bucket = (patterns: Emitted[]) => {
+    const out = new Map<string, Emitted>()
+    for (const pattern of patterns) {
+      const identity = JSON.stringify({ kind: pattern.kind, turn: pattern.turn, maxDistance: pattern.maxDistance, forward: pattern.forward })
+      const previous = out.get(identity)
+      if (previous) {
+        previous.vectors.push(...pattern.vectors)
+      } else {
+        out.set(identity, { ...pattern, vectors: [...pattern.vectors] })
+      }
+    }
+    return out
+  }
   const x = bucket(a)
   const y = bucket(b)
-  if (x.slides.size !== y.slides.size) return false
-  for (const [cap, pattern] of x.slides) {
-    if (!patternEqual(pattern, y.slides.get(cap))) return false
-  }
-  return patternEqual(x.leap, y.leap)
+  if (x.size !== y.size) return false
+  for (const [identity, pattern] of x) if (!patternEqual(pattern, y.get(identity))) return false
+  return true
 }
 
 /** The straight-pattern half shared by the grid writer and turning adapter. */
@@ -466,9 +519,19 @@ function buildGridPatterns(grid: PieceGrid, axis: Cell.Move | Cell.Capture): Emi
   const sortVectors = (v: Array<[number, number]>) =>
     v.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1])
   const byReach = new Map<Reach, Array<[number, number]>>()
+  const turning: Emitted[] = []
   for (const d of DIRECTIONS) {
     if (!has(grid.slides[d], axis)) continue
     const reach = grid.reach[axisOf(axis)][d]
+    if (grid.turning[axisOf(axis)][d]) {
+      turning.push({
+        kind: 'turning_slide',
+        vectors: [[...DIRECTION_VECTORS[d]] as [number, number]],
+        turn: 'any',
+        ...(grid.forward ? { forward: true as const } : {}),
+      })
+      continue
+    }
     const group = byReach.get(reach) ?? []
     group.push([...DIRECTION_VECTORS[d]] as [number, number])
     byReach.set(reach, group)
@@ -478,12 +541,12 @@ function buildGridPatterns(grid: PieceGrid, axis: Cell.Move | Cell.Capture): Emi
   const cells = Object.entries(grid.cells)
     .filter(([, value]) => has(value, axis))
     .map(([k]) => k.split(',').map(Number) as [number, number])
-  const out: Emitted[] = slideGroups.map(([reach, vectors]) => ({
-    kind: 'slide',
+  const out: Emitted[] = [...turning, ...slideGroups.map(([reach, vectors]) => ({
+    kind: 'slide' as const,
     vectors: sortVectors(vectors),
     ...(reach === 'edge' ? {} : { maxDistance: reach }),
     ...(grid.forward ? { forward: true as const } : {}),
-  }))
+  }))]
   if (cells.length > 0) {
     out.push({
       kind: 'step',
@@ -523,73 +586,46 @@ export function writeGrid(grid: PieceGrid): WriteResult {
 }
 
 /** The compact editor's three supported total-distance caps. */
-export type TurningReach = 2 | 3 | 'edge'
-export const TURNING_REACH_VALUES = [2, 3, 'edge'] as const
-
-export interface TurningRow {
-  first: Dir8
-  second: Dir8
-  reach: TurningReach
-}
-
 export interface MovementEditorState {
   grid: PieceGrid
-  turning: {
-    move: TurningRow[]
-    capture: TurningRow[]
+  /** Patterns the compact grid cannot represent; written back without widening. */
+  preservedPatterns: {
+    movement: unknown[]
+    attack?: unknown[]
   }
+  /** An omitted attack means captures follow the complete movement declaration. */
+  captureFollowsMovement?: boolean
 }
 
-function directionOfVector(vector: unknown): Dir8 | null {
-  if (!Array.isArray(vector) || vector.length !== 2 || typeof vector[0] !== 'number' || typeof vector[1] !== 'number') {
-    return null
-  }
-  return DIR_BY_VECTOR.get(key(vector[0], vector[1])) ?? null
+type CompactParts = {
+  drawable: Pattern[]
+  preserved: unknown[]
 }
 
-/** Converts one validated schema pattern into the row shape shared by both UIs. */
-export function turningRowFromPattern(pattern: unknown): TurningRow | null {
-  if (!pattern || typeof pattern !== 'object' || (pattern as Pattern).kind !== 'turning_slide') return null
-  const vectors = vectorsOf(pattern as Pattern)
-  if (vectors.length !== 2 || !isValidTurnPair(vectors[0]!, vectors[1]!)) return null
-  const first = directionOfVector(vectors[0])
-  const second = directionOfVector(vectors[1])
-  if (!first || !second) return null
-  const maxDistance = (pattern as Pattern).maxDistance
-  let reach: TurningReach
-  if (maxDistance === undefined) reach = 'edge'
-  else if (maxDistance === 2 || maxDistance === 3) reach = maxDistance
-  else return null
-  return { first, second, reach }
-}
-
-export function turningPatternFromRow(row: TurningRow, forward = false): Record<string, unknown> {
-  return {
-    kind: 'turning_slide',
-    vectors: [
-      [...DIRECTION_VECTORS[row.first]],
-      [...DIRECTION_VECTORS[row.second]],
-    ],
-    ...(row.reach === 'edge' ? {} : { maxDistance: row.reach }),
-    ...(forward ? { forward: true } : {}),
-  }
-}
-
-function splitMovementPatterns(patterns: unknown[]): { straight: Pattern[]; turning: TurningRow[] } | null {
-  const straight: Pattern[] = []
-  const turning: TurningRow[] = []
+function splitCompactPatterns(patterns: unknown[]): CompactParts | null {
+  const drawable: Pattern[] = []
+  const preserved: unknown[] = []
   for (const raw of patterns) {
     if (!raw || typeof raw !== 'object') return null
     const pattern = raw as Pattern
-    if (pattern.kind === 'turning_slide') {
-      const row = turningRowFromPattern(pattern)
-      if (!row) return null
-      turning.push(row)
-    } else {
-      straight.push(pattern)
+    if (pattern.kind !== 'turning_slide') {
+      drawable.push(pattern)
+      continue
     }
-  }
-  return { straight, turning }
+
+    if (pattern.turn === 'any') {
+      const vectors = vectorsOf(pattern)
+      if (vectors.length === 0 || vectors.some((vector) => !DIR_BY_VECTOR.has(key(...vector)))) return null
+      if (vectors.length === 1 && pattern.maxDistance === undefined) drawable.push(pattern)
+      else preserved.push(raw)
+      continue
+    }
+
+    const vectors = vectorsOf(pattern)
+    if (vectors.length !== 2 || !isValidTurnPair(vectors[0]!, vectors[1]!)) return null
+    preserved.push(raw)
+    }
+  return { drawable, preserved }
 }
 
 function withoutCaptures(grid: PieceGrid): PieceGrid {
@@ -600,7 +636,12 @@ function withoutCaptures(grid: PieceGrid): PieceGrid {
   }
   const slides = { ...grid.slides }
   for (const direction of DIRECTIONS) slides[direction] = (slides[direction] & ~Cell.Capture) as Cell
-  return { ...grid, cells, slides }
+  return {
+    ...grid,
+    cells,
+    slides,
+    turning: { ...grid.turning, capture: { ...blankGrid().turning.capture } },
+  }
 }
 
 /**
@@ -615,8 +656,8 @@ export function readMovementEditor(draft: Record<string, unknown>): MovementEdit
   if (!Array.isArray(movement)) return null
   if (attack !== undefined && (!Array.isArray(attack) || attack.length === 0)) return null
 
-  const moveParts = splitMovementPatterns(movement)
-  const attackParts = attack === undefined ? undefined : splitMovementPatterns(attack)
+  const moveParts = splitCompactPatterns(movement)
+  const attackParts = attack === undefined ? undefined : splitCompactPatterns(attack)
   if (!moveParts || attackParts === null) return null
 
   const allPatterns = [...movement, ...(attack ?? [])].filter(
@@ -625,19 +666,20 @@ export function readMovementEditor(draft: Record<string, unknown>): MovementEdit
   const forwards = new Set(allPatterns.map((pattern) => pattern.forward === true))
   if (forwards.size > 1) return null
 
-  const straightDraft: Record<string, unknown> = { movement: moveParts.straight }
-  if (attackParts !== undefined && attackParts.straight.length > 0) straightDraft.attack = attackParts.straight
+  const straightDraft: Record<string, unknown> = { movement: moveParts.drawable }
+  if (attackParts !== undefined && attackParts.drawable.length > 0) straightDraft.attack = attackParts.drawable
   let grid = readGrid(straightDraft)
   if (!grid) return null
-  if (attackParts !== undefined && attackParts.straight.length === 0) grid = withoutCaptures(grid)
+  if (attackParts !== undefined && attackParts.drawable.length === 0) grid = withoutCaptures(grid)
   grid.forward = forwards.has(true)
 
   return {
     grid,
-    turning: {
-      move: moveParts.turning,
-      capture: attackParts === undefined ? moveParts.turning.map((row) => ({ ...row })) : attackParts.turning,
+    preservedPatterns: {
+      movement: moveParts.preserved,
+      ...(attackParts === undefined ? {} : { attack: attackParts.preserved }),
     },
+    captureFollowsMovement: attack === undefined,
   }
 }
 
@@ -658,42 +700,79 @@ function sameWrittenPatterns(a: unknown[], b: unknown[]): boolean {
   return true
 }
 
-function canonicalTurningRows(rows: TurningRow[]): TurningRow[] {
-  const reachOrder = (reach: TurningReach) => (reach === 'edge' ? Number.POSITIVE_INFINITY : reach)
-  return rows.slice().sort(
-    (a, b) =>
-      DIRECTIONS.indexOf(a.first) - DIRECTIONS.indexOf(b.first) ||
-      DIRECTIONS.indexOf(a.second) - DIRECTIONS.indexOf(b.second) ||
-      reachOrder(a.reach) - reachOrder(b.reach),
-  )
-}
-
 /** Compiles the shared piece/grant state, preserving independent attack rows. */
 export function writeMovementEditor(state: MovementEditorState): WriteResult {
   const straightMovement = buildGridPatterns(state.grid, Cell.Move)
   const straightAttack = buildGridPatterns(state.grid, Cell.Capture)
-  const turningMovement = canonicalTurningRows(state.turning.move).map((row) =>
-    turningPatternFromRow(row, state.grid.forward),
-  )
-  const turningAttack = canonicalTurningRows(state.turning.capture).map((row) =>
-    turningPatternFromRow(row, state.grid.forward),
-  )
-  const movement = [...straightMovement, ...turningMovement]
+  const movement = [...state.preservedPatterns.movement, ...straightMovement]
   if (movement.length === 0) return { ok: false, reason: 'no-move' }
-  const attack = [...straightAttack, ...turningAttack]
+  if (state.captureFollowsMovement === true) {
+    return { ok: true, movement, attack: undefined }
+  }
+  const attack = [...(state.preservedPatterns.attack ?? []), ...straightAttack]
   return {
     ok: true,
     movement,
-    attack: attack.length === 0 || sameWrittenPatterns(movement, attack) ? undefined : attack,
+    attack: attack.length === 0 || sameWrittenPatterns(movement as unknown[], attack) ? undefined : attack,
   }
 }
 
+/**
+ * Compiles one grant-movement pattern from the shared grid.
+ *
+ * A selected `slide` kind has no separate mode bit in the grid. The first tap
+ * on a compass cell is therefore a temporary leap in the generic reducer; for
+ * a grant whose selected kind is already `slide`, that compass cell is the
+ * author's requested direction and is promoted to the unit slide vector here.
+ * This keeps the renderer generic while preserving the selected vocabulary.
+ */
+export function writePatternGrid(grid: PieceGrid, kind: string): Record<string, unknown> {
+  const written = writeGrid(grid)
+  if (kind === 'turning_slide') {
+    const turning = written.ok
+      ? written.movement.filter((candidate) => (candidate as Record<string, unknown>).kind === 'turning_slide')
+      : []
+    return {
+      kind: 'turning_slide',
+      vectors: turning.flatMap((candidate) => (candidate as { vectors: number[][] }).vectors),
+      turn: 'any',
+      ...(grid.forward ? { forward: true } : {}),
+    }
+  }
+
+  if (kind === 'slide') {
+    const vectors = new Map<Dir8, [number, number]>()
+    for (const direction of DIRECTIONS) {
+      if (has(grid.slides[direction], Cell.Move)) vectors.set(direction, [...DIRECTION_VECTORS[direction]])
+    }
+    for (const [encoded, value] of Object.entries(grid.cells)) {
+      if (!has(value, Cell.Move)) continue
+      const [df, dr] = encoded.split(',').map(Number)
+      if (df === undefined || dr === undefined) continue
+      const ray = rayOf(df, dr)
+      if (ray) vectors.set(ray.dir, [...DIRECTION_VECTORS[ray.dir]])
+    }
+    return {
+      kind: 'slide',
+      vectors: [...vectors.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+      ...(grid.forward ? { forward: true } : {}),
+    }
+  }
+
+  const step = written.ok
+    ? written.movement.find((candidate) => (candidate as Record<string, unknown>).kind === 'step')
+    : undefined
+  return step
+    ? { ...(step as Record<string, unknown>), kind }
+    : { kind, vectors: [], ...(grid.forward ? { forward: true } : {}) }
+}
+
 export function hasMovementEditorMoves(state: MovementEditorState): boolean {
-  return hasMoves(state.grid) || state.turning.move.length > 0
+  return hasMoves(state.grid) || state.preservedPatterns.movement.length > 0
 }
 
 export function hasMovementEditorTakes(state: MovementEditorState): boolean {
-  return hasTakes(state.grid) || state.turning.capture.length > 0
+  return hasTakes(state.grid) || (state.preservedPatterns.attack?.length ?? 0) > 0
 }
 
 
@@ -750,12 +829,14 @@ export function describeGrid(t: Translate, grid: PieceGrid): string {
 }
 
 export function describeMovementEditor(t: Translate, editor: MovementEditorState): string {
-  const turning = editor.turning.move.length
-  if (turning === 0) return describeGrid(t, editor.grid)
-  const turningLine = t('ui.editor.piece.summary.turning-summary')
-    .replace('{turns}', String(turning))
-    .replace('{takes}', String(editor.turning.capture.length))
-  return hasMovementEditorMoves({ ...editor, turning: { ...editor.turning, move: [] } })
-    ? `${describeGrid(t, editor.grid)} / ${turningLine}`
-    : turningLine
+  const turns = DIRECTIONS.filter((direction) => editor.grid.turning.move[direction]).length
+  const takes = DIRECTIONS.filter((direction) => editor.grid.turning.capture[direction]).length
+  const preserved = editor.preservedPatterns.movement.length + (editor.preservedPatterns.attack?.length ?? 0)
+  if (turns === 0 && takes === 0 && preserved === 0) return describeGrid(t, editor.grid)
+  const turningLine = t('ui.editor.piece.summary.turning-auto-summary')
+    .replace('{turns}', String(turns))
+    .replace('{takes}', String(takes))
+  const gridLine = hasMoves(editor.grid) || hasTakes(editor.grid) ? describeGrid(t, editor.grid) : ''
+  const opaqueLine = preserved > 0 ? t('ui.editor.piece.summary.preserved').replace('{count}', String(preserved)) : ''
+  return [gridLine, turns + takes > 0 ? turningLine : '', opaqueLine].filter(Boolean).join(' / ')
 }

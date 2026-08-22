@@ -1127,6 +1127,16 @@ hr {
   line-height: 0;
 }
 
+/* Rule art sits on the wood-note bar, where a sprite's mid-tone can approach
+   the surface even though its card and square counterparts remain readable.
+   Keep the same hard pixel outline used by board marks at the one fixed
+   in-match size where that edge is otherwise missing. */
+.rule-icon .image-mark {
+  filter:
+    drop-shadow(1px 0 0 var(--color-outline)) drop-shadow(-1px 0 0 var(--color-outline))
+    drop-shadow(0 1px 0 var(--color-outline)) drop-shadow(0 -1px 0 var(--color-outline));
+}
+
 .rule-body {
   flex: 1;
   min-width: 0;
@@ -3761,6 +3771,10 @@ details.advanced summary {
   background: none;
   clip-path: none;
 }
+.move-cell[data-turning='true'] {
+  z-index: 1;
+  box-shadow: inset 0 0 0 3px var(--color-primary);
+}
 .move-cell[data-ray='n'][data-endless='true']::after { top: 2px; }
 .move-cell[data-ray='s'][data-endless='true']::after { bottom: 2px; transform: rotate(180deg); }
 .move-cell[data-ray='e'][data-endless='true']::after { right: 2px; transform: rotate(90deg); }
@@ -3781,47 +3795,4 @@ details.advanced summary {
     inset var(--bevel) var(--bevel) 0 var(--color-positive-hi),
     inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-positive-lo);
   color: var(--color-positive-ink);
-}
-
-.turning-slide-editor {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  flex-wrap: nowrap;
-  gap: var(--space-2);
-}
-
-.turning-slide-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: var(--border-w) solid var(--color-outline);
-  background: var(--color-sunken);
-}
-
-.turning-slide-leg,
-.turning-slide-reach {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.turning-slide-leg > span,
-.turning-slide-reach > span {
-  flex: 0 0 100%;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.turning-slide-leg button[aria-pressed='true'],
-.turning-slide-reach button[aria-pressed='true'] {
-  background: var(--color-positive);
-  color: var(--color-positive-ink);
-}
-
-.turning-slide-editor > button,
-.turning-slide-row > button {
-  align-self: flex-start;
 }

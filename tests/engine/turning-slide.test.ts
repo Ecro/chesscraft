@@ -13,11 +13,28 @@ type TurningPattern = {
   forward?: boolean
 }
 
+type AutomaticTurningPattern = {
+  kind: 'turning_slide'
+  vectors: [number, number][]
+  turn: 'any'
+  maxDistance?: number
+  forward?: boolean
+}
+
 const turning = (overrides: Partial<TurningPattern> = {}): MovePattern =>
   ({
     kind: 'turning_slide',
     vectors: [[1, 0], [0, 1]],
     maxDistance: 4,
+    ...overrides,
+  } as unknown as MovePattern)
+
+const automatic = (overrides: Partial<AutomaticTurningPattern> = {}): MovePattern =>
+  ({
+    kind: 'turning_slide',
+    vectors: [[1, 0]],
+    turn: 'any',
+    maxDistance: 2,
     ...overrides,
   } as unknown as MovePattern)
 
@@ -42,6 +59,55 @@ const kings = [
 ]
 
 describe('turning_slide move generation', () => {
+  it('automatically considers every legal second direction after the authored first leg', () => {
+    const content = turningContent(automatic())
+    const state = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [{ square: 'c3', pieceId: 'piece.turner', side: 'white' }, ...kings],
+    })
+
+    expect(targetsFrom(state, content)).toEqual(['c2', 'c4', 'd2', 'd3', 'd4', 'e2', 'e3', 'e4'])
+  })
+
+  it('keeps the automatic bend one-bend and respects blockers on either leg', () => {
+    const content = turningContent(automatic({ maxDistance: 4 }))
+    const state = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [
+        { square: 'c3', pieceId: 'piece.turner', side: 'white' },
+        { square: 'e4', pieceId: 'piece.pawn', side: 'white' },
+        ...kings,
+      ],
+    })
+
+    const targets = targetsFrom(state, content)
+    expect(targets).toContain('d4')
+    expect(targets).not.toContain('e4')
+    expect(targets).not.toContain('f5')
+  })
+
+  it('supports multiple authored first-leg vectors without introducing a third leg', () => {
+    const content = turningContent(automatic({ vectors: [[1, 0], [0, 1]], maxDistance: 2 }))
+    const state = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [{ square: 'c3', pieceId: 'piece.turner', side: 'white' }, ...kings],
+    })
+
+    const targets = targetsFrom(state, content)
+    expect(targets).toContain('e3')
+    expect(targets).toContain('c5')
+    expect(targets).not.toContain('e5')
+  })
+
   it('keeps direct first-leg stops and enumerates every positive one-bend split', () => {
     const content = turningContent(turning())
     const state = createPosition({

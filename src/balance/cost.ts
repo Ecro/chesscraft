@@ -1,5 +1,5 @@
 import type { Action, BoardDef, Condition, Effect, MovePattern, PieceDef, SkillCardDef, Target } from '@content/schema'
-import { boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
+import { automaticTurningEndpointUpperBound, boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
 
 /**
  * What a record costs, read off its declaration (ADR-012).
@@ -108,7 +108,10 @@ export function patternReach(patterns: readonly MovePattern[], boardMax: number)
     if (pattern.kind === 'turning_slide') {
       const bound = boardTurnDistanceFromMax(boardMax)
       const distance = Math.min(pattern.maxDistance ?? bound, bound)
-      reach += turningEndpointUpperBound(distance)
+      reach +=
+        'turn' in pattern && pattern.turn === 'any'
+          ? automaticTurningEndpointUpperBound(distance, pattern.vectors.length)
+          : turningEndpointUpperBound(distance)
       continue
     }
     const steps = pattern.kind === 'slide' ? Math.min(pattern.maxDistance ?? boardMax - 1, boardMax - 1) : 1

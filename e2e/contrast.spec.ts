@@ -14,7 +14,19 @@ test('the board uses loaded side-specific raster pieces', async ({ page }) => {
   await startMatch(page)
   await page.getByTestId('board').waitFor()
 
-  await expect.poll(() => page.locator('.piece img.image-mark').count()).toBeGreaterThan(6)
+  await expect
+    .poll(
+      async () =>
+        page.locator('.piece img.image-mark').evaluateAll((els) => {
+          if (els.length !== 24) return false
+          return els.every((el) => {
+            const image = el as HTMLImageElement
+            return image.complete && image.naturalWidth >= 128 && image.naturalHeight >= 128
+          })
+        }),
+      { timeout: 15_000 },
+    )
+    .toBe(true)
 
   const marks = await page.locator('.piece img.image-mark').evaluateAll((els) =>
     els.map((el) => {
@@ -45,6 +57,18 @@ test('cards and special squares use loaded raster marks', async ({ page }) => {
   await expect(page.locator('.card-icon img.image-mark')).not.toHaveCount(0)
   await expect(page.locator('.square-mark img.image-mark')).not.toHaveCount(0)
 
+  await expect
+    .poll(
+      async () =>
+        surfaces.evaluateAll((els) =>
+          els.every((el) => {
+            const image = el as HTMLImageElement
+            return image.complete && image.naturalWidth >= 128 && image.naturalHeight >= 128
+          }),
+        ),
+      { timeout: 15_000 },
+    )
+    .toBe(true)
   const decoded = await surfaces.evaluateAll((els) =>
     els.map((el) => {
       const image = el as HTMLImageElement
