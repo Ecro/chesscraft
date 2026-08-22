@@ -38,19 +38,24 @@ function Host({ kind, seed }: { kind: 'ruleCard' | 'skillCard'; seed: Record<str
   const [draft, setDraft] = React.useState<Record<string, unknown>>(
     () => seed ?? (blankDraft(kind) as Record<string, unknown>),
   )
-  return React.createElement(SentenceEditor, {
-    draft,
-    kind,
-    ctx,
-    t,
-    pieceLabel: (id: string) => id,
-    update: (mutate: (d: Record<string, unknown>) => void) =>
-      setDraft((prev) => {
-        const next = structuredClone(prev)
-        mutate(next)
-        return next
-      }),
-  })
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement(SentenceEditor, {
+      draft,
+      kind,
+      ctx,
+      t,
+      pieceLabel: (id: string) => id,
+      update: (mutate: (d: Record<string, unknown>) => void) =>
+        setDraft((prev) => {
+          const next = structuredClone(prev)
+          mutate(next)
+          return next
+        }),
+    }),
+    React.createElement('output', { 'data-testid': 'sentence-draft' }, JSON.stringify(draft)),
+  )
 }
 
 const mount = (kind: 'ruleCard' | 'skillCard' = 'skillCard', seed: Record<string, unknown> | null = null) =>
@@ -78,6 +83,7 @@ const pick = (slot: string, option: string) => {
 }
 
 const draftJson = () => screen.getByTestId('sentence-text').textContent ?? ''
+const draftData = () => JSON.parse(screen.getByTestId('sentence-draft').textContent ?? '{}') as Record<string, unknown>
 
 describe('Phase 2 — a slot is a chip that opens a sheet', () => {
   it('shows no sheet until a chip is tapped', () => {
@@ -225,6 +231,64 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     pick('then', 'freeze_piece')
     fireEvent.change(screen.getByTestId('s-param-plies'), { target: { value: '4' } })
     expect((screen.getByTestId('s-param-plies') as HTMLInputElement).value).toBe('4')
+  })
+
+  it('edits a granted turning slide through the shared turning-row control', () => {
+    mount()
+    pick('then', 'grant_movement')
+    const sheet = screen.getByTestId('slot-sheet-then')
+
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning_slide'))
+    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-first-n')).toBeTruthy()
+    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-e').getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-w'))
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning-row-0-reach-3'))
+    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-second-w').getAttribute('aria-pressed')).toBe('true')
+    expect(within(sheet).getByTestId('s-param-pattern-turning-row-0-reach-3').getAttribute('aria-pressed')).toBe('true')
+
+    const saved = draftData()
+    const action = (((saved.effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!)
+    expect(action.pattern).toEqual({ kind: 'turning_slide', vectors: [[0, 1], [-1, 0]], maxDistance: 3 })
+
+    cleanup()
+    mount('skillCard', saved)
+    const reopened = draftData()
+    const reopenedAction = (((reopened.effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!)
+    expect(reopenedAction.pattern).toEqual(action.pattern)
+  })
+
+  it('does not expose row deletion or flatten an unsupported turning cap', () => {
+    mount('skillCard', {
+      ...blankDraft('skillCard'),
+      effects: [
+        {
+          trigger: { kind: 'on_play' },
+          actions: [
+            {
+              kind: 'grant_movement',
+              target: { kind: 'mover' },
+              pattern: { kind: 'turning_slide', vectors: [[0, 1], [1, 0]], maxDistance: 4 },
+            },
+          ],
+        },
+      ],
+    } as Record<string, unknown>)
+    pick('then', 'grant_movement')
+    const sheet = screen.getByTestId('slot-sheet-then')
+    expect(within(sheet).getByText(t('ui.editor.turning.unsupported'))).toBeTruthy()
+    expect(within(sheet).queryByTestId('s-param-pattern-turning-add')).toBeNull()
+    expect(draftData()).toMatchObject({
+      effects: [
+        {
+          actions: [
+            {
+              pattern: { kind: 'turning_slide', vectors: [[0, 1], [1, 0]], maxDistance: 4 },
+            },
+          ],
+        },
+      ],
+    })
   })
 
   it('gives the SECOND action its own parameter controls', () => {

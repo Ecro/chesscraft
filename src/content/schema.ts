@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidTurnPair } from './movement'
 
 /**
  * The declarative content vocabulary (ADR-001, ADR-003).
@@ -103,7 +104,11 @@ import { z } from 'zod'
  * named zones, constrained targets, scoped destinations, and promotion-zone
  * conditions. v12 documents are normalized once at the loader boundary.
  */
-export const SCHEMA_VERSION = 13
+/*
+ * Bumped 13 -> 14 (PLAN-turning-slide ADR-005): the bounded one-bend
+ * `turning_slide` movement pattern. Existing v13 patterns remain unchanged.
+ */
+export const SCHEMA_VERSION = 14
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -180,7 +185,7 @@ export const squareRef = z.string().regex(/^[a-z][1-9][0-9]*$/, 'must be algebra
 
 export const vector = z.tuple([z.number().int(), z.number().int()])
 
-export const movePattern = z.strictObject({
+const straightMovePattern = z.strictObject({
   kind: z.enum(['slide', 'step', 'jump']),
   vectors: z.array(vector).min(1),
   /** Slide range cap; omitted means "to the board edge". */
@@ -188,6 +193,21 @@ export const movePattern = z.strictObject({
   /** When true, vectors are mirrored by the owning side's forward direction. */
   forward: z.boolean().optional(),
 })
+
+const turningSlidePattern = z.strictObject({
+  kind: z.literal('turning_slide'),
+  vectors: z
+    .tuple([vector, vector])
+    .refine(([first, second]) => isValidTurnPair(first, second), {
+      message: 'turning_slide vectors must be distinct, non-opposite compass unit vectors',
+    }),
+  /** Total distance across both positive legs; omitted means the board bound. */
+  maxDistance: z.number().int().min(2).optional(),
+  /** When true, both vectors mirror by the owning side's forward direction. */
+  forward: z.boolean().optional(),
+})
+
+export const movePattern = z.union([straightMovePattern, turningSlidePattern])
 export type MovePattern = z.infer<typeof movePattern>
 
 // ---------------------------------------------------------------------------

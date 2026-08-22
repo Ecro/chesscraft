@@ -1,5 +1,6 @@
 import type { ContentSet } from '@content/load'
 import type { PieceDef } from '@content/schema'
+import { boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
 import { sideInCheck } from '../engine'
 import type { GameState, Side } from '../types'
 import { otherSide } from '../types'
@@ -60,6 +61,11 @@ function reachOf(def: PieceDef, boardMax: number): number {
   // Movement and attack both count. A piece with a separate attack set can do
   // two different things, and the pair is what it is worth.
   for (const pattern of [...def.movement, ...(def.attack ?? [])]) {
+    if (pattern.kind === 'turning_slide') {
+      const bound = boardTurnDistanceFromMax(boardMax)
+      reach += turningEndpointUpperBound(Math.min(pattern.maxDistance ?? bound, bound))
+      continue
+    }
     const steps = pattern.kind === 'slide' ? (pattern.maxDistance ?? boardMax) : 1
     reach += pattern.vectors.length * steps
   }

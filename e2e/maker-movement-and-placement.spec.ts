@@ -107,6 +107,31 @@ test('a ray is drawn through the squares it reaches, diagonals included', async 
   expect(Number.parseFloat(bar.height), 'the bar is thicker than its own cell').toBeLessThan(box!.height)
 })
 
+test('a one-bend slide is authorable and survives a save and reopen', async ({ page }) => {
+  await openBlankPiece(page)
+
+  await page.getByTestId('turning-slide-move-add').click()
+  await page.getByTestId('turning-slide-move-row-0-second-w').click()
+  await page.getByTestId('turning-slide-move-row-0-reach-3').click()
+  await page.getByTestId('editor-id').fill('piece.turning-e2e')
+  await page.getByTestId('editor-name').fill('꺾이개')
+  await page.getByTestId('editor-text').fill('한 번 꺾여서 미끄러져요.')
+  await page.getByTestId('editor-save').click()
+  await expect(page.getByTestId('editor-saved')).toBeVisible()
+
+  await page.getByTestId('editor-tab-library').click()
+  await page.getByTestId('library-open-piece.turning-e2e').click()
+  const draft = JSON.parse((await page.getByTestId('editor-draft-json').textContent()) ?? 'null')
+  expect(draft.movement).toContainEqual({
+    kind: 'turning_slide',
+    vectors: [
+      [0, 1],
+      [-1, 0],
+    ],
+    maxDistance: 3,
+  })
+})
+
 test('the board record places pieces without ever showing a coordinate', async ({ page }) => {
   await useSliceContent(page)
   await goEditor(page)

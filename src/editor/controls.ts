@@ -116,10 +116,12 @@ const MAKERS: Record<string, (ctx: EditorContext, current?: unknown) => unknown>
   'action:revive_piece': () => ({ kind: 'revive_piece', side: 'mover', at: { kind: 'own_back_rank' } }),
   'action:win': () => ({ kind: 'win', side: 'mover' }),
 
-  // movement patterns — empty until the author clicks the grid, for the same
-  // reason `on_square` starts empty.
+  // Straight movement patterns start empty until the author paints a square;
+  // turning_slide starts with a valid bend because its schema requires two
+  // vectors before the control can render a row.
   'movement:slide': () => ({ kind: 'slide', vectors: [] }),
   'movement:step': () => ({ kind: 'step', vectors: [] }),
+  'movement:turning_slide': () => ({ kind: 'turning_slide', vectors: [[0, 1], [1, 0]], maxDistance: 2 }),
   // No `movement:jump`. Retired with `MOVEMENT_KINDS` (ADR-006) — the reason is
   // recorded at BOTH removal sites on purpose, so a reader who finds one half
   // does not restore it from the other.

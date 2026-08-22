@@ -581,6 +581,27 @@ const ROWS: readonly Row[] = [
       forward: true,
     },
   },
+  {
+    axis: 'movement',
+    kind: 'turning_slide',
+    host: 'piece',
+    // A turning row is added beside the seeded step, then its second leg and
+    // total cap are changed so the row proves the shared editor writes both.
+    reachTestId: 'turning-slide-move-add',
+    params: [
+      { testid: 'turning-slide-move-row-0-second-w' },
+      { testid: 'turning-slide-move-row-0-reach-3' },
+    ],
+    path: 'movement.1',
+    authored: {
+      kind: 'turning_slide',
+      vectors: [
+        [0, 1],
+        [-1, 0],
+      ],
+      maxDistance: 3,
+    },
+  },
   // `movement: jump` is GONE, not moved (ADR-006 of PLAN-unified-create-ux).
   // `MOVEMENT_KINDS` no longer enumerates it, so `goldenKeys` — derived from these
   // rows — must not either, or the two identity tests above go red. The schema

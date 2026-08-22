@@ -38,7 +38,7 @@ describe('AC-010 — the bundled content set', () => {
     // rather than `SCHEMA_VERSION`: comparing the constant to itself would pass
     // for any future bump that forgot to move the shipped document with it,
     // which is the exact drift this line exists to catch.
-    expect(result.set.schemaVersion).toBe(13)
+    expect(result.set.schemaVersion).toBe(14)
     // Absent, not empty-but-declared: the shipped set names everything through
     // the built-in bundle, which is what ADR-020's absent case must keep working.
     expect(result.set.strings).toEqual({})

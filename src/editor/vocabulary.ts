@@ -60,7 +60,7 @@ function conditionKinds(): string[] {
  * Do NOT restore this without restoring an editor for it; the gate is what will
  * tell you, and it will be right.
  */
-export const MOVEMENT_KINDS = ['slide', 'step'] as const
+export const MOVEMENT_KINDS = ['slide', 'step', 'turning_slide'] as const
 
 export function enumerateVocabulary(): VocabularyEntry[] {
   return [

@@ -93,6 +93,24 @@ describe('AC-005: the move region is total', () => {
     expect(notice?.textContent?.trim()).toBeTruthy()
     expect(notice?.textContent).not.toContain('ui.piece-info')
   })
+
+  it('renders a turning-only piece with its ordered bend instead of the undrawable notice', () => {
+    const turning = {
+      id: 'piece.test-turning',
+      nameKey: 'piece.test-turning.name',
+      textKey: 'piece.test-turning.text',
+      movement: [{ kind: 'turning_slide', vectors: [[1, 0], [0, 1]], maxDistance: 3 }],
+    }
+
+    const { container } = render(<PieceMoveRegion piece={turning as never} t={t} />)
+
+    expect(container.querySelector('[data-testid="move-undrawable"]')).toBeNull()
+    expect(container.querySelector('[data-testid="move-grid"]')).toBeTruthy()
+    const row = container.querySelector('[data-testid="move-turning-row"]')
+    expect(row?.textContent).toContain(t('ui.editor.piece.dir.e'))
+    expect(row?.textContent).toContain(t('ui.editor.piece.dir.n'))
+    expect(row?.textContent).toContain('3')
+  })
 })
 
 /**

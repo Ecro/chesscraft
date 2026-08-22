@@ -18,17 +18,18 @@ import {
   Cell,
   DIRECTIONS,
   type Dir8,
-  describeGrid,
+  describeMovementEditor,
   GRID_RANGE,
-  type PieceGrid,
-  hasMoves,
-  hasTakes,
+  type MovementEditorState,
+  hasMovementEditorMoves,
+  hasMovementEditorTakes,
   cycleAt,
   paintAt,
   rayOf,
-  readGrid,
-  writeGrid,
+  readMovementEditor,
+  writeMovementEditor,
 } from './PieceMoves'
+import { TurningSlideEditor } from './TurningSlideEditor'
 import { readSentence } from './CardRecipe'
 import { SentenceEditor, describeRecord, sentenceText } from './SentenceSlot'
 import { RecordGrade } from './RecordGrade'
@@ -833,8 +834,8 @@ export function RecordForm({
      */
     const parts: string[] = []
     if (kind === 'piece') {
-      const grid = readGrid(draft)
-      if (grid) parts.push(describeGrid(t, grid))
+      const editor = readMovementEditor(draft)
+      if (editor) parts.push(describeMovementEditor(t, editor))
     }
     const sentence = EFFECT_BEARING.includes(kind) ? readSentence(draft) : null
     if (sentence) {
@@ -851,14 +852,15 @@ export function RecordForm({
   /** How this piece moves, as one grid. See `PieceMoves.tsx` for the mapping. */
   function pieceGridView() {
     if (kind !== 'piece') return null
-    const grid = readGrid(draft)
+    const editor = readMovementEditor(draft)
     // Refusing to open beats flattening — see the header of `PieceMoves.tsx`. Only
     // THIS control yields; the rest of the record stays editable, and the movement
     // it could not read passes through the draft untouched.
-    if (!grid) return readOnlyMovesView()
+    if (!editor) return readOnlyMovesView()
+    const grid = editor.grid
 
-    const commit = (next: PieceGrid) => {
-      const written = writeGrid(next)
+    const commit = (next: MovementEditorState) => {
+      const written = writeMovementEditor(next)
       update((d) => {
         if (!written.ok) {
           // An empty grid is WRITTEN, not swallowed.
@@ -902,8 +904,8 @@ export function RecordForm({
     // Computed over BOTH controls: a piece that only slides has somewhere to go
     // even with an empty grid, and saying otherwise would be the old bug wearing
     // a different hat.
-    const noMoves = !hasMoves(grid)
-    const noTakes = !hasTakes(grid)
+    const noMoves = !hasMovementEditorMoves(editor)
+    const noTakes = !hasMovementEditorTakes(editor)
     /**
      * Whether this record captures wherever it walks (ADR-008).
      *
@@ -992,7 +994,7 @@ export function RecordForm({
                   data-ray={rayOf(df, dr)?.dir ?? ''}
                   aria-label={`${df},${dr}`}
                   aria-pressed={paint.kind !== 'none'}
-                  onClick={() => commit(cycleAt(grid, moveAxis, df, dr))}
+                  onClick={() => commit({ ...editor, grid: cycleAt(grid, moveAxis, df, dr) })}
                 />
               )
             }),
@@ -1038,7 +1040,11 @@ export function RecordForm({
               }
               const slides = { ...grid.slides }
               for (const d of DIRECTIONS) slides[d] = (slides[d] & keep) as Cell
-              commit({ ...grid, cells, slides })
+              const turning =
+                moveMode === 'move'
+                  ? { ...editor.turning, move: [] }
+                  : { ...editor.turning, capture: [] }
+              commit({ ...editor, grid: { ...grid, cells, slides }, turning })
             }}
           >
             {t(moveMode === 'move' ? 'ui.editor.piece.clear' : 'ui.editor.piece.clear-capture')}
@@ -1050,11 +1056,23 @@ export function RecordForm({
               type="checkbox"
               data-testid="piece-forward"
               checked={grid.forward}
-              onChange={() => commit({ ...grid, forward: !grid.forward })}
+              onChange={() => commit({ ...editor, grid: { ...grid, forward: !grid.forward } })}
             />
           </label>
           <p className="hint">{t('ui.editor.piece.forward-hint')}</p>
         </div>
+
+        <TurningSlideEditor
+          axis={moveMode}
+          rows={editor.turning[moveMode]}
+          onChange={(rows) =>
+            commit({
+              ...editor,
+              turning: { ...editor.turning, [moveMode]: rows },
+            })
+          }
+          t={t}
+        />
 
         {noMoves && (
           <p className="refusal" data-testid="piece-no-moves">

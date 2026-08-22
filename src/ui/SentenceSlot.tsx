@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { controlsFor } from '@editor/controls'
+import { MOVEMENT_KINDS } from '@editor/vocabulary'
 import type { DraftKind, EditorContext } from '@editor/draft'
 import {
   type Sentence,
@@ -14,6 +15,12 @@ import {
 } from './CardRecipe'
 import { Sheet } from './Sheet'
 import type { Translate } from './i18n'
+import {
+  turningPatternFromRow,
+  turningRowFromPattern,
+  type TurningRow,
+} from './PieceMoves'
+import { TurningSlideEditor } from './TurningSlideEditor'
 
 /**
  * The sentence, as chips you tap (ADR-001).
@@ -449,7 +456,7 @@ export function SentenceEditor({
       out.push(
         <fieldset key="pattern" className="slot-param">
           <legend>{t('ui.editor.param.pattern')}</legend>
-          {(['slide', 'step'] as const).map((pk) => (
+          {MOVEMENT_KINDS.map((pk) => (
             <button
               key={pk}
               type="button"
@@ -461,18 +468,64 @@ export function SentenceEditor({
                 // mean the same thing as a step's, and reinterpreting them would
                 // author a pattern nobody chose.
                 at((a) => {
-                  a.pattern = { kind: pk, vectors: [] }
+                  a.pattern =
+                    pk === 'turning_slide'
+                      ? turningPatternFromRow({ first: 'n', second: 'e', reach: 2 })
+                      : { kind: pk, vectors: [] }
                 })
               }
             >
               {t(`ui.editor.vocab.movement.${pk}`)}
             </button>
           ))}
-          {vectorGrid(`s-param-pattern${suffix}-cell`, (pattern.vectors as number[][] | undefined) ?? [], (df, dr) =>
-            at((a) => {
-              const p = a.pattern as Draft
-              p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
-            }),
+          {pattern.kind === 'turning_slide' ? (
+            <>
+              {(() => {
+                const row = turningRowFromPattern(pattern)
+                if (!row) {
+                  return <p className="slot-param-note">{t('ui.editor.turning.unsupported')}</p>
+                }
+                return (
+                  <TurningSlideEditor
+                    axis="move"
+                    rows={[row]}
+                    allowMultipleRows={false}
+                    onChange={(rows: TurningRow[]) =>
+                      at((a) => {
+                        const next = rows[0]
+                        if (!next) return
+                        const p = a.pattern as Draft
+                        a.pattern = turningPatternFromRow(next, p.forward === true)
+                      })
+                    }
+                    t={t}
+                    testIdPrefix={`s-param-pattern${suffix}-turning`}
+                  />
+                )
+              })()}
+              <label className="slot-param">
+                {t('ui.editor.piece.forward')}
+                <input
+                  type="checkbox"
+                  data-testid={`s-param-pattern${suffix}-forward`}
+                  checked={pattern.forward === true}
+                  onChange={() =>
+                    at((a) => {
+                      const p = a.pattern as Draft
+                      p.forward = p.forward === true ? undefined : true
+                      if (p.forward === undefined) delete p.forward
+                    })
+                  }
+                />
+              </label>
+            </>
+          ) : (
+            vectorGrid(`s-param-pattern${suffix}-cell`, (pattern.vectors as number[][] | undefined) ?? [], (df, dr) =>
+              at((a) => {
+                const p = a.pattern as Draft
+                p.vectors = toggleVector((p.vectors as number[][] | undefined) ?? [], df, dr)
+              }),
+            )
           )}
         </fieldset>,
       )

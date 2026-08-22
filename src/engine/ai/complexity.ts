@@ -1,5 +1,6 @@
 import type { ContentSet } from '@content/load'
 import type { BoardDef, MovePattern, PresetDef, TargetFilter } from '@content/schema'
+import { boardTurnDistanceFromMax, turningEndpointUpperBound } from '@content/movement'
 import { choiceSlotSpecs, type ChoiceSlotSpec } from '../engine'
 import { placementsFor } from '../loadout'
 
@@ -86,6 +87,11 @@ function countActions(record: { effects?: ReadonlyArray<{ actions: readonly unkn
 function reachOfPatterns(patterns: readonly MovePattern[], boardMax: number): number {
   let reach = 0
   for (const pattern of patterns) {
+    if (pattern.kind === 'turning_slide') {
+      const bound = boardTurnDistanceFromMax(boardMax)
+      reach += turningEndpointUpperBound(Math.min(pattern.maxDistance ?? bound, bound))
+      continue
+    }
     const steps = pattern.kind === 'slide' ? (pattern.maxDistance ?? boardMax) : 1
     reach += pattern.vectors.length * steps
   }

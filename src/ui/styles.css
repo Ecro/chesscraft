@@ -3782,3 +3782,46 @@ details.advanced summary {
     inset calc(-1 * var(--bevel)) calc(-1 * var(--bevel)) 0 var(--color-positive-lo);
   color: var(--color-positive-ink);
 }
+
+.turning-slide-editor {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+.turning-slide-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-w) solid var(--color-outline);
+  background: var(--color-sunken);
+}
+
+.turning-slide-leg,
+.turning-slide-reach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.turning-slide-leg > span,
+.turning-slide-reach > span {
+  flex: 0 0 100%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.turning-slide-leg button[aria-pressed='true'],
+.turning-slide-reach button[aria-pressed='true'] {
+  background: var(--color-positive);
+  color: var(--color-positive-ink);
+}
+
+.turning-slide-editor > button,
+.turning-slide-row > button {
+  align-self: flex-start;
+}

@@ -1,6 +1,15 @@
 import type { PieceDef } from '@content/schema'
 import type { Translate } from './i18n'
-import { Cell, DIRECTIONS, type Dir8, GRID_RANGE, type Reach, hasMoves, hasTakes, readGrid } from './PieceMoves'
+import {
+  Cell,
+  DIRECTIONS,
+  type Dir8,
+  GRID_RANGE,
+  type Reach,
+  hasMovementEditorMoves,
+  hasMovementEditorTakes,
+  readMovementEditor,
+} from './PieceMoves'
 import { resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
 import { MarkBody } from './art/MarkBody'
@@ -16,9 +25,9 @@ import { MarkBody } from './art/MarkBody'
  *
  * ## Why the null branch is a rendered branch, not a fallthrough
  *
- * `readGrid` returns null for every piece it cannot round-trip: more than one
- * movement pattern, two travel kinds, a distance cap, an offset off the grid.
- * A renderer that only mapped over the returned grid would draw an empty box
+ * `readMovementEditor` returns null for every piece it cannot round-trip through
+ * the compact controls: an unsupported turning cap, an invalid pair, or an
+ * off-grid straight offset. A renderer that only mapped over the returned grid would draw an empty box
  * for those pieces and report nothing — which is this repo's most-recurring
  * failure shape, a feature that silently never fires for the inputs that
  * motivated it. So there are exactly two outcomes here and the caller can rely
@@ -31,7 +40,8 @@ import { MarkBody } from './art/MarkBody'
  * them is a sentence they can act on.
  */
 export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate }) {
-  const grid = readGrid(piece as unknown as Record<string, unknown>)
+  const editor = readMovementEditor(piece as unknown as Record<string, unknown>)
+  const grid = editor?.grid ?? null
   /*
    * "Does this piece have anywhere to go" is asked of BOTH controls, via the
    * schema's own helpers rather than by counting cells here.
@@ -43,9 +53,9 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
    * every sliding piece undrawable, which is the same silent-blank failure this
    * component exists to prevent, wearing a different hat.
    */
-  const anything = grid !== null && (hasMoves(grid) || hasTakes(grid))
+  const anything = editor !== null && (hasMovementEditorMoves(editor) || hasMovementEditorTakes(editor))
 
-  if (!grid || !anything) {
+  if (!editor || !grid || !anything) {
     return (
       <p className="move-undrawable" data-testid="move-undrawable">
         {t('ui.piece-info.undrawable')}
@@ -119,6 +129,18 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
             .replace('{reach}', t(`ui.piece-info.reach.${reach}`))}
         </p>
       ))}
+      {editor.turning.move.length > 0 && (
+        <ul className="move-turning" data-testid="move-turning">
+          {editor.turning.move.map((row, index) => (
+            <li key={index} data-testid="move-turning-row">
+              {t('ui.piece-info.turning')
+                .replace('{first}', t(`ui.editor.piece.dir.${row.first}`))
+                .replace('{second}', t(`ui.editor.piece.dir.${row.second}`))
+                .replace('{reach}', row.reach === 'edge' ? t('ui.piece-info.reach.edge') : String(row.reach))}
+            </li>
+          ))}
+        </ul>
+      )}
       {/* The legend is not decoration. The three cell states differ by hue and
           by a glyph, and the glyph is the channel a colour-blind player has —
           but a glyph nobody has been told the meaning of is not a channel. */}

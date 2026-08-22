@@ -106,6 +106,40 @@ function reach(
 ): void {
   const origin = coords(from)
   for (const pattern of patterns) {
+    if (pattern.kind === 'turning_slide') {
+      // Independent oracle contract: the engine's implementation may not be
+      // called here, and the bound/split arithmetic is intentionally written
+      // locally so a shared helper cannot make both sides agree by construction.
+      const oriented = vectorsFor(pattern, side)
+      const first = oriented[0]!
+      const second = oriented[1]!
+      const boardBound = Math.max(2, state.width + state.height - 2)
+      const limit = Math.min(pattern.maxDistance ?? boardBound, boardBound)
+      for (let firstLeg = 1; firstLeg <= limit; firstLeg += 1) {
+        const bendFile = origin.file + first[0] * firstLeg
+        const bendRank = origin.rank + first[1] * firstLeg
+        if (bendFile < 0 || bendRank < 0 || bendFile >= state.width || bendRank >= state.height) break
+        const bend = squareId(bendFile, bendRank)
+        const bendOccupant = state.board.get(bend)
+        if (bendOccupant) {
+          if (bendOccupant.side !== side) out.add(bend)
+          break
+        }
+
+        for (let secondLeg = 1; firstLeg + secondLeg <= limit; secondLeg += 1) {
+          const file = bendFile + second[0] * secondLeg
+          const rank = bendRank + second[1] * secondLeg
+          if (file < 0 || rank < 0 || file >= state.width || rank >= state.height) break
+          const sq = squareId(file, rank)
+          const occupant = state.board.get(sq)
+          if (!occupant) continue
+          if (occupant.side !== side) out.add(sq)
+          break
+        }
+      }
+      continue
+    }
+
     for (const [df, dr] of vectorsFor(pattern, side)) {
       const limit = pattern.kind === 'slide' ? (pattern.maxDistance ?? Math.max(state.width, state.height)) : 1
       for (let step = 1; step <= limit; step += 1) {
@@ -311,6 +345,62 @@ describe('the oracle reads the declarations correctly (PLAN Phase 3 positive con
 
     const naive = [...naiveCaptures(filled, content)].filter((m) => m.startsWith('c3')).sort()
     expect(naive).toEqual([...byAttack].map((sq) => mv('c3', sq)).sort())
+  })
+})
+
+function turningOracleContent(pattern: MovePattern): ContentSet {
+  const set = shippedContent()
+  const base = set.pieces.get('piece.rook')
+  if (!base) throw new Error('shipped fixture has no rook')
+  set.pieces.set('piece.turning-oracle', { ...base, id: 'piece.turning-oracle', movement: [pattern] })
+  return set
+}
+
+describe('turning_slide capture oracle', () => {
+  const pattern = ({
+    kind: 'turning_slide',
+    vectors: [[1, 0], [0, 1]],
+    maxDistance: 4,
+  } as unknown) as MovePattern
+
+  it.each([
+    {
+      name: 'final enemy after the bend',
+      extras: [{ square: 'e4', pieceId: 'piece.pawn', side: 'black' as const }],
+      expected: ['c3e4'],
+    },
+    {
+      name: 'enemy on the first leg',
+      extras: [{ square: 'd3', pieceId: 'piece.pawn', side: 'black' as const }],
+      expected: ['c3d3'],
+    },
+    {
+      name: 'friendly intermediate blocker',
+      extras: [
+        { square: 'e4', pieceId: 'piece.pawn', side: 'white' as const },
+        { square: 'e5', pieceId: 'piece.pawn', side: 'black' as const },
+      ],
+      expected: [],
+    },
+  ])('agrees with the engine on $name', ({ extras, expected }) => {
+    const set = turningOracleContent(pattern)
+    const state = createPosition({
+      content: set,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [
+        { square: 'c3', pieceId: 'piece.turning-oracle', side: 'white' },
+        { square: 'a1', pieceId: 'piece.king', side: 'white' },
+        { square: 'f6', pieceId: 'piece.king', side: 'black' },
+        ...extras,
+      ],
+    })
+
+    const oracle = [...naiveCaptures(state, set)].filter((move) => move.startsWith('c3')).sort()
+    const engine = [...engineCaptures(state, set)].filter((move) => move.startsWith('c3')).sort()
+    expect(oracle).toEqual(expected)
+    expect(engine).toEqual(oracle)
   })
 })
 
