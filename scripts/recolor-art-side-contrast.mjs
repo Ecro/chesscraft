@@ -22,26 +22,49 @@ function luminance(r, g, b) {
   return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
 }
 
+function mix(start, end, amount) {
+  return start.map((channel, index) => Math.round(channel + (end[index] - channel) * amount))
+}
+
+function toneFor(sourceY, minimum, maximum) {
+  return clamp((sourceY - minimum) / (maximum - minimum), 0, 1)
+}
+
+function sourceMaterial(r, g, b) {
+  const maximum = Math.max(r, g, b)
+  if (maximum <= 52) return 'outline'
+  if (r >= 110 && g >= 70 && b <= g * 0.82) return 'gold'
+  if (b >= r * 1.2 && b >= g * 1.04) return 'blue'
+  if (r >= g * 1.3 && r >= b * 1.3) return 'warm'
+  if (r >= 130 && g >= 110 && b >= 90) return 'light'
+  return 'neutral'
+}
+
 function palettePixel(r, g, b, side) {
   const sourceY = luminance(r, g, b)
-  const isOutline = Math.max(r, g, b) <= 52
-  if (isOutline) {
-    return side === 'white' ? [8, 18, 38] : [12, 7, 16]
+  const material = sourceMaterial(r, g, b)
+
+  if (material === 'outline') return side === 'white' ? [8, 18, 38] : [0, 0, 0]
+  if (material === 'gold') {
+    return side === 'white'
+      ? mix([163, 153, 102], [250, 235, 180], toneFor(sourceY, 0.08, 0.65))
+      : mix([85, 52, 12], [180, 125, 35], toneFor(sourceY, 0.08, 0.65))
+  }
+  if (material === 'blue') {
+    return side === 'white'
+      ? mix([90, 130, 175], [200, 220, 240], toneFor(sourceY, 0.01, 0.22))
+      : mix([35, 0, 10], [70, 5, 22], toneFor(sourceY, 0.01, 0.22))
+  }
+  if (material === 'warm') {
+    return side === 'white'
+      ? mix([211, 188, 155], [250, 239, 216], toneFor(sourceY, 0.02, 0.16))
+      : mix([132, 42, 55], [198, 82, 97], toneFor(sourceY, 0.02, 0.16))
+  }
+  if (material === 'light') {
+    return side === 'white' ? [250, 240, 220] : [190, 120, 113]
   }
 
-  const tone = clamp((sourceY - 0.025) / 0.82, 0, 1)
-  if (side === 'white') {
-    return [
-      Math.round(92 + tone * 125),
-      Math.round(170 + tone * 75),
-      Math.round(235 + tone * 20),
-    ]
-  }
-  return [
-    Math.round(24 + tone * 108),
-    Math.round(3 + tone * 28),
-    Math.round(9 + tone * 28),
-  ]
+  return side === 'white' ? [216, 198, 171] : [128, 54, 64]
 }
 
 function resolveFixtureAsset(relativePath, pairName, side) {
