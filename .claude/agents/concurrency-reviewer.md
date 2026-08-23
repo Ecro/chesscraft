@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.6
+harness_maker_version: 0.54.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/concurrency-reviewer.md.j2
 provenance: official
@@ -11,7 +11,7 @@ tools: Read, Grep, Glob
 model: sonnet
 review_scope:
 - concurrency
-content_hash: 4cc2d2903a2c921bf2b8c4892ba38dd5a0ffaa40c8fb8943abdcf19417d4bd24
+content_hash: c5aac2912a02093b198967818a1daa43067a9f64ad4d0a32af0ee1f8ceabffbe
 ---
 
 # concurrency-reviewer
@@ -120,7 +120,14 @@ These apply to every reviewer regardless of verbosity:
 - **Fixes, not descriptions.** `suggestion` is a concrete change ("rename `X` to `Y`", "add `await` on line 42"), not "consider improving readability".
 - **No rubber-stamp.** Returning zero findings is allowed only when the diff is genuinely clean; explicitly note `"reviewed N files, no findings of severity ≥ P2"` rather than silently empty.
 - **Read-only.** Never call Edit or Write. Findings are proposals; the executor agent applies them.
-- **Diff scope.** Do not flag pre-existing issues outside the changed lines unless the change reveals them; if you do, mark `out_of_diff: true`.
+- **Diff scope — causation, not location.** The test is whether the change makes the defect
+  reachable, not whether the defect's line is inside the patch. A defect the change triggers is
+  in scope even when its cause sits in a file the diff never touched: put the **cause's**
+  `file`/`line` in the finding, because that is where the fix goes, and state the diff-side
+  trigger in `reasoning`'s Trace step when you emit one. Suppress only what the change is
+  unrelated to — a defect the code had before and would still have with the diff reverted.
+  Your investigation is already told to walk the runtime path the change triggers; a rule that
+  let you read there but not report there would make that walk pointless.
 
 
 

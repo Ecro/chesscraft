@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.6
+harness_maker_version: 0.54.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: skills/targeted-test-selection/SKILL.md.j2
 provenance: official
@@ -8,7 +8,7 @@ name: targeted-test-selection
 description: Procedure for turning a set of changed files into the tests that actually
   cover them, instead of running the whole suite. Followed by /hm:review's auto-fix
   loop on every fix round; mirrors what /hm:execute Phase D does inline.
-content_hash: 0a8323fd5e64cea923935b4fcbf2de1575259cb0d38eb90c5368040640cf33f4
+content_hash: b82d4142331a5a99bbee59b5367c058a17e892852751f08b0f9e68785f68b51c
 ---
 
 # targeted-test-selection
@@ -18,7 +18,7 @@ Select what to run, then run it — and run it with the right amount of the mach
 Three levers, and **which of them exist depends on the runner, not on this skill**. Ask first:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm test_runners plan --root .
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm test_runners plan --root .
 ```
 
 It prints the project's runner (detected from its markers), a `workers` count already capped
@@ -74,7 +74,7 @@ Run this inside **the task worktree** you were given — not the base repo. `git
 invocation returns the base's state and selects tests for changes that are not there.
 
 ```bash
-cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
+cd <the task worktree> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm test_dep_map --root . --changed-file='<f1>' --changed-file='<f2>' …
 ```
 
 **Both details of that argument form are load-bearing, and §1's care is wasted without
@@ -133,6 +133,30 @@ uv run ruff check      # example: this project. Substitute the project's linter.
 uv run mypy --strict
 ```
 
+## 4.5 When the targeted run is RED — classify before concluding
+
+Three causes, three actions. Deciding by reflex that the code is wrong is how a loop spends
+rounds on a change nothing was wrong with.
+
+- **(a) The test pins a state production reaches** → fix the code. The ordinary case, and the
+  only one where the red light means what it appears to mean.
+- **(b) It pins a state production cannot reach** → the code broke no behaviour, so "this change
+  caused a regression" is false. A (b) claim **must name the caller-side fact** that makes the
+  state unreachable — the call that is unconditional upstream, the init that runs once. That fact
+  does not live in the file under test, so (b) argued from the test file alone is not evidence.
+  Record the gap; **never authority to edit the test.**
+- **(c) The target is too narrow for the fix** → §1 derives the selection from the **changed
+  files**, so a fix reaching a symbol the file did not depend on before is checked by a target
+  without that dependency. In a linked language it fails as a missing symbol, not a failed
+  assertion — observed as `undefined reference to 'power_sampling_active'` against a function that
+  exists, in a fix that was correct. Add the dependency's module to the target, re-run once.
+
+A build or link error is **not a test failure** and must not be logged as one. Its failure count
+is often zero — nothing ran — so an oracle reading only failure counts sees neither green nor red.
+
+> (c) grew reachable rather than being longstanding: reviewers now report defects caused outside
+> the diff, so fixes follow them there, and a changed-files target lags by construction.
+
 ## 5. What the selection does and does not promise
 
 - It resolves imports by **fully qualified module name**, so `from pkg import a, b` binds
@@ -145,3 +169,42 @@ uv run mypy --strict
   monkeypatch targets) are invisible to an AST scan, and two-hop breakage is out of scope
   by design. A file the selector cannot map forces FULL rather than being skipped, so the
   failure direction is extra tests, never missing ones.
+
+## 6. Before the first edit — read the test, then be willing to refuse
+
+§4.5 classifies a targeted run that already went RED. This is the question that comes **first**,
+and it is cheaper: a fix that cannot pass without rewriting a test is one you can decline before
+you write it.
+
+**Read the test(s) covering a file before your first `Edit` on it.** Running a test is not
+reading it — running tells you the current colour, reading tells you what the file is allowed to
+do. Then apply one of three outcomes:
+
+1. **Apply.** The fix passes the covering test as written. The normal case.
+2. **Refuse.** Passing would require changing a test **that is not this finding's own target**.
+   Do not widen the fix and do not touch the test. Record it (below) and move to the next finding.
+3. **Apply — the test IS the target.** A finding whose own target is the test may be fixed by
+   editing that test. This is a **non-trigger**, not an exception you argue for: `tests` is a
+   mandatory lens and raises findings repairable only by writing a test, so a refusal that fired
+   here would leave every such finding unfixable and the review unapprovable.
+
+**No covering test located is outcome 2, not outcome 1.** "I could not find one" is not
+permission — record it with the reason `no covering test located`. A rule that activates on a
+condition and silently no-ops when the condition is unknown never fires for the cases that
+motivated it.
+
+**The record**, and both halves are load-bearing:
+
+- retag the finding **`manual-only`**, and
+- record `disposition: unresolved` with `authority: oracle-blocked`.
+
+The retag is the mechanism. It keeps the finding out of `P0_count`/`P1_count` and out of the
+next round's fixable-finding selection, which already filters on `consensus-passed` — so the
+refusal costs no extra machinery and cannot be re-litigated round after round. The authority
+carries **why**, which is what separates this from an ordinary single-voice `manual-only` and
+makes the set of refusals a free audit of where the spec and the tests disagree.
+
+**Why `manual-only` and not a grade penalty.** The same fact discovered one step later — a fix
+applied, run RED, classified unreachable and reverted — is already recorded `manual-only`,
+never grade-lowering. If refusing early were harsher, the cheapest way to protect the grade
+would be to skip the read, which is precisely the behaviour this section exists to replace.

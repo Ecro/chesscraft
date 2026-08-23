@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.6
+harness_maker_version: 0.54.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/test-reviewer.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Phase A.5 gate for /hm:execute. Critiques RED-stage tests for SPEC 
   Read-only.
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: d43a14ea6ff1d0b2b0409da1a084502c5527707812ccb4ff47dfb9635ea09d32
+content_hash: d7058a244d690f3568c702a4f375bb875b9a8f84ed4962441b8655aa47eb227c
 ---
 
 # test-reviewer
@@ -134,6 +134,7 @@ Return ONLY this JSON. No prose preamble. No markdown.
 - **Do not mock-test test infrastructure.** Configuration (pytest.ini, vitest.config) is not in scope unless it directly suppresses test discovery for an in-scope scenario.
 - **Cite, don't paraphrase.** `line:` must point at a real line number in the test file you were given.
 - **Banned-patterns list is authoritative.** Do not invent new categories at runtime. But do NOT silently drop a blocking observation because no category fits — there is no `suggestions` field in the schema above, so "downgrade to a suggestion" would delete it, and `overall_assessment` would then read PASS over a defect you found. Route it into a field the schema has: a scenario with no test → `scenarios_missing[]`; a scenario covered twice, or covered by a test aimed at a different scenario → a `per_scenario` entry for that scenario with `quality: "FAIL"` and the reason named (this blocks — PASS requires every `per_scenario.quality` to be PASS); a test that would also pass a wrong implementation → the closest banned pattern (1, 6 or 8) with the mismatch explained in `reasoning`. Only a genuine nice-to-have — one whose absence costs nothing at Phase D — is dropped.
+
 
 <!-- @hm:user:extensions -->
 <!-- Project-specific test-reviewer rules (e.g., test naming conventions, fixture patterns). Preserved across harness-maker upgrades. -->

@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.52.6
+harness_maker_version: 0.54.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/execute.md.j2
 provenance: official
-content_hash: 92c585f42e1c57ae4e37fe1feb297d9ed0a0cca771da1cde233df87d6ced2f2b
+content_hash: 0b47519baf10a06d373a8cade49af57942982ed89bc896ce868b8dbcf54e50e5
 ---
 # Stage: execute
 
@@ -68,7 +68,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:execute --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -77,7 +77,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -364,7 +364,7 @@ Run this as each round resolves, with `<run-id>` stable across the rounds of one
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'
 ```
 
 
@@ -441,7 +441,12 @@ worker count, and whether that runner is parallel by default. Three rules from i
 while iterating on a failure run `rerun_failed` first, then the targeted set, and only then the
 full suite — one full pass per edit dominates any flag you could add; the full suite still runs
 at least once before the work is called done; and the parallel flag belongs on the command line,
-never in the project's persistent config.
+never in the project's persistent config. And when the targeted run comes back RED, its **§4.5**
+owns the three-way classification before you conclude the code is wrong — production reaches the
+pinned state (fix the code) / it cannot (say which caller-side fact makes it unreachable; never
+edit the test) / the target is too narrow for the fix (widen it and re-run once). Phase D.5 asks
+what a repair newly made reachable; §4.5 is the question that comes first — whether this red light
+is about something reachable at all.
 
 Select what to run, then run it as ONE call. `mode: full` → run everything and echo `reason`
 verbatim; `mode: targeted` → pass `node_ids`. `&&` short-circuits, so one call surfaces the
@@ -453,7 +458,7 @@ first failure. **A repair re-runs targeted on the files IT touched; `full` once,
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm test_dep_map --root . --changed-file <f1> …
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm test_dep_map --root . --changed-file <f1> …
 !cd <WT> && <lint> && <type> && <test> <nodes-or-empty>
 ```
 
@@ -469,7 +474,7 @@ when this PLAN phase authored bindable-mechanical-AC tests and the machine SPEC 
 
 
 ```bash
-!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
+!cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1
 ```
 
 
@@ -585,7 +590,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write \
        --iter "$ITER" --stage execute --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -617,12 +622,12 @@ Pick **exactly one** finalize command. Substitute `<WT>` with the absolute path 
 ```bash
 # All phases GREEN — stage-merge the branch back (NO commit) + cleanup the worktree.
 # /hm:wrapup will create the single user-facing commit (with proper message + Co-Authored-By).
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree finalize <WT> stage-only
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree finalize <WT> stage-only
 ```
 
 ```bash
 # Stage halted on a blocker — preserve the worktree for inspection:
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree finalize <WT> fail
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree finalize <WT> fail
 ```
 
 
@@ -636,7 +641,7 @@ so a fresh or recovered wrapup still works). Substitute `<slug>` (this `/hm:exec
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree wt-uuid <WT>)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree owned-crumb-add "$(pwd)" <slug> "$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree wt-uuid <WT>)"
 ```
 
 
@@ -652,7 +657,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 
 
 ```bash
-!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm worktree post-commit-pop "$(pwd)"
+!HM_OWNED_SESSION_UUIDS="$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree owned-crumb-read "$(pwd)" <slug>)" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree post-commit-pop "$(pwd)"
 ```
 
 
@@ -689,7 +694,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot_caps gate-blocked --root . --stage execute --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -700,7 +705,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.52.6 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot_caps boundary --root . --current execute --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/
