@@ -26,7 +26,7 @@ const automatic = (maxDistance?: number): MovePattern => ({
 
 function contentWith(pattern: MovePattern) {
   const source: ContentSource = {
-    schemaVersion: 15,
+    schemaVersion: 16,
     pieces: [
       {
         id: 'piece.turner',

@@ -3,6 +3,8 @@ import {
   boardTurnDistance,
   boardTurnDistanceFromMax,
   automaticTurningEndpointUpperBound,
+  isAutomaticTurningVector,
+  isValidAutomaticTurn,
   isCompassVector,
   isValidTurnPair,
   turningEndpointUpperBound,
@@ -42,5 +44,14 @@ describe('turning-slide geometry contract', () => {
     expect(isValidTurnPair([1, 0], [0, 1])).toBe(true)
     expect(isValidTurnPair([1, 0], [1, 0])).toBe(false)
     expect(isValidTurnPair([1, 0], [-1, 0])).toBe(false)
+  })
+
+  it('accepts non-zero automatic first vectors and rejects only collinear continuations', () => {
+    expect(isAutomaticTurningVector([-3, 1])).toBe(true)
+    expect(isAutomaticTurningVector([0, 0])).toBe(false)
+    expect(isValidAutomaticTurn([-3, 1], [0, 1])).toBe(true)
+    expect(isValidAutomaticTurn([-3, 1], [3, -1])).toBe(false)
+    expect(isValidAutomaticTurn([1, 0], [1, 0])).toBe(false)
+    expect(isValidAutomaticTurn([1, 0], [-1, 0])).toBe(false)
   })
 })

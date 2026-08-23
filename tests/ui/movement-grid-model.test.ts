@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   Cell,
+  DIRECTION_VECTORS,
   blankGrid,
   cycleAt,
   isTurningAt,
+  paintAt,
+  rayOf,
+  readGrid,
   readMovementEditor,
   turnAt,
   writeMovementEditor,
@@ -76,11 +80,93 @@ describe('unified movement grid turning model', () => {
     })
   })
 
+  it('S6 every non-compass perimeter cell creates a drawable automatic first vector', () => {
+    const perimeter = [
+      ...Array.from({ length: 7 }, (_, i) => [-3, 3 - i]),
+      ...Array.from({ length: 6 }, (_, i) => [-2 + i, -3]),
+      ...Array.from({ length: 5 }, (_, i) => [3, -2 + i]),
+      ...Array.from({ length: 6 }, (_, i) => [-2 + i, 3]),
+    ] as Array<[number, number]>
+    let grid = blankGrid()
+    for (const [df, dr] of perimeter) {
+      grid = turnAt(grid, Cell.Move, df, dr)
+      expect(isTurningAt(grid, Cell.Move, df, dr)).toBe(true)
+      expect(paintAt(grid, Cell.Move, df, dr)).toEqual({ kind: 'ray', tip: true, endless: true })
+      expect(grid.cells[`${df},${dr}`]).toBeUndefined()
+    }
+
+    const written = writeMovementEditor({ grid, preservedPatterns: { movement: [] } })
+    expect(written.ok).toBe(true)
+    if (written.ok) {
+      const canonical = ([df, dr]: [number, number]): [number, number] => {
+        const ray = rayOf(df, dr)
+        return ray ? [...DIRECTION_VECTORS[ray.dir]] as [number, number] : [df, dr]
+      }
+      const sortVectors = (vectors: Array<[number, number]>) => vectors.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+      const actual = (written.movement as Array<{ kind?: unknown; vectors?: Array<[number, number]> }>)
+        .filter((pattern) => pattern.kind === 'turning_slide')
+        .flatMap((pattern) => pattern.vectors ?? [])
+        .map((vector) => canonical(vector as [number, number]))
+      expect(sortVectors(actual)).toEqual(sortVectors(perimeter.map(canonical)))
+    }
+  })
+
+  it('S7 isolates, clears, and round-trips a representative off-axis capture turn', () => {
+    const movement = turnAt(blankGrid(), Cell.Move, -3, 1)
+    const both = turnAt(movement, Cell.Capture, 3, -1)
+    expect(isTurningAt(both, Cell.Move, -3, 1)).toBe(true)
+    expect(isTurningAt(both, Cell.Capture, -3, 1)).toBe(false)
+    expect(isTurningAt(both, Cell.Capture, 3, -1)).toBe(true)
+
+    const cleared = cycleAt(both, Cell.Capture, 3, -1)
+    expect(isTurningAt(cleared, Cell.Capture, 3, -1)).toBe(false)
+    expect(isTurningAt(cleared, Cell.Move, -3, 1)).toBe(true)
+  })
+
+  it('S8 keeps an automatic row with an out-of-grid vector opaque instead of splitting it', () => {
+    const external = { kind: 'turning_slide', vectors: [[-3, 1], [4, 1]], turn: 'any' }
+    const editor = readMovementEditor({ movement: [external] })
+
+    expect(editor).not.toBeNull()
+    expect(editor!.preservedPatterns.movement).toEqual([external])
+    expect(writeMovementEditor(editor!)).toEqual({ ok: true, movement: [external], attack: undefined })
+  })
+
+  it('preserves an automatic row when compass canonicalization would collide', () => {
+    const external = { kind: 'turning_slide', vectors: [[0, 1], [0, 3]], turn: 'any' }
+    expect(readGrid({ movement: [external] })).toBeNull()
+
+    const editor = readMovementEditor({ movement: [external] })
+    expect(editor).not.toBeNull()
+    expect(editor!.preservedPatterns.movement).toEqual([external])
+    expect(writeMovementEditor(editor!)).toEqual({ ok: true, movement: [external], attack: undefined })
+  })
+
   it('preserves omitted attack fallback when legacy movement is mixed with drawable movement', () => {
     const legacy = { kind: 'turning_slide', vectors: [[0, 1], [1, 0]], maxDistance: 4 }
     const step = { kind: 'step', vectors: [[1, 1]] }
     const editor = readMovementEditor({ movement: [legacy, step] })
     expect(editor?.captureFollowsMovement).toBe(true)
     expect(writeMovementEditor(editor!)).toEqual({ ok: true, movement: [legacy, step], attack: undefined })
+  })
+
+  it('S9 keeps omitted attack fallback for an off-axis turn until capture is edited separately', () => {
+    const editor = readMovementEditor({ movement: [{ kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' }] })
+    expect(editor).not.toBeNull()
+    expect(writeMovementEditor(editor!)).toEqual({
+      ok: true,
+      movement: [{ kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' }],
+      attack: undefined,
+    })
+
+    const captureEdit = cycleAt(editor!.grid, Cell.Capture, 3, 0)
+    expect(writeMovementEditor({ ...editor!, grid: captureEdit, captureFollowsMovement: false })).toEqual({
+      ok: true,
+      movement: [{ kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' }],
+      attack: [
+        { kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' },
+        { kind: 'step', vectors: [[3, 0]] },
+      ],
+    })
   })
 })

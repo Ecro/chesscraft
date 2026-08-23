@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCompassVector, isValidTurnPair } from './movement'
+import { isAutomaticTurningVector, isCompassVector, isValidTurnPair } from './movement'
 
 /**
  * The declarative content vocabulary (ADR-001, ADR-003).
@@ -111,8 +111,12 @@ import { isCompassVector, isValidTurnPair } from './movement'
  * Bumped 14 -> 15 (PLAN-turning-slide-redesign ADR-002/ADR-003): the compact
  * movement-grid form can ask the engine to choose any legal second direction;
  * v14 ordered pairs remain accepted as a compatibility form.
+ *
+ * Bumped 15 -> 16 (PLAN-turning-slide-perimeter ADR-001/ADR-002): automatic
+ * turns may use every non-zero integer first vector, with the editor exposing
+ * the 24 cells on its radius-three perimeter. Legacy ordered pairs stay narrow.
  */
-export const SCHEMA_VERSION = 15
+export const SCHEMA_VERSION = 16
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -216,13 +220,13 @@ const automaticTurningSlidePattern = z.strictObject({
   vectors: z
     .array(vector)
     .min(1)
-    .max(8)
+    .max(24)
     .refine(
       (vectors) => {
         const keys = new Set(vectors.map((candidate) => `${candidate[0]},${candidate[1]}`))
-        return keys.size === vectors.length && vectors.every((candidate) => isCompassVector(candidate))
+        return keys.size === vectors.length && vectors.every((candidate) => isAutomaticTurningVector(candidate))
       },
-      { message: 'automatic turning_slide vectors must be unique compass unit vectors' },
+      { message: 'automatic turning_slide vectors must be unique non-zero integer vectors (up to 24)' },
     ),
   turn: z.literal('any'),
   /** Total distance across both positive legs; omitted means the board bound. */

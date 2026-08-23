@@ -135,6 +135,45 @@ test('a one-bend slide is authorable and survives a save and reopen', async ({ p
   ])
 })
 
+test('every perimeter cell can author an automatic one-bend slide', async ({ page }) => {
+  await openBlankPiece(page)
+
+  await page.getByTestId('piece-clear').click()
+  const perimeter = [
+    ...Array.from({ length: 7 }, (_, i) => [-3, 3 - i]),
+    ...Array.from({ length: 6 }, (_, i) => [-2 + i, -3]),
+    ...Array.from({ length: 5 }, (_, i) => [3, -2 + i]),
+    ...Array.from({ length: 6 }, (_, i) => [-2 + i, 3]),
+  ] as Array<[number, number]>
+  for (const [df, dr] of perimeter) {
+    const outer = page.getByTestId(`piece-cell-${df},${dr}`)
+    await outer.dblclick()
+    await expect(outer).toHaveAttribute('data-turning', 'true')
+    await expect(outer).toHaveAttribute('data-paint', 'ray')
+  }
+
+  await page.getByTestId('editor-id').fill('piece.turning-perimeter-e2e')
+  await page.getByTestId('editor-name').fill('비스듬 꺾이개')
+  await page.getByTestId('editor-text').fill('바깥 어느 칸에서도 꺾여요.')
+  await page.getByTestId('editor-save').click()
+  await expect(page.getByTestId('editor-saved')).toBeVisible()
+
+  await page.getByTestId('editor-tab-library').click()
+  await page.getByTestId('library-open-piece.turning-perimeter-e2e').click()
+  const draft = JSON.parse((await page.getByTestId('editor-draft-json').textContent()) ?? 'null')
+  const canonical = ([df, dr]: [number, number]): [number, number] => {
+    const compass = Math.max(Math.abs(df), Math.abs(dr)) === 3 && (df === 0 || dr === 0 || Math.abs(df) === Math.abs(dr))
+    if (!compass) return [df, dr]
+    return [Math.sign(df), Math.sign(dr)]
+  }
+  const vectors = draft.movement
+    .filter((pattern: { kind?: string }) => pattern.kind === 'turning_slide')
+    .flatMap((pattern: { vectors: number[][] }) => pattern.vectors)
+    .map((vector: number[]) => canonical(vector as [number, number]))
+    .sort((a: number[], b: number[]) => (a[0] ?? 0) - (b[0] ?? 0) || (a[1] ?? 0) - (b[1] ?? 0))
+  expect(vectors).toEqual(perimeter.map(canonical).sort((a, b) => a[0] - b[0] || a[1] - b[1]))
+})
+
 test('the board record places pieces without ever showing a coordinate', async ({ page }) => {
   await useSliceContent(page)
   await goEditor(page)

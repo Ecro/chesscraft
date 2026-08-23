@@ -4,7 +4,7 @@ import { exportContent, importContent } from '@editor/io'
 import { cloneValid } from './fixtures/valid-set'
 
 describe('turning_slide schema', () => {
-  it('S4 accepts an automatic one-bend slide in the v15 contract', () => {
+  it('S4 accepts an automatic one-bend slide in the v16 contract', () => {
     expect(
       movePattern.parse({
         kind: 'turning_slide',
@@ -27,8 +27,20 @@ describe('turning_slide schema', () => {
           [1, 0],
         ],
         turn: 'any',
-      }).success,
-    ).toBe(true)
+    }).success,
+  ).toBe(true)
+  })
+
+  it('S4 accepts an off-axis perimeter vector and the full 24-cell perimeter', () => {
+    const perimeter = [
+      ...Array.from({ length: 7 }, (_, i) => [-3, 3 - i]),
+      ...Array.from({ length: 6 }, (_, i) => [-2 + i, -3]),
+      ...Array.from({ length: 5 }, (_, i) => [3, -2 + i]),
+      ...Array.from({ length: 6 }, (_, i) => [-2 + i, 3]),
+    ]
+    expect(movePattern.safeParse({ kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' }).success).toBe(true)
+    expect(movePattern.safeParse({ kind: 'turning_slide', vectors: perimeter, turn: 'any' }).success).toBe(true)
+    expect(movePattern.safeParse({ kind: 'turning_slide', vectors: [...perimeter, [2, 2]], turn: 'any' }).success).toBe(false)
   })
 
   it('S5 parses a legacy ordered pair, total cap, and forward flag', () => {
@@ -59,11 +71,11 @@ describe('turning_slide schema', () => {
     expect(movePattern.safeParse({ kind: 'turning_slide', ...fields }).success).toBe(false)
   })
 
-  it('S4 bumps the content vocabulary version for the new kind', () => {
-    expect(SCHEMA_VERSION).toBe(15)
+  it('S4 bumps the content vocabulary version for the perimeter contract', () => {
+    expect(SCHEMA_VERSION).toBe(16)
   })
 
-  it('S6 reads a v13 straight-only document and re-stamps it as v15 without changing content', () => {
+  it('S6 reads a v13 straight-only document and re-stamps it as v16 without changing content', () => {
     const legacy = cloneValid()
     legacy.schemaVersion = 13
     legacy.boards = legacy.boards.map((board) => ({
@@ -81,8 +93,8 @@ describe('turning_slide schema', () => {
     const imported = importContent(JSON.stringify(legacy))
     expect(imported.ok).toBe(true)
     if (!imported.ok) return
-    expect(imported.source.schemaVersion).toBe(15)
+    expect(imported.source.schemaVersion).toBe(16)
     expect(imported.source.pieces).toEqual(legacy.pieces)
-    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(15)
+    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(16)
   })
 })

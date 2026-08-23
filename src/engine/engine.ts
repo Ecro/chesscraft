@@ -1,5 +1,5 @@
 import type { ContentSet } from '@content/load'
-import { COMPASS_VECTORS, isValidTurnPair, turningPathDistance } from '@content/movement'
+import { COMPASS_VECTORS, isValidAutomaticTurn, turningPathDistance } from '@content/movement'
 import { parseSquare, type Action as EffectAction, type DestinationRegion, type MovePattern, type Target } from '@content/schema'
 import {
   type BoundEffect,
@@ -203,6 +203,7 @@ function reachFrom(
         : [oriented[1]!]
       const firstDirections = automatic ? oriented : [oriented[0]!]
 
+
       for (const first of firstDirections) {
         for (let firstLeg = 1; firstLeg <= maxDistance; firstLeg += 1) {
           const bendFile = origin.file + first[0] * firstLeg
@@ -219,7 +220,7 @@ function reachFrom(
           if (allowQuiet) out.quiet.push(bend)
 
           for (const second of secondDirections) {
-            if (automatic && !isValidTurnPair(first, second)) continue
+            if (automatic && !isValidAutomaticTurn(first, second)) continue
             for (let secondLeg = 1; firstLeg + secondLeg <= maxDistance; secondLeg += 1) {
               const file = bendFile + second[0] * secondLeg
               const rank = bendRank + second[1] * secondLeg

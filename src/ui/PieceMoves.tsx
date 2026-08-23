@@ -1,5 +1,5 @@
 import type { Translate } from './i18n'
-import { isValidTurnPair } from '../content/movement'
+import { isCompassVector, isValidTurnPair } from '../content/movement'
 /**
  * How a piece moves, as two questions instead of one.
  *
@@ -19,18 +19,18 @@ import { isValidTurnPair } from '../content/movement'
  * move -> capture -> both -> none cycle (ADR-028), so a piece that slides forward
  * and takes diagonally is authorable here rather than in the detailed form.
  *
- * The grid is the complete compact authoring surface. A double-click on an
- * outermost compass cell marks that ray as an automatic one-bend slide; there
- * is no second direction row to keep in sync with the grid.
+ * The grid is the complete compact authoring surface. A double-click on any
+ * outermost cell marks that perimeter vector as an automatic one-bend slide;
+ * there is no second direction row to keep in sync with the grid.
  *
  * ## It still refuses to open rather than flatten
  *
- * Two slide patterns with different reach caps, a cap other than 1 or 2, a slide
- * along a vector that is not one of the eight directions, a leap outside the
- * grid — none of those survive a round-trip through this control, so `readGrid`
- * returns null and the screen points at the detailed form. What it no longer
- * refuses is the interesting case: a piece with a sliding pattern AND a leaping
- * one is now two patterns this model holds natively.
+ * Two ordinary slide patterns with different reach caps, a cap other than 1 or
+ * 2, an ordinary slide along a vector that is not one of the eight directions,
+ * or a leap outside the grid — none of those survive a round-trip through this
+ * control, so `readGrid` returns null and the screen points at the detailed form.
+ * Automatic one-bend slides are the deliberate exception: their first vector
+ * may be any radius-three perimeter vector, including an off-axis vector.
  *
  * `kind: 'jump'` is ACCEPTED into the grid and re-emitted as `'step'`. The engine
  * gives both `maxSteps = 1` and branches on nothing else, so the two are
@@ -109,6 +109,8 @@ export interface PieceGrid {
   reach: Record<Axis, Record<Dir8, Reach>>
   /** Whether a ray chooses its second leg automatically at the first bend. */
   turning: Record<Axis, Record<Dir8, boolean>>
+  /** Non-compass perimeter vectors that choose their second leg automatically. */
+  turningVectors: Record<Axis, Record<string, boolean>>
   /** Whether the vectors mirror by the owning side's forward direction. */
   forward: boolean
 }
@@ -143,6 +145,7 @@ export function blankGrid(): PieceGrid {
       capture: { n: 'edge', ne: 'edge', e: 'edge', se: 'edge', s: 'edge', sw: 'edge', w: 'edge', nw: 'edge' },
     },
     turning: { move: emptyTurning(), capture: emptyTurning() },
+    turningVectors: { move: {}, capture: {} },
     forward: false,
   }
 }
@@ -188,13 +191,11 @@ function bucketize(patterns: Pattern[]): Buckets | null {
 /**
  * The compass ray a cell sits on, or null when it sits on none.
  *
- * Half the grid is on no ray at all. A slide vector must be one of the eight
- * compass units — `DIR_BY_VECTOR` holds exactly those — so a knight-shaped
- * offset like `(1,2)` has no "and keeps going" to offer and never will: a
- * repeating knight vector is an explicit non-goal, and the engine would need a
- * different pattern shape for it. Those cells cycle through two states, not
- * three, and that asymmetry is a fact about the model rather than a choice this
- * control made.
+ * Half the grid is on no compass ray at all. Ordinary slides still require one
+ * of the eight compass units — `DIR_BY_VECTOR` holds exactly those — while an
+ * off-axis radius-three cell is handled separately as an automatic turning
+ * vector. Its authored integer vector repeats for the first leg; it is not
+ * inferred as a new compass direction.
  */
 export function rayOf(df: number, dr: number): { dir: Dir8; distance: 1 | 2 | 3 } | null {
   if (df === 0 && dr === 0) return null
@@ -203,6 +204,29 @@ export function rayOf(df: number, dr: number): { dir: Dir8; distance: 1 | 2 | 3 
   if (distance > 3) return null
   const dir = DIR_BY_VECTOR.get(key(Math.sign(df), Math.sign(dr)))
   return dir ? { dir, distance: distance as 1 | 2 | 3 } : null
+}
+
+/** A cell on the radius-three perimeter, including off-axis integer slopes. */
+export function isPerimeterCell(df: number, dr: number): boolean {
+  return Math.max(Math.abs(df), Math.abs(dr)) === 3
+}
+
+/** Whether an automatic vector can be drawn by this 7x7 editor. */
+export function isDrawableAutomaticVector(vector: readonly [number, number]): boolean {
+  return isCompassVector(vector) || isPerimeterCell(vector[0], vector[1])
+}
+
+/** The grid identity used by automatic vectors after compass canonicalization. */
+function automaticVectorIdentity(vector: readonly [number, number]): string {
+  const ray = rayOf(vector[0], vector[1])
+  return ray ? `ray:${ray.dir}` : `vector:${key(vector[0], vector[1])}`
+}
+
+/** The persisted first vector represented by an outer cell. */
+function perimeterVector(df: number, dr: number): [number, number] | null {
+  const ray = rayOf(df, dr)
+  if (ray?.distance === 3) return [...DIRECTION_VECTORS[ray.dir]] as [number, number]
+  return isPerimeterCell(df, dr) ? [df, dr] : null
 }
 
 /** What one cell shows, for one axis. `endless` is the ring cell of an uncapped ray. */
@@ -223,6 +247,9 @@ const bit = (v: Cell, axis: Cell.Move | Cell.Capture) => (v & axis) !== 0
  */
 export function paintAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): CellPaint {
   const ray = rayOf(df, dr)
+  if (!ray && grid.turningVectors[axisOf(axis)][key(df, dr)]) {
+    return { kind: 'ray', tip: true, endless: true }
+  }
   if (ray && bit(grid.slides[ray.dir], axis)) {
     const cap = grid.reach[axisOf(axis)][ray.dir]
     const reach = cap === 'edge' ? 3 : cap
@@ -234,28 +261,37 @@ export function paintAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: num
   return { kind: 'none' }
 }
 
-/** Whether the outermost compass cell is currently an automatic turning ray. */
+/** Whether an outer cell is currently an automatic turning ray. */
 export function isTurningAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): boolean {
   const ray = rayOf(df, dr)
-  return ray?.distance === 3 && grid.turning[axisOf(axis)][ray.dir] && bit(grid.slides[ray.dir], axis)
+  if (ray?.distance === 3) return grid.turning[axisOf(axis)][ray.dir] && bit(grid.slides[ray.dir], axis)
+  return Boolean(grid.turningVectors[axisOf(axis)][key(df, dr)])
 }
 
 /**
  * The semantic reducer used by the grid's double-click handler.
  *
  * Automatic turns deliberately have one visible entry point: the outermost
- * compass cell. Calling this for an inner cell is a no-op, so a browser's
+ * outermost cell. Calling this for an inner cell is a no-op, so a browser's
  * double-click timing cannot accidentally create a hidden second-leg choice.
  */
 export function turnAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: number, dr: number): PieceGrid {
   const ray = rayOf(df, dr)
-  if (!ray || ray.distance !== 3) return grid
+  const vector = perimeterVector(df, dr)
+  if (!vector) return grid
   const axisName = axisOf(axis)
   const k = key(df, dr)
   const cells = { ...grid.cells }
   const next = ((cells[k] ?? Cell.None) & ~axis) as Cell
   if (next === Cell.None) delete cells[k]
   else cells[k] = next
+  if (!ray) {
+    return {
+      ...grid,
+      cells,
+      turningVectors: { ...grid.turningVectors, [axisName]: { ...grid.turningVectors[axisName], [key(...vector)]: true } },
+    }
+  }
   return {
     ...grid,
     cells,
@@ -288,6 +324,12 @@ export function cycleAt(grid: PieceGrid, axis: Cell.Move | Cell.Capture, df: num
   const ray = rayOf(df, dr)
 
   if (current.kind === 'ray') {
+    if (!ray) {
+      const axisName = axisOf(axis)
+      const turningVectors = { ...grid.turningVectors[axisName] }
+      delete turningVectors[k]
+      return { ...grid, turningVectors: { ...grid.turningVectors, [axisName]: turningVectors } }
+    }
     const slides = { ...grid.slides, [ray!.dir]: (grid.slides[ray!.dir] & ~axis) as Cell }
     // A cap with no ray under it is a dead value. Leaving it behind is
     // invisible in play — nothing reads `reach` for a direction that does not
@@ -386,6 +428,7 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
    */
   const paintSlides = (patterns: Pattern[], value: Cell.Move | Cell.Capture): boolean => {
     const axis = axisOf(value)
+    const automaticIdentities = new Set<string>()
     for (const pattern of patterns) {
       const reach = reachOf(pattern)
       if (reach === null) return false
@@ -394,9 +437,21 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
       const automatic = pattern.kind === 'turning_slide' && pattern.turn === 'any'
       if (automatic && pattern.maxDistance !== undefined) return false
       if (!automatic && pattern.kind !== 'slide') return false
+      if (automatic) {
+        if (vectors.some((vector) => !isDrawableAutomaticVector(vector))) return false
+        const identities = vectors.map(automaticVectorIdentity)
+        if (new Set(identities).size !== identities.length || identities.some((identity) => automaticIdentities.has(identity))) {
+          return false
+        }
+        for (const identity of identities) automaticIdentities.add(identity)
+      }
       for (const [df, dr] of vectors) {
-        const dir = DIR_BY_VECTOR.get(key(df, dr))
-        if (!dir) return false
+        const dir = DIR_BY_VECTOR.get(key(df, dr)) ?? (automatic ? rayOf(df, dr)?.dir : undefined)
+        if (!automatic && !dir) return false
+        if (!dir) {
+          grid.turningVectors[axis][key(df, dr)] = true
+          continue
+        }
         // Refused only when the SAME axis claims this direction twice at two
         // caps — the grid has one cell per direction per axis, so there is
         // nowhere to put the second answer. The two axes disagreeing is no
@@ -443,6 +498,7 @@ export function readGrid(draft: Record<string, unknown>): PieceGrid | null {
       grid.reach.capture[d] = grid.reach.move[d]
       grid.turning.capture[d] = grid.turning.move[d]
     }
+    grid.turningVectors.capture = { ...grid.turningVectors.move }
   } else {
     if (!paintSlides(takeBuckets.slides, Cell.Capture)) return null
     if (!paintCells(takeBuckets.leap, Cell.Capture)) return null
@@ -519,29 +575,37 @@ function buildGridPatterns(grid: PieceGrid, axis: Cell.Move | Cell.Capture): Emi
   const sortVectors = (v: Array<[number, number]>) =>
     v.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1])
   const byReach = new Map<Reach, Array<[number, number]>>()
-  const turning: Emitted[] = []
+  const turningVectors: Array<[number, number]> = []
   for (const d of DIRECTIONS) {
     if (!has(grid.slides[d], axis)) continue
     const reach = grid.reach[axisOf(axis)][d]
     if (grid.turning[axisOf(axis)][d]) {
-      turning.push({
-        kind: 'turning_slide',
-        vectors: [[...DIRECTION_VECTORS[d]] as [number, number]],
-        turn: 'any',
-        ...(grid.forward ? { forward: true as const } : {}),
-      })
+      turningVectors.push([...DIRECTION_VECTORS[d]] as [number, number])
       continue
     }
     const group = byReach.get(reach) ?? []
     group.push([...DIRECTION_VECTORS[d]] as [number, number])
     byReach.set(reach, group)
   }
+  for (const encoded of Object.keys(grid.turningVectors[axisOf(axis)])) {
+    if (!grid.turningVectors[axisOf(axis)][encoded]) continue
+    const vector = encoded.split(',').map(Number) as [number, number]
+    if (vector.length === 2 && vector.every(Number.isInteger)) turningVectors.push(vector)
+  }
   const capOrder = (reach: Reach) => (reach === 'edge' ? Number.POSITIVE_INFINITY : reach)
   const slideGroups = [...byReach.entries()].sort((a, b) => capOrder(a[0]) - capOrder(b[0]))
   const cells = Object.entries(grid.cells)
     .filter(([, value]) => has(value, axis))
     .map(([k]) => k.split(',').map(Number) as [number, number])
-  const out: Emitted[] = [...turning, ...slideGroups.map(([reach, vectors]) => ({
+  const automatic: Emitted[] = turningVectors.length > 0
+    ? [{
+        kind: 'turning_slide',
+        vectors: turningVectors,
+        turn: 'any',
+        ...(grid.forward ? { forward: true as const } : {}),
+      }]
+    : []
+  const out: Emitted[] = [...automatic, ...slideGroups.map(([reach, vectors]) => ({
     kind: 'slide' as const,
     vectors: sortVectors(vectors),
     ...(reach === 'edge' ? {} : { maxDistance: reach }),
@@ -602,29 +666,55 @@ type CompactParts = {
   preserved: unknown[]
 }
 
+type CompactEntry =
+  | { kind: 'drawable'; pattern: Pattern }
+  | { kind: 'preserved'; raw: unknown }
+  | { kind: 'automatic'; raw: unknown; pattern: Pattern; identities: string[] }
+
 function splitCompactPatterns(patterns: unknown[]): CompactParts | null {
-  const drawable: Pattern[] = []
-  const preserved: unknown[] = []
+  const entries: CompactEntry[] = []
   for (const raw of patterns) {
     if (!raw || typeof raw !== 'object') return null
     const pattern = raw as Pattern
     if (pattern.kind !== 'turning_slide') {
-      drawable.push(pattern)
+      entries.push({ kind: 'drawable', pattern })
       continue
     }
 
     if (pattern.turn === 'any') {
       const vectors = vectorsOf(pattern)
-      if (vectors.length === 0 || vectors.some((vector) => !DIR_BY_VECTOR.has(key(...vector)))) return null
-      if (vectors.length === 1 && pattern.maxDistance === undefined) drawable.push(pattern)
-      else preserved.push(raw)
+      if (vectors.length === 0) return null
+      if (vectors.every(isDrawableAutomaticVector) && pattern.maxDistance === undefined) {
+        entries.push({ kind: 'automatic', raw, pattern, identities: vectors.map(automaticVectorIdentity) })
+      } else entries.push({ kind: 'preserved', raw })
       continue
     }
 
     const vectors = vectorsOf(pattern)
     if (vectors.length !== 2 || !isValidTurnPair(vectors[0]!, vectors[1]!)) return null
-    preserved.push(raw)
+    entries.push({ kind: 'preserved', raw })
+  }
+  const owners = new Map<string, number>()
+  const collisions = new Set<number>()
+  entries.forEach((entry, index) => {
+    if (entry.kind !== 'automatic') return
+    for (const identity of entry.identities) {
+      const owner = owners.get(identity)
+      if (owner === undefined) owners.set(identity, index)
+      else {
+        collisions.add(owner)
+        collisions.add(index)
+      }
     }
+  })
+  const drawable: Pattern[] = []
+  const preserved: unknown[] = []
+  entries.forEach((entry, index) => {
+    if (entry.kind === 'drawable') drawable.push(entry.pattern)
+    else if (entry.kind === 'preserved') preserved.push(entry.raw)
+    else if (collisions.has(index)) preserved.push(entry.raw)
+    else drawable.push(entry.pattern)
+  })
   return { drawable, preserved }
 }
 
@@ -641,6 +731,7 @@ function withoutCaptures(grid: PieceGrid): PieceGrid {
     cells,
     slides,
     turning: { ...grid.turning, capture: { ...blankGrid().turning.capture } },
+    turningVectors: { ...grid.turningVectors, capture: {} },
   }
 }
 
@@ -780,6 +871,7 @@ export function hasMovementEditorTakes(state: MovementEditorState): boolean {
 export function hasMoves(grid: PieceGrid): boolean {
   return (
     DIRECTIONS.some((d) => has(grid.slides[d], Cell.Move)) ||
+    Object.values(grid.turningVectors.move).some(Boolean) ||
     Object.values(grid.cells).some((v) => has(v, Cell.Move))
   )
 }
@@ -788,6 +880,7 @@ export function hasMoves(grid: PieceGrid): boolean {
 export function hasTakes(grid: PieceGrid): boolean {
   return (
     DIRECTIONS.some((d) => has(grid.slides[d], Cell.Capture)) ||
+    Object.values(grid.turningVectors.capture).some(Boolean) ||
     Object.values(grid.cells).some((v) => has(v, Cell.Capture))
   )
 }
@@ -829,8 +922,8 @@ export function describeGrid(t: Translate, grid: PieceGrid): string {
 }
 
 export function describeMovementEditor(t: Translate, editor: MovementEditorState): string {
-  const turns = DIRECTIONS.filter((direction) => editor.grid.turning.move[direction]).length
-  const takes = DIRECTIONS.filter((direction) => editor.grid.turning.capture[direction]).length
+  const turns = DIRECTIONS.filter((direction) => editor.grid.turning.move[direction]).length + Object.values(editor.grid.turningVectors.move).filter(Boolean).length
+  const takes = DIRECTIONS.filter((direction) => editor.grid.turning.capture[direction]).length + Object.values(editor.grid.turningVectors.capture).filter(Boolean).length
   const preserved = editor.preservedPatterns.movement.length + (editor.preservedPatterns.attack?.length ?? 0)
   if (turns === 0 && takes === 0 && preserved === 0) return describeGrid(t, editor.grid)
   const turningLine = t('ui.editor.piece.summary.turning-auto-summary')

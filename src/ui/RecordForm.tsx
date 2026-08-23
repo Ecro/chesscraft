@@ -1011,7 +1011,11 @@ export function RecordForm({
                 ...grid.turning,
                 [axis]: Object.fromEntries(DIRECTIONS.map((d) => [d, false])),
               }
-              commitGrid({ ...grid, cells, slides, turning })
+              const turningVectors = {
+                ...grid.turningVectors,
+                [axis]: {},
+              }
+              commitGrid({ ...grid, cells, slides, turning, turningVectors })
             }}
           >
             {t(moveMode === 'move' ? 'ui.editor.piece.clear' : 'ui.editor.piece.clear-capture')}

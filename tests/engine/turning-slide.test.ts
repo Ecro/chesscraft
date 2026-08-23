@@ -72,6 +72,79 @@ describe('turning_slide move generation', () => {
     expect(targetsFrom(state, content)).toEqual(['c2', 'c4', 'd2', 'd3', 'd4', 'e2', 'e3', 'e4'])
   })
 
+  it('repeats an off-axis perimeter vector as the first leg before bending', () => {
+    const content = turningContent(automatic({ vectors: [[-3, 1]], maxDistance: 2 }))
+    const state = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [{ square: 'd3', pieceId: 'piece.turner', side: 'white' }, ...kings],
+    })
+
+    const targets = targetsFrom(state, content, 'd3')
+    expect(targets).toEqual(['a3', 'a4', 'a5', 'b3', 'b4', 'b5'])
+  })
+
+  it('checks non-unit first-leg occupancy at repeated endpoints, not invented intermediate cells', () => {
+    const content = turningContent(automatic({ vectors: [[-3, 1]], maxDistance: 2 }))
+    const state = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [
+        { square: 'd3', pieceId: 'piece.turner', side: 'white' },
+        { square: 'c3', pieceId: 'piece.pawn', side: 'white' },
+        ...kings,
+      ],
+    })
+
+    expect(targetsFrom(state, content, 'd3')).toContain('a4')
+  })
+
+  it('blocks and captures at an off-axis first-leg endpoint and mirrors it forward', () => {
+    const content = turningContent(automatic({ vectors: [[-3, 1]], maxDistance: 2 }))
+    const friendly = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [
+        { square: 'd3', pieceId: 'piece.turner', side: 'white' },
+        { square: 'a4', pieceId: 'piece.pawn', side: 'white' },
+        ...kings,
+      ],
+    })
+    expect(targetsFrom(friendly, content, 'd3')).not.toContain('a4')
+
+    const enemy = createPosition({
+      content,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'white',
+      placements: [
+        { square: 'd3', pieceId: 'piece.turner', side: 'white' },
+        { square: 'a4', pieceId: 'piece.pawn', side: 'black' },
+        ...kings,
+      ],
+    })
+    expect(targetsFrom(enemy, content, 'd3')).toContain('a4')
+
+    const forward = turningContent(automatic({ vectors: [[-3, 1]], maxDistance: 2, forward: true }))
+    const black = createPosition({
+      content: forward,
+      presetId: 'preset.default',
+      seed: 1,
+      sideToMove: 'black',
+      placements: [
+        { square: 'd4', pieceId: 'piece.turner', side: 'black' },
+        ...kings,
+      ],
+    })
+    expect(targetsFrom(black, forward, 'd4')).toContain('a3')
+  })
+
   it('keeps the automatic bend one-bend and respects blockers on either leg', () => {
     const content = turningContent(automatic({ maxDistance: 4 }))
     const state = createPosition({

@@ -7,7 +7,7 @@ import { RecordForm } from '@ui/RecordForm'
 afterEach(cleanup)
 
 const emptyBundle: ContentSource = {
-  schemaVersion: 15,
+  schemaVersion: 16,
   pieces: [],
   squareTypes: [],
   ruleCards: [],
@@ -18,7 +18,7 @@ const emptyBundle: ContentSource = {
 
 function source(withSeparateAttack = false): ContentSource {
   return {
-    schemaVersion: 15,
+    schemaVersion: 16,
     pieces: [
       {
         id: 'piece.turner',
@@ -84,5 +84,25 @@ describe('unified movement pattern grid', () => {
     fireEvent.doubleClick(screen.getByTestId('piece-cell-0,3'))
     expect(screen.getByTestId('piece-cell-3,0').getAttribute('data-turning')).toBe('false')
     expect(screen.getByTestId('piece-cell-0,3').getAttribute('data-turning')).toBe('true')
+  })
+
+  it('S3 marks an off-axis perimeter cell as an automatic bend', () => {
+    render(
+      <RecordForm
+        source={source()}
+        kind="piece"
+        initialId="piece.turner"
+        commit={() => {}}
+        errors={[]}
+        setErrors={() => {}}
+        bundle={emptyBundle}
+        official={new Set<string>()}
+      />,
+    )
+
+    const outer = screen.getByTestId('piece-cell--3,1')
+    fireEvent.doubleClick(outer)
+    expect(outer.getAttribute('data-turning')).toBe('true')
+    expect(outer.getAttribute('data-paint')).toBe('ray')
   })
 })

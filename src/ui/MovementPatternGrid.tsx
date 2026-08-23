@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import {
   Cell,
   GRID_RANGE,
@@ -42,6 +42,8 @@ export function MovementPatternGrid({
           }
           const paint = paintAt(grid, axis, df, dr)
           const turning = isTurningAt(grid, axis, df, dr)
+          const ray = rayOf(df, dr)
+          const rayAngle = ray || paint.kind !== 'ray' ? undefined : (Math.atan2(-dr, df) * 180) / Math.PI
           return (
             <button
               key={`${df},${dr}`}
@@ -53,8 +55,9 @@ export function MovementPatternGrid({
               data-paint={paint.kind}
               data-tip={paint.kind === 'ray' ? paint.tip : false}
               data-endless={paint.kind === 'ray' ? paint.endless : false}
-              data-ray={rayOf(df, dr)?.dir ?? ''}
+              data-ray={ray?.dir ?? (paint.kind === 'ray' ? 'custom' : '')}
               data-turning={turning}
+              style={rayAngle === undefined ? undefined : ({ '--ray-angle': `${rayAngle}deg` } as CSSProperties)}
               aria-label={`${df},${dr}`}
               aria-pressed={paint.kind !== 'none'}
               disabled={readOnly}

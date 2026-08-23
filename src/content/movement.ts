@@ -33,6 +33,19 @@ export function isCompassVector(vector: CompassVector): boolean {
   return COMPASS_VECTOR_KEYS.has(vectorKey(vector))
 }
 
+/** Automatic turns may start on any non-zero integer vector. */
+export function isAutomaticTurningVector(vector: CompassVector): boolean {
+  return vector[0] !== 0 || vector[1] !== 0
+}
+
+/** Whether a second leg is a real bend relative to an arbitrary first vector. */
+export function isValidAutomaticTurn(first: CompassVector, second: CompassVector): boolean {
+  if (!isAutomaticTurningVector(first) || !isAutomaticTurningVector(second)) return false
+  // A zero cross product means the two vectors are collinear, so the second leg
+  // is either straight or a U-turn. Both are excluded from an automatic bend.
+  return first[0] * second[1] - first[1] * second[0] !== 0
+}
+
 /** Whether two vectors describe a real ordered turn rather than straight/U-turn travel. */
 export function isValidTurnPair(first: CompassVector, second: CompassVector): boolean {
   if (!isCompassVector(first) || !isCompassVector(second)) return false

@@ -283,6 +283,31 @@ describe('Phase 2 — every parameter has a home in its slot sheet (ADR-004/007)
     expect((within(sheet).getByTestId('s-param-pattern-cell-3,0') as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it('round-trips an off-axis perimeter automatic grant through the shared grid', () => {
+    mount()
+    pick('then', 'grant_movement')
+    const sheet = screen.getByTestId('slot-sheet-then')
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-turning_slide'))
+
+    // Switching to turning_slide seeds the first compass direction so the new
+    // pattern is immediately valid. Clear that seed before authoring only the
+    // off-axis perimeter vector under test.
+    fireEvent.click(within(sheet).getByTestId('s-param-pattern-cell-0,3'))
+    const outer = within(sheet).getByTestId('s-param-pattern-cell--3,1')
+    fireEvent.doubleClick(outer)
+    expect(outer.getAttribute('data-turning')).toBe('true')
+
+    const saved = draftData()
+    const action = (((saved.effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!)
+    expect(action.pattern).toEqual({ kind: 'turning_slide', vectors: [[-3, 1]], turn: 'any' })
+
+    cleanup()
+    mount('skillCard', saved)
+    expect((((draftData().effects as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[0]!).pattern).toEqual(
+      action.pattern,
+    )
+  })
+
   it('preserves a non-drawable legacy turning pattern instead of flattening it', () => {
     mount('skillCard', {
       ...blankDraft('skillCard'),

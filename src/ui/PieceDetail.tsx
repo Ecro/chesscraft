@@ -97,6 +97,13 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
     const capOrder = (r: Reach) => (r === 'edge' ? Number.POSITIVE_INFINITY : r)
     return [...byReach.entries()].sort((a, b) => capOrder(a[0]) - capOrder(b[0]))
   })()
+  const turningDirections = DIRECTIONS.filter((direction) => grid.turning.move[direction] || grid.turning.capture[direction]).map((direction) =>
+    t(`ui.editor.piece.dir.${direction}`),
+  )
+  const turningVectors = [...Object.keys(grid.turningVectors.move), ...Object.keys(grid.turningVectors.capture)]
+    .filter((vector, index, all) => all.indexOf(vector) === index)
+    .map((vector) => `(${vector})`)
+  const hasAutomaticTurning = turningDirections.length > 0 || turningVectors.length > 0
 
   return (
     <div className="move-region" data-testid="move-region">
@@ -135,14 +142,12 @@ export function PieceMoveRegion({ piece, t }: { piece: PieceDef; t: Translate })
             .replace('{reach}', t(`ui.piece-info.reach.${reach}`))}
         </p>
       ))}
-      {(DIRECTIONS.some((direction) => grid.turning.move[direction]) || DIRECTIONS.some((direction) => grid.turning.capture[direction])) && (
+      {hasAutomaticTurning && (
         <ul className="move-turning" data-testid="move-turning-auto">
           <li data-testid="move-turning-auto-row">
             {t('ui.piece-info.turning-auto').replace(
               '{dirs}',
-              DIRECTIONS.filter((direction) => grid.turning.move[direction] || grid.turning.capture[direction])
-                .map((direction) => t(`ui.editor.piece.dir.${direction}`))
-                .join(', '),
+              [...turningDirections, ...turningVectors].join(', '),
             )}
           </li>
         </ul>
