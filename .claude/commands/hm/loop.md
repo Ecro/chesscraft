@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/loop.md.j2
 provenance: official
 description: Run a bounded autoloop over a master PLAN, iterating stages until convergence.
-content_hash: f0f9b5709b62044ba4ecfac3538482186b63b68610a4857cc3e7a843b3528832
+content_hash: 73d54472ba016a681c705dd6253af92a9e61b042d67043a36485907999b81b0d
 ---
 # /hm:loop
 
@@ -432,7 +432,7 @@ worktree would explode commit count.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -460,7 +460,7 @@ if any one fails:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree verify <WT>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree verify <WT>
 ```
 
 
@@ -755,7 +755,7 @@ For each iter (until convergence or any safety rail fires):
    and triggers fruitless retries.
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
    ```
 
 
@@ -803,7 +803,7 @@ For each iter (until convergence or any safety rail fires):
    Run the verify CLI inside `<WT>`:
 
    ```bash
-   !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts verify \
+   !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts verify \
       --iter <N> --expected <EXPECTED_STAGES> --root "<WT>"
    ```
 
@@ -828,7 +828,7 @@ For each iter (until convergence or any safety rail fires):
       hand-edit the YAML (non-atomic rewrites corrupt the file on WSL2/NTFS):
 
       ```bash
-      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts patch-runtime \
+      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts patch-runtime \
          --context work-docs/loop-context/<slug>.yaml \
          --counter stage_retry_counts --key "iter-<N>:<stage>" --value <count>
       ```
@@ -847,7 +847,7 @@ For each iter (until convergence or any safety rail fires):
       - **B. Skip with explicit `verdict: skipped` marker** — invoke the
         receipt CLI manually (the `--with` flag is required because
         `harness_maker` is not on the user project's default `uv` PATH):
-        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
+        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
         then ALSO append a durable audit entry so `/hm:health` can detect
         systematic skip patterns (quote the root + create parent dir; single
         `printf` write of well under 4 KiB stays atomic via POSIX `O_APPEND`):
@@ -890,7 +890,7 @@ When the loop halts (convergence, safety rail, or hard error):
    file on WSL2/NTFS):
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts patch-runtime \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts patch-runtime \
       --context work-docs/loop-context/<slug>.yaml \
       --counter stage_retry_counts --clear
    ```
@@ -981,7 +981,7 @@ When the loop halts (convergence, safety rail, or hard error):
 
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree finalize <WT> <STATUS>
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree finalize <WT> <STATUS>
    ```
 
 

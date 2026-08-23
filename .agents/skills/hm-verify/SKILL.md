@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-verify
 description: harness-maker verify stage. Invoke when the task requires the verify
   stage of the harness-maker workflow.
-content_hash: 0e3a2626ea5a432617ab82a8e9b4835bedaa8d618b2877e4819b8f1bf6a26bf1
+content_hash: 63e8d3cb1ea0bf5cfc187f64f0a1af28084fa2f32a23c33aab2208a6b6b3087e
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: 0e3a2626ea5a432617ab82a8e9b4835bedaa8d618b2877e4819b8f1bf6a26bf1
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: 0e3a2626ea5a432617ab82a8e9b4835bedaa8d618b2877e4819b8f1bf6a26bf1
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -139,7 +139,7 @@ verification script changes.
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm observability.verification_cache check --root . --mode relevant")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache check --root . --mode relevant")
 ```
 
 
@@ -178,7 +178,7 @@ After every selected suite command passes, write the marker:
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
 ```
 
 
@@ -246,7 +246,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write --iter \"$ITER\" --stage verify --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage verify --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
@@ -310,7 +310,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:verify --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:verify --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -319,7 +319,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 

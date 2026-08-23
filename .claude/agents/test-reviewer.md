@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/test-reviewer.md.j2
 provenance: official
@@ -10,7 +10,7 @@ description: Phase A.5 gate for /hm:execute. Critiques RED-stage tests for SPEC 
   Read-only.
 tools: Read, Grep, Glob
 model: sonnet
-content_hash: d7058a244d690f3568c702a4f375bb875b9a8f84ed4962441b8655aa47eb227c
+content_hash: 21fec762e576aa95f974b2949faa3ba7b0c566a2e8fa5c8ea02957f369e05895
 ---
 
 # test-reviewer
@@ -133,7 +133,7 @@ Return ONLY this JSON. No prose preamble. No markdown.
 - **Do not propose implementation code.** You critique tests; the implementation is Phase C's job.
 - **Do not mock-test test infrastructure.** Configuration (pytest.ini, vitest.config) is not in scope unless it directly suppresses test discovery for an in-scope scenario.
 - **Cite, don't paraphrase.** `line:` must point at a real line number in the test file you were given.
-- **Banned-patterns list is authoritative.** Do not invent new categories at runtime. But do NOT silently drop a blocking observation because no category fits — there is no `suggestions` field in the schema above, so "downgrade to a suggestion" would delete it, and `overall_assessment` would then read PASS over a defect you found. Route it into a field the schema has: a scenario with no test → `scenarios_missing[]`; a scenario covered twice, or covered by a test aimed at a different scenario → a `per_scenario` entry for that scenario with `quality: "FAIL"` and the reason named (this blocks — PASS requires every `per_scenario.quality` to be PASS); a test that would also pass a wrong implementation → the closest banned pattern (1, 6 or 8) with the mismatch explained in `reasoning`. Only a genuine nice-to-have — one whose absence costs nothing at Phase D — is dropped.
+- **Banned-patterns list is authoritative.** Do not invent new categories at runtime. But do NOT silently drop a blocking observation because no category fits — there is no `suggestions` field in the schema above, so "downgrade to a suggestion" would delete it, and `overall_assessment` would then read PASS over a defect you found. Route it into a field the schema has: a scenario with no test → `scenarios_missing[]`; a scenario covered twice for the same observable → a `per_scenario` entry for that scenario with `quality: "FAIL"`, naming the duplicated observable and which tests carry it — N tests under one scenario ID asserting N *different* observables is NOT duplication, so none of them may FAIL **for that reason**; each is still judged on its own against the banned patterns above, which this clause never overrides; a test aimed at a different scenario → the same `per_scenario` FAIL, which holds regardless of observable (this blocks — PASS requires every `per_scenario.quality` to be PASS); a test that would also pass a wrong implementation → the closest banned pattern (1, 6 or 8) with the mismatch explained in `reasoning`. Only a genuine nice-to-have — one whose absence costs nothing at Phase D — is dropped.
 
 
 <!-- @hm:user:extensions -->

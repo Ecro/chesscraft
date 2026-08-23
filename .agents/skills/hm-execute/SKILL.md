@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-execute
 description: harness-maker execute stage. Invoke when the task requires the execute
   stage of the harness-maker workflow.
-content_hash: 10ed5c2afacce4f2780c4cd21a9684a5abff1c1b6c05bd536b72e55610ab7780
+content_hash: 5cdd090aeacace7e7b5365880bde995981fa72cc805dacd86535bb048f53d0d7
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: 10ed5c2afacce4f2780c4cd21a9684a5abff1c1b6c05bd536b72e55610ab7780
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: 10ed5c2afacce4f2780c4cd21a9684a5abff1c1b6c05bd536b72e55610ab7780
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -129,7 +129,7 @@ Before any code edits, load memory in tier order (stops at first miss):
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:execute --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:execute --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -138,7 +138,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -344,7 +344,7 @@ which is why this was ever a fan-out — but a single call asking all three is n
 |---|---|
 | `red-correctness` | Does each test fail, and for the intended reason? |
 | `discrimination` | Would this assertion also pass against a plausibly WRONG implementation? |
-| `coverage` | Does the set cover the criterion — no missing scenario, no duplicate? |
+| `coverage` | Does the set cover the criterion — no missing scenario, and no duplicate for the same observable? |
 
 > **Measured cost of the fan-out it replaces:** ≈330k subagent tokens and ≈2 minutes per round.
 > **Measured cost of collapsing it:** on the round that produced this change, all six blocking
@@ -363,9 +363,13 @@ it must still be reported — never dropped — but it has to travel in a field 
 has, because there is no suggestions field and your Hard Rules forbid inventing a category. Route
 it: a test that would also pass a WRONG implementation is a banned pattern (category 1 tautology,
 6 magic values, or 8 private state) and goes in blocking_issues; a scenario with no test goes in
-scenarios_missing; a scenario covered twice, or covered by a test aimed at another scenario, is a
-per_scenario entry for that scenario with quality FAIL and the duplication named in reason — which
-blocks, because PASS requires every per_scenario.quality to be PASS. Only a genuine nice-to-have is
+scenarios_missing; a scenario covered twice for the same observable is a per_scenario entry for
+that scenario with quality FAIL, naming the duplicated observable and which tests carry it — N
+tests under one scenario ID asserting N different observables is not duplication, so none of them
+may FAIL for that reason, and each is still judged on its own against the banned patterns, which
+this clause never overrides; a
+test aimed at another scenario is the same per_scenario FAIL, which holds regardless of observable
+— which blocks, because PASS requires every per_scenario.quality to be PASS. Only a genuine nice-to-have is
 dropped.\n\nReturn ONLY the JSON output as specified in your instructions.`
 
 This skill explicitly authorises sub-agent delegation: hand each item below to the named agent
@@ -382,7 +386,7 @@ would misread the whole fan-out as failed. Do not begin the next step until ever
 has either replied or genuinely failed.
 
 ```
-spawn_agent(agent_type="test-reviewer", message="<brief>\n\nYou are ACCOUNTABLE for all three lenses. red-correctness — does each test fail, and for the intended reason? discrimination — would this assertion also pass against a plausibly WRONG implementation? coverage — does the set cover the criterion, with no missing scenario and no duplicate?")
+spawn_agent(agent_type="test-reviewer", message="<brief>\n\nYou are ACCOUNTABLE for all three lenses. red-correctness — does each test fail, and for the intended reason? discrimination — would this assertion also pass against a plausibly WRONG implementation? coverage — does the set cover the criterion, with no missing scenario and no duplicate for the same observable?")
 ```
 
 **The merge rules below still apply**, and are deliberately kept: a retry re-dispatch folds into
@@ -437,7 +441,7 @@ Run this as each round resolves, with `<run-id>` stable across the rounds of one
 
 
 ```
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent test-reviewer --stage execute --slug '{slug}' --pass <round-number> --verdict '<PASS|FAIL>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
 ```
 
 
@@ -531,7 +535,7 @@ first failure. **A repair re-runs targeted on the files IT touched; `full` once,
 
 
 ```
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm test_dep_map --root . --changed-file <f1> …")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm test_dep_map --root . --changed-file <f1> …")
 Bash("cd <WT> && <lint> && <type> && <test> <nodes-or-empty>")
 ```
 
@@ -547,7 +551,7 @@ when this PLAN phase authored bindable-mechanical-AC tests and the machine SPEC 
 
 
 ```
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm spec_mutation gate --yaml specs/SPEC-{slug}.machine.yaml --tier 1")
 ```
 
 
@@ -671,7 +675,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write --iter \"$ITER\" --stage execute --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage execute --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
@@ -700,12 +704,12 @@ Pick **exactly one** finalize command. Substitute `<WT>` with the absolute path 
 ```
 # All phases GREEN — stage-merge back (NO commit) + cleanup worktree.
 # @hm-wrapup will create the single user-facing commit.
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree finalize <WT> stage-only")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree finalize <WT> stage-only")
 ```
 
 ```
 # Stage halted on a blocker — preserve worktree for inspection:
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree finalize <WT> fail")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree finalize <WT> fail")
 ```
 
 
@@ -719,7 +723,7 @@ so a fresh or recovered wrapup still works). Substitute `<slug>` (this `/hm:exec
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree owned-crumb-add \"$(pwd)\" <slug> \"$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree wt-uuid <WT>)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree owned-crumb-add \"$(pwd)\" <slug> \"$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree wt-uuid <WT>)\"")
 ```
 
 
@@ -735,7 +739,7 @@ commit; otherwise the user's pre-existing WIP remains in the stash queue:
 
 
 ```
-Bash("HM_OWNED_SESSION_UUIDS=\"$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree owned-crumb-read \"$(pwd)\" <slug>)\" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree post-commit-pop \"$(pwd)\"")
+Bash("HM_OWNED_SESSION_UUIDS=\"$(uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree owned-crumb-read \"$(pwd)\" <slug>)\" uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree post-commit-pop \"$(pwd)\"")
 ```
 
 

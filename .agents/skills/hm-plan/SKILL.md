@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-plan
 description: harness-maker plan stage. Invoke when the task requires the plan stage
   of the harness-maker workflow.
-content_hash: a08840f52d5d5afc711adf7c6b71d14540997195af63a28c07c927918237cf0d
+content_hash: 7662e6210e96169673bc9970066b88cf735af1c2143e1d5199ab9fd59cb0d175
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: a08840f52d5d5afc711adf7c6b71d14540997195af63a28c07c927918237cf0d
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: a08840f52d5d5afc711adf7c6b71d14540997195af63a28c07c927918237cf0d
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -108,7 +108,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
 ```
 
 
@@ -123,9 +123,9 @@ questions:
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm second_brain search '<task slug or topic>' --type decision")
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm second_brain search '<task slug or topic>' --type preference")
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm second_brain search '<task slug or topic>' --type project")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain search '<task slug or topic>' --type decision")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain search '<task slug or topic>' --type preference")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain search '<task slug or topic>' --type project")
 ```
 
 
@@ -143,7 +143,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:plan --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:plan --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -152,7 +152,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -186,7 +186,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `request_user_input`). Scope the plan to the next master-PLAN phase only.
@@ -476,7 +476,7 @@ findings and echoes the main-loop-supplied per-model status — it never runs an
   PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
   that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm high_diff classify --added-lines "$added"
   ```
   Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
   inject empty findings and a `skipped` entry per model in `second_opinion_results`.
@@ -507,7 +507,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -578,7 +578,7 @@ Resolution:
   `{overall, critiques}` object is accepted), then:
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>")
 ```
 
   Run one follow-up round for each entry in `rounds` — options A. revise plan / B. accept as
@@ -602,8 +602,8 @@ is safe and costs only the stale rule: **an unmeasured ratio runs every round**,
 behaviour that shipped before this step existed.
 
 ```bash
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm review_churn pin --slug {slug} --label plan-p<N>-pre")
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm review_churn pin --slug {slug} --label plan-p<N>-pre")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post")
 ```
 
 Use the ratio for `work-docs/PLAN-{slug}.md` from `measured`, not the aggregate — the aggregate
@@ -647,7 +647,7 @@ twice-validated one indistinguishable to every later reader.
 **Also record WHY the loop ended**, which the two-pass cap alone cannot say:
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>")
 ```
 
 `no-progress` means pass 2 resolved nothing and found nothing new — the revision step is not
@@ -676,7 +676,7 @@ pass of one PLAN — that shared id is what makes the pass-to-pass comparison po
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
 ```
 
 
@@ -786,7 +786,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write --iter \"$ITER\" --stage plan --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage plan --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 

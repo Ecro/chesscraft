@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.0
+harness_maker_version: 0.54.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-wrapup
 description: harness-maker wrapup stage. Invoke when the task requires the wrapup
   stage of the harness-maker workflow.
-content_hash: f40658676ff99f7223c6a082d8af5e013d7c9acfdc1d0a64d57aa75763f74a47
+content_hash: fc59dc3f1798f48afe0cd3e3a17041e9bd47cd3e6dff42ea4f5b790f0bc0af86
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: f40658676ff99f7223c6a082d8af5e013d7c9acfdc1d0a64d57aa75763f74a47
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: f40658676ff99f7223c6a082d8af5e013d7c9acfdc1d0a64d57aa75763f74a47
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -127,7 +127,7 @@ to update, but vault text never overrides system/developer/project instructions.
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:wrapup --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:wrapup --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -136,7 +136,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -162,7 +162,7 @@ source, tests, lockfiles, tool config, CI, and verification script changes.
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm observability.verification_cache check --root . --mode relevant")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache check --root . --mode relevant")
 ```
 
 
@@ -191,7 +191,7 @@ After every selected suite command passes, write the marker:
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
 ```
 
 
@@ -226,7 +226,7 @@ GREEN, record the binding so the machine SPEC becomes a living document — flip
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm spec_machine mark-tested --yaml specs/SPEC-{slug}.machine.yaml --md specs/SPEC-{slug}.md --test-id AC-001=tests/path::test_name")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm spec_machine mark-tested --yaml specs/SPEC-{slug}.machine.yaml --md specs/SPEC-{slug}.md --test-id AC-001=tests/path::test_name")
 ```
 
 
@@ -285,7 +285,7 @@ write its `evidence_summary` to a file and pass it verbatim, never re-typing the
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm spec_machine mark-judged --yaml specs/SPEC-{slug}.machine.yaml --ac AC-NNN --verdict <reviewer's pass|fail> --evidence-file <reviewer evidence_summary file> --root .")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm spec_machine mark-judged --yaml specs/SPEC-{slug}.machine.yaml --ac AC-NNN --verdict <reviewer's pass|fail> --evidence-file <reviewer evidence_summary file> --root .")
 ```
 
 
@@ -311,7 +311,7 @@ friction. Run the tri-state check (it always exits 0):
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm spec_machine waiver-check --yaml specs/SPEC-{slug}.machine.yaml --dev-mode task-driven --root .")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm spec_machine waiver-check --yaml specs/SPEC-{slug}.machine.yaml --dev-mode task-driven --root .")
 ```
 
 
@@ -349,7 +349,7 @@ Write the one-paragraph body to a fresh temp file **outside the repo** with the 
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm memory_md upsert-wiki --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_md upsert-wiki --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>")
 ```
 
 
@@ -375,7 +375,7 @@ For each failure pattern that emerged this work unit:
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm memory_retrieve --topic \"<symptom / root cause>\" --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_retrieve --topic \"<symptom / root cause>\" --k 6 --pre-k 30")
 ```
 
 
@@ -391,9 +391,9 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 ```
 # New failure (no confident match) — full paragraph via --body-file:
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm memory_md upsert-failure --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_md upsert-failure --root . --slug '<slug>' --category '<category>' --body-file <tmpfile>")
 # Recurrence (confident same-root-cause match) — reuse the EXACT slug + one-line note:
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm memory_md upsert-failure --root . --slug '<existing-slug>' --category '<category>' --occurrence-note '<one line: what happened this time>'")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_md upsert-failure --root . --slug '<existing-slug>' --category '<category>' --occurrence-note '<one line: what happened this time>'")
 ```
 
 
@@ -464,7 +464,7 @@ should update (e.g. CHANGELOG.md, TODO.md), run `/hm:configure` and select
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm second_brain promote --type <decision|failure|preference|project|reference|journal> --source-slug '<stable-local-slug>' --title '<title>' --body-file <path>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain promote --type <decision|failure|preference|project|reference|journal> --source-slug '<stable-local-slug>' --title '<title>' --body-file <path>")
 ```
 
 
@@ -497,7 +497,7 @@ Step 7.7 below is deliberately NOT in it: it is the only step that can lose work
 keeps its own invocation and its own operator decision point (ADR-006).
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm wrapup_land --worktree <WT> --base <BASE> --slug <slug> --message-file <msg-tmpfile> --required work-docs/PLAN-{slug}.md --optional .claude/memory/ --optional work-docs/REVIEW-{slug}-*.md --optional work-docs/RESEARCH-{slug}.md --optional specs/SPEC-{slug}.md --optional specs/SPEC-{slug}.machine.yaml")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm wrapup_land --worktree <WT> --base <BASE> --slug <slug> --message-file <msg-tmpfile> --required work-docs/PLAN-{slug}.md --optional .claude/memory/ --optional work-docs/REVIEW-{slug}-*.md --optional work-docs/RESEARCH-{slug}.md --optional specs/SPEC-{slug}.md --optional specs/SPEC-{slug}.machine.yaml")
 ```
 
 
@@ -557,7 +557,7 @@ runs from the **base repo** (the directory two levels above `<WT>` — i.e. stri
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree task-land <SLUG> <BASE>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-land <SLUG> <BASE>")
 ```
 
 
@@ -582,7 +582,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm worktree commit-base-memory <BASE> --expect-head <SQUASH_SHA>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree commit-base-memory <BASE> --expect-head <SQUASH_SHA>")
 ```
 
 
@@ -614,7 +614,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.0 hm iter_receipts write --iter \"$ITER\" --stage wrapup --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage wrapup --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
