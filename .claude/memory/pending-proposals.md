@@ -326,6 +326,18 @@ pre-fix red output recorded next to it.
 
 </details>
 
+## Proposal: preserve continuous signal in expensive trial tests (2026-08-23)
+**Triggered by:** [fail:test] binary-outcome-wastes-the-trial (count: 3)
+**Proposed mechanism:** rule update to the test-review rubric plus a runner guard
+**Rationale:** Three occurrences now show that the grading simulation's default 20-second
+per-test limit is unreliable under the default worker pool, while the same test passes in
+isolation and with one worker. The existing proposal's continuous-margin fix improves the
+sample cost, but the remaining guard should also identify expensive simulations whose
+runtime budget is calibrated only in isolation. Require a recorded serial/parallel timing
+check for expensive tests and either preserve the continuous signal or set an explicit
+suite-safe timeout, so a graphics task cannot be blocked by a nondeterministic unrelated
+worker timeout.
+
 ## Proposal: check the comment against the code it justifies (2026-08-07, re-evidenced 2026-08-13)
 **Wrapup audit 2026-08-16:** rechecked at count 10; proposal remains OPEN.
 **Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 10)
