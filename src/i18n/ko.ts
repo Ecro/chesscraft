@@ -336,6 +336,15 @@ export const ko: Record<string, string> = {
   'ui.rules.ruleCards': '규칙 카드',
   'ui.rules.skillCards': '스킬 카드',
   'ui.rules.empty': '아직 없어요',
+  // The shelf count and the two markers a tile can carry. Phrased as discovery
+  // rather than as a score: the number says how much of THIS shelf the players
+  // have met, and there is deliberately no total across the four kinds.
+  'ui.dex.count': '{met} / {total} 발견',
+  'ui.dex.tier.unencountered': '아직 못 봤어요',
+  'ui.dex.tier.seen': '봤어요',
+  'ui.dex.tier.used': '써 봤어요',
+  'ui.dex.tier.won': '이걸로 이겼어요',
+  'ui.dex.authored': '내가 만든 것',
   'ui.result.win': '승리',
   'ui.result.draw': '무승부',
 
@@ -809,6 +818,9 @@ export const ko: Record<string, string> = {
 
   // --- result ---
   'ui.result.winner': '{name} 승리!',
+  // Shown only when the number is above zero — see `Result.tsx` on why a zero
+  // is not rendered at all.
+  'ui.result.discovered': '새로 {count}개 발견!',
   'ui.result.stat.plies': '둔 수',
   'ui.result.stat.took': '{name} 잡음',
 

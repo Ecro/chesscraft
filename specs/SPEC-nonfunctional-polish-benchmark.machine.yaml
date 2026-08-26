@@ -1,0 +1,146 @@
+schema_version: 2
+spec_slug: nonfunctional-polish-benchmark
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; the Python mutation harness does not apply. ADR-009 3-layer adequacy is used instead: property invariants for result-independence, authored-record precedence, monotonicity and storage fail-open (AC-002, AC-004, AC-005, AC-007), and golden e2e fixtures driven by a fixed seed for the observable surfaces (AC-001, AC-003, AC-006)."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: null
+spec_quality_score_at: null
+
+ac:
+  - id: AC-001
+    title: "Playing a match records what the child met and what they used"
+    type: mechanical
+    test_ids:
+      - e2e/collection.spec.ts::a played match records what was met and what was used
+    executable_predicate: "all(collection_state(r) >= SEEN for r in records_present(match)) and collection_state(piece_moved) >= USED and collection_state(card_offered_not_taken) == SEEN and collection_state(piece_that_only_appeared) == SEEN and collection_state(piece_promoted_this_move) == SEEN"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected record set is enumerated from the room's own content definition and the match's fixed seed, both of which predate this feature and already drive the existing hotseat e2e; the assertion compares the persisted collection against that independently-derived list, not against whatever the new writer happened to store. The appeared-and-promoted clauses are pinned separately against hand-built state pairs whose shape is dictated by the engine's own spawn and promotion behaviour, not by the observer's."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-002
+    title: "A lost match fills the collection exactly as much as a won one, up to won"
+    type: property
+    test_ids:
+      - tests/collection/observe.test.ts::the seen and used sets are independent of the match result
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The relation holds regardless of implementation because seen and used are defined over the moves played, while the result kind is a function computed after those moves; an implementation that made either set depend on the winner would violate the relation no matter how it were coded, so the test cannot be satisfied by reading the writer. The won tier is deliberately excluded because it is defined as result-dependent."
+    oracle_independence_waiver: null
+    input_domain: "any legal move sequence played to a terminal state, paired with each possible result kind for that sequence"
+    transformation: "play the sequence, then read the set of records reaching seen and the set reaching used, excluding the result-dependent won tier"
+    expected_relation: "seen_and_used(sequence, result=win) == seen_and_used(sequence, result=loss) == seen_and_used(sequence, result=draw), and no tier ever decreases"
+    preconditions:
+      - "the same seed and the same room are used for both runs"
+    observable_output: "the seen set and the used set of record ids"
+    generator_hint: null
+
+  - id: AC-003
+    title: "The shelf shows what is missing, not only what is present"
+    type: mechanical
+    test_ids:
+      - e2e/collection.spec.ts::an unmet entry renders distinctly and keeps its place
+    executable_predicate: "rendered_difference(tile(unmet), tile(met)) > 0 and tile_count(grid) == total_records(kind) and count_shown(tab) == (met_records(kind), total_records(kind))"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The difference is measured on the browser-rendered tile rather than on any attribute the component sets, which is what makes it independent of the implementation: the prior recorded failure distinct-is-not-distinguishable passed on differing attribute strings that were imperceptible, and glyph-opts-out-of-its-styling showed the styling properties are inert on the <img> these tiles use."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "What the child made is theirs from the moment it exists"
+    type: property
+    test_ids:
+      - tests/ui/collection-dex.test.tsx::an authored record is never unencountered
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Authorship is a property of the content document and the collection log is a separate store, so the relation is a statement about which of two independent inputs wins; it holds for every possible collection log including the empty one, which is exactly the pre-existing-user migration case, and cannot be satisfied by an implementation that merely happens to write authored ids into the log."
+    oracle_independence_waiver: null
+    input_domain: "any content document containing authored records, paired with any collection log including the empty log"
+    transformation: "render the dex entry for an authored record"
+    expected_relation: "state(authored_record) != UNENCOUNTERED and authored_badge(authored_record) is present, for every collection log"
+    preconditions: []
+    observable_output: "the rendered entry's state and badge"
+    generator_hint: null
+
+  - id: AC-005
+    title: "An entry never goes backwards"
+    type: property
+    test_ids:
+      - tests/collection/record.test.ts::entry state never regresses across any operation sequence
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Monotonicity is an ordering invariant over an arbitrary interleaving of matches, reloads, edits and imports; it is independent of the writer because it constrains every pair of consecutive observations rather than any particular stored value, so an implementation cannot satisfy it by choosing what to store."
+    oracle_independence_waiver: null
+    input_domain: "arbitrary interleavings of match completions, app restarts, content edits and content imports"
+    transformation: "read each surviving record's collection state after every step"
+    expected_relation: "for consecutive observations s_i, s_i+1 of a record that exists at both points, rank(s_i+1) >= rank(s_i) where rank is UNENCOUNTERED < SEEN < USED < WON"
+    preconditions:
+      - "the record exists at both observation points"
+    observable_output: "the ordered sequence of states for each record"
+    generator_hint: null
+
+  - id: AC-006
+    title: "The result screen names what this match added"
+    type: mechanical
+    test_ids:
+      - e2e/collection.spec.ts::the result screen names this match's new entries
+    executable_predicate: "len(added(match)) > 0 and new_count_element(result_screen) == len(added(match)) or len(added(match)) == 0 and absent(new_count_element(result_screen))"
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected number is the difference between the collection read before the match and the collection read after it, both taken from storage by the test rather than from the result component, so the screen is compared against an independently measured delta; the empty case asserts absence rather than a rendered zero, which the existing notice-stack conventions already distinguish."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-007
+    title: "A collection that cannot be written never blocks play"
+    type: property
+    test_ids:
+      - tests/collection/record.test.ts::a refusing storage never surfaces and never blocks
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The relation is stated over an injected storage stub that refuses every write, which is the same injection shape the existing settings and onboarding stores already use for their fail-direction tests; it asserts an invariant of the surrounding flow rather than any value the collection layer computes, so it cannot be met by adjusting what that layer returns."
+    oracle_independence_waiver: null
+    input_domain: "any storage backend that throws or refuses on write, including quota-exceeded, unavailable and denied"
+    transformation: "play a match to its end and render the result screen"
+    expected_relation: "the match reaches a terminal state, the result screen renders, the rematch control is operable, and no storage-layer message string appears in the rendered output"
+    preconditions: []
+    observable_output: "the rendered result screen and the operability of the rematch control"
+    generator_hint: null

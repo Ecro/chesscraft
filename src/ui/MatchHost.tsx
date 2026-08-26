@@ -22,6 +22,8 @@ import { AwardBanner } from './AwardBanner'
 import { CaptureReveal } from './CaptureReveal'
 import { type CardPlay, cardPlayBetween } from './cardPlays'
 import { MATCH_INTRO_SEEN_KEY, hasSeen, markSeen } from './onboarding'
+import { loadCollection, mergeUp, newlyReached, saveCollection } from '../collection/record'
+import { observe } from '../collection/observe'
 import { PieceMoveRegion } from './PieceDetail'
 import { usePressInspect } from './usePressInspect'
 
@@ -401,6 +403,55 @@ export function MatchHost({
   const [lastMove, setLastMove] = useState<{ from: SquareId; to: SquareId } | null>(null)
 
   const state = currentState(match)
+  /**
+   * The match this screen has already written into the collection.
+   *
+   * Keyed on the STATE OBJECT that carried the result, not on a boolean and not
+   * on `Boolean(state.result)`. React re-renders for reasons that have nothing
+   * to do with the board — a settings toggle, a banner timer, a parent's prop
+   * change — and a guard that only asked "is there a result?" would write again
+   * on every one of them, inflating the count the result screen shows. The
+   * engine's states are immutable (ADR-004), so identity is exactly the right
+   * question: one finished match, one object, one write.
+   *
+   * A rematch replaces the whole `match`, so its terminal state is a different
+   * object and commits on its own.
+   */
+  const committedFor = useRef<GameState | null>(null)
+  /** How many entries THIS match newly reached, or null before it is known. */
+  const [discovered, setDiscovered] = useState<number | null>(null)
+  useEffect(() => {
+    if (!state.result || !storage) return
+    if (committedFor.current === state) return
+    committedFor.current = state
+    const board = content.boards.get(state.boardId)
+    if (!board) return
+    // Hot-seat is two children, so both sides are people; against the computer
+    // only the one it is not playing is (ADR-001, ADR-004).
+    const humanSides: Side[] = aiSide ? (['white', 'black'] as const).filter((side) => side !== aiSide) : ['white', 'black']
+    // Read, fold, write — and every one of the three is silent on failure. By
+    // the time this runs the match is over and the result is already on screen;
+    // a browser that denies storage must not turn the end of a game into a
+    // crash. The cost of a lost write is one match's discoveries.
+    // Measured ACROSS the write, which is the only place the delta exists: once
+    // the fold has landed, "what this match added" is no longer recoverable from
+    // the stored collection, and the size of that collection is a different
+    // number that reads the same on a match which discovered nothing.
+    const before = loadCollection(storage)
+    const after = mergeUp(before, observe(match, board, humanSides))
+    saveCollection(storage, after)
+    // Publish the delta only if the write actually LANDED. `saveCollection`
+    // swallows failure by design and returns nothing, so the fold succeeding in
+    // memory says nothing about storage — and announcing a discovery count on a
+    // browser that refused the write tells a child their collection grew when
+    // reopening the dex will show that it did not. `Result` already documents null
+    // as "the collection was never written"; this is what makes that true for a
+    // denied write and not only for an absent storage.
+    const persisted = loadCollection(storage)
+    const landed = newlyReached(persisted, after).size === 0
+    setDiscovered(landed ? newlyReached(before, after).size : null)
+  }, [state, storage, content, match, aiSide])
+
   const legal = legalActions(state, content)
   const drafting = pendingDraftSide(state)
   const phase = state.result ? 'result' : drafting ? 'draft' : 'play'
@@ -595,6 +646,12 @@ export function MatchHost({
     if (inProgress && !window.confirm(t('ui.confirm.discard'))) return
     const s = newSeed()
     setLastMove(null)
+    // A new deal has discovered nothing yet, and the previous match's count is
+    // not it. Without this the result screen of the NEXT match paints the last
+    // one's number until the commit effect — a passive effect, so it runs after
+    // that paint — overwrites it.
+    setDiscovered(null)
+    committedFor.current = null
     setPlay({ seed: s, match: createMatch({ content, presetId, seed: s }) })
     setSelected(null)
     setPendingCard(null)
@@ -1872,6 +1929,7 @@ export function MatchHost({
         <Result
           state={state}
           result={state.result}
+          discovered={discovered}
           nameOf={nameOf}
           onRematch={startNew}
           onEditRoom={onEditRoom ?? (() => undefined)}

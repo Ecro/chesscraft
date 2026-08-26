@@ -35,6 +35,7 @@ export function resultLabel(t: Translate, result: MatchResult): string {
 export function Result({
   state,
   result,
+  discovered = null,
   nameOf,
   onRematch,
   onEditRoom,
@@ -42,6 +43,15 @@ export function Result({
 }: {
   state: GameState
   result: MatchResult
+  /**
+   * How many entries this match newly reached, or null when it is not known.
+   *
+   * Null and zero are different answers and both render nothing: null is "the
+   * collection was never written" (a browser that denies storage), zero is "the
+   * write happened and added nothing". Defaulted so the several tests that mount
+   * this screen for the outcome line keep working unchanged.
+   */
+  discovered?: number | null
   nameOf: (side: Side) => string
   onRematch: () => void
   onEditRoom: () => void
@@ -70,6 +80,21 @@ export function Result({
           {winner ? t('ui.result.winner').replace('{name}', nameOf(winner)) : t('ui.result.draw')}
         </p>
         <p className="result-reason">{t(`ui.result.reason.${result.reason}`)}</p>
+
+        {/* What this match ADDED — not how much the shelf holds, which reads
+            the same after a match that discovered nothing. Rendered inline in
+            the existing layout rather than as an overlay: this project has two
+            recorded failures for full-screen layers that block what they only
+            meant to dim, and one for a mode with no way out.
+
+            Absent at zero rather than showing "0". A zero is a consolation
+            prize, and the whole point of the line is that something happened.
+            Nothing is a quieter and more honest answer. */}
+        {discovered !== null && discovered > 0 && (
+          <p className="result-new" data-testid="result-new" data-count={String(discovered)} role="status">
+            {t('ui.result.discovered').replace('{count}', String(discovered))}
+          </p>
+        )}
 
         <ul className="result-stats">
           <li>

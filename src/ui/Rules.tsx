@@ -4,6 +4,7 @@ import type { Side } from '@engine/types'
 import { type Translate, useTranslate } from './i18n'
 import { type Mark, resolveMark } from './art/resolve'
 import { artRegistry } from './art/registry'
+import { type Collection, type Tier, emptyCollection, tierOf } from '../collection/record'
 import { MarkBody } from './art/MarkBody'
 import { Sheet } from './Sheet'
 
@@ -55,7 +56,29 @@ function markOf(t: Translate, e: Entry, side?: Side): Mark {
   return resolveMark(t, e, { registry: artRegistry, side, fallback: 'none' })
 }
 
-export function Rules({ content, onClose }: { content: ContentSet; onClose: () => void }) {
+export function Rules({
+  content,
+  onClose,
+  collection = emptyCollection(),
+  official,
+}: {
+  content: ContentSet
+  onClose: () => void
+  /**
+   * What this device has met. Defaults to empty so the dozen tests that mount
+   * this screen to look at something else keep working, and so a browser whose
+   * storage refused the read still gets a readable shelf.
+   */
+  collection?: Collection
+  /**
+   * The ids the running build ships. Anything outside it was made here.
+   *
+   * A prop rather than a module-level `officialIds(bundle)` call for the same
+   * reason `Edit` takes one: it is what makes "official" injectable in a test
+   * instead of a fact about whichever bundle happened to be imported.
+   */
+  official?: ReadonlySet<string>
+}) {
   const t = useTranslate()
   const [kind, setKind] = useState<KindId>('piece')
   const [open, setOpen] = useState<{ entry: Entry; kindKey: string; side: Side | undefined } | null>(null)
@@ -78,6 +101,26 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
   const side: Side | undefined = kind === 'piece' ? 'white' : undefined
   const active = KINDS.find((k) => k.id === kind) ?? KINDS[0]
   const list = sets[kind]
+
+  /**
+   * What a child has reached on one entry.
+   *
+   * Authored records are never unmet, whatever the collection says, and that is
+   * AC-004 rather than a courtesy: authorship comes from the loaded bundle
+   * (`officialIds`) and not from the log, so a child who made twenty pieces
+   * before this feature existed opens the shelf and finds all twenty already
+   * theirs. It is also the whole migration story — there is nothing to migrate.
+   */
+  const isAuthored = (id: string): boolean => official !== undefined && !official.has(id)
+  const tierFor = (id: string): Tier => {
+    const stored = tierOf(collection, id)
+    if (stored !== 'unencountered') return stored
+    return isAuthored(id) ? 'seen' : 'unencountered'
+  }
+
+  // Per tab, never across the four kinds (ADR-005). A single total would be the
+  // one number representing the child that this feature deliberately has not.
+  const met = list.filter((e) => tierFor(e.id) !== 'unencountered').length
 
   return (
     <section className="dex" data-testid="rules">
@@ -112,6 +155,16 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
         ))}
       </div>
 
+      <p
+        className="dex-count"
+        data-testid="dex-count"
+        data-met={String(met)}
+        data-total={String(list.length)}
+        role="status"
+      >
+        {t('ui.dex.count').replace('{met}', String(met)).replace('{total}', String(list.length))}
+      </p>
+
       <div className="screen-body">
         {list.length === 0 ? (
           <p className="empty">{t('ui.rules.empty')}</p>
@@ -119,8 +172,10 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
           <ul className="dex-grid" aria-label={t(active.titleKey)}>
             {list.map((e) => {
               const mark = markOf(t, e, side)
+              const tier = tierFor(e.id)
+              const authored = isAuthored(e.id)
               return (
-                <li key={e.id} data-entry={e.id}>
+                <li key={e.id} data-entry={e.id} data-tier={tier} data-authored={String(authored)}>
                   <button type="button" onClick={() => setOpen({ entry: e, kindKey: active.kindKey, side })}>
                     {mark.kind !== 'none' && (
                       <span className="dex-icon" aria-hidden="true">
@@ -128,6 +183,12 @@ export function Rules({ content, onClose }: { content: ContentSet; onClose: () =
                       </span>
                     )}
                     <span className="dex-name">{t(e.nameKey)}</span>
+                    {/* The tier and the authorship are TEXT, not only a
+                        treatment. Colour and filter alone are not a cue this
+                        project is allowed to rely on, and a screen reader gets
+                        nothing from a CSS filter. */}
+                    <span className="dex-tier">{t(`ui.dex.tier.${tier}`)}</span>
+                    {authored && <span className="dex-authored">{t('ui.dex.authored')}</span>}
                   </button>
                 </li>
               )

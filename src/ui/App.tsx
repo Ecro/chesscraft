@@ -6,6 +6,7 @@ import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { browserStorage, loadStamp, loadStoredContent } from '@editor/storage'
 import { loadHidden } from '@editor/hidden'
 import { officialIds } from '@content/provenance'
+import { emptyCollection, loadCollection } from '../collection/record'
 import { Boot } from './Boot'
 import { Edit } from './Edit'
 import { Home } from './Home'
@@ -404,6 +405,23 @@ export function App() {
     return storage ? loadHidden(storage) : new Set()
   })
   const official = useMemo(() => officialIds(bundledContentSource), [])
+  /**
+   * What this device has met, read fresh every time the dex screen is opened.
+   *
+   * Read rather than held across the session, because `MatchHost` writes it at
+   * the end of a match through the same storage and does not report back. A
+   * value captured once at mount would show a child the shelf they had before
+   * the game they just finished — which is precisely the moment they open it.
+   *
+   * `browserStorage()` returns null where storage is denied, and an empty
+   * collection is the right answer there: the shelf reads as untouched rather
+   * than failing to render.
+   */
+  const collection = useMemo(() => {
+    if (route !== 'dex') return emptyCollection()
+    const storage = browserStorage()
+    return storage ? loadCollection(storage) : emptyCollection()
+  }, [route])
 
   const loaded = useMemo(() => loadContentSet(source), [source])
   const allPresetIds = loaded.ok ? [...loaded.set.presets.keys()] : []
@@ -569,7 +587,9 @@ export function App() {
           />
         )}
 
-        {loaded.ok && route === 'dex' && <Rules content={loaded.set} onClose={() => setRoute('home')} />}
+        {loaded.ok && route === 'dex' && (
+          <Rules content={loaded.set} official={official} collection={collection} onClose={() => setRoute('home')} />
+        )}
 
         {route === 'edit' && (
           <Edit

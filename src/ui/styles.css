@@ -3533,6 +3533,63 @@ details.advanced summary {
   color: var(--color-text-dim);
 }
 
+.result-new {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-s);
+  color: var(--color-cue-hi);
+}
+
+.dex-count {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+}
+
+.dex-tier,
+.dex-authored {
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+.dex-tier {
+  color: var(--color-text-muted);
+}
+
+.dex-authored {
+  color: var(--color-cue-hi);
+}
+
+/**
+ * A record nobody has met yet: still in its place, visibly not filled in.
+ *
+ * Two mechanisms, because there are two kinds of thing on the tile.
+ *
+ * The MARK is an `<img>` from the art registry, so it takes `filter` and NOT
+ * `color` / `text-shadow` / `font-weight` — every one of those is a TEXT
+ * property, silently inert on a replaced element. That failure has been recorded
+ * three times in this repo (an emoji among glyphs, form controls in the dark
+ * theme, board marks once the raster art landed), and each time the CSS kept
+ * parsing and only the pixels disagreed. `filter` rasterises against the image's
+ * own alpha, which is why it reaches the mark at all.
+ *
+ * The NAME is genuine text, so `color` is the right tool there and none of the
+ * above applies to it. It is dimmed rather than left alone: an unmet entry whose
+ * label is as loud as a met one reads as met.
+ *
+ * Not `opacity` on the tile either: a low-opacity tile can drop under the
+ * non-text contrast floor, and the standing rule here is to move the colour and
+ * never the floor. Grayscale plus a bounded brightness lift keeps the silhouette
+ * readable while making "not yet" unmistakable — the point of an empty slot is
+ * that a child can still see WHAT is missing.
+ */
+.dex-grid li[data-tier='unencountered'] .dex-icon {
+  filter: grayscale(1) brightness(1.35) contrast(0.45);
+}
+
+.dex-grid li[data-tier='unencountered'] .dex-name {
+  color: var(--color-text-muted);
+}
+
 /* ------------------------------------------------------------------- motion */
 
 /**

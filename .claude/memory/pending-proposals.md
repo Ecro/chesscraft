@@ -52,7 +52,7 @@ blocked on a decision nobody has been asked to make, not on effort.
 ---
 ## Proposal: a sampling/negative-instance check in the test-review gate (2026-08-06)
 **Wrapup audit 2026-08-16:** rechecked at count 3; proposal remains OPEN.
-**Triggered by:** [fail:test] all-positive-fixture-hides-overcounting (count: 3)
+**Triggered by:** [fail:test] all-positive-fixture-hides-overcounting (count: 4)
 **Proposed mechanism:** rule update to the `test-reviewer` agent's rubric
 **Rationale:** Three occurrences, three disguises, one root cause — a fixture or a
 sample that contains no instance capable of failing. (1) A three-check win condition
@@ -409,7 +409,7 @@ derive the e2e port from the worktree path (or refuse `reuseExistingServer` when
 
 ## Proposal: bind non-pytest ACs, or say plainly that they are unbound (2026-08-08)
 **Wrapup audit 2026-08-16:** rechecked at count 5; proposal remains OPEN.
-**Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 5)
+**Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 6)
 **Proposed mechanism:** rule update — a wrapup Step 3.5 branch for non-pytest projects
 **Rationale:** `spec_machine mark-tested` validates a node id through
 `pytest --collect-only`, so on this TypeScript repo every AC keeps
@@ -522,3 +522,24 @@ the same shape sits under `assertion-equals-its-own-default` (count 7) and
 surfaced at the moment the test was written.
 
 </details>
+
+<!-- updated 2026-08-26 by /hm:wrapup nonfunctional-polish-benchmark -->
+
+**Update — `all-positive-fixture-hides-overcounting` reached count 4 (2026-08-26).**
+The fourth instance is the strongest argument yet for the proposed rubric rule,
+because it took THREE test-reviewer rounds on ONE file to converge: each round
+resolved the cited one-directional predicate and the next round found the same shape
+in a different predicate of the same function. A rubric rule that asked, once, "for
+every predicate this code computes, is there a negative witness?" would have
+surfaced all three in round one. It would also have surfaced the fourth, which no
+round cited at all and which an escalation found: the `seen` half had no negative
+witness anywhere, so an implementation returning every reachable id passed the file.
+
+**Update — `spec-machine-binding-is-pytest-only` reached count 6 (2026-08-26).**
+Sixth instance, same entrypoint (`mark-tested` at wrapup Step 3.5), same outcome: all
+seven pytest-bindable ACs of a TypeScript task stay at `pending_test: true` while all
+seven have passing vitest/Playwright tests. Six occurrences with no code change means
+the proposal is not being read as actionable — worth deciding explicitly whether to
+build the non-pytest collector or to stop treating `pending_test` as a coverage
+signal on this repo, because the current state is a field that every wrapup must
+narrate around.
