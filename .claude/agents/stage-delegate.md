@@ -1,6 +1,6 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.1
+harness_maker_version: 0.55.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: agents/stage-delegate.md.j2
 provenance: official
@@ -9,7 +9,7 @@ description: Runs a whole pipeline stage body (wrapup or verify) from a validate
   brief and returns a machine receipt, cutting main-loop context carry
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
-content_hash: 6394a0dff5fcbbafcf6af3606b112f61b00d0740c187dbed105e1c18f6c4ffe1
+content_hash: 2e92d3f4f7d8287e819e68b645d17ae35d08c2697f0e689c92b08c92d8de35fc
 ---
 
 # stage-delegate
@@ -102,7 +102,25 @@ work you actually did is strictly better than reporting the work you meant to do
 }
 ```
 
-Three rules the reconciler enforces, so getting them wrong costs a round trip:
+**Emit the keys shown above, plus `steps_skipped` and `drift_verdict` when you have
+something to put in them — and nothing else.** The receipt is parsed under a strict schema, and
+one unrecognised key rejects the WHOLE reply; the caller then has no receipt at all, not a
+partial one. Those two are optional and both accepted:
+
+- `"steps_skipped": ["Step 2 (verification pass)"]` — steps you did not run, in prose.
+- `"drift_verdict": {"result": "scope_violation"}` — the drift call, as an object.
+
+A third invention still fails the same way. If you need to report something no field covers,
+put it in your prose, not the JSON.
+
+**Write paths repo-relative.** `documents_updated` and `record_path` are resolved against the
+repository root, so `work-docs/PLAN-slug.md` is the form to use. An absolute path is accepted
+when it resolves INSIDE the repository — a worktree-rooted one such as
+`/home/you/project/.worktrees/slug/work-docs/PLAN-slug.md` is safe — but anything resolving
+outside is rejected outright. That check is a security boundary, not a formatting preference,
+so repo-relative is simply the form with nothing to get wrong.
+
+Four rules the reconciler enforces, so getting them wrong costs a round trip:
 
 1. **`promotion_candidates` must equal `len(promoted_slugs) + len(promotion_skips)`.**
    Every candidate you evaluated is either promoted or skipped with a reason. This is
@@ -113,6 +131,9 @@ Three rules the reconciler enforces, so getting them wrong costs a round trip:
    cross-project knowledge, say zero. Do not manufacture a note to make the number
    look better — a synthetic entry is worse than an honest zero, and the reconciler
    cannot tell them apart.
+
+4. **Report what you did, not what you meant to do.** Every claim is reconciled against the
+   files on disk. An unsupported claim surfaces as a mismatch; an honest omission does not.
 
 Slugs must match the headings you actually wrote (`## [wiki:<category>] <slug> | …`),
 exactly — the reconciler matches whole slugs, not substrings.

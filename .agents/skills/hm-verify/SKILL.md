@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.1
+harness_maker_version: 0.55.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-verify
 description: harness-maker verify stage. Invoke when the task requires the verify
   stage of the harness-maker workflow.
-content_hash: 63e8d3cb1ea0bf5cfc187f64f0a1af28084fa2f32a23c33aab2208a6b6b3087e
+content_hash: a67d03089d3ed1b8c59166b432eb5a55b32ac2d32bdb2389d97412393d5a2342
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: 63e8d3cb1ea0bf5cfc187f64f0a1af28084fa2f32a23c33aab2208a6b6b3087e
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: 63e8d3cb1ea0bf5cfc187f64f0a1af28084fa2f32a23c33aab2208a6b6b3087e
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -139,7 +139,7 @@ verification script changes.
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache check --root . --mode relevant")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm observability.verification_cache check --root . --mode relevant")
 ```
 
 
@@ -147,28 +147,22 @@ If this exits `0`, print `PASS (cached)` and skip to Check 3. If it exits
 `1`, run the suite below. Do not write a passing marker until every suite
 command has passed.
 
-Run the project's full check suite. Pick the toolchain that matches the project:
-
-> **Ask for the runner's own recipe first — do not guess the parallel flag.** `hm test_runners
-> plan --root .` names this project's runner, a worker count already capped for the machine
-> (about half its cores, never all of them), and whether the runner is ALREADY parallel — for
-> `cargo`, `go`, `vitest`, `jest` and `flutter` it is, and adding a worker flag there caps or
-> nests instead of accelerating. `pytest` is the one common runner that is serial by default.
-> Run the FULL suite here regardless: this is the stage that owns the whole-suite pass, and a
-> suite only ever run in parallel hides order-dependent failures, so keep the flag on the
-> command line and out of the project's persistent config.
+**Ask the project's CI what the gates are — never guess them.** A guessed command that is
+NARROWER than CI passes locally and fails on push, saying nothing about what it skipped.
 
 
 ```
-# Python:
-Bash("uv run pytest -q")
-Bash("uv run ruff check src/ tests/")
-Bash("uv run ruff format --check src/ tests/")
-Bash("uv run mypy --strict src/")
-# Rust: Bash("cargo test && cargo check")
-# Node: Bash("pnpm test && pnpm build")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm verification_plan commands --root .")
 ```
 
+
+Run each printed command verbatim. **Exit 1 = degraded** (no CI, unreadable, nothing
+recognised — stderr says which): only then fall back to the project's toolchain
+(`pytest -q` / `ruff check .` / `ruff format --check .` / `mypy --strict`; `cargo test`;
+`pnpm test`) and say the gates were guessed. `show` prints the full plan — blocking CI
+commands NOT selected, plus what it could not classify — read it when a gate looks missing.
+Parallel flags stay with `hm test_runners plan --root .`: `pytest` is serial by default,
+`cargo`/`go`/`vitest`/`jest` are already parallel and a worker flag there nests.
 
 If the harness has its own `.claude-verify.sh phase_<N>` script, prefer it over the generic toolchain commands.
 
@@ -178,7 +172,7 @@ After every selected suite command passes, write the marker:
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest")
 ```
 
 
@@ -246,7 +240,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage verify --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write --iter \"$ITER\" --stage verify --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
@@ -310,7 +304,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:verify --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:verify --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -319,7 +313,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 

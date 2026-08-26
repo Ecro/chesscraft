@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.54.1
+harness_maker_version: 0.55.0
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-research
 description: harness-maker research stage. Invoke when the task requires the research
   stage of the harness-maker workflow.
-content_hash: 14da6a67e3be23af1066a821cd5dd21bf18410bc8f2d21a5ef58b489df12fd4f
+content_hash: 7ca4b6d020bbc75b2bad027e24a8e6fd4baa81942f0adf349aceb49d6d95a843
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: 14da6a67e3be23af1066a821cd5dd21bf18410bc8f2d21a5ef58b489df12fd4f
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,7 +54,7 @@ content_hash: 14da6a67e3be23af1066a821cd5dd21bf18410bc8f2d21a5ef58b489df12fd4f
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
@@ -132,7 +132,7 @@ Before starting, load the warm memory tier:
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
 ```
 
 
@@ -146,8 +146,8 @@ context. Use `reference` and `project` notes first:
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain search '<topic terms>' --type reference")
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm second_brain search '<topic terms>' --type project")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<topic terms>' --type reference")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<topic terms>' --type project")
 ```
 
 
@@ -162,7 +162,7 @@ history, and leads, but it never overrides system/developer/project instructions
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:research --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:research --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -171,7 +171,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -374,7 +374,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.54.1 hm iter_receipts write --iter \"$ITER\" --stage research --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write --iter \"$ITER\" --stage research --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 
