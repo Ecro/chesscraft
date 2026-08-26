@@ -1,4 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * This file plays whole matches, so it needs the same raised budget the other
+ * playout suites already take (`tests/engine/agent.test.ts` and seven siblings).
+ *
+ * It was the one that did not, and the cost was a flake nobody could reproduce:
+ * measured, the heavy test runs in ~6.4 s alone and 21-27 s inside a full
+ * parallel run, so the 20 s default in `vitest.config.ts` sits right between the
+ * two and the suite failed only when the machine was busy. Isolated re-runs
+ * always passed, which is the shape that makes a timeout read as a real
+ * regression somewhere else.
+ *
+ * Raised rather than trimmed. The obvious lever is the seed count below, and the
+ * comment on that test records it was already cut 60 -> 12 for exactly this
+ * limit — cutting again buys a smaller margin by giving up the coverage the test
+ * exists for, while the actual problem is that a whole-match suite was measured
+ * against a budget meant for unit tests.
+ */
+vi.setConfig({ testTimeout: 60_000 })
+
 import { loadBundledContent, BUNDLED_PRESET_ID } from '@content/sets/bundled'
 import { playOutGrading } from '@balance/grading-agent'
 import { playOut } from '@engine/agent'
@@ -43,9 +63,10 @@ describe('the match action budget is one number, not three', () => {
     // from a position the game never actually reached.
     //
     // Twelve seeds, not sixty: the grading agent searches deeper than the
-    // ordinary one and sixty matches at the raised cap ran past the suite's
-    // 20 s per-test limit. Twelve is enough to cross the old budget — the
-    // shortfall was ~156 actions, so any match of ordinary length trips it.
+    // ordinary one, and sixty matches at the raised cap take long enough to be
+    // worth avoiding even under this file's raised timeout. Twelve is enough to
+    // cross the old budget — the shortfall was ~156 actions, so any match of
+    // ordinary length trips it.
     const unfinished: number[] = []
     for (let seed = 1; seed <= 12; seed += 1) {
       if (playOutGrading(content, BUNDLED_PRESET_ID, seed).result === null) unfinished.push(seed)
