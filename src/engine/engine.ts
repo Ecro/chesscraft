@@ -843,6 +843,8 @@ interface Mutable {
   /** Squares a piece appeared on this ply and has yet to enter (G-6). */
   arrived: SquareId[]
   grants: ActiveGrant[]
+  /** Capture-protection entries moved during this action, tracked for survivor cleanup. */
+  relocatedProtection: ActiveGrant[]
   /** Square-keyed writes about the MOVER, held until its final square is known. */
   deferred: DeferredWrite[]
 }
@@ -878,6 +880,45 @@ interface DeferredWrite {
    * else's is", which is the case that was wrong.
    */
   readonly subject: PieceOnBoard
+}
+
+interface PieceRelocation {
+  readonly from: SquareId
+  readonly to: SquareId
+  readonly piece: PieceOnBoard
+}
+
+/**
+ * Moves durationed capture protection with its beneficiary.
+ *
+ * Relocations are matched against one grant snapshot. That matters for swaps:
+ * applying c2 -> d3 and then d3 -> c2 sequentially would move the first grant
+ * twice and leave both grants on c2. Other grant kinds deliberately remain
+ * square-owned, matching freezes and board hazards.
+ */
+function relocateCaptureProtection(m: Mutable, relocations: readonly PieceRelocation[]): void {
+  const byOrigin = new Map(relocations.map((relocation) => [relocation.from, relocation]))
+  m.grants = m.grants.map((grant) => {
+    if (grant.kind !== 'block_capture') return grant
+    const relocation = byOrigin.get(grant.square)
+    if (!relocation || relocation.piece.side !== grant.beneficiarySide) return grant
+    const moved = { ...grant, square: relocation.to }
+    m.relocatedProtection.push(moved)
+    return moved
+  })
+}
+
+/**
+ * Drops only protection moved by this action when no beneficiary-side occupant remains.
+ * Piece instances have no stable identity, so a same-side replacement is deliberately
+ * indistinguishable here; ADR-001 records that boundary.
+ */
+function discardOrphanedRelocatedProtection(m: Mutable): void {
+  const relocated = new Set(m.relocatedProtection)
+  m.grants = m.grants.filter((grant) => {
+    if (!relocated.has(grant)) return true
+    return m.board.get(grant.square)?.side === grant.beneficiarySide
+  })
 }
 
 /** Removes a piece and remembers it, so a comeback card has something to read. */
@@ -1045,6 +1086,7 @@ function executeActions(
             m.visited.add(sq)
             m.board.delete(sq)
             m.board.set(dest, piece)
+            relocateCaptureProtection(m, [{ from: sq, to: dest, piece }])
             relocated.push(dest)
           }
           break
@@ -1113,6 +1155,10 @@ function executeActions(
           if (!mayAffect(a) || !mayAffect(b)) break
           m.board.set(a, pb)
           m.board.set(b, pa)
+          relocateCaptureProtection(m, [
+            { from: a, to: b, piece: pa },
+            { from: b, to: a, piece: pb },
+          ])
           // BOTH endpoints are relocations (ADR-008). Reporting neither is what
           // made a swap onto a bomb square harmless while a teleport onto the
           // same square was lethal — one rule for arriving, two behaviours.
@@ -1302,6 +1348,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     deferred: [],
     // Expired entries are dropped here rather than accumulating for the match.
     grants: state.grants.filter((g) => g.untilPly > state.plyCount),
+    relocatedProtection: [],
   }
   let movesMade = 0
   /**
@@ -1330,6 +1377,8 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
       if (occupantDef?.royal === true) {
         m.board.delete(action.from)
         m.board.set(action.to, piece)
+        relocateCaptureProtection(m, [{ from: action.from, to: action.to, piece }])
+        discardOrphanedRelocatedProtection(m)
         return {
           ...state,
           board: m.board,
@@ -1363,6 +1412,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
     if (m.board.has(action.from)) {
       m.board.delete(action.from)
       m.board.set(action.to, piece)
+      relocateCaptureProtection(m, [{ from: action.from, to: action.to, piece }])
       // E4 — destination entered, cascading through relocations.
       const landedOn = cascadeEnter(state, content, m, action.to, mover)
       if (landedOn) subjectSquares.push(landedOn)
@@ -1555,6 +1605,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
    * walk, and it comes straight back if this check is not per ACTION.
    */
   if (action.kind === 'play_card') {
+    discardOrphanedRelocatedProtection(m)
     const result = m.result ?? royalTransition(state.board, m.board, content)
     const draft = state.drafts[mover]
     return {
@@ -1619,6 +1670,7 @@ function transition(state: GameState, action: Action, content: ContentSet): Game
   // the second one's starting board is the first one's result.
   result ??= royalTransition(state.board, m.board, content)
   if (!result && plyCount >= PLY_CAP) result = materialResult(m.board)
+  discardOrphanedRelocatedProtection(m)
 
   return {
     ...state,

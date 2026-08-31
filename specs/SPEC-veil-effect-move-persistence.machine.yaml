@@ -1,0 +1,116 @@
+schema_version: 2
+spec_slug: veil-effect-move-persistence
+parent_spec: null
+verification_tier: 2
+mutation_threshold: null
+mutation_threshold_rationale: "TypeScript project; use property/differential tests and the full Vitest/CI suite."
+last_mutation_run: null
+paths_to_mutate: []
+spec_quality_score: 84
+spec_quality_score_at: "2026-09-01"
+ac:
+  - id: AC-001
+    title: "durationed capture protection follows a normal move"
+    type: property
+    test_ids:
+      - "tests/engine/grant-relocation.test.ts::AC-001 durationed capture protection follows a normal move"
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "The card text defines protection over the chosen piece, while a legal move independently defines its destination; therefore exactly one live protection must move from origin to destination regardless of storage implementation."
+    oracle_independence_waiver: null
+    input_domain: "legal non-royal piece moves from a protected occupied origin to an in-bounds destination"
+    transformation: "apply the legal move to a state with one live durationed block_capture grant on the mover"
+    expected_relation: "matching_grants(after, destination) == matching_grants(before, origin) and matching_grants(after, origin) == [] and destination_is_protected(after)"
+    preconditions:
+      - "the grant beneficiary side matches the moving piece"
+      - "the moving piece survives on the destination"
+    observable_output: "grants array and legal capture actions"
+    generator_hint: "Generate bounded legal positions with one attacker, one covered mover, and kings outside the interaction."
+
+  - id: AC-002
+    title: "capture protection follows every engine relocation path"
+    type: property
+    test_ids:
+      - "tests/engine/grant-relocation.test.ts::AC-002 capture protection follows every engine relocation path"
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Normal move, teleport and swap are alternate mechanisms for the same relocation relation; protection ownership cannot depend on which mechanism changed the square."
+    oracle_independence_waiver: null
+    input_domain: "protected non-royal pieces relocatable by move, teleport_piece, or swap_pieces"
+    transformation: "apply each relocation mechanism from equivalent positions"
+    expected_relation: "each surviving relocated beneficiary has exactly one matching grant at its final square and none at its vacated square"
+    preconditions:
+      - "each relocated piece survives entry cascades"
+    observable_output: "board and grants array"
+    generator_hint: "Use table-driven fixtures for the three relocation mechanisms and both swap endpoints."
+
+  - id: AC-003
+    title: "square-anchored effects do not start following pieces"
+    type: parametric
+    test_ids:
+      - "tests/engine/grant-relocation.test.ts::AC-003 square-anchored effects do not start following pieces"
+    executable_predicate: null
+    golden_table:
+      - input: { effect_kind: "forbid_movement", origin: "b1", destination: "b2" }
+        expected: { retained_at: "b1", copied_to_destination: false }
+      - input: { effect_kind: "grant_movement", origin: "b1", destination: "b2" }
+        expected: { retained_at: "b1", copied_to_destination: false }
+      - input: { effect_kind: "frozenUntil", origin: "b1", destination: "b2" }
+        expected: { retained_at: "b1", copied_to_destination: false }
+    rubric_id: null
+    pending_test: true
+    oracle_source: golden
+    oracle_evidence: "The expected rows are fixed by the existing documented contract in ActiveGrant and PLAN-movement-lock-8x8-and-rule-cards: these effects are square hazards/modifiers, not beneficiary protection."
+    oracle_independence_waiver: null
+    input_domain: null
+    transformation: null
+    expected_relation: null
+    preconditions: []
+    observable_output: null
+    generator_hint: null
+
+  - id: AC-004
+    title: "visible capture protection moves with the beneficiary"
+    type: property
+    test_ids:
+      - "tests/ui/effect-visibility.test.tsx::AC-004 visible capture protection moves with the beneficiary"
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: differential
+    oracle_evidence: "The UI derivation is compared against the engine's public grant state rather than duplicated movement logic: the exact live-effect square set must equal the exact live grant square set before and after relocation."
+    oracle_independence_waiver: null
+    input_domain: "pairs of consecutive states containing a surviving protected-piece relocation"
+    transformation: "derive liveEffects from the before and after states"
+    expected_relation: "shield_squares(liveEffects(after)) == block_capture_squares(after.grants) and origin not in shield_squares(after) and destination in shield_squares(after)"
+    preconditions:
+      - "the grant remains inside its untilPly window"
+    observable_output: "LiveEffect square/kind set"
+    generator_hint: null
+
+  - id: AC-005
+    title: "an entry-destroyed beneficiary leaves no lingering protection"
+    type: property
+    test_ids:
+      - "tests/engine/grant-relocation.test.ts::AC-005 an entry-destroyed beneficiary leaves no lingering protection"
+    executable_predicate: null
+    golden_table: []
+    rubric_id: null
+    pending_test: true
+    oracle_source: property
+    oracle_evidence: "Protection is defined over a beneficiary piece, so an empty destination after complete entry resolution cannot own the transferred protection; this invariant is independent of any helper implementation."
+    oracle_independence_waiver: null
+    input_domain: "protected pieces relocated onto destroy-on-enter destinations that remain empty after the cascade"
+    transformation: "apply the relocation through complete destination entry resolution, then advance to a later transition with a new occupant"
+    expected_relation: "destination_empty(after_cascade) implies matching_grants(after_cascade, origin_or_destination) == [] and later_occupant_is_unprotected"
+    preconditions:
+      - "the entry cascade destroys the beneficiary and leaves the destination empty"
+    observable_output: "board, grants array, and legal capture actions"
+    generator_hint: "Use an on_leave destroy fixture or a shipped destroy-on-enter square and a replacement-occupant control."

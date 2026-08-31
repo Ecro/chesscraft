@@ -1,6 +1,18 @@
 import { expect, test } from '@playwright/test'
 import { startMatch } from './nav'
 
+// A collection assertion must not depend on whether a randomly dealt match
+// happens to finish before this spec's click budget. MatchHost converts this
+// one browser random value into the displayed 31-bit match seed; keeping it
+// fixed makes the full UI route reproducible on every Playwright project.
+const COLLECTION_MATCH_SEED = 20
+
+async function fixMatchSeed(page: import('@playwright/test').Page) {
+  await page.addInitScript((seed) => {
+    Math.random = () => seed / 2 ** 31
+  }, COLLECTION_MATCH_SEED)
+}
+
 // Playing a whole match through the UI is genuinely slow — hundreds of taps,
 // each a real render — so this file gets its own budget rather than pushing the
 // suite-wide default up for everyone.
@@ -64,17 +76,17 @@ async function playToEnd(page: import('@playwright/test').Page, plies = 600): Pr
     }
     const offer = page.locator('[data-testid^="offer-"]').first()
     if (await offer.isVisible().catch(() => false)) {
-      await offer.click()
+      await offer.click({ force: true })
       continue
     }
     const capture = page.locator('[data-legal-kind="capture"]').first()
     if (await capture.isVisible().catch(() => false)) {
-      await capture.click()
+      await capture.click({ force: true })
       continue
     }
     const legal = page.locator('[data-legal="true"]').first()
     if (await legal.isVisible().catch(() => false)) {
-      await legal.click()
+      await legal.click({ force: true })
       continue
     }
     // Nothing is selected, so pick up a piece and look again. Rotating the
@@ -82,7 +94,10 @@ async function playToEnd(page: import('@playwright/test').Page, plies = 600): Pr
     const pieces = page.locator('.square:has(.piece)')
     const total = await pieces.count()
     if (total === 0) return false
-    await pieces.nth(i % total).click()
+    // This is a high-volume state driver, not an actionability assertion. The
+    // interaction specs cover hit targets separately; forcing these clicks
+    // avoids spending WebKit's stability wait hundreds of times on animation.
+    await pieces.nth(i % total).click({ force: true })
   }
   return page.getByTestId('result-screen').isVisible().catch(() => false)
 }
@@ -92,6 +107,7 @@ const metIds = (c: { seen: string[]; used: string[]; won: string[] }) => new Set
 
 test('a played match records what it met and what it used, and the record survives a reload', async ({ page }) => {
   // AC-001. Start from a browser with no collection so the delta is the match's.
+  await fixMatchSeed(page)
   await page.goto('/')
   await page.evaluate(() => window.localStorage.removeItem('chess-craft.collection.v1'))
   await page.reload()
@@ -155,6 +171,7 @@ test('an unmet entry keeps its place and renders visibly differently from a met 
 
 test('the result screen names this match’s new entries, and shows none when nothing is new', async ({ page }) => {
   // AC-006, measured against storage rather than against the component.
+  await fixMatchSeed(page)
   await page.goto('/')
   await page.evaluate(() => window.localStorage.removeItem('chess-craft.collection.v1'))
   await page.reload()

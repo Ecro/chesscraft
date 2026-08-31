@@ -83,6 +83,31 @@ function freezeStart() {
   })
 }
 
+function movedVeilState() {
+  const before = createPosition({
+    content,
+    presetId: BUNDLED_PRESET_ID,
+    seed: 17,
+    sideToMove: 'white',
+    held: { white: ['skill.veil'], black: [] },
+    placements: [
+      { square: 'a1', pieceId: 'piece.king', side: 'white' },
+      { square: 'b1', pieceId: 'piece.rook', side: 'white' },
+      { square: 'f6', pieceId: 'piece.king', side: 'black' },
+    ],
+  })
+  const play = legalActions(before, content).find(
+    (action) => action.kind === 'play_card' && action.cardId === 'skill.veil' && action.targets[0] === 'b1',
+  )
+  if (!play) throw new Error('skill.veil on b1 is not legal — the fixture is wrong')
+  const veiled = apply(before, play, content)
+  const move = legalActions(veiled, content).find(
+    (action) => action.kind === 'move' && action.from === 'b1' && action.to === 'b2',
+  )
+  if (!move) throw new Error('b1->b2 is not legal — the fixture is wrong')
+  return apply(veiled, move, content)
+}
+
 function frozenBoard() {
   const rendered = render(<MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={freezeStart()} />)
   const square = playCardAtFirstTarget(rendered.container, 'skill.freeze')
@@ -112,6 +137,19 @@ describe('a square under an effect says so', () => {
     // Exactly one. A badge that appears on squares with nothing on them is the
     // failure mode of deriving the mark from anything other than live state.
     expect(marked).toEqual([`sq-${square}`])
+  })
+})
+
+describe('AC-004: visible capture protection moves with the beneficiary', () => {
+  it('marks only the moved piece destination after veil', () => {
+    const { container } = render(
+      <MatchHost content={content} presetId={BUNDLED_PRESET_ID} initialState={movedVeilState()} />,
+    )
+
+    const marked = [...container.querySelectorAll<HTMLElement>('.board .square[data-effect="shielded"]')].map(
+      (element) => element.getAttribute('data-testid'),
+    )
+    expect(marked, 'the visible shield follows the rook and leaves no origin badge').toEqual(['sq-b2'])
   })
 })
 
