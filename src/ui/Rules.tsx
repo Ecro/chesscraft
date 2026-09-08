@@ -11,6 +11,9 @@ import { emptyProgression, type ProgressionProfileV1 } from '@progression/model'
 import { exportProgressionBackup } from '@progression/io'
 import { UpgradeReward } from './UpgradeReward'
 import { UpgradeFamily } from './UpgradeFamily'
+import { UpgradeCollection } from './UpgradeCollection'
+import { upgradeText } from './UpgradeCard'
+import { practiceContent } from '@progression/practice'
 
 /**
  * The dex: everything this content set contains, in the player's words.
@@ -91,7 +94,8 @@ export function Rules({
 }) {
   const t = useTranslate()
   const [kind, setKind] = useState<KindId>('piece')
-  const [open, setOpen] = useState<{ entry: Entry; kindKey: string; side: Side | undefined } | null>(null)
+  const [open, setOpen] = useState<{ entry: Entry; kindKey: string; side: Side | undefined; canonical?: boolean } | null>(null)
+  const detailText = open?.canonical ? upgradeText : t
   const [backup, setBackup] = useState('')
 
   // `textKey` is REQUIRED here on purpose. It is the only compile-time guard
@@ -149,6 +153,10 @@ export function Rules({
         notice="none"
         onProgressionChange={onProgressionChange}
       />
+      <UpgradeCollection profile={progression} onInspect={(id) => {
+        const entry = practiceContent.pieces.get(id)
+        if (entry) setOpen({ entry, kindKey: 'ui.dex.kind.piece', side: 'white', canonical: true })
+      }} />
 
       {/* `role="tablist"` is deliberately NOT claimed. The real pattern requires
           arrow-key roving focus and `aria-controls` onto a `tabpanel`, and a
@@ -218,19 +226,20 @@ export function Rules({
       {open && (
         // The same modal sheet the match screen uses — the `aria-modal` here was
         // the second copy of a claim neither call site implemented.
-        <Sheet label={t(open.entry.nameKey)} onClose={() => setOpen(null)} scrimTestId="dex-sheet">
+        <Sheet label={detailText(open.entry.nameKey)} onClose={() => setOpen(null)} scrimTestId="dex-sheet">
           <div className="sheet-head">
             <span className="sheet-icon" aria-hidden="true">
-              <MarkBody mark={markOf(t, open.entry, open.side)} />
+              <MarkBody mark={markOf(detailText, open.entry, open.side)} />
             </span>
             <span>
-              <strong>{t(open.entry.nameKey)}</strong>
-              <span className="sheet-kind">{t(open.kindKey)}</span>
+              <strong>{detailText(open.entry.nameKey)}</strong>
+              <span className="sheet-kind">{detailText(open.kindKey)}</span>
             </span>
           </div>
-          <p className="sheet-text">{t(open.entry.textKey)}</p>
+          <p className="sheet-text">{detailText(open.entry.textKey)}</p>
           {open.side && (
             <UpgradeFamily
+              key={open.entry.id}
               content={content}
               basePieceId={open.entry.id}
               profile={progression}

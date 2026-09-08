@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import type { ContentSet } from '@content/load'
 import { progressionAffordances } from '@progression/affordances'
-import { upgradeForBase } from '@progression/catalog'
+import { upgradeForBase, upgradeById } from '@progression/catalog'
+import { practiceContent } from '@progression/practice'
+import { UpgradeAcquired, UpgradePortrait, upgradeText } from './UpgradeCard'
+import { UpgradePractice } from './UpgradePractice'
 import type { ProgressionProfileV1 } from '@progression/model'
 import { FORGE_COST, forgeUpgrade } from '@progression/rewards'
 import { useTranslate } from './i18n'
 
 export function UpgradeFamily({
-  content,
   basePieceId,
   profile,
   onProgressionChange,
@@ -18,30 +20,39 @@ export function UpgradeFamily({
   onProgressionChange: (next: ProgressionProfileV1) => boolean
 }) {
   const t = useTranslate()
-  const upgrade = upgradeForBase(basePieceId)
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [acquired, setAcquired] = useState<string | null>(null)
+  const upgrade = upgradeForBase(basePieceId) ?? upgradeById(basePieceId)
   if (!upgrade) return null
-  const definition = content.pieces.get(upgrade.id)
+  const definition = practiceContent.pieces.get(upgrade.id)
   if (!definition) return null
   const owned = profile.ownedUpgradeIds.includes(upgrade.id)
   const affordances = progressionAffordances(profile)
-  const [saveFailed, setSaveFailed] = useState(false)
 
   const forge = () => {
     const result = forgeUpgrade(profile, upgrade.id)
-    if (result.ok) setSaveFailed(!onProgressionChange(result.profile))
+    if (result.ok) {
+      const saved = onProgressionChange(result.profile)
+      setSaveFailed(!saved)
+      setAcquired(saved ? upgrade.id : null)
+    }
   }
 
   return (
     <section
       className="upgrade-family"
       data-testid={`upgrade-family-${basePieceId}`}
-      aria-label={t('ui.upgrade.region').replace('{name}', t(definition.nameKey))}
+      aria-label={t('ui.upgrade.region').replace('{name}', upgradeText(definition.nameKey))}
     >
       <h3>{t('ui.upgrade.family')}</h3>
-      <strong>{t(definition.nameKey)}</strong>
+      <UpgradePortrait pieceId={upgrade.id} />
+      <strong>{upgradeText(definition.nameKey)}</strong>
       <p data-testid="upgrade-move-preview">
-        {t('ui.upgrade.move-preview')} {t(definition.textKey)}
+        {t('ui.upgrade.move-preview')} {upgradeText(definition.textKey)}
       </p>
+      <UpgradePractice key={upgrade.id} upgradeId={upgrade.id} />
+      {acquired === upgrade.id && owned && <UpgradeAcquired upgradeId={upgrade.id} />}
+      {owned && <p className="hint">{t('ui.upgrade.equip-next')}</p>}
       <p data-testid="upgrade-owned" data-owned={String(owned)}>
         {t(owned ? 'ui.upgrade.owned' : 'ui.upgrade.unowned')}
       </p>

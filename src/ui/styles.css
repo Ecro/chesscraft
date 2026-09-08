@@ -3911,3 +3911,41 @@ details.advanced summary {
   min-height: 7rem;
   resize: vertical;
 }
+
+/* Acquisition and the album participate in the dex scroll, so a paid offer
+ * cannot squeeze the reference list or backup controls out of a short phone. */
+.dex { overflow-y: auto; }
+.dex > * { flex-shrink: 0; }
+.dex > .screen-body { flex: none; overflow: visible; }
+.dex .sheet { max-height: 94%; overflow-y: auto; }
+.upgrade-reward p, .upgrade-family p, .upgrade-collection p { margin: 0; }
+.progression-goals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.progression-goals > div { display: grid; gap: var(--space-2); font-size: var(--font-size-xs); }
+.progression-goals progress { width: 100%; height: 12px; accent-color: var(--color-positive); }
+.upgrade-reward .progression-offer { display: grid; min-width: 0; }
+.upgrade-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--space-3); }
+.upgrade-card { display: grid; align-content: start; gap: var(--space-3); min-width: 0; padding: var(--space-3); border: var(--border-w) solid var(--color-outline); background: var(--color-surface); box-shadow: inset var(--bevel) var(--bevel) 0 var(--color-surface-hi); }
+.upgrade-card h4, .upgrade-practice h4 { margin: 0; color: var(--color-heading); }
+.upgrade-portrait { display: inline-block; justify-self: center; font-size: 64px; line-height: 1; }
+.upgrade-style { color: var(--color-text-dim); font-size: var(--font-size-xs); }
+.upgrade-ability { font-size: var(--font-size-sm); }
+.upgrade-acquired, .upgrade-complete { padding: var(--space-3); border: var(--border-w) solid var(--color-positive); background: var(--color-surface); }
+.upgrade-acquired strong { color: var(--color-positive); }
+.upgrade-acquired p { margin-top: var(--space-2); font-size: var(--font-size-xs); }
+.upgrade-collection { padding: var(--space-4); display: grid; gap: var(--space-2); }
+.upgrade-collection h3 { margin: 0; }
+.upgrade-album-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.upgrade-album-grid button { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-3); font-size: var(--font-size-xs); }
+.upgrade-album-grid button[data-owned='true'] { border-color: var(--color-positive); }
+.upgrade-practice-toggle { min-width: 0; }
+.upgrade-practice-toggle > button { width: 100%; }
+.upgrade-practice { display: grid; gap: var(--space-2); margin-top: var(--space-3); min-width: 0; }
+.upgrade-practice p { font-size: var(--font-size-xs); }
+.upgrade-practice .row-actions > button { flex: 1 0 0; padding: var(--space-2); }
+.upgrade-practice button[aria-pressed='true'] { border-color: var(--color-positive); }
+.practice-board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; width: 100%; max-width: 360px; justify-self: center; }
+.practice-square { min-width: 0; min-height: 44px; padding: 0; aspect-ratio: 1; background: var(--color-surface); color: var(--color-text); box-shadow: none; border: 1px solid var(--color-line); }
+.practice-square[data-dark='true'] { background: var(--color-sunken); }
+.practice-square[data-added='true'] { border: 2px solid var(--color-positive); }
+.practice-square:disabled { opacity: 1; cursor: default; }
+.practice-square .upgrade-portrait { font-size: 30px; }

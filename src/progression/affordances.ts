@@ -5,6 +5,11 @@ import { FORGE_COST, REVEAL_COST } from './rewards'
 export interface ProgressionAffordances {
   canPurchaseReveal: boolean
   forgeableUpgradeIds: string[]
+  ownedCount: number
+  totalCount: number
+  complete: boolean
+  revealRemaining: number
+  forgeRemaining: number
 }
 
 /**
@@ -15,6 +20,11 @@ export interface ProgressionAffordances {
 export function progressionAffordances(profile: ProgressionProfileV1): ProgressionAffordances {
   const unowned = UPGRADE_PIECE_IDS.filter((upgradeId) => !profile.ownedUpgradeIds.includes(upgradeId))
   return {
+    ownedCount: UPGRADE_PIECE_IDS.length - unowned.length,
+    totalCount: UPGRADE_PIECE_IDS.length,
+    complete: unowned.length === 0,
+    revealRemaining: Math.max(0, REVEAL_COST - profile.sparks),
+    forgeRemaining: Math.max(0, FORGE_COST - profile.sparks),
     canPurchaseReveal:
       profile.pendingOffer === undefined &&
       profile.sparks >= REVEAL_COST &&
