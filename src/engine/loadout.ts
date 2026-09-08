@@ -1,6 +1,15 @@
 import type { BoardDef, PresetDef } from '@content/schema'
 import type { Side } from './types'
 
+export interface EffectivePieceSlot {
+  pieceId: string
+  replaces: string
+  square: string
+}
+
+/** Already ownership-validated device overrides, keyed by match side. */
+export type EffectiveEquipment = Partial<Record<Side, EffectivePieceSlot>>
+
 /**
  * What a side's loadout does to a match's setup (ADR-001, ADR-008).
  *
@@ -39,18 +48,27 @@ export function skillPoolFor(preset: PresetDef, side: Side): string[] {
 /**
  * The board's placements with each side's loadout substitution applied.
  *
- * EVERY placement of the replaced piece on that side is substituted, not just
- * the first: the replaced piece may stand on several squares (a pawn line), and
- * replacing one of them would produce a position no author asked for and no rule
- * describes. Returns the board's own array untouched when no loadout applies, so
- * the common case allocates nothing.
+ * A v17 slot substitutes only its named square. The only replace-all case is a
+ * migrated v16 slot whose square is intentionally absent; preserving that old
+ * playback is what makes migration non-destructive. Returns the board's own
+ * array untouched when no loadout applies, so the common case allocates nothing.
  */
-export function placementsFor(board: BoardDef, preset: PresetDef): BoardDef['placements'] {
+export function placementsFor(
+  board: BoardDef,
+  preset: PresetDef,
+  effectiveEquipment: EffectiveEquipment = {},
+): BoardDef['placements'] {
   const loadout = preset.loadout
-  if (!loadout?.white && !loadout?.black) return board.placements
+  if (!loadout?.white?.piece && !loadout?.black?.piece && !effectiveEquipment.white && !effectiveEquipment.black) {
+    return board.placements
+  }
   return board.placements.map((placement) => {
-    const slot = loadout?.[placement.side]
-    if (!slot || slot.replaces !== placement.pieceId) return placement
+    const slot = effectiveEquipment[placement.side] ?? loadout?.[placement.side]?.piece
+    if (
+      !slot ||
+      slot.replaces !== placement.pieceId ||
+      (slot.square !== undefined && slot.square !== placement.square)
+    ) return placement
     return { ...placement, pieceId: slot.pieceId }
   })
 }

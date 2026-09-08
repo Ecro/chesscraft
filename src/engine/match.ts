@@ -1,6 +1,6 @@
 import type { ContentSet } from '@content/load'
 import { DRAFT_OFFER_SIZE } from './engine'
-import { placementsFor, skillPoolFor } from './loadout'
+import { type EffectiveEquipment, placementsFor, skillPoolFor } from './loadout'
 import { pickDistinct, rngFor } from './rng'
 import type { DraftState, GameState, PieceOnBoard, Side, SquareId } from './types'
 
@@ -62,9 +62,10 @@ export interface CreateMatchOptions {
   content: ContentSet
   presetId: string
   seed: number
+  effectiveEquipment?: EffectiveEquipment
 }
 
-export function createMatch({ content, presetId, seed }: CreateMatchOptions): Match {
+export function createMatch({ content, presetId, seed, effectiveEquipment }: CreateMatchOptions): Match {
   const preset = content.presets.get(presetId)
   if (!preset) throw new Error(`content set has no preset ${presetId}`)
   const board = content.boards.get(preset.boardId)
@@ -82,7 +83,7 @@ export function createMatch({ content, presetId, seed }: CreateMatchOptions): Ma
     pickDistinct(rngFor(seed, 'draft', side, 0), skillPoolFor(preset, side), DRAFT_OFFER_SIZE)
 
   const placed = new Map<SquareId, PieceOnBoard>()
-  for (const p of placementsFor(board, preset)) placed.set(p.square, { pieceId: p.pieceId, side: p.side })
+  for (const p of placementsFor(board, preset, effectiveEquipment)) placed.set(p.square, { pieceId: p.pieceId, side: p.side })
 
   const state: GameState = {
     width: board.width,

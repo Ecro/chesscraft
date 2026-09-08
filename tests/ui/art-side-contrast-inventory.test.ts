@@ -45,16 +45,16 @@ const EXPECTED_AFFECTED = [
   'watchtower',
   'wheel',
 ].sort()
-const EXPECTED_BASELINE_METRICS_SHA256 = 'd638baf7ea4d33c1bea6647ce2197376860f31ab2ab482ecc31d7635368def28'
+const EXPECTED_BASELINE_METRICS_SHA256 = 'dc3c79718485843c5e900dada3aced0a20fc62167265dafe644a1f02e880f0f4'
 
 describe('art side-contrast inventory', () => {
   it('S1a freezes every sided piece pair and its affected-pair decision', () => {
     expect(fixture.version).toBe(1)
     expect(fixture.baselineSha).toBe('d50289114a92dc363aca7c90f060600884efab04')
-    expect(fixture.pairs).toHaveLength(33)
+    expect(fixture.pairs).toHaveLength(37)
 
     const names = fixture.pairs.map((pair) => pair.name)
-    expect(new Set(names).size).toBe(33)
+    expect(new Set(names).size).toBe(37)
     expect(names).toContain('archer')
     expect(names).toEqual(Object.keys(ART_ASSETS.piece).sort())
     expect(fixture.pairs.filter((pair) => pair.affected).map((pair) => pair.name).sort()).toEqual(EXPECTED_AFFECTED)

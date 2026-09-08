@@ -2,6 +2,9 @@ import type { GameState, MatchResult, Side } from '@engine/types'
 import { ART_ASSETS, BRAND_ART } from './art/assets'
 import { ImageMark } from './art/ImageMark'
 import { type Translate, useTranslate } from './i18n'
+import type { StandardEligibility } from '@progression/eligibility'
+import type { ProgressionProfileV1 } from '@progression/model'
+import { type ProgressionNotice, UpgradeReward } from './UpgradeReward'
 
 /**
  * The end of a match, as a screen rather than a sentence.
@@ -40,6 +43,11 @@ export function Result({
   onRematch,
   onEditRoom,
   onHome,
+  progression,
+  eligibility,
+  progressionNotice = 'none',
+  onRetryProgression,
+  onProgressionChange,
 }: {
   state: GameState
   result: MatchResult
@@ -56,6 +64,11 @@ export function Result({
   onRematch: () => void
   onEditRoom: () => void
   onHome: () => void
+  progression?: ProgressionProfileV1
+  eligibility?: StandardEligibility
+  progressionNotice?: ProgressionNotice
+  onRetryProgression?: () => void
+  onProgressionChange?: (next: ProgressionProfileV1) => boolean
 }) {
   const t = useTranslate()
   const winner = result.kind === 'win' ? result.winner : null
@@ -94,6 +107,16 @@ export function Result({
           <p className="result-new" data-testid="result-new" data-count={String(discovered)} role="status">
             {t('ui.result.discovered').replace('{count}', String(discovered))}
           </p>
+        )}
+
+        {progression && eligibility && onProgressionChange && (
+          <UpgradeReward
+            profile={progression}
+            eligibility={eligibility}
+            notice={progressionNotice}
+            {...(onRetryProgression ? { onRetryGrant: onRetryProgression } : {})}
+            onProgressionChange={onProgressionChange}
+          />
         )}
 
         <ul className="result-stats">

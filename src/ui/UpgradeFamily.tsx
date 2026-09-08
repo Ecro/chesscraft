@@ -1,0 +1,65 @@
+import { useState } from 'react'
+import type { ContentSet } from '@content/load'
+import { progressionAffordances } from '@progression/affordances'
+import { upgradeForBase } from '@progression/catalog'
+import type { ProgressionProfileV1 } from '@progression/model'
+import { FORGE_COST, forgeUpgrade } from '@progression/rewards'
+import { useTranslate } from './i18n'
+
+export function UpgradeFamily({
+  content,
+  basePieceId,
+  profile,
+  onProgressionChange,
+}: {
+  content: ContentSet
+  basePieceId: string
+  profile: ProgressionProfileV1
+  onProgressionChange: (next: ProgressionProfileV1) => boolean
+}) {
+  const t = useTranslate()
+  const upgrade = upgradeForBase(basePieceId)
+  if (!upgrade) return null
+  const definition = content.pieces.get(upgrade.id)
+  if (!definition) return null
+  const owned = profile.ownedUpgradeIds.includes(upgrade.id)
+  const affordances = progressionAffordances(profile)
+  const [saveFailed, setSaveFailed] = useState(false)
+
+  const forge = () => {
+    const result = forgeUpgrade(profile, upgrade.id)
+    if (result.ok) setSaveFailed(!onProgressionChange(result.profile))
+  }
+
+  return (
+    <section
+      className="upgrade-family"
+      data-testid={`upgrade-family-${basePieceId}`}
+      aria-label={t('ui.upgrade.region').replace('{name}', t(definition.nameKey))}
+    >
+      <h3>{t('ui.upgrade.family')}</h3>
+      <strong>{t(definition.nameKey)}</strong>
+      <p data-testid="upgrade-move-preview">
+        {t('ui.upgrade.move-preview')} {t(definition.textKey)}
+      </p>
+      <p data-testid="upgrade-owned" data-owned={String(owned)}>
+        {t(owned ? 'ui.upgrade.owned' : 'ui.upgrade.unowned')}
+      </p>
+      {saveFailed && (
+        <p className="hint" data-testid="progression-save-failed" role="status">
+          {t('ui.progression.save-failed')}
+        </p>
+      )}
+      {!owned && (
+        <button
+          type="button"
+          data-testid={`upgrade-forge-${upgrade.id}`}
+          disabled={!affordances.forgeableUpgradeIds.includes(upgrade.id)}
+          onClick={forge}
+        >
+          {t('ui.upgrade.forge').replace('{cost}', String(FORGE_COST))}
+        </button>
+      )}
+    </section>
+  )
+}

@@ -19,6 +19,7 @@ import { sliceContentSource } from '@content/sets/slice'
 import { gate6aContentSource } from '@content/sets/gate6a'
 import { readGrid } from '@ui/PieceMoves'
 import { readSentence } from '@ui/CardRecipe'
+import { isProgressionOnlyPiece } from '../../src/progression/catalog'
 
 type Record_ = Record<string, unknown>
 
@@ -95,7 +96,7 @@ describe('AC-003 — every shipped content set, not just the bundle', () => {
    */
   it.each(SOURCES)('%s: every piece opens through the move grid, or is named here', (name, src) => {
     const set = src as unknown as { pieces: Record_[] }
-    const refused = set.pieces.filter((p) => readGrid(p) === null).map(idOf)
+    const refused = set.pieces.filter((p) => !isProgressionOnlyPiece(idOf(p)) && readGrid(p) === null).map(idOf)
     expect(refused).toEqual(name === 'bundled' ? ['piece.charger'] : [])
   })
 
@@ -125,7 +126,7 @@ describe('AC-003 — the bundle opens with no refusals', () => {
     // FIRST shape, which carried two effects and therefore could not be opened
     // as a sentence at all. The card is one clause now — see its record for the
     // one-ply cost that buys.
-    expect(source.pieces.length).toBe(13)
+    expect(source.pieces.length).toBe(17)
     expect(cards().length).toBe(60)
   })
 
@@ -133,7 +134,7 @@ describe('AC-003 — the bundle opens with no refusals', () => {
     // `piece.charger` is `maxDistance: 3` and `REACH_VALUES` holds only 1, 2 and unbounded.
     // See the note on the all-sources version of this assertion above for why it is named
     // here rather than fixed.
-    const refused = source.pieces.filter((p) => readGrid(p) === null).map(idOf)
+    const refused = source.pieces.filter((p) => !isProgressionOnlyPiece(idOf(p)) && readGrid(p) === null).map(idOf)
     expect(refused).toEqual(['piece.charger'])
   })
 

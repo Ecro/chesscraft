@@ -26,6 +26,7 @@
       "@engine/*": ["src/engine/*"],
       "@content/*": ["src/content/*"],
       "@editor/*": ["src/editor/*"],
+      "@progression/*": ["src/progression/*"],
       "@ui/*": ["src/ui/*"]
     }
   },

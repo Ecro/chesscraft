@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { type ContentSource, type LoadResult as LoadSetResult, type ValidationError, loadContentSet } from '@content/load'
 import { type BundleStamp, COLLECTIONS, mergeBundled } from '@content/merge'
 import { BASELINE_STAMP_IDS } from '@content/sets/baseline-stamp'
-import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
+import { BUNDLED_PRESET_ID, bundledContentSource, loadBundledContent } from '@content/sets/bundled'
 import { browserStorage, loadStamp, loadStoredContent } from '@editor/storage'
 import { loadHidden } from '@editor/hidden'
 import { officialIds } from '@content/provenance'
@@ -10,7 +10,7 @@ import { emptyCollection, loadCollection } from '../collection/record'
 import { Boot } from './Boot'
 import { Edit } from './Edit'
 import { Home } from './Home'
-import { type Opponent, Lobby } from './Lobby'
+import { type MatchSetup, type Opponent, Lobby } from './Lobby'
 import { MatchHost } from './MatchHost'
 import { createAiClient } from '@engine/ai/client'
 import { spawnSearchWorker } from '@engine/ai/spawn'
@@ -21,6 +21,30 @@ import { type Route, isKnownPath, pathToRoute, routeToPath } from './router'
 import { type Settings, DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings'
 import { TranslateContext, makeTranslate } from './i18n'
 import { applyUpdate, registerServiceWorker } from './sw-update'
+import { emptyProgression, type ProgressionProfileV1 } from '@progression/model'
+import { PROGRESSION_KEY, loadProgression, persistProgression, type LoadProgressionResult } from '@progression/record'
+import { restoreProgressionBackup } from '@progression/io'
+import { resolveEquipment } from '@progression/equipment'
+import { standardEligibility } from '@progression/eligibility'
+
+type ProgressionIssue = Exclude<LoadProgressionResult, { ok: true }>['reason'] | 'conflict' | 'save-failed'
+
+interface ProgressionState {
+  profile: ProgressionProfileV1
+  issue: ProgressionIssue | null
+}
+
+function readProgressionState(): ProgressionState {
+  const storage = browserStorage()
+  if (!storage) return { profile: emptyProgression(), issue: 'unavailable' }
+  const loaded = loadProgression(storage)
+  if (loaded.ok || loaded.reason === 'absent') return { profile: loaded.profile, issue: null }
+  return { profile: loaded.profile, issue: loaded.reason }
+}
+
+function sameProgression(left: ProgressionProfileV1, right: ProgressionProfileV1): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
 
 /**
  * Which additions to give up on, given the errors the merged document produced
@@ -196,12 +220,76 @@ const TAB_OF: Partial<Record<Route, 'home' | 'edit' | 'dex'>> = {
 export function App() {
   const [initial] = useState(initialSource)
   const [source, setSource] = useState<ContentSource>(initial.source)
+  const latestSource = useRef(source)
   // Dismissible, and dismissal is not persisted: the stored content is still
   // broken next time, and saying so once per session is the honest cadence.
   const [noticeDismissed, setNoticeDismissed] = useState(false)
   // The waiting registration, kept so the update button has something to take.
   const [updateReady, setUpdateReady] = useState<ServiceWorkerRegistration | null>(null)
   const [revision, setRevision] = useState(0)
+  const bundle = useMemo(loadBundledContent, [])
+  const [progressionState, setProgressionState] = useState<ProgressionState>(readProgressionState)
+  const progression = progressionState.profile
+  const [matchSetup, setMatchSetup] = useState<MatchSetup | null>(null)
+
+  const updateProgression = (next: ProgressionProfileV1) => {
+    const storage = browserStorage()
+    if (!storage || (progressionState.issue !== null && progressionState.issue !== 'save-failed')) {
+      if (!storage) setProgressionState((current) => ({ ...current, issue: 'unavailable' }))
+      return false
+    }
+    const latest = loadProgression(storage)
+    // A failed verification can mean the write landed but its read-back raced
+    // or failed. The same idempotent domain transition is already durable in
+    // that case, so treat it as success instead of attempting another spend or
+    // claim. Otherwise a `save-failed` retry may proceed only from the exact
+    // profile it originally used.
+    if (latest.ok && sameProgression(latest.profile, next)) {
+      setProgressionState({ profile: latest.profile, issue: null })
+      return true
+    }
+    const matchesCurrent = latest.ok
+      ? sameProgression(latest.profile, progression)
+      : latest.reason === 'absent' && sameProgression(progression, emptyProgression())
+    if (!matchesCurrent) {
+      setProgressionState({
+        profile: latest.ok ? latest.profile : progression,
+        issue: latest.ok || latest.reason === 'absent' ? 'conflict' : latest.reason,
+      })
+      return false
+    }
+    const persisted = persistProgression(storage, progression, next)
+    if (!persisted.ok) {
+      setProgressionState({ profile: progression, issue: 'save-failed' })
+      return false
+    }
+    setProgressionState({ profile: persisted.profile, issue: null })
+    return true
+  }
+
+  const reloadProgression = () => setProgressionState(readProgressionState())
+
+  const restoreProgression = (backup: string) => {
+    const storage = browserStorage()
+    if (!storage) {
+      setProgressionState((current) => ({ ...current, issue: 'unavailable' }))
+      return
+    }
+    const latest = loadProgression(storage)
+    const current = latest.ok ? latest.profile : progression
+    const restored = restoreProgressionBackup(storage, current, backup, true)
+    if (restored.ok) setProgressionState({ profile: restored.profile, issue: null })
+    else setProgressionState((state) => ({ ...state, issue: 'save-failed' }))
+  }
+
+  useEffect(() => {
+    const syncProgression = (event: StorageEvent) => {
+      if (event.storageArea !== window.localStorage || event.key !== PROGRESSION_KEY) return
+      setProgressionState(readProgressionState())
+    }
+    window.addEventListener('storage', syncProgression)
+    return () => window.removeEventListener('storage', syncProgression)
+  }, [])
 
   /**
    * The first run opens on onboarding, every later run on the title screen.
@@ -478,6 +566,19 @@ export function App() {
             exactly on top of each other and the one underneath became invisible
             and unclickable. */}
         <div className="notice-stack">
+          {progressionState.issue !== null && (
+            <section
+              className="notice progression-storage-notice"
+              data-testid="progression-storage-notice"
+              data-reason={progressionState.issue}
+              role="status"
+            >
+              <p>{t('ui.progression.storage-failed')}</p>
+              <button type="button" data-testid="progression-storage-reload" onClick={reloadProgression}>
+                {t('ui.progression.storage-reload')}
+              </button>
+            </section>
+          )}
           {updateReady && (
             <section className="notice" data-testid="update-prompt">
               <strong>{t('ui.update.title')}</strong>
@@ -540,6 +641,7 @@ export function App() {
         {loaded.ok && route === 'lobby' && (
           <Lobby
             content={loaded.set}
+            bundle={bundle}
             source={source}
             presetId={activePreset}
             names={settings.names}
@@ -548,8 +650,11 @@ export function App() {
               setSource(next)
               setRevision((r) => r + 1)
             }}
-            onStart={(chosen) => {
+            progression={progression}
+            onProgressionChange={updateProgression}
+            onStart={(chosen, setup) => {
               setOpponent(chosen)
+              setMatchSetup(setup)
               setRoute('play')
             }}
             onBack={() => setRoute('home')}
@@ -574,6 +679,10 @@ export function App() {
             // `localStorage` itself — see the note on its `storage` prop — so
             // this is the one wiring that makes the sheet exist at all.
             storage={browserStorage()}
+            effectiveEquipment={matchSetup?.effectiveEquipment}
+            eligibility={matchSetup?.eligibility}
+            progression={progression}
+            onProgressionChange={updateProgression}
             {...(opponent.kind === 'ai'
               ? {
                   // The human is white and moves first, so the computer is
@@ -588,7 +697,15 @@ export function App() {
         )}
 
         {loaded.ok && route === 'dex' && (
-          <Rules content={loaded.set} official={official} collection={collection} onClose={() => setRoute('home')} />
+          <Rules
+            content={loaded.set}
+            official={official}
+            collection={collection}
+            progression={progression}
+            onProgressionChange={updateProgression}
+            onRestoreProgression={restoreProgression}
+            onClose={() => setRoute('home')}
+          />
         )}
 
         {route === 'edit' && (
@@ -603,6 +720,7 @@ export function App() {
             official={official}
             onHiddenChange={setHidden}
             onCommit={(next) => {
+              latestSource.current = next
               setSource(next)
               setRevision((r) => r + 1)
             }}
@@ -612,6 +730,27 @@ export function App() {
             // wrong thing to put between the two. `MatchHost` falls back to the
             // sides' own words when nobody has been named.
             onPlay={(roomId) => {
+              const nextPresetId = roomId !== '' ? roomId : activePreset
+              const nextContent = loadContentSet(latestSource.current)
+              if (nextContent.ok) {
+                const resolved = resolveEquipment({
+                  content: nextContent.set,
+                  bundle,
+                  presetId: nextPresetId,
+                  profile: progression,
+                  humanSides: ['white', 'black'],
+                })
+                setMatchSetup({
+                  effectiveEquipment: resolved.effectiveEquipment,
+                  eligibility: standardEligibility({
+                    content: nextContent.set,
+                    bundle,
+                    presetId: nextPresetId,
+                    effectiveEquipment: resolved.effectiveEquipment,
+                  }),
+                })
+              }
+              setOpponent({ kind: 'human' })
               if (roomId !== '') setPresetId(roomId)
               setRoute('play')
             }}

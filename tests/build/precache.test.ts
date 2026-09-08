@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ART_ASSETS, BRAND_ART, CHROME_ART } from '@ui/art/assets'
 
 /**
  * The art asset is in the service worker's precache list (ADR-009/ADR-010).
@@ -37,7 +38,13 @@ describe('service worker precache', () => {
     const font = listed.filter((p) => /\/assets\/.*\.woff2$/.test(p))
     expect(font, `no font in PRECACHE:\n${listed.join('\n')}`).toHaveLength(1)
     const art = listed.filter((p) => /\/assets\/(?:piece|square|card|chrome)-.*\.webp$/.test(p))
-    expect(art, `expected all 188 raster files in PRECACHE:\n${listed.join('\n')}`).toHaveLength(188)
+    const expectedArt =
+      Object.keys(ART_ASSETS.piece).length * 2 +
+      Object.keys(ART_ASSETS.square).length +
+      Object.keys(ART_ASSETS.card).length +
+      Object.keys(CHROME_ART).length +
+      Object.keys(BRAND_ART).length
+    expect(art, `expected all ${expectedArt} raster files in PRECACHE:\n${listed.join('\n')}`).toHaveLength(expectedArt)
   })
 
   it('lists an asset that actually exists on disk', () => {

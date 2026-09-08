@@ -26,6 +26,11 @@ import { loadCollection, mergeUp, newlyReached, saveCollection } from '../collec
 import { observe } from '../collection/observe'
 import { PieceMoveRegion } from './PieceDetail'
 import { usePressInspect } from './usePressInspect'
+import type { EffectiveEquipment } from '@engine/loadout'
+import type { StandardEligibility } from '@progression/eligibility'
+import { emptyProgression, type ProgressionProfileV1 } from '@progression/model'
+import { grantCompletedMatch } from '@progression/rewards'
+import type { ProgressionNotice } from './UpgradeReward'
 
 /**
  * Hot-seat play plus the match lifecycle around it.
@@ -151,6 +156,7 @@ const rankOf = (sq: string) => Number(sq.slice(1)) - 1
 
 /** A 31-bit non-negative seed — the default when no generator is injected. */
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
+const randomClaimId = () => `match-${Date.now()}-${Math.floor(Math.random() * 2 ** 31)}`
 
 /** How long the rule banner sits on screen at the start of a match. */
 const BANNER_MS = 3200
@@ -276,6 +282,12 @@ export function MatchHost({
   createAi,
   initialState,
   storage,
+  effectiveEquipment,
+  eligibility,
+  progression = emptyProgression(),
+  onProgressionChange,
+  claimId: initialClaimId,
+  newClaimId = randomClaimId,
 }: {
   content: ContentSet
   presetId: string
@@ -332,6 +344,14 @@ export function MatchHost({
    * storage checks fail.
    */
   storage?: Storage | null | undefined
+  /** Ownership-validated, start-time snapshot supplied by App. */
+  effectiveEquipment?: EffectiveEquipment | undefined
+  /** Start-time reward eligibility snapshot; Phase 5 consumes it at result. */
+  eligibility?: StandardEligibility | undefined
+  progression?: ProgressionProfileV1 | undefined
+  onProgressionChange?: ((next: ProgressionProfileV1) => boolean) | undefined
+  claimId?: string | undefined
+  newClaimId?: (() => string) | undefined
 }) {
   // Bound to the ACTIVE document's overlay (ADR-020), not to the shipped bundle:
   // a piece a child renamed must render under the name they gave it.
@@ -347,11 +367,21 @@ export function MatchHost({
   }
   // Seed and match move together — a seed without the match it produced would
   // let the two drift, and the seed on screen is the one a player copies.
-  const [{ seed, match }, setPlay] = useState<{ seed: number; match: Match }>(() => {
+  const [{ seed, match, claimId }, setPlay] = useState<{ seed: number; match: Match; claimId: string }>(() => {
     const s = newSeed()
-    return { seed: s, match: initialState ? { states: [initialState] } : createMatch({ content, presetId, seed: s }) }
+    return {
+      seed: s,
+      claimId: initialClaimId ?? newClaimId(),
+      match: initialState
+        ? { states: [initialState] }
+        : createMatch({ content, presetId, seed: s, ...(effectiveEquipment ? { effectiveEquipment } : {}) }),
+    }
   })
   const [selected, setSelected] = useState<SquareId | null>(null)
+  const [rewardState, setRewardState] = useState<{
+    profile: ProgressionProfileV1
+    notice: ProgressionNotice
+  }>({ profile: progression, notice: 'none' })
   const [pendingCard, setPendingCard] = useState<{ cardId: string; targets: SquareId[] } | null>(null)
   const [rejection, setRejection] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -451,6 +481,44 @@ export function MatchHost({
     const landed = newlyReached(persisted, after).size === 0
     setDiscovered(landed ? newlyReached(before, after).size : null)
   }, [state, storage, content, match, aiSide])
+
+  /** One persisted progression claim per terminal match state. */
+  const rewardCommittedFor = useRef<GameState | null>(null)
+  const [rewardRetry, setRewardRetry] = useState(0)
+  const progressionChangeRef = useRef(onProgressionChange)
+  progressionChangeRef.current = onProgressionChange
+  useEffect(() => {
+    if (!state.result || !eligibility || rewardCommittedFor.current === state) return
+    if (!eligibility.eligible) {
+      rewardCommittedFor.current = state
+      setRewardState({ profile: progression, notice: 'none' })
+      return
+    }
+    const persist = progressionChangeRef.current
+    if (!persist) return
+    const granted = grantCompletedMatch(progression, claimId)
+    if (!granted.ok) return
+    if (!granted.granted) {
+      rewardCommittedFor.current = state
+      setRewardState({ profile: granted.profile, notice: 'none' })
+      return
+    }
+    if (persist(granted.profile)) {
+      rewardCommittedFor.current = state
+      setRewardState({ profile: granted.profile, notice: 'granted' })
+    } else {
+      // Do not consume the in-memory guard until the durable write lands. The
+      // result screen exposes an explicit retry, using the same claim id, so a
+      // transient storage failure cannot permanently lose this match reward.
+      setRewardState({ profile: progression, notice: 'save-failed' })
+    }
+  }, [claimId, eligibility, progression, rewardRetry, state])
+
+  const applyProgression = (next: ProgressionProfileV1): boolean => {
+    if (!onProgressionChange?.(next)) return false
+    setRewardState((current) => ({ ...current, profile: next }))
+    return true
+  }
 
   const legal = legalActions(state, content)
   const drafting = pendingDraftSide(state)
@@ -652,7 +720,13 @@ export function MatchHost({
     // that paint — overwrites it.
     setDiscovered(null)
     committedFor.current = null
-    setPlay({ seed: s, match: createMatch({ content, presetId, seed: s }) })
+    rewardCommittedFor.current = null
+    setRewardState({ profile: progression, notice: 'none' })
+    setPlay({
+      seed: s,
+      claimId: newClaimId(),
+      match: createMatch({ content, presetId, seed: s, ...(effectiveEquipment ? { effectiveEquipment } : {}) }),
+    })
     setSelected(null)
     setPendingCard(null)
     setRejection(null)
@@ -723,6 +797,7 @@ export function MatchHost({
     setBanner(false)
     setPlay((p) => ({
       seed: p.seed,
+      claimId: p.claimId,
       match: { states: [...p.match.states, apply(currentState(p.match), action, content)] },
     }))
     setSelected(null)
@@ -841,7 +916,7 @@ export function MatchHost({
     setCardNotice(null)
     setAwardNotice(null)
     setCaptureNotice(null)
-    setPlay((p) => ({ seed: p.seed, match: undo(p.match) }))
+    setPlay((p) => ({ seed: p.seed, claimId: p.claimId, match: undo(p.match) }))
     setSelected(null)
     setPendingCard(null)
     setRejection(null)
@@ -1259,6 +1334,7 @@ export function MatchHost({
       data-mode={aiSide ? 'single' : 'hotseat'}
       data-ai-side={aiSide ?? ''}
       data-difficulty={aiSide ? aiDifficulty : ''}
+      data-standard={eligibility ? String(eligibility.eligible) : ''}
     >
       {/* Whose turn it is, as the loudest thing on screen after the board. It
           used to be one grey chip among four, the same size and weight as the
@@ -1930,6 +2006,11 @@ export function MatchHost({
           state={state}
           result={state.result}
           discovered={discovered}
+          progression={rewardState.profile}
+          {...(eligibility ? { eligibility } : {})}
+          progressionNotice={rewardState.notice}
+          onRetryProgression={() => setRewardRetry((attempt) => attempt + 1)}
+          onProgressionChange={applyProgression}
           nameOf={nameOf}
           onRematch={startNew}
           onEditRoom={onEditRoom ?? (() => undefined)}

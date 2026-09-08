@@ -483,6 +483,75 @@
       }
     },
     {
+      "name": "bishop-plus",
+      "white": "src/ui/art/assets/piece-bishop-plus-white.webp",
+      "black": "src/ui/art/assets/piece-bishop-plus-black.webp",
+      "affected": false,
+      "borderline": false,
+      "metrics": {
+        "naturalSize": {
+          "white": [
+            192,
+            192
+          ],
+          "black": [
+            192,
+            192
+          ]
+        },
+        "source": {
+          "whiteOpaque": 6537,
+          "blackOpaque": 6533,
+          "whiteWarmShare": 0.14838610983631637,
+          "blackWarmShare": 0.10255625287004438,
+          "sharedWarmOverlap": 0.03964125560538117,
+          "opponentMargin": -0.3965774681866607,
+          "maskIou": 0.7438292194796531,
+          "sideValueRatio": 2.9863434808472054,
+          "whiteMeanY": 0.3863659605530208,
+          "blackMeanY": 0.0961204859225459
+        },
+        "rendered": {
+          "28": {
+            "whiteOpaque": 162,
+            "blackOpaque": 172,
+            "whiteWarmShare": 0.08641975308641975,
+            "blackWarmShare": 0.0872093023255814,
+            "sharedWarmOverlap": 0.027777777777777776,
+            "opponentMargin": -0.43848693654895204,
+            "maskIou": 0.7578947368421053,
+            "sideValueRatio": 2.9971130096218057,
+            "whiteMeanY": 0.27019964387572876,
+            "blackMeanY": 0.0568360261517578
+          },
+          "40": {
+            "whiteOpaque": 333,
+            "blackOpaque": 329,
+            "whiteWarmShare": 0.08108108108108109,
+            "blackWarmShare": 0.0911854103343465,
+            "sharedWarmOverlap": 0.03900709219858156,
+            "opponentMargin": -0.39658807743914126,
+            "maskIou": 0.7421052631578947,
+            "sideValueRatio": 2.9441272800207554,
+            "whiteMeanY": 0.2682792251322187,
+            "blackMeanY": 0.058106475997863415
+          },
+          "55": {
+            "whiteOpaque": 579,
+            "blackOpaque": 579,
+            "whiteWarmShare": 0.11398963730569948,
+            "blackWarmShare": 0.10535405872193437,
+            "sharedWarmOverlap": 0.032,
+            "opponentMargin": -0.4421416234887737,
+            "maskIou": 0.7598784194528876,
+            "sideValueRatio": 2.946593014483197,
+            "whiteMeanY": 0.31534198342087355,
+            "blackMeanY": 0.07398793509152159
+          }
+        }
+      }
+    },
+    {
       "name": "bow",
       "white": "src/ui/art/assets/piece-bow-white.webp",
       "black": "src/ui/art/assets/piece-bow-black.webp",
@@ -1377,6 +1446,75 @@
       }
     },
     {
+      "name": "knight-plus",
+      "white": "src/ui/art/assets/piece-knight-plus-white.webp",
+      "black": "src/ui/art/assets/piece-knight-plus-black.webp",
+      "affected": false,
+      "borderline": false,
+      "metrics": {
+        "naturalSize": {
+          "white": [
+            192,
+            192
+          ],
+          "black": [
+            192,
+            192
+          ]
+        },
+        "source": {
+          "whiteOpaque": 8992,
+          "blackOpaque": 8420,
+          "whiteWarmShare": 0.13634341637010677,
+          "blackWarmShare": 0.07125890736342043,
+          "sharedWarmOverlap": 0.028154190238126563,
+          "opponentMargin": -0.5429474391594322,
+          "maskIou": 0.7747426358169401,
+          "sideValueRatio": 2.4130186622472283,
+          "whiteMeanY": 0.31484924556485944,
+          "blackMeanY": 0.10120034141181392
+        },
+        "rendered": {
+          "28": {
+            "whiteOpaque": 228,
+            "blackOpaque": 205,
+            "whiteWarmShare": 0.12280701754385964,
+            "blackWarmShare": 0.05853658536585366,
+            "sharedWarmOverlap": 0.03553299492385787,
+            "opponentMargin": -0.5168806161745827,
+            "maskIou": 0.8347457627118644,
+            "sideValueRatio": 2.523340803539692,
+            "whiteMeanY": 0.20167480813423383,
+            "blackMeanY": 0.04973873040898377
+          },
+          "40": {
+            "whiteOpaque": 441,
+            "blackOpaque": 410,
+            "whiteWarmShare": 0.11791383219954649,
+            "blackWarmShare": 0.04390243902439024,
+            "sharedWarmOverlap": 0.02666666666666667,
+            "opponentMargin": -0.48776063270836795,
+            "maskIou": 0.7878151260504201,
+            "sideValueRatio": 2.7030637247412606,
+            "whiteMeanY": 0.22045148123799913,
+            "blackMeanY": 0.050053683071747394
+          },
+          "55": {
+            "whiteOpaque": 792,
+            "blackOpaque": 751,
+            "whiteWarmShare": 0.13131313131313133,
+            "blackWarmShare": 0.05725699067909454,
+            "sharedWarmOverlap": 0.03254437869822485,
+            "opponentMargin": -0.5480201482198819,
+            "maskIou": 0.7797001153402537,
+            "sideValueRatio": 2.7198878430453766,
+            "whiteMeanY": 0.2639496338459132,
+            "blackMeanY": 0.06542741905651271
+          }
+        }
+      }
+    },
+    {
       "name": "lance",
       "white": "src/ui/art/assets/piece-lance-white.webp",
       "black": "src/ui/art/assets/piece-lance-black.webp",
@@ -1744,6 +1882,75 @@
       }
     },
     {
+      "name": "pawn-plus",
+      "white": "src/ui/art/assets/piece-pawn-plus-white.webp",
+      "black": "src/ui/art/assets/piece-pawn-plus-black.webp",
+      "affected": false,
+      "borderline": false,
+      "metrics": {
+        "naturalSize": {
+          "white": [
+            192,
+            192
+          ],
+          "black": [
+            192,
+            192
+          ]
+        },
+        "source": {
+          "whiteOpaque": 6288,
+          "blackOpaque": 5095,
+          "whiteWarmShare": 0.23791348600508905,
+          "blackWarmShare": 0.17291462217860648,
+          "sharedWarmOverlap": 0.09979423868312758,
+          "opponentMargin": -0.2837000926418406,
+          "maskIou": 0.7450559558485359,
+          "sideValueRatio": 2.0008136724134515,
+          "whiteMeanY": 0.3251887324909683,
+          "blackMeanY": 0.13751807710230332
+        },
+        "rendered": {
+          "28": {
+            "whiteOpaque": 153,
+            "blackOpaque": 135,
+            "whiteWarmShare": 0.20915032679738563,
+            "blackWarmShare": 0.1037037037037037,
+            "sharedWarmOverlap": 0.10236220472440945,
+            "opponentMargin": -0.2570806100217865,
+            "maskIou": 0.7888198757763976,
+            "sideValueRatio": 2.3508416920469544,
+            "whiteMeanY": 0.23842188543451137,
+            "blackMeanY": 0.07268877415704375
+          },
+          "40": {
+            "whiteOpaque": 335,
+            "blackOpaque": 269,
+            "whiteWarmShare": 0.19701492537313434,
+            "blackWarmShare": 0.10780669144981413,
+            "sharedWarmOverlap": 0.09885931558935361,
+            "opponentMargin": -0.199134439327526,
+            "maskIou": 0.7712609970674487,
+            "sideValueRatio": 2.111920306931079,
+            "whiteMeanY": 0.2223253598857436,
+            "blackMeanY": 0.07894679737298947
+          },
+          "55": {
+            "whiteOpaque": 565,
+            "blackOpaque": 464,
+            "whiteWarmShare": 0.2247787610619469,
+            "blackWarmShare": 0.14870689655172414,
+            "sharedWarmOverlap": 0.109375,
+            "opponentMargin": -0.25364281354897766,
+            "maskIou": 0.7710843373493976,
+            "sideValueRatio": 2.1316662364711183,
+            "whiteMeanY": 0.26995513672049265,
+            "blackMeanY": 0.10009626331097903
+          }
+        }
+      }
+    },
+    {
       "name": "queen",
       "white": "src/ui/art/assets/piece-queen-white.webp",
       "black": "src/ui/art/assets/piece-queen-black.webp",
@@ -1877,6 +2084,75 @@
             "sideValueRatio": 2.365594671339175,
             "whiteMeanY": 0.30538175554843683,
             "blackMeanY": 0.10022935241363788
+          }
+        }
+      }
+    },
+    {
+      "name": "rook-plus",
+      "white": "src/ui/art/assets/piece-rook-plus-white.webp",
+      "black": "src/ui/art/assets/piece-rook-plus-black.webp",
+      "affected": false,
+      "borderline": false,
+      "metrics": {
+        "naturalSize": {
+          "white": [
+            192,
+            192
+          ],
+          "black": [
+            192,
+            192
+          ]
+        },
+        "source": {
+          "whiteOpaque": 6868,
+          "blackOpaque": 7075,
+          "whiteWarmShare": 0.15943506115317413,
+          "blackWarmShare": 0.1137809187279152,
+          "sharedWarmOverlap": 0.044297976701410176,
+          "opponentMargin": -0.5780868924556143,
+          "maskIou": 0.8793637956597924,
+          "sideValueRatio": 2.8814879616587894,
+          "whiteMeanY": 0.3935348464974885,
+          "blackMeanY": 0.10392562884148168
+        },
+        "rendered": {
+          "28": {
+            "whiteOpaque": 164,
+            "blackOpaque": 174,
+            "whiteWarmShare": 0.12804878048780488,
+            "blackWarmShare": 0.10919540229885058,
+            "sharedWarmOverlap": 0.024844720496894408,
+            "opponentMargin": -0.5384076254555649,
+            "maskIou": 0.9096045197740112,
+            "sideValueRatio": 2.9625463201314512,
+            "whiteMeanY": 0.2810504377878016,
+            "blackMeanY": 0.06174523602828007
+          },
+          "40": {
+            "whiteOpaque": 354,
+            "blackOpaque": 357,
+            "whiteWarmShare": 0.14124293785310735,
+            "blackWarmShare": 0.06722689075630252,
+            "sharedWarmOverlap": 0.04504504504504504,
+            "opponentMargin": -0.5415895171627974,
+            "maskIou": 0.8809523809523809,
+            "sideValueRatio": 2.8988146338604475,
+            "whiteMeanY": 0.2681177356878216,
+            "blackMeanY": 0.059740627072857586
+          },
+          "55": {
+            "whiteOpaque": 601,
+            "blackOpaque": 620,
+            "whiteWarmShare": 0.15806988352745424,
+            "blackWarmShare": 0.10161290322580645,
+            "sharedWarmOverlap": 0.04804270462633452,
+            "opponentMargin": -0.5980570017712414,
+            "maskIou": 0.8528072837632777,
+            "sideValueRatio": 2.869915250585348,
+            "whiteMeanY": 0.33682003915252523,
+            "blackMeanY": 0.08478448155346377
           }
         }
       }

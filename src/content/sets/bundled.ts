@@ -168,7 +168,7 @@ const CAMEL: Array<[number, number]> = [
 ]
 
 export const bundledContentSource: ContentSource = {
-  schemaVersion: 16,
+  schemaVersion: 17,
 
   pieces: [
     {
@@ -229,6 +229,52 @@ export const bundledContentSource: ContentSource = {
         },
       ],
       promotion: { onRank: 'last', to: 'piece.queen' },
+      effects: [],
+    },
+    {
+      id: 'piece.pawn-plus',
+      nameKey: 'piece.pawn-plus.name',
+      textKey: 'piece.pawn-plus.text',
+      artKey: 'art.pawn-plus',
+      movement: [{ kind: 'step', vectors: [[0, 1], [1, 0], [-1, 0]], forward: true }],
+      attack: [{ kind: 'step', vectors: [[1, 1], [-1, 1]], forward: true }],
+      promotion: { onRank: 'last', to: 'piece.queen' },
+      effects: [],
+    },
+    {
+      id: 'piece.knight-plus',
+      nameKey: 'piece.knight-plus.name',
+      textKey: 'piece.knight-plus.text',
+      artKey: 'art.knight-plus',
+      movement: [
+        { kind: 'jump', vectors: KNIGHT },
+        { kind: 'step', vectors: ORTHOGONAL },
+      ],
+      attack: [{ kind: 'jump', vectors: KNIGHT }],
+      effects: [],
+    },
+    {
+      id: 'piece.bishop-plus',
+      nameKey: 'piece.bishop-plus.name',
+      textKey: 'piece.bishop-plus.text',
+      artKey: 'art.bishop-plus',
+      movement: [
+        { kind: 'slide', vectors: DIAGONAL },
+        { kind: 'step', vectors: ORTHOGONAL },
+      ],
+      attack: [{ kind: 'slide', vectors: DIAGONAL }],
+      effects: [],
+    },
+    {
+      id: 'piece.rook-plus',
+      nameKey: 'piece.rook-plus.name',
+      textKey: 'piece.rook-plus.text',
+      artKey: 'art.rook-plus',
+      movement: [
+        { kind: 'slide', vectors: ORTHOGONAL },
+        { kind: 'step', vectors: DIAGONAL },
+      ],
+      attack: [{ kind: 'slide', vectors: ORTHOGONAL }],
       effects: [],
     },
     {

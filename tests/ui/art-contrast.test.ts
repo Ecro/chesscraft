@@ -14,7 +14,7 @@ import { artRegistry } from '@ui/art/registry'
 describe('raster art contrast inputs', () => {
   it('keeps a distinct white/black source for every piece', () => {
     const pieces = Object.entries(ART_ASSETS.piece)
-    expect(pieces.length).toBe(33)
+    expect(pieces.length).toBe(37)
     for (const [name, pair] of pieces) {
       expect(pair.white, `${name} white asset`).toMatch(/piece-.+-white\.webp$/)
       expect(pair.black, `${name} black asset`).toMatch(/piece-.+-black\.webp$/)

@@ -14,7 +14,7 @@ import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
  * indistinguishable from a gate that refuses everything.
  */
 
-type Slot = { pieceId: string; replaces: string; skillCardId: string }
+type Slot = { piece: { pieceId: string; replaces: string; square: string }; skillCardId: string }
 
 /**
  * The loadout card is one the room does NOT deal, because a card in the shared
@@ -23,7 +23,10 @@ type Slot = { pieceId: string; replaces: string; skillCardId: string }
  * to the other one too.
  */
 const OWN_CARD = 'skill.probe-own'
-const GOOD: Slot = { pieceId: 'piece.archer', replaces: 'piece.knight', skillCardId: OWN_CARD }
+const GOOD: Slot = {
+  piece: { pieceId: 'piece.archer', replaces: 'piece.knight', square: 'b1' },
+  skillCardId: OWN_CARD,
+}
 
 function document(mutate: (preset: Record<string, unknown>, source: ContentSource) => void): ContentSource {
   const source = structuredClone(bundledContentSource) as ContentSource
@@ -42,7 +45,7 @@ function document(mutate: (preset: Record<string, unknown>, source: ContentSourc
   })
   const preset = source.presets.find((p) => (p as { id: string }).id === BUNDLED_PRESET_ID) as Record<string, unknown>
   preset.loadoutBudget = 100
-  preset.loadout = { white: { ...GOOD } }
+  preset.loadout = { white: structuredClone(GOOD) }
   mutate(preset, source)
   return source
 }
@@ -71,7 +74,7 @@ describe('PLAN Phase 4 — structural refusals, each with a located error', () =
         void preset
       }),
     )
-    expect(errors.some((e) => e.path === `${AT}.pieceId` && e.message.includes('wins the match'))).toBe(true)
+    expect(errors.some((e) => e.path === `${AT}.piece.pieceId` && e.message.includes('wins the match'))).toBe(true)
   })
 
   it('refuses a skill card that wins the match outright', () => {
@@ -85,13 +88,13 @@ describe('PLAN Phase 4 — structural refusals, each with a located error', () =
   })
 
   it('refuses a royal piece in the slot', () => {
-    const errors = errorsFor(document((preset) => ((preset.loadout as Record<string, Slot>).white!.pieceId = 'piece.king')))
-    expect(errors.some((e) => e.path === `${AT}.pieceId` && e.message.includes('royal'))).toBe(true)
+    const errors = errorsFor(document((preset) => ((preset.loadout as Record<string, Slot>).white!.piece.pieceId = 'piece.king')))
+    expect(errors.some((e) => e.path === `${AT}.piece.pieceId` && e.message.includes('royal'))).toBe(true)
   })
 
   it('refuses replacing a royal piece — that would move the losing condition', () => {
-    const errors = errorsFor(document((preset) => ((preset.loadout as Record<string, Slot>).white!.replaces = 'piece.king')))
-    expect(errors.some((e) => e.path === `${AT}.replaces` && e.message.includes('cannot be replaced'))).toBe(true)
+    const errors = errorsFor(document((preset) => ((preset.loadout as Record<string, Slot>).white!.piece.replaces = 'piece.king')))
+    expect(errors.some((e) => e.path === `${AT}.piece.replaces` && e.message.includes('cannot be replaced'))).toBe(true)
   })
 
   it("refuses replacing a piece that does not stand on that side's board", () => {
@@ -105,7 +108,7 @@ describe('PLAN Phase 4 — structural refusals, each with a located error', () =
         void preset
       }),
     )
-    expect(errors.some((e) => e.path === `${AT}.replaces` && e.message.includes('nothing to replace'))).toBe(true)
+    expect(errors.some((e) => e.path === `${AT}.piece.square` && e.message.includes('requested'))).toBe(true)
   })
 })
 
@@ -128,17 +131,17 @@ describe('the price-dependent refusals', () => {
   const preset = loaded.set.presets.get(BUNDLED_PRESET_ID)!
 
   it('refuses a piece standing in for one of a different grade', () => {
-    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, pieceId: 'piece.queen', replaces: 'piece.pawn' } } }, loaded.set)
+    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, piece: { pieceId: 'piece.queen', replaces: 'piece.pawn', square: 'a2' } } } }, loaded.set)
     expect(errors.some((e) => e.message.includes('cannot replace it'))).toBe(true)
   })
 
   it('accepts a piece of the same grade', () => {
-    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, pieceId: 'piece.knight', replaces: 'piece.knight' } } }, loaded.set)
+    const errors = checkLoadoutGrades({ ...preset, loadout: { white: { ...GOOD, piece: { pieceId: 'piece.knight', replaces: 'piece.knight', square: 'b1' } } } }, loaded.set)
     expect(errors).toEqual([])
   })
 
   it("refuses a pair that costs more than the room allows", () => {
-    const tight: PresetDef = { ...preset, loadoutBudget: 1, loadout: { white: { ...GOOD, pieceId: 'piece.knight', replaces: 'piece.knight' } } }
+    const tight: PresetDef = { ...preset, loadoutBudget: 1, loadout: { white: { ...GOOD, piece: { pieceId: 'piece.knight', replaces: 'piece.knight', square: 'b1' } } } }
     expect(checkLoadoutGrades(tight, loaded.set).some((e) => e.message.includes("room's budget"))).toBe(true)
   })
 

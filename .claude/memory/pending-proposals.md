@@ -53,6 +53,7 @@ blocked on a decision nobody has been asked to make, not on effort.
 ## Proposal: a sampling/negative-instance check in the test-review gate (2026-08-06)
 **Wrapup audit 2026-08-16:** rechecked at count 3; proposal remains OPEN.
 **Triggered by:** [fail:test] all-positive-fixture-hides-overcounting (count: 4)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update to the `test-reviewer` agent's rubric
 **Rationale:** Three occurrences, three disguises, one root cause — a fixture or a
 sample that contains no instance capable of failing. (1) A three-check win condition
@@ -71,6 +72,7 @@ risk, or iterate.
 ## Proposal: a closed-set sweep before any fix is declared resolved (2026-08-06)
 **Wrapup audit 2026-08-16:** rechecked at count 7; proposal remains OPEN.
 **Triggered by:** [fail:design] fix-scoped-to-the-cited-evidence (count: 7)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update — a step in `/hm:review`'s auto-fix loop
 **Rationale:** All three instances share one shape: the remedy was verified
 against the evidence that prompted it rather than against the closed set the
@@ -121,6 +123,7 @@ join silently. That is the data-side twin of "enumerate the callers", and it is 
 ## Proposal: derive phase scope from reachability, not prose (2026-08-06)
 **Wrapup audit 2026-08-16:** rechecked at count 4; proposal remains OPEN.
 **Triggered by:** [fail:design] phase-scope-omits-wiring (count: 4)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update to `/hm:plan` + a check in `/hm:execute` Step 1
 
 **Rationale:** Five phases of one PLAN have now come back `scope_violation`, and not
@@ -147,6 +150,7 @@ Two concrete forms:
 **Wrapup audit 2026-08-16:** rechecked at count 8; partial implementation remains BUILT.
 **Status:** BUILT (partial) — see the 2026-08-14 note at the end of this entry.
 **Triggered by:** [fail:design] declared-but-inert-vocabulary (count: 8)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 
 **Updated 2026-08-08 — the harness now knows the shape, and still missed a whole
 CONTENT KIND.** The per-record "play it and diff the board" harness the note below
@@ -225,6 +229,7 @@ from the schema's kind list, so a fifth content kind would repeat the original m
 ## Proposal: assert the cue's OUTCOME, not the property that usually produces it (2026-08-07)
 **Wrapup audit 2026-08-16:** rechecked at count 3; proposal remains OPEN.
 **Triggered by:** [fail:render] glyph-opts-out-of-its-styling (count: 3)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** a project e2e probe (`cue-outcome.spec.ts`) plus a note in the review rubric
 **Rationale:** All three instances are the same shape and none was catchable by
 reading CSS. A colour emoji ignored `color` and `font-weight`; form controls did
@@ -250,6 +255,7 @@ consumed** — `text-shadow`, `color`, `font-weight`, `letter-spacing`,
 **Status:** OPEN — highest evidence in this file (combined count 10). Needs a harness edit, not a repo test.
 **Also triggered by:** [fail:test] fixture-invalid-so-fallback-satisfies (count: 2) · [fail:test] green-test-that-cannot-discriminate (count: 1)
 **Triggered by:** [fail:test] assertion-equals-its-own-default (count: 7)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update — a checklist item in `/hm:execute` Phase A.5 and in the review stage's auto-fix step
 **Rationale:** All three instances are a test whose assertion is satisfied by the
 state the code is already in, so no implementation could fail it. Reading the
@@ -328,6 +334,7 @@ pre-fix red output recorded next to it.
 
 ## Proposal: preserve continuous signal in expensive trial tests (2026-08-23)
 **Triggered by:** [fail:test] binary-outcome-wastes-the-trial (count: 3)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update to the test-review rubric plus a runner guard
 **Rationale:** Three occurrences now show that the grading simulation's default 20-second
 per-test limit is unreliable under the default worker pool, while the same test passes in
@@ -341,6 +348,7 @@ worker timeout.
 ## Proposal: check the comment against the code it justifies (2026-08-07, re-evidenced 2026-08-13)
 **Wrapup audit 2026-08-16:** rechecked at count 10; proposal remains OPEN.
 **Triggered by:** [fail:design] comment-claims-unbuilt-safeguard (count: 10)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update — a review-stage heuristic, and a prompt line
 for the `code-reviewer` agent
 **Rationale:** Three instances, and the third landed *inside the fix for the
@@ -358,6 +366,7 @@ looking for it.
 ## Proposal: flag a spec whose setup makes the asserted branch unreachable (2026-08-08)
 **Wrapup audit 2026-08-16:** rechecked at count 6; proposal remains OPEN.
 **Triggered by:** [fail:test] test-setup-hides-the-failure-path (count: 6)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update — a review-stage checklist item, plus a `/hm:execute` Phase A.5 prompt line
 **Rationale:** All three instances share one shape and none was caught by running the suite,
 because in every case the suite was GREEN. A clipboard spec granted the permission whose
@@ -374,6 +383,7 @@ without the mechanism.
 ## Proposal: fail a browser run that did not start its own server (2026-08-08)
 **Wrapup audit 2026-08-16:** rechecked at count 6; proposal remains OPEN.
 **Triggered by:** [fail:test] suite-attached-to-a-foreign-server (count: 6)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** hook (pre-e2e) — or a `playwright.config.ts` `globalSetup`
 
 **Rationale:** Three times now a browser suite has reported on a checkout nobody was
@@ -410,6 +420,7 @@ derive the e2e port from the worktree path (or refuse `reuseExistingServer` when
 ## Proposal: bind non-pytest ACs, or say plainly that they are unbound (2026-08-08)
 **Wrapup audit 2026-08-16:** rechecked at count 5; proposal remains OPEN.
 **Triggered by:** [fail:tooling] spec-machine-binding-is-pytest-only (count: 6)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update — a wrapup Step 3.5 branch for non-pytest projects
 **Rationale:** `spec_machine mark-tested` validates a node id through
 `pytest --collect-only`, so on this TypeScript repo every AC keeps
@@ -429,6 +440,7 @@ as one.
 ## Proposal: grep the call sites when one rule has more than one caller (2026-08-10)
 **Wrapup audit 2026-08-16:** rechecked at count 5; proposal remains OPEN.
 **Triggered by:** [fail:design] shared-vocabulary-unshared-code-path (count: 5)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update (review checklist item) + a per-task grep step
 **Rationale:** Three instances, and the third shows extraction is not the cure. The
 first two were one vocabulary reaching two code paths (`apply` routing card plays
@@ -459,6 +471,7 @@ calls are semantically different.
 ## Proposal: derive e2e sweep coverage from the changed selectors, not from a nav affordance (2026-08-11)
 **Wrapup audit 2026-08-16:** rechecked at count 3; proposal remains OPEN.
 **Triggered by:** [fail:test] gate-enumerates-one-axis-blind-to-others (count: 3)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** skill (a review/execute checklist item) + a reusable e2e helper
 **Rationale:** All three recurrences share one move — the gate enumerated a MECHANISM
 (`axis:kind` pairs, one-interaction pointer sequences, `.tabbar .tab` clicks) instead of the
@@ -474,6 +487,7 @@ guards that were added by hand to this task's two new tests after the fact.
 ## Proposal: re-evaluate persistent state at consumption (2026-08-11)
 **Wrapup audit 2026-08-16:** rechecked at count 3; proposal remains OPEN.
 **Triggered by:** [fail:design] rule-keyed-to-event-not-state (count: 3)
+**Wrapup audit 2026-09-08:** Trigger count rechecked during piece-upgrade-acquisition; retain the existing mechanism and triage status.
 **Proposed mechanism:** rule update
 **Rationale:** Three failures came from enforcing an invariant only at the event that normally creates a state, while alternate routes later reached or consumed that state without the guard. Require persistent effects to re-check their invariant at consumption time and add a transfer-path regression whenever state can outlive or change occupants.
 

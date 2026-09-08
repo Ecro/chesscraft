@@ -15,13 +15,18 @@ import type { GameState } from '@engine/types'
  * PLAYS the same, which is a stronger claim than that the JSON matches. A field
  * the exporter kept and the engine ignored would pass a byte comparison and fail
  * here, and that is the failure this file exists for.
+ *
+ * The import and concrete legacy-playback assertions intentionally pass before
+ * v17 exists. They are preservation invariants paired with the RED normalized-
+ * shape assertions below: once migration exists, either dropping data or
+ * changing replace-all playback makes these siblings fail.
  */
 
 const OWN_CARD = 'skill.probe-own'
 
 function roomWithLoadout(): ContentSource {
   const source = structuredClone(bundledContentSource) as ContentSource
-  source.schemaVersion = SCHEMA_VERSION
+  source.schemaVersion = 16
   ;(source.skillCards as unknown[]).push({
     id: OWN_CARD,
     nameKey: 'skill.probe-own.name',
@@ -51,7 +56,7 @@ function boardOf(state: GameState): string {
     .join(',')
 }
 
-describe('AC-015 — a room keeps its loadout through export and import', () => {
+describe('schema v16 → v17 loadout migration', () => {
   const original = roomWithLoadout()
   const imported = importContent(exportContent(original))
 
@@ -59,10 +64,15 @@ describe('AC-015 — a room keeps its loadout through export and import', () => 
     expect(imported.ok, imported.ok ? '' : JSON.stringify(imported.errors.slice(0, 5), null, 2)).toBe(true)
   })
 
-  it('round-trips the document unchanged', () => {
+  it('writes the current schema with independent axes', () => {
     expect(imported.ok).toBe(true)
     if (!imported.ok) return
-    expect(imported.source).toEqual(original)
+    expect(imported.source.schemaVersion).toBe(SCHEMA_VERSION)
+    const preset = imported.source.presets.find((entry) => (entry as { id: string }).id === BUNDLED_PRESET_ID) as Record<string, unknown>
+    expect((preset.loadout as Record<string, unknown>).white).toEqual({
+      piece: { pieceId: 'piece.archer', replaces: 'piece.knight' },
+      skillCardId: OWN_CARD,
+    })
   })
 
   it('carries the loadout into the loaded set, not just into the JSON', () => {
@@ -72,7 +82,7 @@ describe('AC-015 — a room keeps its loadout through export and import', () => 
     expect(loaded.ok, loaded.ok ? '' : JSON.stringify(loaded.errors.slice(0, 5), null, 2)).toBe(true)
     if (!loaded.ok) return
     const slot = loaded.set.presets.get(BUNDLED_PRESET_ID)?.loadout?.white
-    expect(slot).toEqual({ pieceId: 'piece.archer', replaces: 'piece.knight', skillCardId: OWN_CARD })
+    expect(slot).toEqual({ piece: { pieceId: 'piece.archer', replaces: 'piece.knight' }, skillCardId: OWN_CARD })
   })
 })
 
@@ -88,6 +98,9 @@ describe('AC-015 — the imported room plays identically under the same seed', (
     const a = currentState(createMatch({ content: before.set, presetId: BUNDLED_PRESET_ID, seed: 7 }))
     const b = currentState(createMatch({ content: after.set, presetId: BUNDLED_PRESET_ID, seed: 7 }))
     expect(boardOf(b)).toBe(boardOf(a))
+    expect(a.board.get('b1')).toEqual({ pieceId: 'piece.archer', side: 'white' })
+    expect(a.board.get('e1')).toEqual({ pieceId: 'piece.archer', side: 'white' })
+    expect([...a.board.values()].filter((piece) => piece.side === 'white' && piece.pieceId === 'piece.knight')).toHaveLength(0)
     expect(b.drafts.white.offers).toEqual(a.drafts.white.offers)
     expect(b.drafts.black.offers).toEqual(a.drafts.black.offers)
   })

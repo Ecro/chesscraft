@@ -26,6 +26,7 @@ import { gate6aContentSource } from '@content/sets/gate6a'
 import { Cell, GRID_RANGE, paintAt, readGrid, writeGrid } from '../../src/ui/PieceMoves'
 import { type PieceLike, reachOf } from '../helpers/reach'
 import { Edit } from '../../src/ui/Edit'
+import { isProgressionOnlyPiece, UPGRADE_PIECE_IDS } from '../../src/progression/catalog'
 
 afterEach(cleanup)
 
@@ -47,6 +48,8 @@ const allPieces = (): Array<{ source: string; piece: PieceRec }> =>
     ((src as unknown as { pieces: PieceRec[] }).pieces ?? []).map((piece) => ({ source: name, piece })),
   )
 
+const authorablePieces = () => allPieces().filter(({ piece }) => !isProgressionOnlyPiece(piece.id))
+
 const movementOf = (p: PieceRec) => ({ movement: p.movement, attack: p.attack })
 
 describe('AC-006 — the set of shipped pieces the grid cannot open is exactly one, and it is named', () => {
@@ -55,11 +58,15 @@ describe('AC-006 — the set of shipped pieces the grid cannot open is exactly o
     // from measuring against ONE source while the app loaded three, so the
     // count is asserted rather than assumed.
     expect(SOURCES.length).toBe(3)
-    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(19)
+    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(23)
+    expect(authorablePieces()).toHaveLength(19)
+    expect(allPieces().filter(({ piece }) => isProgressionOnlyPiece(piece.id)).map(({ piece }) => piece.id)).toEqual(
+      UPGRADE_PIECE_IDS,
+    )
   })
 
   it('refuses exactly piece.charger, and opens everything else', () => {
-    const refused = allPieces()
+    const refused = authorablePieces()
       .filter(({ piece }) => readGrid(movementOf(piece) as unknown as Record<string, unknown>) === null)
       .map(({ piece }) => piece.id)
       .sort()
@@ -137,7 +144,7 @@ describe('every piece the grid opens survives a round-trip', () => {
    *    byte-equality was reaching for.
    */
   it.each(
-    allPieces()
+    authorablePieces()
       .filter(({ piece }) => readGrid(movementOf(piece) as unknown as Record<string, unknown>) !== null)
       .map(({ source, piece }) => [`${source}/${piece.id}`, piece] as const),
   )('%s', (_label, piece) => {
@@ -164,7 +171,7 @@ describe('every piece the grid opens survives a round-trip', () => {
     // so a regression that closes half of them would quietly shrink the table
     // instead of failing it. This is the row count that makes the sweep mean
     // something, and AC-006 pins which one is missing.
-    const opens = allPieces().filter(
+    const opens = authorablePieces().filter(
       ({ piece }) => readGrid(movementOf(piece) as unknown as Record<string, unknown>) !== null,
     )
     expect(opens.length).toBe(18)

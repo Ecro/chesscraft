@@ -56,6 +56,8 @@ export type LoadResult = { ok: true; set: ContentSet } | { ok: false; errors: Va
  */
 export interface ContentSource {
   schemaVersion: number
+  /** Persisted proof that absent piece squares came from a v16 migration. */
+  legacyLoadoutV16?: true
   /**
    * Authored text (ADR-020). Optional, and its ABSENT case is the common one:
    * every document written before schema v6 lacks it entirely.
@@ -141,6 +143,29 @@ export function normalizeBoard(record: unknown, schemaVersion: number | null): u
   }
 }
 
+/** Migrates the coupled v8-v16 loadout into v17's independent axes. */
+export function normalizePreset(record: unknown, schemaVersion: number | null): unknown {
+  if (schemaVersion === null || schemaVersion > 16 || !record || typeof record !== 'object') return record
+  const source = record as Record<string, unknown>
+  if (!source.loadout || typeof source.loadout !== 'object' || Array.isArray(source.loadout)) return record
+  const legacy = source.loadout as Record<string, unknown>
+  const normalizeSide = (side: unknown): unknown => {
+    if (!side || typeof side !== 'object' || Array.isArray(side)) return side
+    const slot = side as Record<string, unknown>
+    return {
+      piece: { pieceId: slot.pieceId, replaces: slot.replaces },
+      skillCardId: slot.skillCardId,
+    }
+  }
+  return {
+    ...source,
+    loadout: {
+      ...(legacy.white === undefined ? {} : { white: normalizeSide(legacy.white) }),
+      ...(legacy.black === undefined ? {} : { black: normalizeSide(legacy.black) }),
+    },
+  }
+}
+
 export function loadContentSet(source: unknown): LoadResult {
   const errors: ValidationError[] = []
 
@@ -152,6 +177,9 @@ export function loadContentSet(source: unknown): LoadResult {
   const schemaVersion = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : null
   if (schemaVersion === null) {
     errors.push({ contentId: 'root', path: 'schemaVersion', message: 'schemaVersion is required' })
+  }
+  if (raw.legacyLoadoutV16 !== undefined && raw.legacyLoadoutV16 !== true) {
+    errors.push({ contentId: 'root', path: 'legacyLoadoutV16', message: 'legacyLoadoutV16, when present, must be true' })
   }
 
   /**
@@ -195,7 +223,9 @@ export function loadContentSet(source: unknown): LoadResult {
           ? normalizeSkillCard(record, schemaVersion)
           : name === 'boards'
             ? normalizeBoard(record, schemaVersion)
-            : record
+            : name === 'presets'
+              ? normalizePreset(record, schemaVersion)
+              : record
       const result = schema.safeParse(normalized)
       if (!result.success) {
         for (const issue of result.error.issues) {
@@ -424,13 +454,18 @@ export function loadContentSet(source: unknown): LoadResult {
       const slot = preset.loadout?.[side]
       if (!slot) continue
       const at = `presets.${id}.loadout.${side}`
-      requireRef(pieces.has(slot.pieceId), id, `${at}.pieceId`, 'piece', slot.pieceId)
-      requireRef(pieces.has(slot.replaces), id, `${at}.replaces`, 'piece', slot.replaces)
-      requireRef(skillCards.has(slot.skillCardId), id, `${at}.skillCardId`, 'skill card', slot.skillCardId)
+      const pieceSlot = slot.piece
+      if (pieceSlot) {
+        requireRef(pieces.has(pieceSlot.pieceId), id, `${at}.piece.pieceId`, 'piece', pieceSlot.pieceId)
+        requireRef(pieces.has(pieceSlot.replaces), id, `${at}.piece.replaces`, 'piece', pieceSlot.replaces)
+      }
+      if (slot.skillCardId !== undefined) {
+        requireRef(skillCards.has(slot.skillCardId), id, `${at}.skillCardId`, 'skill card', slot.skillCardId)
+      }
 
-      const brought = pieces.get(slot.pieceId)
-      const replaced = pieces.get(slot.replaces)
-      const card = skillCards.get(slot.skillCardId)
+      const brought = pieceSlot ? pieces.get(pieceSlot.pieceId) : undefined
+      const replaced = pieceSlot ? pieces.get(pieceSlot.replaces) : undefined
+      const card = slot.skillCardId === undefined ? undefined : skillCards.get(slot.skillCardId)
 
       // ADR-003 — the ban attaches to the SLOT, not to where a record came from.
       // `win` and `royal` stay perfectly legal in the library and in the shared
@@ -438,18 +473,18 @@ export function loadContentSet(source: unknown): LoadResult {
       // what makes a provenance flag unnecessary, and a provenance flag is a
       // thing an imported document could forge.
       if (brought && hasWinAction(brought.effects)) {
-        errors.push({ contentId: id, path: `${at}.pieceId`, message: `${slot.pieceId} wins the match outright, so it cannot be brought as a loadout` })
+        errors.push({ contentId: id, path: `${at}.piece.pieceId`, message: `${pieceSlot!.pieceId} wins the match outright, so it cannot be brought as a loadout` })
       }
       if (card && hasWinAction(card.effects)) {
-        errors.push({ contentId: id, path: `${at}.skillCardId`, message: `${slot.skillCardId} wins the match outright, so it cannot be brought as a loadout` })
+        errors.push({ contentId: id, path: `${at}.skillCardId`, message: `${slot.skillCardId!} wins the match outright, so it cannot be brought as a loadout` })
       }
       if (brought?.royal) {
-        errors.push({ contentId: id, path: `${at}.pieceId`, message: `${slot.pieceId} is royal, so it cannot be brought as a loadout` })
+        errors.push({ contentId: id, path: `${at}.piece.pieceId`, message: `${pieceSlot!.pieceId} is royal, so it cannot be brought as a loadout` })
       }
       // ADR-008 — replacing a royal piece would move the losing condition, which
       // is a different game rather than a customised army.
       if (replaced?.royal) {
-        errors.push({ contentId: id, path: `${at}.replaces`, message: `${slot.replaces} is royal and cannot be replaced` })
+        errors.push({ contentId: id, path: `${at}.piece.replaces`, message: `${pieceSlot!.replaces} is royal and cannot be replaced` })
       }
 
       // A loadout card the room ALSO deals to everyone is not a loadout. Both
@@ -458,7 +493,7 @@ export function loadContentSet(source: unknown): LoadResult {
       // which is the worst version of the failure. Refused rather than papered
       // over in `skillPoolFor`, because stripping a shared card from the OTHER
       // side's pool would punish them for a choice they did not make.
-      if (preset.skillCardIds.includes(slot.skillCardId)) {
+      if (slot.skillCardId !== undefined && preset.skillCardIds.includes(slot.skillCardId)) {
         errors.push({
           contentId: id,
           path: `${at}.skillCardId`,
@@ -467,12 +502,29 @@ export function loadContentSet(source: unknown): LoadResult {
       }
 
       const board = boards.get(preset.boardId)
-      if (board && replaced && !board.placements.some((p) => p.side === side && p.pieceId === slot.replaces)) {
-        errors.push({
-          contentId: id,
-          path: `${at}.replaces`,
-          message: `${slot.replaces} does not stand on ${side}'s side of board ${preset.boardId}, so there is nothing to replace`,
-        })
+      if (
+        pieceSlot &&
+        schemaVersion !== null &&
+        schemaVersion >= 17 &&
+        raw.legacyLoadoutV16 !== true &&
+        pieceSlot.square === undefined
+      ) {
+        errors.push({ contentId: id, path: `${at}.piece.square`, message: 'a v17 piece loadout must name one starting square' })
+      }
+      if (board && replaced && pieceSlot) {
+        const exactMatch = board.placements.some(
+          (placement) =>
+            placement.side === side &&
+            placement.pieceId === pieceSlot.replaces &&
+            (pieceSlot.square === undefined || placement.square === pieceSlot.square),
+        )
+        if (!exactMatch) {
+          errors.push({
+            contentId: id,
+            path: pieceSlot.square === undefined ? `${at}.piece.replaces` : `${at}.piece.square`,
+            message: `${pieceSlot.replaces} does not stand at the requested ${side} starting square on board ${preset.boardId}`,
+          })
+        }
       }
     }
   }

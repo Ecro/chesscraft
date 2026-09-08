@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { loadContentSet } from '@content/load'
 import { bundledContentSource } from '@content/sets/bundled'
+import { isProgressionOnlyPiece } from '../../src/progression/catalog'
 
 describe('pre-Phase-2 bundled census', () => {
   it('keeps every selectable rule, skill, piece, and terrain record reachable', () => {
@@ -14,7 +15,9 @@ describe('pre-Phase-2 bundled census', () => {
     )
     for (const id of loaded.set.ruleCards.keys()) expect(presetRuleIds.has(id), `${id} is not in a preset`).toBe(true)
     for (const id of loaded.set.skillCards.keys()) expect(presetSkillIds.has(id), `${id} is not in a preset`).toBe(true)
-    for (const id of loaded.set.pieces.keys()) expect(presetPieceIds.has(id), `${id} is not in a preset`).toBe(true)
+    for (const id of loaded.set.pieces.keys()) {
+      expect(presetPieceIds.has(id), `${id} direct-placement policy`).toBe(!isProgressionOnlyPiece(id))
+    }
     for (const id of loaded.set.squareTypes.keys()) expect(paintedSquareIds.has(id), `${id} is not painted`).toBe(true)
   })
 })

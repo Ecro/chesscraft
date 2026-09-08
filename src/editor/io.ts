@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION } from '@content/schema'
-import { type ContentSource, type ValidationError, loadContentSet, normalizeBoard, normalizeSkillCard } from '@content/load'
+import { type ContentSource, type ValidationError, loadContentSet, normalizeBoard, normalizePreset, normalizeSkillCard } from '@content/load'
 
 /**
  * JSON export and import (AC-015).
@@ -72,7 +72,9 @@ export function importContent(text: string): ImportResult {
         ? list.map((record) => normalizeSkillCard(record, declaredVersion))
         : collection === 'boards'
           ? list.map((record) => normalizeBoard(record, declaredVersion))
-        : (list as unknown[])
+          : collection === 'presets'
+            ? list.map((record) => normalizePreset(record, declaredVersion))
+            : (list as unknown[])
       : []
   }
   // The result is rebuilt field by field rather than passed through, so a field
@@ -82,5 +84,14 @@ export function importContent(text: string): ImportResult {
   // export readable on the device that wrote it and nowhere else.
   // The cast is safe: `loadContentSet` above has already validated this shape.
   if (raw.strings !== undefined) source.strings = raw.strings as NonNullable<ContentSource['strings']>
+  const carriesLegacyLoadout =
+    declaredVersion <= 16 &&
+    Array.isArray(raw.presets) &&
+    raw.presets.some((record) => {
+      if (!record || typeof record !== 'object') return false
+      const loadout = (record as { loadout?: unknown }).loadout
+      return loadout !== undefined
+    })
+  if (carriesLegacyLoadout || raw.legacyLoadoutV16 === true) source.legacyLoadoutV16 = true
   return { ok: true, source }
 }

@@ -37,28 +37,25 @@ export function checkLoadoutGrades(preset: PresetDef, content: ContentSet): Vali
     if (!slot) continue
     const at = `presets.${preset.id}.loadout.${side}`
 
-    const brought = starsOfPiece(slot.pieceId)
-    const replaced = starsOfPiece(slot.replaces)
-    const card = content.skillCards.get(slot.skillCardId)
-    // A missing record is `load.ts`'s reference check, not this one's; bail
-    // rather than reporting the same fault twice under a different message.
-    if (brought === null || replaced === null || !card) continue
+    const pieceSlot = slot.piece
+    const brought = pieceSlot ? starsOfPiece(pieceSlot.pieceId) : null
+    const replaced = pieceSlot ? starsOfPiece(pieceSlot.replaces) : null
+    const card = slot.skillCardId === undefined ? undefined : content.skillCards.get(slot.skillCardId)
 
     // The ceiling is checked BEFORE the star comparison, because five stars is
     // where everything above it lands: without this, a piece ten times the
     // queen's price would read as the same five stars as one just past her and
     // the replacement rule would call them interchangeable. Closing the top band
     // is what keeps a five-level display from being a five-level rule.
-    const broughtPiece = content.pieces.get(slot.pieceId)!
-    if (exceedsCeiling(pieceCost(broughtPiece, board), ceiling)) {
+    const broughtPiece = pieceSlot ? content.pieces.get(pieceSlot.pieceId) : undefined
+    if (pieceSlot && broughtPiece && exceedsCeiling(pieceCost(broughtPiece, board), ceiling)) {
       errors.push({
         contentId: preset.id,
-        path: `${at}.pieceId`,
-        message: `${slot.pieceId} is too strong for this room — nothing above ${MAX_STARS} stars may be brought`,
+        path: `${at}.piece.pieceId`,
+        message: `${pieceSlot.pieceId} is too strong for this room — nothing above ${MAX_STARS} stars may be brought`,
       })
-      continue
     }
-    if (exceedsCeiling(skillCardCost(card), ceiling)) {
+    if (slot.skillCardId !== undefined && card && exceedsCeiling(skillCardCost(card), ceiling)) {
       errors.push({
         contentId: preset.id,
         path: `${at}.skillCardId`,
@@ -68,16 +65,16 @@ export function checkLoadoutGrades(preset: PresetDef, content: ContentSet): Vali
     }
 
     // The same number of stars, which is the number the player was shown.
-    if (brought !== replaced) {
+    if (pieceSlot && brought !== null && replaced !== null && brought !== replaced) {
       errors.push({
         contentId: preset.id,
-        path: `${at}.pieceId`,
-        message: `${slot.pieceId} is ${brought} stars and ${slot.replaces} is ${replaced}, so it cannot replace it`,
+        path: `${at}.piece.pieceId`,
+        message: `${pieceSlot.pieceId} is ${brought} stars and ${pieceSlot.replaces} is ${replaced}, so it cannot replace it`,
       })
     }
 
     if (budget !== undefined) {
-      const spent = brought + skillCardStars(card, ceiling)
+      const spent = (brought ?? 0) + (card ? skillCardStars(card, ceiling) : 0)
       if (spent > budget) {
         errors.push({
           contentId: preset.id,

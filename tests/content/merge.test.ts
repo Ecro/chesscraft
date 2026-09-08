@@ -134,6 +134,11 @@ describe('mergeBundled — ADR-001, row by row', () => {
 })
 
 describe('mergeBundled — collections and fields', () => {
+  it('preserves the migration proof for normalized v16 loadouts', () => {
+    const saved = { ...SAVED, legacyLoadoutV16: true as const }
+    expect(mergeBundled(saved, BUNDLE, STAMP).source.legacyLoadoutV16).toBe(true)
+  })
+
   it('routes an addition into its own collection', () => {
     const bundle = doc([{ id: 'piece.fresh' }], {
       boards: [{ id: 'board.fresh' }],

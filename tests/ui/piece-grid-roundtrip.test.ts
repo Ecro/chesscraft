@@ -17,6 +17,7 @@ import { bundledContentSource } from '@content/sets/bundled'
 import { sliceContentSource } from '@content/sets/slice'
 import { gate6aContentSource } from '@content/sets/gate6a'
 import { reachOf, type PieceLike } from '../helpers/reach'
+import { isProgressionOnlyPiece } from '../../src/progression/catalog'
 
 type Rec = Record<string, unknown>
 
@@ -29,7 +30,9 @@ function shippedPieces(): Array<{ id: string; rec: Rec }> {
       if (!seen.has(id)) seen.set(id, p)
     }
   }
-  return [...seen].map(([id, rec]) => ({ id, rec }))
+  return [...seen]
+    .filter(([id]) => !isProgressionOnlyPiece(id))
+    .map(([id, rec]) => ({ id, rec }))
 }
 
 /**

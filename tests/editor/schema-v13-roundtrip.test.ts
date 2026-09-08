@@ -22,7 +22,7 @@ describe('schema v13 regions and constrained targets', () => {
     const legacy = sourceCopy()
     legacy.schemaVersion = 12
     expect(legacy.schemaVersion).toBe(12)
-    expect(SCHEMA_VERSION).toBe(16)
+    expect(SCHEMA_VERSION).toBe(17)
 
     const imported = importContent(exportContent(legacy))
     expect(imported.ok).toBe(true)

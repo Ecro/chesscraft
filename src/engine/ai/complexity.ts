@@ -209,7 +209,7 @@ export function complexityOf(content: ContentSet, presetId: string): ComplexityS
   let maxPieceReach = 0
   const pieceIds = new Set(preset?.pieceIds ?? [...content.pieces.keys()])
   for (const slot of [preset?.loadout?.white, preset?.loadout?.black]) {
-    if (slot) pieceIds.add(slot.pieceId)
+    if (slot?.piece) pieceIds.add(slot.piece.pieceId)
   }
   for (const pieceId of pieceIds) {
     const def = content.pieces.get(pieceId)

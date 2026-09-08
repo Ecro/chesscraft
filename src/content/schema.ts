@@ -115,8 +115,13 @@ import { isAutomaticTurningVector, isCompassVector, isValidTurnPair } from './mo
  * Bumped 15 -> 16 (PLAN-turning-slide-perimeter ADR-001/ADR-002): automatic
  * turns may use every non-zero integer first vector, with the editor exposing
  * the 24 cells on its radius-three perimeter. Legacy ordered pairs stay narrow.
+ *
+ * Bumped 16 -> 17 (PLAN-piece-upgrade-acquisition ADR-002): a side's piece
+ * substitution and skill card are independent, and new piece substitutions
+ * name one starting square. Loader-normalized v16 records omit `square` so
+ * their replace-all playback remains byte-for-byte compatible.
  */
-export const SCHEMA_VERSION = 16
+export const SCHEMA_VERSION = 17
 
 /**
  * Lifecycle events, in resolution order (ADR-002). Resolution is a total order
@@ -646,25 +651,23 @@ export const boardDef = z
   })
 export type BoardDef = z.infer<typeof boardDef>
 
-/**
- * What one side brings of its own (v8, ADR-001).
- *
- * All three ids are required together, because a slot missing any one of them is
- * not a smaller loadout — it is a half-configured room whose behaviour every
- * downstream reader would have to invent. A side that brings nothing omits its
- * whole slot, and a room with no loadout omits the field; those are the two
- * legal absences, and both are the common case.
- *
- * `replaces` names the bundled piece this one stands in for. The custom piece is
- * a SUBSTITUTION rather than an addition (ADR-008): adding a piece changes the
- * material balance the board was designed around, and letting a pawn be swapped
- * for anything at all is the hole this whole feature exists to close.
- */
-export const loadoutSlot = z.strictObject({
+/** One square-scoped piece substitution. `square` is absent only after v16 migration. */
+export const pieceLoadoutSlot = z.strictObject({
   pieceId: contentId,
   replaces: contentId,
-  skillCardId: contentId,
+  square: squareRef.optional(),
 })
+export type PieceLoadoutSlot = z.infer<typeof pieceLoadoutSlot>
+
+/** Independent power axes for one side. An empty object has no meaning. */
+export const loadoutSlot = z
+  .strictObject({
+    piece: pieceLoadoutSlot.optional(),
+    skillCardId: contentId.optional(),
+  })
+  .refine((slot) => slot.piece !== undefined || slot.skillCardId !== undefined, {
+    message: 'a side loadout must declare a piece or skillCardId',
+  })
 export type LoadoutSlot = z.infer<typeof loadoutSlot>
 
 export const presetDef = z.strictObject({

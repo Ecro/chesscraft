@@ -136,6 +136,12 @@ export function mergeBundled(
     schemaVersion: Math.max(saved.schemaVersion, bundle.schemaVersion),
   } as ContentSource
 
+  // A normalized v16 loadout is intentionally allowed to retain its legacy
+  // replace-all playback until the author rewrites it as an exact-square v17
+  // slot. Dropping this marker during the additive bundle merge makes the same
+  // already-validated save fail on its next load.
+  if (saved.legacyLoadoutV16 === true) source.legacyLoadoutV16 = true
+
   // The author's renames, verbatim. The bundle ships no `strings` at all —
   // bundled text lives in `src/i18n/ko.ts`, a code file that is always current —
   // so there is nothing to merge in, and the only real risk runs the other way:

@@ -11,6 +11,7 @@ export default defineConfig({
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
       '@content': fileURLToPath(new URL('./src/content', import.meta.url)),
       '@editor': fileURLToPath(new URL('./src/editor', import.meta.url)),
+      '@progression': fileURLToPath(new URL('./src/progression', import.meta.url)),
       '@ui': fileURLToPath(new URL('./src/ui', import.meta.url)),
     },
   },

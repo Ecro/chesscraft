@@ -36,7 +36,7 @@ function v7Document(): ContentSource {
 /** The shipped document with a white-side loadout bolted on. Never mutates the original. */
 function withLoadout(): ContentSource {
   const next = structuredClone(bundledContentSource) as ContentSource
-  next.schemaVersion = SCHEMA_VERSION
+  next.schemaVersion = 8
 
   // A skill card the preset's pool deliberately does NOT list, so "did this card
   // reach a side?" has exactly one possible route: the loadout.
@@ -180,7 +180,7 @@ describe('PLAN Phase 1 — loadout ids are cross-checked like every other refere
     const result = loadContentSet(source)
     expect(result.ok).toBe(false)
     if (result.ok) return
-    const hit = result.errors.find((e) => e.path === `presets.${BUNDLED_PRESET_ID}.loadout.white.pieceId`)
+    const hit = result.errors.find((e) => e.path === `presets.${BUNDLED_PRESET_ID}.loadout.white.piece.pieceId`)
     expect(hit, JSON.stringify(result.errors.slice(0, 5), null, 2)).toBeDefined()
     expect(hit!.message).toContain('piece.nonexistent')
   })

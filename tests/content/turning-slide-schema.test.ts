@@ -72,7 +72,7 @@ describe('turning_slide schema', () => {
   })
 
   it('S4 bumps the content vocabulary version for the perimeter contract', () => {
-    expect(SCHEMA_VERSION).toBe(16)
+    expect(SCHEMA_VERSION).toBe(17)
   })
 
   it('S6 reads a v13 straight-only document and re-stamps it as v16 without changing content', () => {
@@ -93,8 +93,8 @@ describe('turning_slide schema', () => {
     const imported = importContent(JSON.stringify(legacy))
     expect(imported.ok).toBe(true)
     if (!imported.ok) return
-    expect(imported.source.schemaVersion).toBe(16)
+    expect(imported.source.schemaVersion).toBe(17)
     expect(imported.source.pieces).toEqual(legacy.pieces)
-    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(16)
+    expect(JSON.parse(exportContent(imported.source)).schemaVersion).toBe(17)
   })
 })

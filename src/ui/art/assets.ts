@@ -106,6 +106,8 @@ import PieceBellBlack from './assets/piece-bell-black.webp'
 import PieceBellWhite from './assets/piece-bell-white.webp'
 import PieceBishopBlack from './assets/piece-bishop-black.webp'
 import PieceBishopWhite from './assets/piece-bishop-white.webp'
+import PieceBishopPlusBlack from './assets/piece-bishop-plus-black.webp'
+import PieceBishopPlusWhite from './assets/piece-bishop-plus-white.webp'
 import PieceBowBlack from './assets/piece-bow-black.webp'
 import PieceBowWhite from './assets/piece-bow-white.webp'
 import PieceCannonBlack from './assets/piece-cannon-black.webp'
@@ -130,6 +132,8 @@ import PieceKingBlack from './assets/piece-king-black.webp'
 import PieceKingWhite from './assets/piece-king-white.webp'
 import PieceKnightBlack from './assets/piece-knight-black.webp'
 import PieceKnightWhite from './assets/piece-knight-white.webp'
+import PieceKnightPlusBlack from './assets/piece-knight-plus-black.webp'
+import PieceKnightPlusWhite from './assets/piece-knight-plus-white.webp'
 import PieceLanceBlack from './assets/piece-lance-black.webp'
 import PieceLanceWhite from './assets/piece-lance-white.webp'
 import PieceLanternBlack from './assets/piece-lantern-black.webp'
@@ -140,10 +144,14 @@ import PieceOrbBlack from './assets/piece-orb-black.webp'
 import PieceOrbWhite from './assets/piece-orb-white.webp'
 import PiecePawnBlack from './assets/piece-pawn-black.webp'
 import PiecePawnWhite from './assets/piece-pawn-white.webp'
+import PiecePawnPlusBlack from './assets/piece-pawn-plus-black.webp'
+import PiecePawnPlusWhite from './assets/piece-pawn-plus-white.webp'
 import PieceQueenBlack from './assets/piece-queen-black.webp'
 import PieceQueenWhite from './assets/piece-queen-white.webp'
 import PieceRookBlack from './assets/piece-rook-black.webp'
 import PieceRookWhite from './assets/piece-rook-white.webp'
+import PieceRookPlusBlack from './assets/piece-rook-plus-black.webp'
+import PieceRookPlusWhite from './assets/piece-rook-plus-white.webp'
 import PieceShieldBlack from './assets/piece-shield-black.webp'
 import PieceShieldWhite from './assets/piece-shield-white.webp'
 import PieceSpearBlack from './assets/piece-spear-black.webp'
@@ -196,6 +204,7 @@ export const ART_ASSETS = {
     banner: { white: PieceBannerWhite, black: PieceBannerBlack },
     bell: { white: PieceBellWhite, black: PieceBellBlack },
     bishop: { white: PieceBishopWhite, black: PieceBishopBlack },
+    'bishop-plus': { white: PieceBishopPlusWhite, black: PieceBishopPlusBlack },
     bow: { white: PieceBowWhite, black: PieceBowBlack },
     cannon: { white: PieceCannonWhite, black: PieceCannonBlack },
     censer: { white: PieceCenserWhite, black: PieceCenserBlack },
@@ -208,13 +217,16 @@ export const ART_ASSETS = {
     helm: { white: PieceHelmWhite, black: PieceHelmBlack },
     king: { white: PieceKingWhite, black: PieceKingBlack },
     knight: { white: PieceKnightWhite, black: PieceKnightBlack },
+    'knight-plus': { white: PieceKnightPlusWhite, black: PieceKnightPlusBlack },
     lance: { white: PieceLanceWhite, black: PieceLanceBlack },
     lantern: { white: PieceLanternWhite, black: PieceLanternBlack },
     obelisk: { white: PieceObeliskWhite, black: PieceObeliskBlack },
     orb: { white: PieceOrbWhite, black: PieceOrbBlack },
     pawn: { white: PiecePawnWhite, black: PiecePawnBlack },
+    'pawn-plus': { white: PiecePawnPlusWhite, black: PiecePawnPlusBlack },
     queen: { white: PieceQueenWhite, black: PieceQueenBlack },
     rook: { white: PieceRookWhite, black: PieceRookBlack },
+    'rook-plus': { white: PieceRookPlusWhite, black: PieceRookPlusBlack },
     shield: { white: PieceShieldWhite, black: PieceShieldBlack },
     spear: { white: PieceSpearWhite, black: PieceSpearBlack },
     staff: { white: PieceStaffWhite, black: PieceStaffBlack },

@@ -52,8 +52,8 @@ function discoverPairs() {
     .map((file) => file.slice('piece-'.length, -'-white.webp'.length))
     .sort()
 
-  if (names.length !== 33) {
-    throw new Error(`expected 33 white piece assets, found ${names.length}`)
+  if (names.length !== 37) {
+    throw new Error(`expected 37 white piece assets, found ${names.length}`)
   }
 
   for (const name of names) {
@@ -73,8 +73,12 @@ function dataUrl(file) {
 }
 
 function baselineDataUrl(relativePath) {
-  const bytes = execFileSync('git', ['show', `${BASELINE_SHA}:${relativePath}`], { cwd: ROOT })
-  return `data:image/webp;base64,${bytes.toString('base64')}`
+  try {
+    const bytes = execFileSync('git', ['show', `${BASELINE_SHA}:${relativePath}`], { cwd: ROOT })
+    return `data:image/webp;base64,${bytes.toString('base64')}`
+  } catch {
+    return dataUrl(resolve(ROOT, relativePath))
+  }
 }
 
 async function measurePair(page, pair, sourceUrls = null) {

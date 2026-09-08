@@ -15,6 +15,7 @@ import { PlacementPainter, paintSquare, parityOf, togglePlacement } from './Plac
 import { namedRecords, recordLabel, recordLabels } from './recordLabel'
 import { DEFAULT_LOCALE, type Translate, makeTranslate, useTranslate } from './i18n'
 import { type Costs, contentOf, starText, useCosts } from './useGrades'
+import { isProgressionOnlyPiece } from '@progression/catalog'
 
 /**
  * One room, open — the five things a room is, one at a time.
@@ -258,7 +259,7 @@ export function RoomDetail({
     return Array.isArray(value) ? (value.filter((v) => typeof v === 'string') as string[]) : []
   }
   const pieces = useMemo(
-    () => visibleIds(namedRecords(source.pieces), hiddenSet, chosenIn('pieceIds')),
+    () => visibleIds(namedRecords(source.pieces).filter(([id]) => !isProgressionOnlyPiece(id)), hiddenSet, chosenIn('pieceIds')),
     [source, hiddenSet, draft],
   )
   const rules = useMemo(
@@ -792,6 +793,7 @@ export function RoomDetail({
             <p className="hint">{t('ui.editor.step.loadout-hint')}</p>
             <LoadoutSection
               draft={draft}
+              board={board}
               source={source}
               costs={costs}
               hidden={hiddenSet}
@@ -1045,6 +1047,7 @@ function SelectedTypeNote({ source, typeId, t }: { source: ContentSource; typeId
  */
 function LoadoutSection({
   draft,
+  board,
   source,
   costs,
   hidden,
@@ -1052,6 +1055,7 @@ function LoadoutSection({
   onChange,
 }: {
   draft: Draft
+  board: Draft
   source: ContentSource
   costs: Costs
   /**
@@ -1079,15 +1083,17 @@ function LoadoutSection({
    * reach three. The partial choice belongs to the form; the draft only ever sees
    * a complete slot or none.
    */
-  const saved = (draft.loadout as Record<string, LoadoutDraft> | undefined) ?? {}
-  const [pending, setPending] = useState<Record<string, LoadoutDraft>>(() => ({ ...saved }))
-  const slot = pending[side] ?? saved[side]
+  const saved = (draft.loadout as Record<string, LoadoutDraft | LegacyLoadoutDraft> | undefined) ?? {}
+  const [pending, setPending] = useState<Record<string, LoadoutFormDraft>>(() =>
+    Object.fromEntries(Object.entries(saved).map((entry) => [entry[0], loadoutFormOf(entry[1])])),
+  )
+  const slot = pending[side] ?? loadoutFormOf(saved[side])
   const budget = typeof draft.loadoutBudget === 'number' ? draft.loadoutBudget : null
   const pieceIds = (draft.pieceIds as string[] | undefined) ?? []
   const pool = (draft.skillCardIds as string[] | undefined) ?? []
 
   /** Ids this slot already names — exempt from hiding, per ADR-005. */
-  const chosenHere = [slot?.pieceId, slot?.replaces, slot?.skillCardId].filter(
+  const chosenHere = [slot.pieceId, slot.replaces, slot.skillCardId].filter(
     (id): id is string => typeof id === 'string' && id !== '',
   )
 
@@ -1101,10 +1107,19 @@ function LoadoutSection({
     (source.pieces as Array<Record<string, unknown>>).filter((p) => p.royal === true).map((p) => String(p.id)),
   )
   const replaceable = visibleIds(
-    pieceIds.filter((id) => !royal.has(id)).map((id) => [id, null] as [string, unknown]),
+    pieceIds
+      .filter((id) => !royal.has(id) && !isProgressionOnlyPiece(id))
+      .map((id) => [id, null] as [string, unknown]),
     hidden,
     chosenHere,
   ).map(([id]) => id)
+
+  const placements = (board.placements as Placement[] | undefined) ?? []
+  const squares = slot.replaces === ''
+    ? []
+    : placements
+        .filter((placement) => placement.side === side && placement.pieceId === slot.replaces)
+        .map((placement) => placement.square)
 
   const costOf = (id: string | undefined): number | null => (id ? costs.of(id) : null)
   const label = (id: string | undefined): string => {
@@ -1112,38 +1127,42 @@ function LoadoutSection({
     return cost === null ? t('ui.editor.loadout.none') : t('ui.editor.loadout.grade').replace('{stars}', starText(cost))
   }
 
-  const pieceCost = costOf(slot?.pieceId)
-  const skillCost = costOf(slot?.skillCardId)
-  const replacedCost = costOf(slot?.replaces)
+  const pieceCost = costOf(slot.pieceId)
+  const skillCost = costOf(slot.skillCardId)
+  const replacedCost = costOf(slot.replaces)
   const spent = (pieceCost ?? 0) + (skillCost ?? 0)
-  const priced = pieceCost !== null && skillCost !== null
+  const priced = (slot.pieceId === '' || pieceCost !== null) && (slot.skillCardId === '' || skillCost !== null)
 
   const mismatch = pieceCost !== null && replacedCost !== null && pieceCost !== replacedCost
   const overBudget = priced && budget !== null && spent > budget
 
-  const setSlot = (field: 'pieceId' | 'replaces' | 'skillCardId', value: string) => {
-    const current = pending[side] ?? saved[side] ?? { pieceId: '', replaces: '', skillCardId: '' }
+  const setSlot = (field: keyof LoadoutFormDraft, value: string) => {
+    const current = pending[side] ?? slot
     const updated = { ...current, [field]: value }
+    if (field === 'replaces' && !placements.some(
+      (placement) => placement.side === side && placement.pieceId === value && placement.square === updated.square,
+    )) updated.square = ''
     setPending((prev) => ({ ...prev, [side]: updated }))
 
-    const complete = updated.pieceId !== '' && updated.replaces !== '' && updated.skillCardId !== ''
+    const pieceComplete = updated.pieceId !== '' && updated.replaces !== '' && updated.square !== ''
+    const nextSlot: LoadoutDraft = {
+      ...(pieceComplete
+        ? { piece: { pieceId: updated.pieceId, replaces: updated.replaces, square: updated.square } }
+        : {}),
+      ...(updated.skillCardId !== '' ? { skillCardId: updated.skillCardId } : {}),
+    }
+    const hasAny = nextSlot.piece !== undefined || nextSlot.skillCardId !== undefined
     onChange((next) => {
       const all = (next.loadout as Record<string, LoadoutDraft> | undefined) ?? {}
       const nextAll = { ...all }
-      // Only a COMPLETE slot reaches the document. An incomplete one clears the
-      // side rather than being written half-formed, because a slot missing any of
-      // its three ids is a document that will not load.
-      if (complete) nextAll[side] = updated
+      if (hasAny) nextAll[side] = nextSlot
       else delete nextAll[side]
       if (Object.keys(nextAll).length === 0) delete next.loadout
       else next.loadout = nextAll
-      // The room needs a scale and a budget the moment it has a loadout, and
-      // both are refused at load time when absent (ADR-010). Seeded from the
-      // room's OWN records so no source file names a piece (AC-009).
-      if (complete) {
-        if (next.grading === undefined && replaceable[0] && ownable[0]) {
-          next.grading = { referencePieceId: replaceable[0], referenceSkillCardId: ownable[0][0] }
-        }
+      // A room needs a budget the moment it has either independent loadout
+      // axis. Grades are derived from declarations; schema v10 removed the old
+      // persisted grading reference entirely.
+      if (hasAny) {
         if (typeof next.loadoutBudget !== 'number') next.loadoutBudget = DEFAULT_LOADOUT_BUDGET
       }
     })
@@ -1170,12 +1189,12 @@ function LoadoutSection({
       <select
         id="loadout-piece"
         data-testid="loadout-piece"
-        value={slot?.pieceId ?? ''}
+        value={slot.pieceId}
         onChange={(e) => setSlot('pieceId', e.target.value)}
       >
         <option value="">{t('ui.editor.loadout.none')}</option>
         {visibleIds(
-          namedRecords(source.pieces).filter(([id]) => !royal.has(id)),
+          namedRecords(source.pieces).filter(([id]) => !royal.has(id) && !isProgressionOnlyPiece(id)),
           hidden,
           chosenHere,
         ).map(([id, nameKey]) => (
@@ -1189,7 +1208,7 @@ function LoadoutSection({
       <select
         id="loadout-replaces"
         data-testid="loadout-replaces"
-        value={slot?.replaces ?? ''}
+        value={slot.replaces}
         onChange={(e) => setSlot('replaces', e.target.value)}
       >
         <option value="">{t('ui.editor.loadout.none')}</option>
@@ -1198,6 +1217,18 @@ function LoadoutSection({
             {`${recordLabel(t, 'piece', id, keyOf(source.pieces, id))} — ${label(id)}`}
           </option>
         ))}
+      </select>
+
+      <label htmlFor="loadout-square">{t('ui.editor.loadout.square')}</label>
+      <select
+        id="loadout-square"
+        data-testid="loadout-square"
+        value={slot.square}
+        disabled={squares.length === 0}
+        onChange={(e) => setSlot('square', e.target.value)}
+      >
+        <option value="">{t('ui.editor.loadout.none')}</option>
+        {squares.map((square) => <option key={square} value={square}>{square}</option>)}
       </select>
 
       {ownable.length === 0 && (
@@ -1221,7 +1252,7 @@ function LoadoutSection({
       <select
         id="loadout-skill"
         data-testid="loadout-skill"
-        value={slot?.skillCardId ?? ''}
+        value={slot.skillCardId}
         onChange={(e) => setSlot('skillCardId', e.target.value)}
       >
         <option value="">{t('ui.editor.loadout.none')}</option>
@@ -1256,9 +1287,34 @@ function LoadoutSection({
 }
 
 interface LoadoutDraft {
+  piece?: { pieceId: string; replaces: string; square?: string }
+  skillCardId?: string
+}
+
+interface LoadoutFormDraft {
+  pieceId: string
+  replaces: string
+  square: string
+  skillCardId: string
+}
+
+interface LegacyLoadoutDraft {
   pieceId: string
   replaces: string
   skillCardId: string
+}
+
+function loadoutFormOf(slot: LoadoutDraft | LegacyLoadoutDraft | undefined): LoadoutFormDraft {
+  if (!slot) return { pieceId: '', replaces: '', square: '', skillCardId: '' }
+  if ('pieceId' in slot) {
+    return { pieceId: slot.pieceId, replaces: slot.replaces, square: '', skillCardId: slot.skillCardId }
+  }
+  return {
+    pieceId: slot.piece?.pieceId ?? '',
+    replaces: slot.piece?.replaces ?? '',
+    square: slot.piece?.square ?? '',
+    skillCardId: slot.skillCardId ?? '',
+  }
 }
 
 /**

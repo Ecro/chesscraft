@@ -6,7 +6,7 @@ describe('bundled raster art inventory', () => {
   const assetName = (src: string) => src.split('/').pop()?.split('?')[0] ?? ''
 
   it('S1 ships a complete sided piece set and neutral surface sets', () => {
-    expect(Object.keys(ART_ASSETS.piece)).toHaveLength(33)
+    expect(Object.keys(ART_ASSETS.piece)).toHaveLength(37)
     expect(Object.keys(ART_ASSETS.square)).toHaveLength(27)
     expect(Object.keys(ART_ASSETS.card)).toHaveLength(90)
     expect(Object.keys(CHROME_ART)).toEqual(['navPlay', 'navBuild', 'navDex', 'erase'])
@@ -31,7 +31,7 @@ describe('bundled raster art inventory', () => {
   })
 
   it('S2 routes every registry entry to an explicit imported image surface', () => {
-    expect(artRegistry).toHaveLength(150)
+    expect(artRegistry).toHaveLength(154)
     const imported = new Set([
       ...Object.values(ART_ASSETS.piece).flatMap((pair) => [pair.white, pair.black]),
       ...Object.values(ART_ASSETS.square),

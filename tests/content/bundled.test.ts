@@ -38,7 +38,7 @@ describe('AC-010 — the bundled content set', () => {
     // rather than `SCHEMA_VERSION`: comparing the constant to itself would pass
     // for any future bump that forgot to move the shipped document with it,
     // which is the exact drift this line exists to catch.
-    expect(result.set.schemaVersion).toBe(16)
+    expect(result.set.schemaVersion).toBe(17)
     // Absent, not empty-but-declared: the shipped set names everything through
     // the built-in bundle, which is what ADR-020's absent case must keep working.
     expect(result.set.strings).toEqual({})
@@ -125,7 +125,7 @@ describe('AC-010 — the bundled content set', () => {
       ruleCards: set.ruleCards.size,
       skillCards: set.skillCards.size,
       presets: set.presets.size,
-    }).toEqual({ pieces: 13, squareTypes: 17, ruleCards: 24, skillCards: 36, presets: 7 })
+    }).toEqual({ pieces: 17, squareTypes: 17, ruleCards: 24, skillCards: 36, presets: 7 })
   })
 
   it('starts a match from the bundled preset', () => {

@@ -6,6 +6,7 @@ import { type ContentSource, loadContentSet } from '@content/load'
 import { BUNDLED_PRESET_ID, bundledContentSource } from '@content/sets/bundled'
 import { Lobby } from '../../src/ui/Lobby'
 import { RoomDetail } from '../../src/ui/RoomDetail'
+import { UPGRADE_PIECE_IDS } from '@progression/catalog'
 
 /**
  * The loadout, on the two screens that use it.
@@ -40,7 +41,7 @@ function documentWithOwnCard(): ContentSource {
 function withLoadout(pieceId: string, replaces: string): ContentSource {
   const source = documentWithOwnCard()
   const preset = source.presets.find((p) => (p as { id: string }).id === BUNDLED_PRESET_ID) as Record<string, unknown>
-  preset.loadout = { white: { pieceId, replaces, skillCardId: OWN_CARD } }
+  preset.loadout = { white: { piece: { pieceId, replaces, square: 'b1' }, skillCardId: OWN_CARD } }
   return source
 }
 
@@ -76,6 +77,37 @@ function mountRoom(source: ContentSource) {
   fireEvent.click(screen.getByTestId('room-step-cards'))
 }
 
+function mountRoomPieces(source: ContentSource) {
+  render(
+    React.createElement(RoomDetail, {
+      source,
+      roomId: BUNDLED_PRESET_ID,
+      commit: () => {},
+      onBack: () => {},
+      onCreateRecord: () => {},
+    }),
+  )
+  fireEvent.click(screen.getByTestId('room-step-pieces'))
+}
+
+function committedRoom(source: ContentSource, act: () => void): ContentSource {
+  let committed: ContentSource | undefined
+  render(
+    React.createElement(RoomDetail, {
+      source,
+      roomId: BUNDLED_PRESET_ID,
+      commit: (next: ContentSource) => { committed = next },
+      onBack: () => {},
+      onCreateRecord: () => {},
+    }),
+  )
+  fireEvent.click(screen.getByTestId('room-step-cards'))
+  act()
+  fireEvent.click(screen.getByTestId('room-save'))
+  if (!committed) throw new Error('fixture edit did not save')
+  return committed
+}
+
 describe('the match-start path consults the price', () => {
   it('starts normally for a room with no loadout — the common case', () => {
     const started = mountLobby(bundledContentSource)
@@ -103,6 +135,47 @@ describe('the match-start path consults the price', () => {
 })
 
 describe('the room screen prices what it offers', () => {
+  it('never offers progression upgrades in any authoring piece picker', () => {
+    mountRoom(documentWithOwnCard())
+    for (const testid of ['loadout-piece', 'loadout-replaces']) {
+      const values = [...screen.getByTestId(testid).querySelectorAll('option')].map((option) => option.value)
+      for (const upgradeId of UPGRADE_PIECE_IDS) expect(values, testid).not.toContain(upgradeId)
+    }
+    cleanup()
+    mountRoomPieces(documentWithOwnCard())
+    for (const upgradeId of UPGRADE_PIECE_IDS) {
+      expect(screen.queryByTestId(`room-piece-${upgradeId}`), upgradeId).toBeNull()
+    }
+  })
+
+  it('persists an optional skill without requiring a piece substitution', () => {
+    const next = committedRoom(documentWithOwnCard(), () => {
+      fireEvent.change(screen.getByTestId('loadout-skill'), { target: { value: OWN_CARD } })
+    })
+    const preset = next.presets.find((item) => (item as {
+      loadout?: { white?: { skillCardId?: string } }
+    }).loadout?.white?.skillCardId === OWN_CARD) as {
+      loadout?: { white?: { piece?: unknown; skillCardId?: string } }
+    }
+    expect(preset.loadout?.white).toEqual({ skillCardId: OWN_CARD })
+  })
+
+  it('persists one exact starting square without requiring a skill card', () => {
+    const next = committedRoom(documentWithOwnCard(), () => {
+      fireEvent.change(screen.getByTestId('loadout-piece'), { target: { value: 'piece.knight' } })
+      fireEvent.change(screen.getByTestId('loadout-replaces'), { target: { value: 'piece.knight' } })
+      fireEvent.change(screen.getByTestId('loadout-square'), { target: { value: 'b1' } })
+    })
+    const preset = next.presets.find((item) => (item as {
+      loadout?: { white?: { piece?: { square?: string } } }
+    }).loadout?.white?.piece?.square === 'b1') as {
+      loadout?: { white?: { piece?: unknown; skillCardId?: string } }
+    }
+    expect(preset.loadout?.white).toEqual({
+      piece: { pieceId: 'piece.knight', replaces: 'piece.knight', square: 'b1' },
+    })
+  })
+
   it('shows stars against every piece, at least one and never more than five', () => {
     mountRoom(documentWithOwnCard())
     const options = [...screen.getByTestId('loadout-piece').querySelectorAll('option')].slice(1)

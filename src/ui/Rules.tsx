@@ -7,6 +7,10 @@ import { artRegistry } from './art/registry'
 import { type Collection, type Tier, emptyCollection, tierOf } from '../collection/record'
 import { MarkBody } from './art/MarkBody'
 import { Sheet } from './Sheet'
+import { emptyProgression, type ProgressionProfileV1 } from '@progression/model'
+import { exportProgressionBackup } from '@progression/io'
+import { UpgradeReward } from './UpgradeReward'
+import { UpgradeFamily } from './UpgradeFamily'
 
 /**
  * The dex: everything this content set contains, in the player's words.
@@ -61,6 +65,9 @@ export function Rules({
   onClose,
   collection = emptyCollection(),
   official,
+  progression = emptyProgression(),
+  onProgressionChange = () => false,
+  onRestoreProgression,
 }: {
   content: ContentSet
   onClose: () => void
@@ -78,10 +85,14 @@ export function Rules({
    * instead of a fact about whichever bundle happened to be imported.
    */
   official?: ReadonlySet<string>
+  progression?: ProgressionProfileV1
+  onProgressionChange?: (next: ProgressionProfileV1) => boolean
+  onRestoreProgression?: (backup: string) => void
 }) {
   const t = useTranslate()
   const [kind, setKind] = useState<KindId>('piece')
   const [open, setOpen] = useState<{ entry: Entry; kindKey: string; side: Side | undefined } | null>(null)
+  const [backup, setBackup] = useState('')
 
   // `textKey` is REQUIRED here on purpose. It is the only compile-time guard
   // keeping this screen to the four collections that carry player-facing prose:
@@ -131,6 +142,13 @@ export function Rules({
         <h2>{t('ui.rules.title')}</h2>
       </header>
       <p className="intro">{t('ui.rules.intro')}</p>
+
+      <UpgradeReward
+        profile={progression}
+        eligibility={{ eligible: true }}
+        notice="none"
+        onProgressionChange={onProgressionChange}
+      />
 
       {/* `role="tablist"` is deliberately NOT claimed. The real pattern requires
           arrow-key roving focus and `aria-controls` onto a `tabpanel`, and a
@@ -211,11 +229,44 @@ export function Rules({
             </span>
           </div>
           <p className="sheet-text">{t(open.entry.textKey)}</p>
+          {open.side && (
+            <UpgradeFamily
+              content={content}
+              basePieceId={open.entry.id}
+              profile={progression}
+              onProgressionChange={onProgressionChange}
+            />
+          )}
           <button type="button" data-testid="dex-close" onClick={() => setOpen(null)}>
             {t('ui.action.close')}
           </button>
         </Sheet>
       )}
+
+      <section className="progression-backup">
+        <h3>{t('ui.progression.backup.title')}</h3>
+        <textarea
+          data-testid="progression-backup"
+          value={backup}
+          aria-label={t('ui.progression.backup.label')}
+          onChange={(event) => setBackup(event.target.value)}
+        />
+        <div className="row-actions">
+          <button type="button" data-testid="progression-export" onClick={() => setBackup(exportProgressionBackup(progression))}>
+            {t('ui.progression.backup.export')}
+          </button>
+          <button
+            type="button"
+            data-testid="progression-restore"
+            onClick={() => {
+              if (!window.confirm(t('ui.progression.backup.confirm'))) return
+              onRestoreProgression?.(backup)
+            }}
+          >
+            {t('ui.progression.backup.restore')}
+          </button>
+        </div>
+      </section>
     </section>
   )
 }

@@ -113,3 +113,31 @@ test('plays a match to a result and offers a rematch that starts a different one
   await expect(page.getByTestId('rule-card')).toHaveAttribute('data-rule', /.+/)
   expect(finished).not.toBe('')
 })
+
+test('forges a named upgrade, equips one square, and uses it in the next match', async ({ page }) => {
+  await page.goto('/dex')
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      'chess-craft.progression.v1',
+      JSON.stringify({
+        version: 1,
+        sparks: 5,
+        ownedUpgradeIds: [],
+        equipped: {},
+        nextOfferNonce: 0,
+        recentClaimIds: [],
+      }),
+    )
+  })
+  await page.reload()
+  await page.locator('[data-entry="piece.pawn"] button').click()
+  await page.getByTestId('upgrade-forge-piece.pawn-plus').click()
+  await page.getByTestId('dex-close').click()
+  await page.getByTestId('rules-close').click()
+  await page.getByTestId('start-match').click()
+  await page.getByTestId('equipment-white-upgrade').selectOption('piece.pawn-plus')
+  await page.getByTestId('equipment-white-square').selectOption('b2')
+  await page.getByTestId('lobby-start').click()
+  await expect(page.getByTestId('sq-b2')).toHaveAttribute('data-piece', 'piece.pawn-plus')
+  await expect(page.getByTestId('sq-a2')).toHaveAttribute('data-piece', 'piece.pawn')
+})

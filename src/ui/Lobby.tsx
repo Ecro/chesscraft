@@ -11,6 +11,11 @@ import { MiniBoard } from './MiniBoard'
 import { MAX_NAME_LENGTH } from './settings'
 import { useTranslate } from './i18n'
 import { recordLabel } from './recordLabel'
+import type { EffectiveEquipment } from '@engine/loadout'
+import { emptyProgression, type ProgressionProfileV1 } from '@progression/model'
+import { resolveEquipment } from '@progression/equipment'
+import { standardEligibility, type StandardEligibility } from '@progression/eligibility'
+import { UpgradeEquipment } from './UpgradeEquipment'
 
 /**
  * Who is playing, in which room, and how to give that room away.
@@ -46,8 +51,14 @@ import { recordLabel } from './recordLabel'
  */
 export type Opponent = { kind: 'human' } | { kind: 'ai'; difficulty: Difficulty }
 
+export interface MatchSetup {
+  effectiveEquipment: EffectiveEquipment
+  eligibility: StandardEligibility
+}
+
 export function Lobby({
   content,
+  bundle = content,
   source,
   presetId,
   names,
@@ -55,15 +66,20 @@ export function Lobby({
   onImport,
   onStart,
   onBack,
+  progression = emptyProgression(),
+  onProgressionChange = () => {},
 }: {
   content: ContentSet
+  bundle?: ContentSet
   source: ContentSource
   presetId: string
   names: Record<Side, string>
   onNamesChange: (names: Record<Side, string>) => void
   onImport: (next: ContentSource) => void
-  onStart: (opponent: Opponent) => void
+  onStart: (opponent: Opponent, setup: MatchSetup) => void
   onBack: () => void
+  progression?: ProgressionProfileV1
+  onProgressionChange?: (next: ProgressionProfileV1) => void
 }) {
   const t = useTranslate()
   const preset = content.presets.get(presetId)
@@ -117,12 +133,40 @@ export function Lobby({
    * Deriving the answer removes the stale state, so there is no path to miss.
    */
   const effectiveMode = envelope.ok ? mode : 'human'
+  const humanSides: readonly Side[] = effectiveMode === 'ai' ? ['white'] : ['white', 'black']
+  const resolvedEquipment = useMemo(
+    () => resolveEquipment({ content, bundle, presetId, profile: progression, humanSides }),
+    [bundle, content, humanSides, presetId, progression],
+  )
+  const eligibility = useMemo(
+    () => standardEligibility({
+      content,
+      bundle,
+      presetId,
+      effectiveEquipment: resolvedEquipment.effectiveEquipment,
+    }),
+    [bundle, content, presetId, resolvedEquipment.effectiveEquipment],
+  )
 
   const loadoutGate = useMemo(() => {
     if (!preset?.loadout?.white && !preset?.loadout?.black) return { ok: true as const }
-    const errors = checkLoadoutGrades(preset, content)
+    // Direct catalog placement is intentionally a playable sandbox case. Its
+    // acquisition-specific explanation is clearer than the generic grade gate.
+    if (!eligibility.eligible && eligibility.reasons.includes('curated-upgrade-requires-owned-equipment')) {
+      return { ok: true as const }
+    }
+    const errors = checkLoadoutGrades(preset, content).filter((error) => {
+      for (const side of ['white', 'black'] as const) {
+        // A validated device piece replaces this side's authored piece axis for
+        // the match. Its active-room ceiling and combined budget have already
+        // been classified by `standardEligibility`; leaving the old authored
+        // error here would block the match that the override made playable.
+        if (resolvedEquipment.effectiveEquipment[side] && error.path.includes(`.loadout.${side}`)) return false
+      }
+      return true
+    })
     return errors.length === 0 ? { ok: true as const } : { ok: false as const, reason: t('ui.lobby.loadout-refused') }
-  }, [content, preset, t])
+  }, [content, eligibility, preset, resolvedEquipment.effectiveEquipment, t])
 
   const share = () => {
     const text = exportContent(source)
@@ -249,6 +293,15 @@ export function Lobby({
           </div>
         )}
 
+        <UpgradeEquipment
+          content={content}
+          bundle={bundle}
+          presetId={presetId}
+          profile={progression}
+          humanSides={humanSides}
+          onChange={onProgressionChange}
+        />
+
         {!loadoutGate.ok && (
           <p className="refusal" data-testid="lobby-loadout-blocked" role="status">
             {loadoutGate.reason}
@@ -258,7 +311,10 @@ export function Lobby({
           className="primary xl"
           data-testid="lobby-start"
           disabled={!loadoutGate.ok}
-          onClick={() => onStart(effectiveMode === 'ai' ? { kind: 'ai', difficulty } : { kind: 'human' })}
+          onClick={() => onStart(
+            effectiveMode === 'ai' ? { kind: 'ai', difficulty } : { kind: 'human' },
+            { effectiveEquipment: resolvedEquipment.effectiveEquipment, eligibility },
+          )}
         >
           {t('ui.lobby.start')}
         </button>
