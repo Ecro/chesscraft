@@ -89,7 +89,7 @@ describe('understandable upgrade discovery', () => {
   it('shows collection completion without a dead spending button and still allows free practice', () => {
     const save = vi.fn(() => true)
     render(<Rules content={content} onClose={() => {}} progression={{ ...emptyProgression(), sparks: 8, ownedUpgradeIds: [...UPGRADE_PIECE_IDS] }} onProgressionChange={save} />)
-    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('4 / 4')
+    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('12 / 12')
     expect(screen.getByTestId('progression-complete')).toBeTruthy()
     expect(screen.queryByTestId('progression-reveal')).toBeNull()
     fireEvent.click(screen.getByTestId('upgrade-album-piece.rook-plus'))
@@ -105,11 +105,11 @@ describe('understandable upgrade discovery', () => {
       return <Rules content={content} onClose={() => {}} progression={profile} onProgressionChange={(p) => { setProfile(p); return true }} />
     }
     render(<Dex />)
-    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('0 / 4')
+    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('0 / 12')
     fireEvent.click(screen.getByTestId('upgrade-album-piece.pawn-plus'))
     fireEvent.click(screen.getByTestId('upgrade-forge-piece.pawn-plus'))
     expect(within(screen.getByRole('dialog')).getByTestId('upgrade-acquired').textContent).toContain('재빠른 병사')
-    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('1 / 4')
+    expect(screen.getByTestId('upgrade-collection-count').textContent).toContain('1 / 12')
     expect(screen.getByTestId('progression-sparks').textContent).toContain('0')
   })
 

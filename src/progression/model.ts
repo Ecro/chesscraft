@@ -1,5 +1,5 @@
 import type { Side } from '@engine/types'
-import { upgradeById } from './catalog'
+import { UPGRADE_CATALOG, upgradeById } from './catalog'
 
 export interface UpgradeEquip {
   upgradeId: string
@@ -72,7 +72,7 @@ export function parseProgressionProfile(value: unknown): ProfileParseResult {
     return { ok: false, reason: 'invalid' }
   }
 
-  const owned = stringList(source.ownedUpgradeIds, 4)
+  const owned = stringList(source.ownedUpgradeIds, UPGRADE_CATALOG.length)
   const claims = stringList(source.recentClaimIds, 64)
   if (!owned || !claims || new Set(owned).size !== owned.length || new Set(claims).size !== claims.length) {
     return { ok: false, reason: 'invalid' }

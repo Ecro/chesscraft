@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { ContentSet } from '@content/load'
 import { progressionAffordances } from '@progression/affordances'
-import { upgradeForBase, upgradeById } from '@progression/catalog'
+import { upgradesForBase, upgradeById } from '@progression/catalog'
 import { practiceContent } from '@progression/practice'
 import { UpgradeAcquired, UpgradePortrait, upgradeText } from './UpgradeCard'
 import { UpgradePractice } from './UpgradePractice'
@@ -22,7 +22,10 @@ export function UpgradeFamily({
   const t = useTranslate()
   const [saveFailed, setSaveFailed] = useState(false)
   const [acquired, setAcquired] = useState<string | null>(null)
-  const upgrade = upgradeForBase(basePieceId) ?? upgradeById(basePieceId)
+  const [selectedId, setSelectedId] = useState('')
+  const choiceId = useId()
+  const family = upgradesForBase(basePieceId)
+  const upgrade = upgradeById(basePieceId) ?? family.find((entry) => entry.id === selectedId) ?? family[0]
   if (!upgrade) return null
   const definition = practiceContent.pieces.get(upgrade.id)
   if (!definition) return null
@@ -45,6 +48,21 @@ export function UpgradeFamily({
       aria-label={t('ui.upgrade.region').replace('{name}', upgradeText(definition.nameKey))}
     >
       <h3>{t('ui.upgrade.family')}</h3>
+      {family.length > 1 && (
+        <>
+          <label htmlFor={choiceId}>{t('ui.upgrade.family-choice')}</label>
+          <select id={choiceId} data-testid="upgrade-family-choice" value={upgrade.id} onChange={(event) => {
+            setSelectedId(event.target.value)
+            setSaveFailed(false)
+            setAcquired(null)
+          }}>
+            {family.map((entry) => {
+              const piece = practiceContent.pieces.get(entry.id)!
+              return <option key={entry.id} value={entry.id}>{upgradeText(piece.nameKey)}</option>
+            })}
+          </select>
+        </>
+      )}
       <UpgradePortrait pieceId={upgrade.id} />
       <strong>{upgradeText(definition.nameKey)}</strong>
       <p data-testid="upgrade-move-preview">

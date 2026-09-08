@@ -58,7 +58,7 @@ describe('AC-006 — the set of shipped pieces the grid cannot open is exactly o
     // from measuring against ONE source while the app loaded three, so the
     // count is asserted rather than assumed.
     expect(SOURCES.length).toBe(3)
-    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(23)
+    expect(allPieces().length, 'the fixture set shrank — re-measure before trusting the numbers').toBe(31)
     expect(authorablePieces()).toHaveLength(19)
     expect(allPieces().filter(({ piece }) => isProgressionOnlyPiece(piece.id)).map(({ piece }) => piece.id)).toEqual(
       UPGRADE_PIECE_IDS,

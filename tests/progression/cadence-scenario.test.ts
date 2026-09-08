@@ -64,7 +64,7 @@ describe('provisional 3/5 Spark cadence', () => {
     expect(afterFive('black-win').sparks).toBe(5)
     expect(afterFive('draw').sparks).toBe(5)
 
-    let current = profile({ sparks: 20 })
+    let current = profile({ sparks: 5 * UPGRADE_PIECE_IDS.length })
     for (const upgradeId of UPGRADE_PIECE_IDS) {
       const forged = forgeUpgrade(current, upgradeId)
       expect(forged.ok).toBe(true)

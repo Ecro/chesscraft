@@ -28,7 +28,7 @@ test('reveal, compare, practice, choose and reload keep one honest acquisition',
   expect(stored.ownedUpgradeIds).toHaveLength(1)
   expect(stored.pendingOffer).toBeUndefined()
   await page.reload()
-  await expect(page.getByTestId('upgrade-collection-count')).toContainText('1 / 4')
+  await expect(page.getByTestId('upgrade-collection-count')).toContainText('1 / 12')
   await expect(page.getByTestId(`upgrade-album-${stored.ownedUpgradeIds[0]}`)).toHaveAttribute('data-owned', 'true')
 })
 

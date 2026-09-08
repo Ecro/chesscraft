@@ -23,6 +23,14 @@ const translate = makeTranslate(content.strings)
 type Placement = Parameters<typeof createPosition>[0]['placements'][number]
 
 const EXPECTED_KO: Record<string, { name: string; text: string }> = {
+  'piece.pawn-scout': { name: '정찰 병사', text: '앞으로 한 칸 또는 대각선 앞으로 한 칸 움직인다. 잡을 때는 대각선 앞으로만 잡는다. 끝줄에 닿으면 여왕이 된다.' },
+  'piece.pawn-retreat': { name: '후퇴 병사', text: '앞이나 뒤로 한 칸 움직인다. 잡을 때는 대각선 앞으로만 잡는다. 끝줄에 닿으면 여왕이 된다.' },
+  'piece.knight-diagonal': { name: '사선 기사', text: '기사처럼 뛰거나 대각선으로 한 칸 움직인다. 대각선 한 칸 움직임으로는 잡을 수 없다.' },
+  'piece.knight-spring': { name: '도약 기사', text: '기사처럼 뛰거나 상하좌우로 두 칸 뛴다. 사이의 기물을 넘을 수 있지만, 새 두 칸 도약으로는 잡을 수 없다.' },
+  'piece.bishop-spring': { name: '도약 비숍', text: '대각선으로 쭉 가거나 상하좌우로 두 칸 뛴다. 도약은 사이의 기물을 넘지만 상대를 잡을 수 없다.' },
+  'piece.bishop-scout': { name: '정찰 비숍', text: '대각선으로 쭉 가거나 앞으로 두 칸, 옆으로 한 칸인 곳으로 뛴다. 도약은 사이의 기물을 넘지만 상대를 잡을 수 없다.' },
+  'piece.rook-spring': { name: '도약 성', text: '가로세로로 쭉 가거나 대각선으로 두 칸 뛴다. 도약은 사이의 기물을 넘지만 상대를 잡을 수 없다.' },
+  'piece.rook-scout': { name: '정찰 성', text: '가로세로로 쭉 가거나 앞으로 두 칸, 옆으로 한 칸인 곳으로 뛴다. 도약은 사이의 기물을 넘지만 상대를 잡을 수 없다.' },
   'piece.pawn-plus': {
     name: '재빠른 병사',
     text: '앞으로 한 칸 또는 옆으로 한 칸 움직인다. 잡을 때는 병사처럼 대각선 앞으로만 잡는다.',
@@ -78,15 +86,23 @@ function captureTargets(pieceId: string): string[] {
 }
 
 describe('upgrade catalog invariants', () => {
-  it('contains exactly one progression-only upgrade for each launch base family', () => {
+  it('contains three progression-only upgrades for each launch base family', () => {
     expect(BASE_PIECE_IDS).toEqual(['piece.pawn', 'piece.knight', 'piece.bishop', 'piece.rook'])
     expect(UPGRADE_PIECE_IDS).toEqual([
       'piece.pawn-plus',
       'piece.knight-plus',
       'piece.bishop-plus',
       'piece.rook-plus',
+      'piece.pawn-scout',
+      'piece.pawn-retreat',
+      'piece.knight-diagonal',
+      'piece.knight-spring',
+      'piece.bishop-spring',
+      'piece.bishop-scout',
+      'piece.rook-spring',
+      'piece.rook-scout',
     ])
-    expect(UPGRADE_CATALOG).toHaveLength(4)
+    expect(UPGRADE_CATALOG).toHaveLength(12)
     for (const basePieceId of BASE_PIECE_IDS) {
       const upgrade = upgradeForBase(basePieceId)
       expect(upgrade?.basePieceId).toBe(basePieceId)

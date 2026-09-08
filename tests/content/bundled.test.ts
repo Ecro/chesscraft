@@ -125,7 +125,7 @@ describe('AC-010 — the bundled content set', () => {
       ruleCards: set.ruleCards.size,
       skillCards: set.skillCards.size,
       presets: set.presets.size,
-    }).toEqual({ pieces: 17, squareTypes: 17, ruleCards: 24, skillCards: 36, presets: 7 })
+    }).toEqual({ pieces: 25, squareTypes: 17, ruleCards: 24, skillCards: 36, presets: 7 })
   })
 
   it('starts a match from the bundled preset', () => {
