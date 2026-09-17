@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-spec
 description: harness-maker spec stage. Invoke when the task requires the spec stage
   of the harness-maker workflow.
-content_hash: fb929e65b6180f88ecf6c492921af7bf5029c9e8a73237622a39032f66c7394e
+content_hash: b03bbd50bd342e68b05b175b416b00dc99f6434595ff2e5320dd0bf2ea7999ca
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: fb929e65b6180f88ecf6c492921af7bf5029c9e8a73237622a39032f66c7394e
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,14 +54,14 @@ content_hash: fb929e65b6180f88ecf6c492921af7bf5029c9e8a73237622a39032f66c7394e
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
 > `.worktrees/<slug>/` sees it), is **one file per session** (`.hm-autopilot-<id>`, so two
 > can be armed), and expires after 18h. `session_scoped: false` = no id (Cursor, Codex,
 > hook failure) → you share `.hm-autopilot-degraded`. Commit
-> `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `false`.
+> `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `true`.
 <!-- @hm:/autopilot-picker -->
 
 
@@ -115,7 +115,7 @@ The deep interview here is shorter than `/hm:plan`'s — SPEC concerns are **wha
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:spec --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:spec --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -124,7 +124,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -155,7 +155,7 @@ Grep "<key terms>" --glob "specs/SPEC-*.md"
 Grep "<key terms>" --glob "work-docs/PLAN-*.md"
 # Repo memory — replace `<topic>` with the actual SPEC topic before running.
 
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
 
 # When research ran, read its cache
 [ -f work-docs/RESEARCH-{slug}.md ] && Read work-docs/RESEARCH-{slug}.md
@@ -237,54 +237,7 @@ For a `property` oracle, also collect the structured triple `input_domain` /
 > cross-language golden pin; `consensus` ↔ the adversarial 3-skeptic verify;
 > mutation adequacy ↔ shared. `property` has no x-contract equivalent (new).
 
-#### 2.5 — 5-Term Inequality Gate
-
-Runs after the 6 structured categories are complete, before §2.2 promotion.
-This gate surfaces requirements the structured categories miss by filtering
-candidate follow-up questions through the 5-term inequality
-(0.16.0, PLAN-deep-interview-question-criteria):
-
-```
-ask(Q) iff EIG(Q) ≥ ε  ∧  TaskRel·UserAns ≥ 0.7
-        ∧ slot ∉ common_ground  ∧  confidence < τ
-        ∧ open_ended_count < cap_locale
-```
-
-Continue using the configured locale for all live gate text.
-
-**Skip if early exit**: If the user chose "SPEC is sufficiently clear — end
-interview" in any prior §2.1 round, skip §2.5 entirely and proceed to §2.2.
-
-**Term meanings (this stage's settings, rendered from harness.yaml):**
-
-1. **EIG** — Expected information gain ≥ `ε = 0.5`. Skip Qs whose answer won't change SPEC content.
-2. **CLARITI** — Task-relevance × user-answerability ≥ 0.7. Skip Qs the user cannot meaningfully answer right now.
-3. **Common-ground** — Skip slots already determined by CLAUDE.md / harness.yaml / prior answers / RESEARCH frontmatter / same-slug PLAN|REVIEW history, **OR** by LLM self-inference at confidence ≥ 0.95 (kill-switch: `interview.deep_gate.common_ground.llm_inference_enabled: false` in harness.yaml).
-4. **Confidence** — Slot's current resolution confidence must be `< τ = 0.7`.
-5. **Open-ended cap** — At most `1` open-ended question(s) per turn for locale `ko`. Closed-form (multi-select / yes-no) unrestricted.
-
-<!-- F6-deferred: see inequality_gate.py; F6 wires the real mechanism.
-     Locale cap above is render-time baked — re-render to refresh after locale change. -->
-
-**Per-round display (ADR-005):**
-
-```
-✅ EIG ✅ CLARITI ❌ common-ground ✅ confidence ✅ open-ended → 4/5 met (NEEDS)
-```
-
-Render the checklist for EVERY candidate question. A candidate is asked iff
-all 5 terms are ✅. The "common-ground" term is the primary defense against
-asking obvious questions (silent-intent-miss telemetry per ADR-008 monitors
-its post-hoc accuracy).
-
-**Question generation:** LLM generates 1-3 follow-up candidates targeting the
-SPEC slots Layer-0 categories did not lock down (WRONG / METHOD / STAKEHOLDER
-/ STYLE / PERF style cues are inputs to the generator, not gating labels).
-Ranking among passing candidates is by EIG descending.
-
-**Exit:** Continue until either:
-- All SPEC slots reach confidence ≥ τ (the inequality naturally stops the loop), OR
-- User chooses "end interview" / "Proceed to §2.2 with current ambiguity accepted".
+**Open-ended cap** (follow-ups after the six categories): at most `1` open-ended question(s) per turn for locale `ko`; closed-form (multi-select / yes-no) questions are unrestricted. Ask a follow-up only when its answer would change SPEC content and the user can answer it now; stop when every SPEC slot is settled or the user ends the interview.
 
 ---
 
@@ -439,7 +392,7 @@ object — the three separate calls this replaced cost three round-trips for ver
 are always read together:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm spec_machine check --all \
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm spec_machine check --all \
   --yaml specs/SPEC-{slug}.machine.yaml \
   --md specs/SPEC-{slug}.md \
   --dev-mode task-driven
@@ -505,7 +458,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write --iter \"$ITER\" --stage spec --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts write --iter \"$ITER\" --stage spec --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 

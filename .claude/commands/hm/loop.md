@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/loop.md.j2
 provenance: official
 description: Run a bounded autoloop over a master PLAN, iterating stages until convergence.
-content_hash: 7bb42ec7a2035ea56147c4bf5af6bc7e39e76e3c8535dfd165b707ca9d453db4
+content_hash: 96e7aacc0caf43994abaf4f209036651a96a6673215ec59faac3d335bd81ca63
 ---
 # /hm:loop
 
@@ -316,51 +316,10 @@ the convergence predicate obvious:
   `min-N-features`, `stopping-criteria`).
 - `improve` mode: always `stopping-criteria` (LLM evaluates each iteration).
 
-#### 4-H. 5-Term Inequality Gate
+#### 4-H. Open-ended cap
 
 Runs after steps 4-B through 4-E complete, before persisting context (4-F).
-This gate surfaces implicit requirements the 5-dimension interview missed
-by filtering candidate follow-up questions through the 5-term inequality
-(0.16.0, PLAN-deep-interview-question-criteria):
-
-```
-ask(Q) iff EIG(Q) ≥ ε  ∧  TaskRel·UserAns ≥ 0.7
-        ∧ slot ∉ common_ground  ∧  confidence < τ
-        ∧ open_ended_count < cap_locale
-```
-
-Continue using the configured locale for all live gate text.
-
-**Term meanings (this stage's settings, rendered from harness.yaml):**
-
-1. **EIG** — Expected information gain ≥ `ε = 0.5`. Skip Qs whose answer won't change loop-execution decisions (intensity, exit criteria, convergence predicate, feature list).
-2. **CLARITI** — Task-relevance × user-answerability ≥ 0.7. Skip Qs the user cannot answer right now.
-3. **Common-ground** — Skip dimensions already determined by CLAUDE.md / harness.yaml / prior interview answers / `--spec` file content / SPEC|RESEARCH frontmatter when present, **OR** by LLM self-inference at confidence ≥ 0.95 (kill-switch: `interview.deep_gate.common_ground.llm_inference_enabled: false` in harness.yaml).
-4. **Confidence** — Dimension's current resolution confidence must be `< τ = 0.7`. Once a dimension reaches τ it is considered actionable; the loop body can use it.
-5. **Open-ended cap** — At most `1` open-ended question(s) per turn for locale `ko`. Closed-form (multi-select / yes-no) unrestricted.
-
-<!-- F6-deferred: see inequality_gate.py; F6 wires the real mechanism.
-     Locale cap above is render-time baked — re-render to refresh after locale change. -->
-
-**Per-round display (ADR-005):**
-
-```
-✅ EIG ✅ CLARITI ❌ common-ground ✅ confidence ✅ open-ended → 4/5 met (NEEDS)
-```
-
-Render the checklist for EVERY candidate. A candidate is asked iff all 5
-terms are ✅. The "common-ground" term prevents asking the obvious; silent-
-intent-miss telemetry (ADR-008) surfaces in `/hm:health` to monitor post-hoc
-accuracy of the aggressive ADR-003 inference path.
-
-**Question generation:** LLM generates 1-3 follow-up candidates targeting
-the 5 loop dimensions (`purpose`, `invariants`, `priority`, `test_reliability`,
-`stopping_criteria`). Style cues (WRONG / METHOD / STAKEHOLDER / STYLE / PERF)
-are inputs to the generator, not gating labels. Ranking is by EIG descending.
-
-**Exit:** proceed to step 4-F (Persist context) once either:
-- All 5 dimensions reach confidence ≥ τ (the inequality naturally stops the loop), OR
-- User chose "Proceed with current ambiguity accepted" after a non-progressing round.
+**Open-ended cap** (loop interview follow-ups): at most `1` open-ended question(s) per turn for locale `ko`; closed-form (multi-select / yes-no) questions are unrestricted. Ask a follow-up only when its answer would change one of the 5 loop dimensions (`purpose`, `invariants`, `priority`, `test_reliability`, `stopping_criteria`); proceed to step 4-F once every dimension has an answer or the user chose "Proceed with current ambiguity accepted".
 
 #### 4-F. Persist context
 
@@ -432,7 +391,7 @@ worktree would explode commit count.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree create execute "$(pwd)" --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -460,7 +419,7 @@ if any one fails:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree verify <WT>
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree verify <WT>
 ```
 
 
@@ -755,7 +714,7 @@ For each iter (until convergence or any safety rail fires):
    and triggers fruitless retries.
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts set-iter-marker --iter <N> --root "<WT>"
    ```
 
 
@@ -803,7 +762,7 @@ For each iter (until convergence or any safety rail fires):
    Run the verify CLI inside `<WT>`:
 
    ```bash
-   !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts verify \
+   !cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts verify \
       --iter <N> --expected <EXPECTED_STAGES> --root "<WT>"
    ```
 
@@ -828,7 +787,7 @@ For each iter (until convergence or any safety rail fires):
       hand-edit the YAML (non-atomic rewrites corrupt the file on WSL2/NTFS):
 
       ```bash
-      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts patch-runtime \
+      !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts patch-runtime \
          --context work-docs/loop-context/<slug>.yaml \
          --counter stage_retry_counts --key "iter-<N>:<stage>" --value <count>
       ```
@@ -847,7 +806,7 @@ For each iter (until convergence or any safety rail fires):
       - **B. Skip with explicit `verdict: skipped` marker** — invoke the
         receipt CLI manually (the `--with` flag is required because
         `harness_maker` is not on the user project's default `uv` PATH):
-        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
+        `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts write --iter <N> --stage <stage> --verdict skipped --root "<WT>"`
         then ALSO append a durable audit entry so `/hm:health` can detect
         systematic skip patterns (quote the root + create parent dir; single
         `printf` write of well under 4 KiB stays atomic via POSIX `O_APPEND`):
@@ -890,7 +849,7 @@ When the loop halts (convergence, safety rail, or hard error):
    file on WSL2/NTFS):
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts patch-runtime \
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts patch-runtime \
       --context work-docs/loop-context/<slug>.yaml \
       --counter stage_retry_counts --clear
    ```
@@ -981,7 +940,7 @@ When the loop halts (convergence, safety rail, or hard error):
 
 
    ```bash
-   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree finalize <WT> <STATUS>
+   !uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree finalize <WT> <STATUS>
    ```
 
 

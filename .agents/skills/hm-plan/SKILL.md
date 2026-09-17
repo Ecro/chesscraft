@@ -1,13 +1,13 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: codex/stage_skill.md.j2
 provenance: official
 name: hm-plan
 description: harness-maker plan stage. Invoke when the task requires the plan stage
   of the harness-maker workflow.
-content_hash: e2c1f5759e2bc17373383c0da10117dcdc93a65fb50d77b348e19a9772b5b79e
+content_hash: 09d37a78c9076c06a38002bdd79d0be1e011f74258997d9bce766dd7afdd5db1
 ---
 
 > **Before you begin — outline your plan.** First check whether an autoloop is
@@ -40,7 +40,7 @@ content_hash: e2c1f5759e2bc17373383c0da10117dcdc93a65fb50d77b348e19a9772b5b79e
 > exists.** Nothing collects a stale one, so file-existence reads as "already armed" and
 > autopilot silently never turns on — the usual reason it looks dead.
 >
-> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
+> `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot status --root . --session-id "$HM_SESSION_ID"`
 >
 > Branch on **both** fields of the JSON (it always exits 0):
 > - `active: true` → armed already. Skip the picker; do not re-arm.
@@ -54,14 +54,14 @@ content_hash: e2c1f5759e2bc17373383c0da10117dcdc93a65fb50d77b348e19a9772b5b79e
 > - anything else → offer ONCE via `request_user_input`: "Run the
 >   `research → spec → plan → execute → review → verify → wrapup` pipeline on autopilot this session
 >   (stages auto-advance when no mandatory gate is pending), or stay gated?" On **yes**:
->   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
+>   `uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot on --level auto_safe --pipeline research,spec,plan,execute,review,verify,wrapup --session-id "$HM_SESSION_ID"`
 >   On **no**, proceed gated — do not re-prompt unless the user asks.
 >
 > **Persistence:** the marker lives at the **project root** (a stage inside
 > `.worktrees/<slug>/` sees it), is **one file per session** (`.hm-autopilot-<id>`, so two
 > can be armed), and expires after 18h. `session_scoped: false` = no id (Cursor, Codex,
 > hook failure) → you share `.hm-autopilot-degraded`. Commit
-> `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `false`.
+> `autonomy.autopilot_persistent: true` to auto-arm every session; the default is `true`.
 <!-- @hm:/autopilot-picker -->
 
 
@@ -108,7 +108,7 @@ Before drafting the plan, surface top-K wiki + failures entries relevant to the 
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm memory_retrieve --topic '<topic>' --k 6 --pre-k 30")
 ```
 
 
@@ -123,9 +123,9 @@ questions:
 
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<task slug or topic>' --type decision")
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<task slug or topic>' --type preference")
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<task slug or topic>' --type project")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_brain search '<task slug or topic>' --type decision")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_brain search '<task slug or topic>' --type preference")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_brain search '<task slug or topic>' --type project")
 ```
 
 
@@ -143,7 +143,7 @@ knowledge, write a typed `decision` or `preference` note through
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:plan --claude-session-id \"$HM_SESSION_ID\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-preflight <slug> \"$(pwd)\" --stage hm:plan --claude-session-id \"$HM_SESSION_ID\"")
 ```
 
 
@@ -152,7 +152,7 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> \"$(pwd)\"")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-refresh <slug> \"$(pwd)\"")
 ```
 
 
@@ -170,6 +170,28 @@ Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55
 
 If any criterion fails → **run the interview by default** (do not ask permission). When skipped, write a one-line justification under `## 🎙️ Interview Transcript` and proceed to Step 5.
 
+### Step 0.5 — Objective context (intent layer — one line and continue when unused)
+
+Skipped in loop-mode (the per-iter PLAN inherits `objective:` from the master PLAN). Otherwise read the intent state — LLM-free:
+
+
+```bash
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm world status --json")   # loads .claude/intent.yaml + .claude/world/assumptions.yaml
+```
+
+
+- `state: not_filled_in` / `invalid` → print `[intent] no objectives — skipping` and continue. That line is the whole cost for a project that does not use the layer.
+- Filled in but **no `active` and no `proposed` objective** (the first objective has not been written yet) → skip the pick and go straight to the consent question below: **"Draft an objective for this task?"**
+- Otherwise ask ONE closed question with `request_user_input`: **"Which objective does this task serve?"** — one option per `active` / `proposed` objective (id + title) plus **"none"**. Step 5 writes the answer as `objective: <id>` (omitted on "none").
+- On **"none"**, ask once, closed: **"Draft an objective for this task?"** Yes records consent only — Step 4.9 writes after the interview. No: write nothing and continue.
+- Then compare the work you are about to plan against each objective's `rejected[]` list (your judgment — read the records). For each matching objective:
+
+  ```bash
+  Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm world objective revisit <objective-id> --json")
+  ```
+
+  Show its title, condition and last value. `candidate` = the revisit condition holds — surface it as a revisit *candidate* in the design brief; `not_met` / `unevaluable` = show and continue. This check never blocks.
+
 ### Step 1 — Pre-interview internal draft (NOT shown to user)
 
 > **Loop-mode short-circuit**: if loop-mode is active for THIS session (the Step 1.5 `loop-mode-active` check exits 0), **skip this entire Step 1** and jump directly to Step 1.5 below. The internal draft is pure waste in loop-mode (the per-iter plan is master-PLAN-derived, not from scratch). Saves tokens + avoids confusing intermediate state.
@@ -186,7 +208,7 @@ This seed is what the interview refines. Investigate code unknowns with Read/Gre
 Before Step 2, check whether `/hm:plan` is running inside an active `/hm:loop` iteration. **Detection is session-scoped** (PLAN-loop-marker-session-scoping) — it keys on THIS Claude session, so a loop running in *another* session never makes your standalone `/hm:plan` skip its interview. Locate the project root (strip any `/.worktrees/<wt-name>/` suffix from cwd, or `git -C . rev-parse --show-toplevel` then walk up out of `.worktrees/`), then run:
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree loop-mode-active "<PROJECT_ROOT>" --claude-session-id "$HM_SESSION_ID"
 ```
 
 - **Exit 0 (`active`)** → loop-mode: some `.claude/.hm-loop-*` marker's content header matches YOUR `session_id` (or a legacy global `.hm-loop-active` exists — degraded fallback). Do NOT engage the deep interview (loop body cannot block on `request_user_input`). Scope the plan to the next master-PLAN phase only.
@@ -407,53 +429,9 @@ ADR template:
 **Skip gate if early exit**: If the user chose "Plan is sufficiently clear — end interview"
 in Step B this round, skip the gate below and exit the interview immediately.
 
-Otherwise, before declaring the interview complete, run the **5-Term Inequality Gate**
-(0.16.0, PLAN-deep-interview-question-criteria):
+**Open-ended cap** (every round): at most `1` open-ended question(s) per turn for locale `ko`; closed-form (multi-select / yes-no) questions are unrestricted. Ask a follow-up only when its answer would change an ADR, the phase scope, or the risk register.
 
-```
-ask(Q) iff EIG(Q) ≥ ε  ∧  TaskRel·UserAns ≥ 0.7
-        ∧ slot ∉ common_ground  ∧  confidence < τ
-        ∧ open_ended_count < cap_locale
-```
-
-Continue using the configured locale for all live gate text.
-
-**Term meanings (this stage's settings, rendered from harness.yaml):**
-
-1. **EIG** — Expected information gain ≥ `ε = 0.5`. Skip Qs whose answer won't change PLAN content (ADRs / phase scope / risk register).
-2. **CLARITI** — Task-relevance × user-answerability ≥ 0.7. Skip Qs the user cannot answer right now (e.g. depends on a downstream measurement).
-3. **Common-ground** — Skip slots already determined by CLAUDE.md / harness.yaml / prior interview answers / SPEC frontmatter (when SPEC exists) / RESEARCH frontmatter / same-slug PLAN|REVIEW history, **OR** by LLM self-inference at confidence ≥ 0.95 (kill-switch: `interview.deep_gate.common_ground.llm_inference_enabled: false` in harness.yaml).
-4. **Confidence** — Slot's current resolution confidence must be `< τ = 0.7`. Architectural decisions reach the ADR threshold once confidence ≥ τ.
-5. **Open-ended cap** — At most `1` open-ended question(s) per turn for locale `ko`. Closed-form (multi-select / yes-no) unrestricted.
-
-<!-- F6-deferred: see inequality_gate.py; F6 wires the real mechanism.
-     Locale cap above is render-time baked — re-render to refresh after locale change. -->
-
-**Per-round display (ADR-005):**
-
-```
-✅ EIG ✅ CLARITI ❌ common-ground ✅ confidence ✅ open-ended → 4/5 met (NEEDS)
-```
-
-Render the checklist for EVERY candidate question. A candidate is asked iff
-all 5 terms are ✅. The "common-ground" term is the primary defense against
-asking obvious questions; silent-intent-miss telemetry (ADR-008) monitors
-its post-hoc accuracy and surfaces in `/hm:health`.
-
-**Question generation:** LLM generates 1-3 follow-up candidates targeting the
-PLAN's remaining ambiguity (architecture / contract / risk / phasing).
-WRONG / METHOD / STAKEHOLDER / STYLE / PERF style cues are inputs to the
-generator, not gating labels (post-hoc classification covers coverage drift
-per ADR-010 — see Phase 7 coverage_classifier). Ranking is by EIG descending.
-
-**Gate exit:** proceed to the standard exit conditions below once either:
-- All PLAN slots reach confidence ≥ τ (the inequality naturally stops the loop), OR
-- User chose "Plan is sufficiently clear — end interview", OR
-- User chose "Proceed with current ambiguity accepted" after a non-progressing round.
-
----
-
-After the gate PASSes (or user accepts ambiguity), continue to next round UNLESS:
+After each round, continue to the next round UNLESS:
 - User chose "Plan is sufficiently clear — end interview", OR
 - Zero high/medium-impact ambiguities remain in the internal draft.
 
@@ -476,12 +454,17 @@ findings and echoes the main-loop-supplied per-model status — it never runs an
   PLAN's blast radius first — note `HEAD` (staged work) and `--numstat` for the added-line count
   that drives the `boundary` signal:
   ```bash
-  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm high_diff classify --added-lines "$added"
+  files=$(git diff --name-only HEAD); added=$(git diff --numstat HEAD | cut -f1 | { s=0; while read -r n; do case "$n" in ""|*[!0-9]*) ;; *) s=$((s+n));; esac; done; echo "$s"; }); printf '%s\n' "$files" | uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm high_diff classify --added-lines "$added"
   ```
   Run each model when `is_high` (or `boundary` and your judgment says high). Otherwise skip all —
   inject empty findings and a `skipped` entry per model in `second_opinion_results`.
 
 
+
+> **⏱️ Do NOT background the invoker at this stage.** `/hm:plan` must *inject* the adapted findings
+> into the plan validator's prompt **before** dispatching it, so a backgrounded call would have> nothing to inject and the validator would silently become Claude-only. Run it in the foreground
+> and wait. The review stage backgrounds precisely because nothing there consumes the result until
+> the Step 4 filter; here the next step is the consumer.
 
 #### Second opinion — model: `codex`
 
@@ -507,7 +490,7 @@ Finally run the invoker as its **own** Bash call. It owns argv construction, bas
 config resolution, prompt delivery, status classification, adaptation, and the ledger row:
 
 ```bash
-uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
+uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_opinion_invoke --model codex --prompt-file <the literal path printed above> --slug "<slug>" --stage plan
 ```
 
 > **Why this is not a raw `codex exec` line any more.** It was, and that shape produced four
@@ -578,7 +561,7 @@ Resolution:
   `{overall, critiques}` object is accepted), then:
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm plan_rounds plan --file <the literal temp path> <--previous PASS-1's path, from pass 2 on> <--churn-ratio R when Step 4.4 measured it>")
 ```
 
   Run one follow-up round for each entry in `rounds` — options A. revise plan / B. accept as
@@ -602,8 +585,8 @@ is safe and costs only the stale rule: **an unmeasured ratio runs every round**,
 behaviour that shipped before this step existed.
 
 ```bash
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm review_churn pin --slug {slug} --label plan-p<N>-pre")
-Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm review_churn pin --slug {slug} --label plan-p<N>-pre")
+Bash("cd <WT> && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm review_churn pin --slug {slug} --label plan-p<N>-post && uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm review_churn measure --pre refs/hm-churn/v1/{slug}-plan-p<N>-pre --post refs/hm-churn/v1/{slug}-plan-p<N>-post")
 ```
 
 Use the ratio for `work-docs/PLAN-{slug}.md` from `measured`, not the aggregate — the aggregate
@@ -647,7 +630,7 @@ twice-validated one indistinguishable to every later reader.
 **Also record WHY the loop ended**, which the two-pass cap alone cannot say:
 
 ```bash
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm plan_rounds outcome --file <pass 2's critiques> --previous <pass 1's critiques>")
 ```
 
 `no-progress` means pass 2 resolved nothing and found nothing new — the revision step is not
@@ -676,7 +659,7 @@ pass of one PLAN — that shared id is what makes the pass-to-pass comparison po
 
 
 ```
-Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm stage_agent_ledger emit --run-id '<run-id>' --agent plan-validator --stage plan --slug '{slug}' --pass <N> --verdict '<APPROVED|NEEDS_REVISION|MAJOR_REVISION>' --terminal --duration-ms '<elapsed>' --barrier-index '<segment>'")
 ```
 
 
@@ -713,6 +696,24 @@ Each follow-up interview answer is appended to `## 🎙️ Interview Transcript`
 
 > **Cross-model second-opinion relay (main loop owns the call — ADR-005/011).** The Step 4 (pre) main-loop step already ran (or skipped) each enabled model and injected the results into the validator; the agent only reconciles them. After reading the validator's returned JSON and **before** resolving the verdict, inspect its `second_opinion_results` array (each entry echoes the main-loop per-model status). For every entry whose `status` is `"skipped"` or `"failed"`, the model's call could not complete — surface the reason you recorded in Step 4 (pre) to the user in your turn output (one line per model, e.g. `⚠️ Second opinion skipped (antigravity): <reason> — verdict is Claude-only for that model`). This is a loud notice, **not** a block: resolve the verdict regardless, since it is Claude-derived and valid without any second-opinion model.
 
+### Step 4.9 — Objective draft (consented at Step 0.5)
+
+Only when Step 0.5 recorded consent. Derive from the interview + RESEARCH: `<ID>` = `OBJ-` +
+the task slug upper-cased, `--title`, `--hypothesis`, one `--scope` per in-scope item,
+`--outcome` = the outcome the interview named (none fits → say so and skip). Show the
+arguments, run once:
+
+
+```bash
+Bash("uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm world objective new <ID> --title '<title>' --hypothesis '<hypothesis>' --scope '<item>' --outcome <outcome-id> --from-proposal --candidates 1")
+```
+
+
+Carry `<ID>` into Step 5's `objective:`. If the verb refuses (id exists, unknown outcome):
+print the refusal and continue with no link — never retry with a mutated id. The record is
+`proposed`: the gate halts with `not_active` until a human runs `approve` + `activate`; an
+orphan is retired with `objective drop`.
+
 ### Step 5 — Write PLAN document
 
 Write to `<WT>/work-docs/PLAN-{slug}.md` with the structure below.
@@ -732,6 +733,7 @@ interview_rounds: {N}
 adrs: {M}
 validator_outcome: APPROVED | NEEDS_REVISION_RESOLVED | MAJOR_REVISION_RESOLVED | MAJOR_REVISION_TERMINAL
 summary: "{≤100 char one-line TL;DR}"
+objective: <id>  # ONLY when Step 0.5 picked one or Step 4.9 drafted one — the sole task↔objective link the autopilot gate reads; omit on "none"
 
 ---
 ```
@@ -786,7 +788,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 
 ```
-Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write --iter \"$ITER\" --stage plan --verdict <verdict> --root \"<WT>\"; fi; fi")
+Bash("if [ -f \"<WT>/.claude/.hm-iter-receipts/.current-iter\" ]; then ITER=$(cat \"<WT>/.claude/.hm-iter-receipts/.current-iter\" 2>/dev/null); if [ -n \"$ITER\" ]; then uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts write --iter \"$ITER\" --stage plan --verdict <verdict> --root \"<WT>\"; fi; fi")
 ```
 
 

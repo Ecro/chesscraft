@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/uninstall.md.j2
 provenance: official
 description: Remove harness-maker's generated files from this project.
-content_hash: 550eeb9cf747b99c745b1e1df631bbcfddd5e23a1de9779a966cd12484db3720
+content_hash: e702c896eafb6e17234cf0b12b0eaa5821e0ad2e49ef9992c4539aebde9b0fe8
 ---
 # /hm:uninstall
 
@@ -36,7 +36,7 @@ If **Cancel**, stop.
 ### 2. Preview (dry-run)
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm cli remove "$(pwd)" --dry-run
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm cli remove "$(pwd)" --dry-run
 ```
 
 Show the user the file list.
@@ -47,10 +47,10 @@ Based on option selected:
 
 ```bash
 # Keep harness.yaml
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm cli remove "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm cli remove "$(pwd)"
 
 # Remove everything
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm cli remove "$(pwd)" --remove-yaml
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm cli remove "$(pwd)" --remove-yaml
 ```
 
 ### 4. Post-removal

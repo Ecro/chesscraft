@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: harness-yaml/Side.yaml.j2
 provenance: official
-content_hash: ccd19b8e373646c488777be6371251025417e2348c158c43521ac6d2c4c86456
+content_hash: 9bc25be8a388635dbb9787615d735f5b9b9bbd34edf3163edf84c7c4ba399640
 ---
 preset: Side
 locale: ko
@@ -94,6 +94,7 @@ reviewers:
     - consensus-arbiter
     - executor
     - autoloop-coder
+    - test-reviewer
   enabled:
     - code-reviewer
 
@@ -109,6 +110,7 @@ skills:
     - context-linter
     - refdocs-search
     - second-opinion-gate
+    - intent-layer
     - targeted-test-selection
   enabled:
     - verify-before-completion

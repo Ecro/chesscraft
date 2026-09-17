@@ -1,11 +1,11 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: commands/hm/help.ko.md.j2
 provenance: official
 description: 'List the /hm: commands and what each one is for.'
-content_hash: cbac1f1aa552d354f7ab97dd7d168403698bf6dffc4e4532be3083bbd342900c
+content_hash: cbda9e852adab9f2a34db5533131edcd4a307140f334adbaeba3f9616381441c
 ---
 # /hm:help — harness-maker (ko)
 
@@ -53,6 +53,7 @@ stage 연결은 `/hm:loop` 또는 autopilot 이 담당합니다 — 융합 워�
 | locale | `ko` |
 | targets | `claude-code, codex` |
 | autopilot | `auto_safe`, 매 세션 자동 재무장 |
+| intent-layer | skill — 관찰한 것을 말하거나, objective 를 close / approve / drop 하거나, outcome 값을 기록하거나, 어디까지 왔는지 물을 때 |
 
 > **Codex CLI:** `@hm-*` 형식으로 호출 (예: `@hm-help`, `@hm-execute`). Skill 은 `.agents/skills/` 경로.
 

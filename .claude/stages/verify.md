@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/verify.md.j2
 provenance: official
-content_hash: 91dda0cccc1282381948b3715fbb8b943f3b648c4eb64c479bcd65a026885dac
+content_hash: bc2907bb1f58a884f0ef41ed4b4f709b4ea7394b4671e343d60576956444d626
 ---
 # Stage: verify
 
@@ -39,27 +39,31 @@ Block silent regressions and partial completions. Run a rigid 5-check rubric tha
 ## Inputs
 
 - Current working tree state (staged + unstaged).
-- `work-docs/PLAN-{slug}.md` and `specs/SPEC-{slug}.md` (when present) — drive Check 1.
+- `work-docs/REVIEW-{slug}.md` frontmatter — drives Check 1 (drift verdict).
+- `work-docs/PLAN-{slug}.md` and `specs/SPEC-{slug}.md` (when present) — inform the `--force` rationale.
 - Most recent Health snapshot at `.claude/observability/dashboard.md` (2-section schema: `Structural` / `Personalization`; pre-0.13.0 single-`Health:` scalar is intentionally unreadable here). ADR-0007 removed the former `External risks` section in 0.22.3.
 - Most recent security findings at `.claude/observability/security/findings-*.jsonl`.
 
 ## The 5 Checks (run in order; STOP on first FAIL unless `--force`)
 
-### Check 1 — PLAN/SPEC satisfaction + drift verdict
+### Check 1 — Drift verdict (REVIEW present)
 
-**1a. Drift verdict existence** (ADR-006): Read `work-docs/REVIEW-{slug}.md` frontmatter.
-- `drift_verdict` present AND `task_slug` matches current PLAN → proceed to 1b.
+**Drift verdict existence** (ADR-006): Read `work-docs/REVIEW-{slug}.md` frontmatter.
+- `drift_verdict` present AND `task_slug` matches current PLAN → **PASS**.
 - `drift_verdict` absent OR `task_slug` mismatch → **FAIL**: `BLOCKED: check 1 (drift) — run /hm:review first`.
 
-**1b. PLAN/SPEC coverage**: Every SPEC In-Scope Scenario in `specs/SPEC-{slug}.md` (when SPEC exists) is covered by a passing test in the work unit's diff, OR has an explicit waiver recorded in the PLAN's `## ❓ Open Questions` resolution.
-
-```bash
-# When SPEC exists:
-- For each S1, S2, ... in SPEC: confirm a test function `test_s<N>_*` exists and passes.
-- For each PLAN phase exit-criterion: confirm the criterion command runs GREEN.
-```
-
-FAIL when: any scenario lacks coverage AND lacks waiver.
+This check is mechanical on purpose. The LLM PLAN/SPEC coverage judgement that used to sit here
+as "1b" is gone (PLAN-workflow-steps-vs-model-capability ADR-003). Per-scenario coverage is
+enforced where the tests are written: `/hm:execute` Phase A authors one test per SPEC scenario
+and Phase A.5's coverage lens blocks implementation on any `scenarios_missing` (A.5 is a
+TUNE-class gate graded `**` — Side-preset evidence only, no ground-truth arm; see the
+step-sensitivity registry); `/hm:wrapup` Step 3.5 writes the covering test ids back into the machine SPEC
+(`pending_test`). Test-expressed PLAN exit criteria are re-run by Check 2 below; a script or
+manual-checklist exit criterion has **no** automated re-check at this stage.
+**`--no-tdd` path:** `/hm:execute --no-tdd` skips Phase A/A.5, and this stage does not
+re-derive scenario coverage. Task-driven mode has no machine
+SPEC to scan, so on that path an uncovered scenario reaches wrapup unflagged — the accepted
+cost of `--no-tdd` without a SPEC contract.
 
 ### Check 2 — Regression smoke
 
@@ -71,7 +75,7 @@ verification script changes.
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm observability.verification_cache check --root . --mode relevant
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm observability.verification_cache check --root . --mode relevant
 ```
 
 
@@ -84,7 +88,7 @@ NARROWER than CI passes locally and fails on push, saying nothing about what it 
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm verification_plan commands --root .
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm verification_plan commands --root .
 ```
 
 
@@ -104,7 +108,7 @@ After every selected suite command passes, write the marker:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm observability.verification_cache mark-pass --root . --mode relevant --checks lint,format,mypy,pytest
 ```
 
 
@@ -114,7 +118,7 @@ Read the prior `structural` score from `.claude/observability/dashboard.md` — 
 
 Recompute current structural score (or invoke `/hm:health` Step 1 if a fresh score is needed). Compare ONLY structural values.
 
-**No-baseline PASS rule (ADR-004):** when `dashboard.md` is absent OR exists but does NOT begin with `---\ngenerated_by: harness-maker\n` (pre-0.13.0 single-`Health:` scalar schema) OR is missing the `## Structural` section / `score:` line, emit a **PASS** for this check with a `reason` string `"no-baseline: <cause>"` (e.g. `"no-baseline: dashboard.md missing"`, `"no-baseline: pre-0.13.0 schema"`). Record both `prior: null` and `current: <value-or-null>` in the JSONL.
+**No-baseline PASS rule (ADR-004):** when `dashboard.md` is absent OR exists but does NOT begin with `---\ngenerated_by: harness-maker\n` (pre-0.13.0 single-`Health:` scalar schema) OR is missing the `## Structural` section / `score:` line, emit a **PASS** for this check with a `reason` string `"no-baseline: <cause>"` (e.g. `"no-baseline: dashboard.md missing"`, `"no-baseline: pre-0.13.0 schema"`). Report both `prior` (null) and `current` (value or null) in the text summary.
 
 FAIL when: a parseable prior baseline exists AND `current_structural - prior_structural < -5` (structural score dropped more than 5 points). Mid-work-unit dips are normal; a 5+ point drop signals quality regression.
 
@@ -175,7 +179,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts write \
        --iter "$ITER" --stage verify --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -184,15 +188,13 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 
 ## Output
 
-Write **both** formats:
-
 ### Text (stdout, for humans)
 
 
 ```
 === /hm:verify ===
 
-[1/5] PLAN/SPEC satisfaction       ✅ PASS
+[1/5] Drift verdict (REVIEW present) ✅ PASS
 [2/5] Regression smoke             ✅ PASS
 [3/5] Structural delta             ✅ PASS  (structural 87 → 89, +2)
 [4/5] Security high findings       ❌ FAIL
@@ -203,36 +205,9 @@ Write **both** formats:
 [5/5] (skipped — stopped at first FAIL)
 
 RESULT: FAIL — 1 of 5 checks failed.
-Override: --force --reason="<text>"  (logs to verify-<date>.jsonl with the reason)
+Override: --force --reason="<text>"
 ```
 
-
-### JSON (`.claude/observability/verify-<YYYY-MM-DD>.jsonl`, append one record)
-
-
-```json
-{
-  "timestamp": "2026-05-17T14:23:01Z",
-  "stage": "verify",
-  "result": "FAIL",
-  "checks": [
-    {"id": 1, "name": "plan_spec_satisfaction", "result": "PASS"},
-    {"id": 2, "name": "regression_smoke", "result": "PASS"},
-    {"id": 3, "name": "structural_delta", "result": "PASS", "delta": 2, "prior": 87, "current": 89, "reason": null},
-    {"id": 4, "name": "security_high", "result": "FAIL", "blocking_items": 1, "items": ["CVE-2026-12345"], "reason": null},
-    {"id": 5, "name": "worktree_merge", "result": "SKIPPED"}
-  ],
-  "force_override": false,
-  "override_reason": null
-}
-```
-
-
-For no-baseline PASS, the corresponding check record carries `"result": "PASS"` and a populated `"reason"` string (e.g. `"no-baseline: dashboard.md missing"` / `"no-baseline: pre-0.13.0 schema"`); `prior` / `current` may be `null`. Verify never emits `result: "PASS"` for Check 3 silently — a populated `reason` is mandatory whenever the baseline was missing or unparseable.
-
-> **Personalization field is informational only.** The JSONL record never contains a `personalization` check entry. Verify reads structural only; the `## Personalization` section of dashboard.md is for `/hm:health` reporting and is ignored by this stage. ADR-002 (amended by ADR-007).
-
-When `--force` is set, append the same record with `"force_override": true, "override_reason": "<text>"`.
 
 ## Procedure
 
@@ -242,7 +217,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:verify --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -251,7 +226,7 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -260,24 +235,22 @@ When `--force` is set, append the same record with `"force_override": true, "ove
 
 
 1. Read inputs (PLAN, SPEC, dashboard, security findings).
-2. Run Check 1. If PASS, continue. If FAIL: emit text + JSON record + STOP (unless `--force`).
+2. Run Check 1. If PASS, continue. If FAIL: emit the text summary + STOP (unless `--force`).
 3. Repeat for Checks 2-5.
-4. Emit final RESULT line + JSON record.
-5. When `--force` is set with FAILing checks: emit text + JSON record with override flag + reason, then return PASS exit code (let the workflow proceed). Wrapup will surface the override in the commit body footer.
+4. Emit the final RESULT line (text summary only — there is no JSONL ledger, see Outputs).
+5. When `--force` is set with FAILing checks: emit the text summary with the override flag + reason, then return PASS exit code (let the workflow proceed). Wrapup will surface the override in the commit body footer.
 6. **Stage terminal**: Emit the RESULT line and **STOP**. Do not proceed to `/hm:wrapup` or any other stage without an explicit user command — unless this stage was dispatched by `/hm:loop`, which owns the transition to the next stage. Exception: an auto-advance check below returning `proceed: true` supersedes this.
 
 ## Outputs
 
-- Text summary on stdout (human-facing).
-- One JSON record appended to `.claude/observability/verify-<YYYY-MM-DD>.jsonl`.
+- Text summary on stdout (human-facing). No JSONL ledger from this stage: the former `verify-<date>.jsonl` record was hand-written prose nothing read (stage entry/exit is already in `stage-spans.jsonl` and `auto-advance.jsonl`); the CI-facing `verify` command in `cli.py` (`_write_verify_jsonl`) still appends its own machine record to that file family.
 - Exit code: `0` for PASS or `--force` override; non-zero for FAIL without override.
 
 ## Quality Bar
 
 - The gate is **non-negotiable**; bypassing requires `--force --reason=<text>`.
 - A failed check produces actionable evidence (which scenario / which test / which finding) — not just a red line.
-- The JSON record is parseable by the autoloop driver to make stop/continue decisions without re-parsing stdout.
-- `--force` is recorded in the JSONL with the reason — auditable later.
+- `--force` is recorded in the RESULT line with the reason, and `/hm:wrapup` surfaces it in the commit body footer — auditable later.
 - No check produces false PASS by missing inputs (e.g., a missing `findings-*.jsonl` is a soft skip, not a silent PASS).
 
 
@@ -297,7 +270,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot_caps gate-blocked --root . --stage verify --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -308,7 +281,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot_caps boundary --root . --current verify --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/

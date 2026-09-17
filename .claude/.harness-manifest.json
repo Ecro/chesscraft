@@ -1,6 +1,6 @@
 {
   "generated_by": "harness-maker",
-  "version": "0.55.0",
+  "version": "0.57.1",
   "files": [
     ".agents/skills/agent-quality-rubric/SKILL.md",
     ".agents/skills/ai-readiness-rubric/SKILL.md",
@@ -17,6 +17,7 @@
     ".agents/skills/hm-spec/SKILL.md",
     ".agents/skills/hm-verify/SKILL.md",
     ".agents/skills/hm-wrapup/SKILL.md",
+    ".agents/skills/intent-layer/SKILL.md",
     ".agents/skills/refdocs-search/SKILL.md",
     ".agents/skills/second-opinion-gate/SKILL.md",
     ".agents/skills/security-scanner/SKILL.md",
@@ -69,6 +70,7 @@
     ".claude/skills/autoloop-driver/SKILL.md",
     ".claude/skills/conditional-router/SKILL.md",
     ".claude/skills/context-linter/SKILL.md",
+    ".claude/skills/intent-layer/SKILL.md",
     ".claude/skills/refdocs-search/SKILL.md",
     ".claude/skills/second-opinion-gate/SKILL.md",
     ".claude/skills/security-scanner/SKILL.md",

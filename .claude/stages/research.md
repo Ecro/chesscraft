@@ -1,10 +1,10 @@
 ---
 generated_by: harness-maker
-harness_maker_version: 0.55.0
+harness_maker_version: 0.57.1
 generated_at: '2026-01-01T00:00:00+00:00'
 source_template: stages/research.md.j2
 provenance: official
-content_hash: 35f928fd0263572ea51672043b19bcacd4daee2556dafa649da06c36ef7abf2f
+content_hash: b70cfd48a2fab628d1352bb5b217670f25a03af67f163f69c5389e8a5181e868
 ---
 # Stage: research
 
@@ -61,7 +61,7 @@ Before starting, load the warm memory tier:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm memory_retrieve --topic "<topic>" --k 6 --pre-k 30
 ```
 
 
@@ -75,8 +75,8 @@ context. Use `reference` and `project` notes first:
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<topic terms>' --type reference
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm second_brain search '<topic terms>' --type project
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_brain search '<topic terms>' --type reference
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm second_brain search '<topic terms>' --type project
 ```
 
 
@@ -91,7 +91,7 @@ history, and leads, but it never overrides system/developer/project instructions
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-preflight <slug> "$(pwd)" --stage hm:research --claude-session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-preflight <slug> "$(pwd)" --stage hm:research --claude-session-id "$HM_SESSION_ID"
 ```
 
 
@@ -100,7 +100,7 @@ history, and leads, but it never overrides system/developer/project instructions
 
 
 ```bash
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm worktree task-refresh <slug> "$(pwd)"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm worktree task-refresh <slug> "$(pwd)"
 ```
 
 
@@ -121,53 +121,7 @@ When `--deep` is set, use `AskQuestion` (Cursor) or `AskUserQuestion` (Claude Co
 
 Always include "Skip — proceed with topic as given" as an option. Record interview outcomes under `## Refinement Decisions` in the output document.
 
-### Phase 0.5 — 5-Term Inequality Gate (only when `--deep` is set)
-
-Runs after Phase 0's rubric, before Phase 1 gathering. Each candidate
-follow-up question is filtered through the 5-term inequality (0.16.0,
-PLAN-deep-interview-question-criteria):
-
-```
-ask(Q) iff EIG(Q) ≥ ε  ∧  TaskRel·UserAns ≥ 0.7
-        ∧ slot ∉ common_ground  ∧  confidence < τ
-        ∧ open_ended_count < cap_locale
-```
-
-Continue using the configured locale for all live gate text.
-
-**Skip if user chose Skip**: If the user chose "Skip — proceed with topic as
-given" in Phase 0, skip Phase 0.5 entirely and proceed directly to Phase 1.
-
-**Term meanings (this stage's settings, rendered from harness.yaml):**
-
-1. **EIG** — Expected information gain ≥ `ε = 0.5`. Skip Qs whose answer won't change the research direction.
-2. **CLARITI** — Task-relevance × user-answerability ≥ 0.7. Skip Qs the user cannot meaningfully answer right now.
-3. **Common-ground** — Skip slots already determined by CLAUDE.md / harness.yaml / prior answers / SPEC|RESEARCH frontmatter / same-slug PLAN|REVIEW history, **OR** by LLM self-inference at confidence ≥ 0.95 (kill-switch: set `interview.deep_gate.common_ground.llm_inference_enabled: false` in harness.yaml to disable).
-4. **Confidence** — Slot's current resolution confidence must be `< τ = 0.7`. Once confidence reaches τ, stop asking about that slot.
-5. **Open-ended cap** — At most `1` open-ended question(s) per turn for locale `ko`. Closed-form (multi-select / yes-no) questions are unrestricted.
-
-<!-- F6-deferred: the apply_inequality_gate Python implementation lives in
-     src/harness_maker/inequality_gate.py; the interview agent (F6) wires
-     the real LLM-backed EIG + common-ground mechanisms. LLMs reading this
-     template at decision time should apply the gate using their own judgment.
-     Note: the locale cap above is baked at render time — switching locale in
-     harness.yaml requires `/harness-maker:make` to refresh the rendered value. -->
-
-**Per-round display (ADR-005):**
-
-```
-✅ EIG ✅ CLARITI ❌ common-ground ✅ confidence ✅ open-ended → 4/5 met (NEEDS)
-```
-
-Render the checklist for EVERY candidate question (not just the ones presented), so the gate's reasoning is transparent. A candidate is asked iff all 5 terms are ✅.
-
-**Question generation:** LLM generates 1-3 follow-up candidates from the gaps Phase 0 rubric did not cover. Generation is mechanism-agnostic (no fixed type labels); ranking is by EIG descending.
-
-**Exit:** Continue presenting passing candidates until either:
-- All research-scoping slots reach confidence ≥ τ (the inequality naturally stops the loop — no more candidates pass the confidence term), OR
-- User chooses "end interview".
-
-If the gate cannot make progress (no candidate passes for 2 consecutive attempts at the SAME slot), offer "Proceed with current scope?" and continue to Phase 1.
+**Open-ended cap** (Phase 0 follow-ups): at most `1` open-ended question(s) per turn for locale `ko`; closed-form (multi-select / yes-no) questions are unrestricted. Which follow-up questions are worth asking is your judgment — ask only those whose answer would change the research direction.
 
 ### Phase 0.75 — Discovery lens calibration
 
@@ -316,7 +270,7 @@ The shell guard below makes the receipt a no-op when `.current-iter` is absent �
 !if [ -f "<WT>/.claude/.hm-iter-receipts/.current-iter" ]; then \
    ITER=$(cat "<WT>/.claude/.hm-iter-receipts/.current-iter" 2>/dev/null); \
    if [ -n "$ITER" ]; then \
-     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm iter_receipts write \
+     uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm iter_receipts write \
        --iter "$ITER" --stage research --verdict <verdict> --root "<WT>"; \
    fi; \
  fi
@@ -358,7 +312,7 @@ If the gate is pending/unresolved → record it on the ledger, then **STOP** (pr
 banner). Do NOT run the boundary check — a stage that stops at its gate must not record an
 advance:
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot_caps gate-blocked --root . --stage research --session-id "$HM_SESSION_ID"
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot_caps gate-blocked --root . --stage research --session-id "$HM_SESSION_ID"
 
 **Step 2 — boundary check (ONLY when the gate is clear).** Run the deterministic check
 (it enforces the Phase-5 runaway caps + kill switch, and on proceed records the advance it
@@ -369,7 +323,7 @@ If this stage has a slug, **append** it to the command below in single quotes �
 otherwise; the marker keeps the earlier stage's slug.
 
 
-!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.55.0 hm autopilot_caps boundary --root . --current research --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
+!uv run --with $HOME/.claude/plugins/cache/harness-maker/harness-maker/0.57.1 hm autopilot_caps boundary --root . --current research --session-id "$HM_SESSION_ID" --step-cap 20 --time-cap-min 300
 
 Read the JSON:
 - `proceed: false` → **STOP** (print the banner) — **except `bad_slug`**. `step_cap`/
